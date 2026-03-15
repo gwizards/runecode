@@ -1,10 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { X, Plus, MessageSquare, Bot, AlertCircle, Loader2, Folder, BarChart, Server, Settings, FileText } from 'lucide-react';
+import { X, Plus, MessageSquare, Bot, AlertCircle, Loader2, Folder, BarChart, Server, Settings, FileText, ChevronDown } from 'lucide-react';
 import { useTabState } from '@/hooks/useTabState';
 import { Tab, useTabContext } from '@/contexts/TabContext';
 import { cn } from '@/lib/utils';
 import { useTrackEvent } from '@/hooks';
+import { useAgentStore } from '@/stores/agentStore';
+import { AgentStatusBadge } from './AgentStatusBadge';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from './ui/dropdown-menu';
+
+type AgentStatus = 'running' | 'thinking' | 'completed' | 'failed';
+
+const agentStatusDotClass = (status: AgentStatus) => {
+  switch (status) {
+    case 'running':
+      return 'bg-green-500 animate-pulse';
+    case 'thinking':
+      return 'bg-blue-500';
+    case 'completed':
+      return 'bg-gray-400';
+    case 'failed':
+      return 'bg-red-500';
+  }
+};
 
 interface TabItemProps {
   tab: Tab;
@@ -13,9 +36,10 @@ interface TabItemProps {
   onClick: (id: string) => void;
   isDragging?: boolean;
   setDraggedTabId?: (id: string | null) => void;
+  agentStatus?: AgentStatus;
 }
 
-const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDragging = false, setDraggedTabId }) => {
+const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDragging = false, setDraggedTabId, agentStatus }) => {
   const [isHovered, setIsHovered] = useState(false);
   
   const getIcon = () => {
@@ -73,6 +97,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
           ? "bg-card text-card-foreground before:bg-primary"
           : "bg-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground before:bg-transparent",
         isDragging && "bg-card border-primary/50 shadow-sm z-50",
+        agentStatus === 'completed' && "opacity-60",
         "min-w-[120px] max-w-[220px] h-8 px-3"
       )}
       onMouseEnter={() => setIsHovered(true)}
@@ -81,6 +106,11 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
       onDragStart={() => setDraggedTabId?.(tab.id)}
       onDragEnd={() => setDraggedTabId?.(null)}
     >
+      {/* Agent Status Dot */}
+      {agentStatus && (
+        <span className={cn('w-2 h-2 rounded-full flex-shrink-0', agentStatusDotClass(agentStatus))} />
+      )}
+
       {/* Tab Icon */}
       <div className="flex-shrink-0">
         <Icon className="w-4 h-4" />
@@ -151,9 +181,40 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const [showLeftScroll, setShowLeftScroll] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(false);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
-  
+
+  // Live agent tracking
+  const liveAgents = useAgentStore((state) => state.liveAgents);
+  const removeLiveAgent = useAgentStore((state) => state.removeLiveAgent);
+
   // Analytics tracking
   const trackEvent = useTrackEvent();
+
+  // Compute agent status for each tab
+  const getAgentStatusForTab = (tab: Tab): AgentStatus | undefined => {
+    if (tab.type !== 'agent-execution') return undefined;
+    // Find live agent associated with this tab
+    for (const agent of liveAgents.values()) {
+      if (agent.tabId === tab.id) return agent.status;
+    }
+    return undefined;
+  };
+
+  // Split agent-execution tabs: show first 6, overflow the rest
+  const MAX_AGENT_TABS = 6;
+  const { visibleTabs, overflowAgentTabs } = useMemo(() => {
+    const nonAgentTabs: Tab[] = [];
+    const agentTabs: Tab[] = [];
+    for (const tab of tabs) {
+      if (tab.type === 'agent-execution') {
+        agentTabs.push(tab);
+      } else {
+        nonAgentTabs.push(tab);
+      }
+    }
+    const visible = [...nonAgentTabs, ...agentTabs.slice(0, MAX_AGENT_TABS)];
+    const overflow = agentTabs.slice(MAX_AGENT_TABS);
+    return { visibleTabs: visible, overflowAgentTabs: overflow };
+  }, [tabs]);
 
   // Listen for tab switch events
   useEffect(() => {
@@ -272,6 +333,17 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
 
   const handleCloseTab = async (id: string) => {
     const tab = tabs.find(t => t.id === id);
+    if (tab && tab.type === 'agent-execution') {
+      // Check if agent is running
+      for (const agent of liveAgents.values()) {
+        if (agent.tabId === id && (agent.status === 'running' || agent.status === 'thinking')) {
+          const confirmed = window.confirm('Agent is still running. Stop it?');
+          if (!confirmed) return;
+          removeLiveAgent(agent.id);
+          break;
+        }
+      }
+    }
     if (tab) {
       trackEvent.tabClosed(tab.type);
     }
@@ -343,7 +415,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
             className="flex items-stretch"
             layoutScroll={false}
           >
-            {tabs.map((tab) => (
+            {visibleTabs.map((tab) => (
               <TabItem
                 key={tab.id}
                 tab={tab}
@@ -352,9 +424,46 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
                 onClick={switchToTab}
                 isDragging={draggedTabId === tab.id}
                 setDraggedTabId={setDraggedTabId}
+                agentStatus={getAgentStatusForTab(tab)}
               />
             ))}
           </Reorder.Group>
+
+          {/* Overflow dropdown for agent tabs beyond limit */}
+          {overflowAgentTabs.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    'flex items-center gap-1 px-2 h-8 text-xs font-medium flex-shrink-0',
+                    'text-muted-foreground hover:text-foreground transition-colors',
+                    'hover:bg-muted/40'
+                  )}
+                >
+                  <span>+{overflowAgentTabs.length}</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {overflowAgentTabs.map((tab) => {
+                  const status = getAgentStatusForTab(tab);
+                  return (
+                    <DropdownMenuItem
+                      key={tab.id}
+                      onClick={() => switchToTab(tab.id)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      {status && (
+                        <span className={cn('w-2 h-2 rounded-full flex-shrink-0', agentStatusDotClass(status))} />
+                      )}
+                      <Bot className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{tab.title}</span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           
           {/* New tab button - positioned right after tabs */}
           <motion.button
@@ -402,6 +511,16 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* Agent status badge */}
+      <AgentStatusBadge
+        onAgentClick={(agentId) => {
+          const agent = liveAgents.get(agentId);
+          if (agent?.tabId) {
+            switchToTab(agent.tabId);
+          }
+        }}
+      />
 
     </div>
   );

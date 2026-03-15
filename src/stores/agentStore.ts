@@ -4,18 +4,31 @@ import type { StateCreator } from 'zustand';
 import { api } from '@/lib/api';
 import type { AgentRunWithMetrics } from '@/lib/api';
 
+export interface LiveAgent {
+  id: string;
+  name: string;
+  status: 'running' | 'thinking' | 'completed' | 'failed';
+  startedAt: number;
+  elapsedMs: number;
+  tokenCount: number;
+  tabId?: string;
+}
+
 interface AgentState {
   // Agent runs data
   agentRuns: AgentRunWithMetrics[];
   runningAgents: Set<string>;
   sessionOutputs: Record<string, string>;
-  
+
+  // Live agent tracking
+  liveAgents: Map<string, LiveAgent>;
+
   // UI state
   isLoadingRuns: boolean;
   isLoadingOutput: boolean;
   error: string | null;
   lastFetchTime: number;
-  
+
   // Actions
   fetchAgentRuns: (forceRefresh?: boolean) => Promise<void>;
   fetchSessionOutput: (runId: number) => Promise<void>;
@@ -23,10 +36,15 @@ interface AgentState {
   cancelAgentRun: (runId: number) => Promise<void>;
   deleteAgentRun: (runId: number) => Promise<void>;
   clearError: () => void;
-  
+
+  // Live agent actions
+  addLiveAgent: (agent: LiveAgent) => void;
+  updateLiveAgent: (id: string, updates: Partial<LiveAgent>) => void;
+  removeLiveAgent: (id: string) => void;
+
   // Real-time updates
   handleAgentRunUpdate: (run: AgentRunWithMetrics) => void;
-  
+
   // Polling management
   startPolling: (interval?: number) => void;
   stopPolling: () => void;
@@ -43,6 +61,7 @@ const agentStore: StateCreator<
     agentRuns: [],
     runningAgents: new Set(),
     sessionOutputs: {},
+    liveAgents: new Map(),
     isLoadingRuns: false,
     isLoadingOutput: false,
     error: null,
@@ -178,6 +197,33 @@ const agentStore: StateCreator<
       }
     },
     
+    // Live agent actions
+    addLiveAgent: (agent: LiveAgent) => {
+      set((state) => {
+        const next = new Map(state.liveAgents);
+        next.set(agent.id, agent);
+        return { liveAgents: next };
+      });
+    },
+
+    updateLiveAgent: (id: string, updates: Partial<LiveAgent>) => {
+      set((state) => {
+        const existing = state.liveAgents.get(id);
+        if (!existing) return state;
+        const next = new Map(state.liveAgents);
+        next.set(id, { ...existing, ...updates });
+        return { liveAgents: next };
+      });
+    },
+
+    removeLiveAgent: (id: string) => {
+      set((state) => {
+        const next = new Map(state.liveAgents);
+        next.delete(id);
+        return { liveAgents: next };
+      });
+    },
+
     // Clear error
     clearError: () => set({ error: null }),
     
