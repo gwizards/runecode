@@ -23,6 +23,7 @@ import { FilePicker } from "./FilePicker";
 import { SlashCommandPicker } from "./SlashCommandPicker";
 import { ImagePreview } from "./ImagePreview";
 import { type FileEntry, type SlashCommand } from "@/lib/api";
+import { HeliconeToggle } from "../integrations/observability/HeliconeToggle";
 
 // Conditional import for Tauri webview window
 let tauriGetCurrentWebviewWindow: any;
@@ -1323,6 +1324,11 @@ const FloatingPromptInputInner = (
                   {extraMenuItems}
                 </div>
               )}
+
+              {/* Cost Guard - Helicone integration */}
+              <div className="flex items-center shrink-0 mb-1">
+                <HeliconeToggle sessionCostUsd={0} />
+              </div>
             </div>
           </div>
         </div>
