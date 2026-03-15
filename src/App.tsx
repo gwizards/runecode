@@ -27,6 +27,7 @@ import { useTabState } from "@/hooks/useTabState";
 import { useAppLifecycle, useTrackEvent } from "@/hooks";
 import { StartupIntro } from "@/components/StartupIntro";
 import { ProjectSidebar } from "@/components/ProjectSidebar";
+import { IntegrationProvider } from "@/integrations/IntegrationProvider";
 
 /**
  * Migrate localStorage keys from opcode- prefix to runecode- prefix.
@@ -554,12 +555,14 @@ function App() {
 
   return (
     <ThemeProvider>
-      <OutputCacheProvider>
-        <TabProvider>
-          <AppContent />
-          <StartupIntro visible={showIntro} />
-        </TabProvider>
-      </OutputCacheProvider>
+      <IntegrationProvider>
+        <OutputCacheProvider>
+          <TabProvider>
+            <AppContent />
+            <StartupIntro visible={showIntro} />
+          </TabProvider>
+        </OutputCacheProvider>
+      </IntegrationProvider>
     </ThemeProvider>
   );
 }
