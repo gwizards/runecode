@@ -71,6 +71,10 @@ interface FloatingPromptInputProps {
    * Extra menu items to display in the prompt bar
    */
   extraMenuItems?: React.ReactNode;
+  /**
+   * Cumulative session cost in USD for Helicone cost guard
+   */
+  sessionCostUsd?: number;
 }
 
 export interface FloatingPromptInputRef {
@@ -222,6 +226,7 @@ const FloatingPromptInputInner = (
     className,
     onCancel,
     extraMenuItems,
+    sessionCostUsd = 0,
   }: FloatingPromptInputProps,
   ref: React.Ref<FloatingPromptInputRef>,
 ) => {
@@ -1327,7 +1332,7 @@ const FloatingPromptInputInner = (
 
               {/* Cost Guard - Helicone integration */}
               <div className="flex items-center shrink-0 mb-1">
-                <HeliconeToggle sessionCostUsd={0} />
+                <HeliconeToggle sessionCostUsd={sessionCostUsd} />
               </div>
             </div>
           </div>

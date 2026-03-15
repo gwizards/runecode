@@ -115,6 +115,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [copyPopoverOpen, setCopyPopoverOpen] = useState(false);
   const [isFirstPrompt, setIsFirstPrompt] = useState(!session);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [sessionCostUsd, setSessionCostUsd] = useState(0);
   const [extractedSessionInfo, setExtractedSessionInfo] = useState<{ sessionId: string; projectId: string } | null>(null);
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -388,18 +389,20 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
   }, [displayableMessages.length, rowVirtualizer, autoScrollEnabled]);
 
-  // Calculate total tokens from messages
+  // Calculate total tokens and estimated cost from messages
   useEffect(() => {
-    const tokens = messages.reduce((total, msg) => {
-      if (msg.message?.usage) {
-        return total + msg.message.usage.input_tokens + msg.message.usage.output_tokens;
+    let totalIn = 0;
+    let totalOut = 0;
+    for (const msg of messages) {
+      const usage = msg.message?.usage ?? msg.usage;
+      if (usage) {
+        totalIn += usage.input_tokens;
+        totalOut += usage.output_tokens;
       }
-      if (msg.usage) {
-        return total + msg.usage.input_tokens + msg.usage.output_tokens;
-      }
-      return total;
-    }, 0);
-    setTotalTokens(tokens);
+    }
+    setTotalTokens(totalIn + totalOut);
+    // Default Claude Sonnet 4 pricing: $3/M input, $15/M output
+    setSessionCostUsd((totalIn * 3) / 1_000_000 + (totalOut * 15) / 1_000_000);
   }, [messages]);
 
   const loadSessionHistory = async () => {
@@ -1596,6 +1599,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               isLoading={isLoading}
               disabled={!projectPath}
               projectPath={projectPath}
+              sessionCostUsd={sessionCostUsd}
               extraMenuItems={
                 <>
                   {effectiveSession && (
