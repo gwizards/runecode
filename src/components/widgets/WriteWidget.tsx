@@ -5,9 +5,7 @@ import {
   Maximize2,
   X,
 } from "lucide-react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { getClaudeSyntaxTheme } from "@/lib/claudeSyntaxTheme";
-import { useTheme } from "@/hooks";
+import { useShiki, highlightCode } from "@/hooks/useShiki";
 import { Button } from "@/components/ui/button";
 import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +16,7 @@ import { getLanguage } from "./types";
  */
 export const WriteWidget: React.FC<{ filePath: string; content: string; result?: any }> = ({ filePath, content, result: _result }) => {
   const [isMaximized, setIsMaximized] = useState(false);
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
+  const highlighter = useShiki();
   
   const language = getLanguage(filePath);
   const isLargeContent = content.length > 1000;
@@ -52,21 +49,14 @@ export const WriteWidget: React.FC<{ filePath: string; content: string; result?:
           </div>
           
           <div className="flex-1 overflow-auto">
-            <SyntaxHighlighter
-              language={language}
-              style={syntaxTheme}
-              customStyle={{
-                margin: 0,
-                padding: '1.5rem',
-                background: 'transparent',
-                fontSize: '0.75rem',
-                lineHeight: '1.5',
-                height: '100%'
-              }}
-              showLineNumbers
-            >
-              {content}
-            </SyntaxHighlighter>
+            {highlighter ? (
+              <div
+                className="[&_pre]:m-0 [&_pre]:p-6 [&_pre]:bg-transparent [&_code]:text-xs [&_code]:leading-[1.5] h-full"
+                dangerouslySetInnerHTML={{ __html: highlightCode(highlighter, content, language) }}
+              />
+            ) : (
+              <pre className="m-0 p-6 bg-transparent h-full"><code className="text-xs leading-[1.5]">{content}</code></pre>
+            )}
           </div>
         </div>
       </div>,
@@ -103,21 +93,14 @@ export const WriteWidget: React.FC<{ filePath: string; content: string; result?:
         )}
       </div>
       <div className="overflow-auto flex-1">
-        <SyntaxHighlighter
-          language={language}
-          style={syntaxTheme}
-          customStyle={{
-            margin: 0,
-            padding: '1rem',
-            background: 'transparent',
-            fontSize: '0.75rem',
-            lineHeight: '1.5',
-            overflowX: 'auto'
-          }}
-          wrapLongLines={false}
-        >
-          {codeContent}
-        </SyntaxHighlighter>
+        {highlighter ? (
+          <div
+            className="[&_pre]:m-0 [&_pre]:p-4 [&_pre]:bg-transparent [&_code]:text-xs [&_code]:leading-[1.5]"
+            dangerouslySetInnerHTML={{ __html: highlightCode(highlighter, codeContent, language) }}
+          />
+        ) : (
+          <pre className="m-0 p-4 bg-transparent"><code className="text-xs leading-[1.5]">{codeContent}</code></pre>
+        )}
       </div>
     </div>
   );

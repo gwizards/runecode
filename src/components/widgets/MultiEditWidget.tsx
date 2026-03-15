@@ -6,9 +6,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { getClaudeSyntaxTheme } from "@/lib/claudeSyntaxTheme";
-import { useTheme } from "@/hooks";
+import { useShiki, highlightCode } from "@/hooks/useShiki";
 import * as Diff from 'diff';
 import { getLanguage } from "./types";
 
@@ -22,8 +20,7 @@ export const MultiEditWidget: React.FC<{
 }> = ({ file_path, edits, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const language = getLanguage(file_path);
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
+  const highlighter = useShiki();
   
   return (
     <div className="space-y-2">
@@ -82,25 +79,14 @@ export const MultiEditWidget: React.FC<{
                                 {part.added ? <span className="text-green-400">+</span> : part.removed ? <span className="text-red-400">-</span> : null}
                               </div>
                               <div className="flex-1">
-                                <SyntaxHighlighter
-                                  language={language}
-                                  style={syntaxTheme}
-                                  PreTag="div"
-                                  wrapLongLines={false}
-                                  customStyle={{
-                                    margin: 0,
-                                    padding: 0,
-                                    background: 'transparent',
-                                  }}
-                                  codeTagProps={{
-                                    style: {
-                                      fontSize: '0.75rem',
-                                      lineHeight: '1.6',
-                                    }
-                                  }}
-                                >
-                                  {value}
-                                </SyntaxHighlighter>
+                                {highlighter ? (
+                                  <div
+                                    className="[&_pre]:m-0 [&_pre]:p-0 [&_pre]:bg-transparent [&_code]:text-xs [&_code]:leading-[1.6]"
+                                    dangerouslySetInnerHTML={{ __html: highlightCode(highlighter, value, language) }}
+                                  />
+                                ) : (
+                                  <pre className="m-0 p-0 bg-transparent"><code className="text-xs leading-[1.6]">{value}</code></pre>
+                                )}
                               </div>
                             </div>
                           );

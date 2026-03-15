@@ -10,9 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { getClaudeSyntaxTheme } from "@/lib/claudeSyntaxTheme";
-import { useTheme } from "@/hooks";
+import { useShiki, highlightCode } from "@/hooks/useShiki";
 
 /**
  * Widget for MCP (Model Context Protocol) tools
@@ -23,8 +21,7 @@ export const MCPWidget: React.FC<{
   result?: any;
 }> = ({ toolName, input, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
+  const highlighter = useShiki();
   
   const parts = toolName.split('__');
   const namespace = parts[1] || '';
@@ -131,20 +128,14 @@ export const MCPWidget: React.FC<{
                   "overflow-auto",
                   !isExpanded && isLargeInput && "max-h-[150px]"
                 )}>
-                  <SyntaxHighlighter
-                    language="json"
-                    style={syntaxTheme}
-                    customStyle={{
-                      margin: 0,
-                      padding: '0.75rem',
-                      background: 'transparent',
-                      fontSize: '0.75rem',
-                      lineHeight: '1.5',
-                    }}
-                    wrapLongLines={false}
-                  >
-                    {inputString}
-                  </SyntaxHighlighter>
+                  {highlighter ? (
+                    <div
+                      className="[&_pre]:m-0 [&_pre]:p-3 [&_pre]:bg-transparent [&_code]:text-xs [&_code]:leading-[1.5]"
+                      dangerouslySetInnerHTML={{ __html: highlightCode(highlighter, inputString, 'json') }}
+                    />
+                  ) : (
+                    <pre className="m-0 p-3 bg-transparent"><code className="text-xs leading-[1.5]">{inputString}</code></pre>
+                  )}
                 </div>
               </div>
               

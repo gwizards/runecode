@@ -12,9 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { getClaudeSyntaxTheme } from "@/lib/claudeSyntaxTheme";
-import { useTheme } from "@/hooks";
+import { ShikiCodeBlock } from "./ShikiCodeBlock";
 import type { ClaudeStreamMessage } from "./AgentExecution";
 import {
   TodoWidget,
@@ -97,10 +95,6 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
   // State to track tool results mapped by tool call ID
   const [toolResults, setToolResults] = useState<Map<string, any>>(new Map());
   
-  // Get current theme
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
-  
   // Extract all tool results from stream messages
   useEffect(() => {
     const results = new Map<string, any>();
@@ -179,14 +173,10 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                             code({ node, inline, className, children, ...props }: any) {
                               const match = /language-(\w+)/.exec(className || '');
                               return !inline && match ? (
-                                <SyntaxHighlighter
-                                  style={syntaxTheme}
+                                <ShikiCodeBlock
+                                  code={String(children).replace(/\n$/, '')}
                                   language={match[1]}
-                                  PreTag="div"
-                                  {...props}
-                                >
-                                  {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
+                                />
                               ) : (
                                 <code className={className} {...props}>
                                   {children}
@@ -728,14 +718,10 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                         code({ node, inline, className, children, ...props }: any) {
                           const match = /language-(\w+)/.exec(className || '');
                           return !inline && match ? (
-                            <SyntaxHighlighter
-                              style={syntaxTheme}
+                            <ShikiCodeBlock
+                              code={String(children).replace(/\n$/, '')}
                               language={match[1]}
-                              PreTag="div"
-                              {...props}
-                            >
-                              {String(children).replace(/\n$/, '')}
-                            </SyntaxHighlighter>
+                            />
                           ) : (
                             <code className={className} {...props}>
                               {children}

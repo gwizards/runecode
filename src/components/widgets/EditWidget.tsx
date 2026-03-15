@@ -5,9 +5,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { getClaudeSyntaxTheme } from "@/lib/claudeSyntaxTheme";
-import { useTheme } from "@/hooks";
+import { useShiki, highlightCode } from "@/hooks/useShiki";
 import * as Diff from 'diff';
 import { getLanguage } from "./types";
 
@@ -20,8 +18,7 @@ export const EditWidget: React.FC<{
   new_string: string;
   result?: any;
 }> = ({ file_path, old_string, new_string, result: _result }) => {
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
+  const highlighter = useShiki();
 
   const diffResult = Diff.diffLines(old_string || '', new_string || '', { 
     newlineIsToken: true,
@@ -64,25 +61,14 @@ export const EditWidget: React.FC<{
                   {part.added ? <span className="text-green-400">+</span> : part.removed ? <span className="text-red-400">-</span> : null}
                 </div>
                 <div className="flex-1">
-                  <SyntaxHighlighter
-                    language={language}
-                    style={syntaxTheme}
-                    PreTag="div"
-                    wrapLongLines={false}
-                    customStyle={{
-                      margin: 0,
-                      padding: 0,
-                      background: 'transparent',
-                    }}
-                    codeTagProps={{
-                      style: {
-                        fontSize: '0.75rem',
-                        lineHeight: '1.6',
-                      }
-                    }}
-                  >
-                    {value}
-                  </SyntaxHighlighter>
+                  {highlighter ? (
+                    <div
+                      className="[&_pre]:m-0 [&_pre]:p-0 [&_pre]:bg-transparent [&_code]:text-xs [&_code]:leading-[1.6]"
+                      dangerouslySetInnerHTML={{ __html: highlightCode(highlighter, value, language) }}
+                    />
+                  ) : (
+                    <pre className="m-0 p-0 bg-transparent"><code className="text-xs leading-[1.6]">{value}</code></pre>
+                  )}
                 </div>
               </div>
             );
@@ -97,8 +83,7 @@ export const EditWidget: React.FC<{
  * Widget for Edit tool result - shows a diff view
  */
 export const EditResultWidget: React.FC<{ content: string }> = ({ content }) => {
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
+  const highlighter = useShiki();
   
   const lines = content.split('\n');
   let filePath = '';
@@ -128,8 +113,6 @@ export const EditResultWidget: React.FC<{ content: string }> = ({ content }) => 
   }
 
   const codeContent = codeLines.map(l => l.code).join('\n');
-  const firstNumberedLine = codeLines.find(l => l.lineNumber !== '');
-  const startLineNumber = firstNumberedLine ? parseInt(firstNumberedLine.lineNumber) : 1;
   const language = getLanguage(filePath);
 
   return (
@@ -145,31 +128,14 @@ export const EditResultWidget: React.FC<{ content: string }> = ({ content }) => 
         )}
       </div>
       <div className="overflow-x-auto max-h-[440px]">
-        <SyntaxHighlighter
-          language={language}
-          style={syntaxTheme}
-          showLineNumbers
-          startingLineNumber={startLineNumber}
-          wrapLongLines={false}
-          customStyle={{
-            margin: 0,
-            background: 'transparent',
-            lineHeight: '1.6'
-          }}
-          codeTagProps={{
-            style: {
-              fontSize: '0.75rem'
-            }
-          }}
-          lineNumberStyle={{
-            minWidth: "3.5rem",
-            paddingRight: "1rem",
-            textAlign: "right",
-            opacity: 0.5,
-          }}
-        >
-          {codeContent}
-        </SyntaxHighlighter>
+        {highlighter ? (
+          <div
+            className="[&_pre]:m-0 [&_pre]:bg-transparent [&_pre]:leading-[1.6] [&_code]:text-xs"
+            dangerouslySetInnerHTML={{ __html: highlightCode(highlighter, codeContent, language) }}
+          />
+        ) : (
+          <pre className="m-0 bg-transparent leading-[1.6]"><code className="text-xs">{codeContent}</code></pre>
+        )}
       </div>
     </div>
   );

@@ -4,9 +4,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { getClaudeSyntaxTheme } from "@/lib/claudeSyntaxTheme";
-import { useTheme } from "@/hooks";
+import { useShiki, highlightCode } from "@/hooks/useShiki";
 import { extractResultContent } from "./types";
 
 /**
@@ -44,8 +42,7 @@ export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ fileP
  */
 export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> = ({ content, filePath }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
+  const highlighter = useShiki();
   
   const getLanguage = (path?: string) => {
     if (!path) return "text";
@@ -132,7 +129,7 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
   };
 
   const language = getLanguage(filePath);
-  const { codeContent, startLineNumber } = parseContent(content);
+  const { codeContent } = parseContent(content);
   const lineCount = content.split('\n').filter(line => line.trim()).length;
   const isLargeFile = lineCount > 20;
 
@@ -163,33 +160,14 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
       
       {(!isLargeFile || isExpanded) && (
         <div className="relative overflow-x-auto">
-          <SyntaxHighlighter
-            language={language}
-            style={syntaxTheme}
-            showLineNumbers
-            startingLineNumber={startLineNumber}
-            wrapLongLines={false}
-            customStyle={{
-              margin: 0,
-              background: 'transparent',
-              lineHeight: '1.6'
-            }}
-            codeTagProps={{
-              style: {
-                fontSize: '0.75rem'
-              }
-            }}
-            lineNumberStyle={{
-              minWidth: "3rem",
-              paddingRight: "1rem",
-              textAlign: "right",
-              opacity: 0.3,
-              fontSize: "0.7rem",
-              userSelect: "none",
-            }}
-          >
-            {codeContent}
-          </SyntaxHighlighter>
+          {highlighter ? (
+            <div
+              className="[&_pre]:m-0 [&_pre]:bg-transparent [&_pre]:leading-[1.6] [&_code]:text-xs"
+              dangerouslySetInnerHTML={{ __html: highlightCode(highlighter, codeContent, language) }}
+            />
+          ) : (
+            <pre className="m-0 bg-transparent leading-[1.6]"><code className="text-xs">{codeContent}</code></pre>
+          )}
         </div>
       )}
       
