@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { ArrowDown } from 'lucide-react';
 
 interface ScrollToBottomButtonProps {

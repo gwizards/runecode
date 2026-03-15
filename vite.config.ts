@@ -46,15 +46,25 @@ export default defineConfig(async () => ({
     rollupOptions: {
       output: {
         // Manual chunks for better code splitting
-        manualChunks: {
-          // Vendor chunks
-          'react-vendor': ['react', 'react-dom'],
-          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-tooltip', '@radix-ui/react-switch', '@radix-ui/react-popover'],
-          'editor-vendor': ['@uiw/react-md-editor'],
-          'syntax-vendor': ['react-syntax-highlighter'],
-          // Tauri and other utilities
-          'tauri': ['@tauri-apps/api', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-shell'],
-          'utils': ['date-fns', 'clsx', 'tailwind-merge'],
+        manualChunks(id: string) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules/@radix-ui/')) {
+            return 'ui-vendor';
+          }
+          if (id.includes('node_modules/@uiw/react-md-editor')) {
+            return 'editor-vendor';
+          }
+          if (id.includes('node_modules/react-syntax-highlighter')) {
+            return 'syntax-vendor';
+          }
+          if (id.includes('node_modules/@tauri-apps/')) {
+            return 'tauri';
+          }
+          if (id.includes('node_modules/date-fns') || id.includes('node_modules/clsx') || id.includes('node_modules/tailwind-merge')) {
+            return 'utils';
+          }
         },
       },
     },

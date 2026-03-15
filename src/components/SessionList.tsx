@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Clock, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";

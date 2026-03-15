@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   ArrowLeft, 
   Play, 
@@ -772,7 +772,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
                       <motion.div
                         key={virtualItem.key}
                         data-index={virtualItem.index}
-                        ref={(el) => el && rowVirtualizer.measureElement(el)}
+                        ref={(el) => { if (el) rowVirtualizer.measureElement(el); }}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.2 }}
@@ -913,7 +913,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
                       <motion.div
                         key={virtualItem.key}
                         data-index={virtualItem.index}
-                        ref={(el) => el && fullscreenRowVirtualizer.measureElement(el)}
+                        ref={(el) => { if (el) fullscreenRowVirtualizer.measureElement(el); }}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.2 }}

@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import runecodeLogo from "../../src-tauri/icons/icon.png";
 import type { CSSProperties } from "react";
 

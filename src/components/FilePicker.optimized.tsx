@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -91,7 +91,7 @@ export const FilePicker: React.FC<FilePickerProps> = React.memo(({
   
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const searchDebounceRef = useRef<NodeJS.Timeout>();
+  const searchDebounceRef = useRef<NodeJS.Timeout>(undefined);
 
   // Filter and sort entries
   const displayEntries = useMemo(() => {

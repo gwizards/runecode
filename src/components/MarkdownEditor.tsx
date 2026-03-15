@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import MDEditor from "@uiw/react-md-editor";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toast, ToastContainer } from "@/components/ui/toast";
