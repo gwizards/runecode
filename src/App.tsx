@@ -28,6 +28,7 @@ import { useAppLifecycle, useTrackEvent } from "@/hooks";
 import { StartupIntro } from "@/components/StartupIntro";
 import { ProjectSidebar } from "@/components/ProjectSidebar";
 import { IntegrationProvider } from "@/integrations/IntegrationProvider";
+import { Toaster } from "sonner";
 
 /**
  * Migrate localStorage keys from opcode- prefix to runecode- prefix.
@@ -560,6 +561,13 @@ function App() {
           <TabProvider>
             <AppContent />
             <StartupIntro visible={showIntro} />
+            <Toaster
+              theme="dark"
+              position="bottom-right"
+              toastOptions={{
+                className: 'glass-subtle',
+              }}
+            />
           </TabProvider>
         </OutputCacheProvider>
       </IntegrationProvider>

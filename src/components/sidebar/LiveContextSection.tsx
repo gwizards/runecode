@@ -6,12 +6,14 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  Shield,
 } from "lucide-react";
 
 interface LiveContextSectionProps {
   messages: any[];
   gitBranch?: string;
   dirtyFileCount?: number;
+  envFilesDetected?: string[];
 }
 
 function extractModifiedFiles(messages: any[]): string[] {
@@ -62,6 +64,7 @@ export function LiveContextSection({
   messages,
   gitBranch,
   dirtyFileCount,
+  envFilesDetected,
 }: LiveContextSectionProps) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -127,6 +130,17 @@ export function LiveContextSection({
               <div className="flex items-start gap-1.5 text-xs text-red-400 bg-red-500/10 rounded px-2 py-1.5">
                 <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
                 <span className="break-words">{lastError}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Env files warning */}
+          {envFilesDetected && envFilesDetected.length > 0 && (
+            <div className="flex items-start gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 rounded p-2">
+              <Shield className="h-3 w-3 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-medium">Plaintext secrets detected</div>
+                <div className="opacity-75">{envFilesDetected.length} .env file{envFilesDetected.length > 1 ? 's' : ''} found</div>
               </div>
             </div>
           )}
