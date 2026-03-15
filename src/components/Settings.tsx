@@ -96,7 +96,19 @@ export const Settings: React.FC<SettingsProps> = ({
   const [tabPersistenceEnabled, setTabPersistenceEnabled] = useState(true);
   // Startup intro preference
   const [startupIntroEnabled, setStartupIntroEnabled] = useState(true);
+
+  // Reduced visual effects preference
+  const [reducedEffects, setReducedEffects] = useState(() => {
+    return localStorage.getItem('runecode-reduced-effects') === 'true';
+  });
   
+  // Apply reduced effects class on mount
+  useEffect(() => {
+    if (localStorage.getItem('runecode-reduced-effects') === 'true') {
+      document.documentElement.classList.add('reduced-effects');
+    }
+  }, []);
+
   // Load settings on mount
   useEffect(() => {
     loadSettings();
@@ -755,15 +767,34 @@ export const Settings: React.FC<SettingsProps> = ({
                           try {
                             await api.saveSetting('startup_intro_enabled', checked ? 'true' : 'false');
                             trackEvent.settingsChanged('startup_intro_enabled', checked);
-                            setToast({ 
-                              message: checked 
-                                ? 'Welcome intro enabled' 
-                                : 'Welcome intro disabled', 
-                              type: 'success' 
+                            setToast({
+                              message: checked
+                                ? 'Welcome intro enabled'
+                                : 'Welcome intro disabled',
+                              type: 'success'
                             });
                           } catch (e) {
                             setToast({ message: 'Failed to update preference', type: 'error' });
                           }
+                        }}
+                      />
+                    </div>
+
+                    {/* Reduce Visual Effects Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label htmlFor="reduced-effects">Reduce visual effects</Label>
+                        <p className="text-caption text-muted-foreground">
+                          Disable blur and glow effects for performance
+                        </p>
+                      </div>
+                      <Switch
+                        id="reduced-effects"
+                        checked={reducedEffects}
+                        onCheckedChange={(checked) => {
+                          localStorage.setItem('runecode-reduced-effects', String(checked));
+                          document.documentElement.classList.toggle('reduced-effects', checked);
+                          setReducedEffects(checked);
                         }}
                       />
                     </div>

@@ -361,7 +361,7 @@ function AppContent() {
       case "tabs":
         return (
           <div className="h-full flex flex-col">
-            <TabManager className="flex-shrink-0" />
+            <TabManager className="flex-shrink-0 glass-subtle" />
             <div className="flex-1 overflow-hidden">
               <TabContent />
             </div>
