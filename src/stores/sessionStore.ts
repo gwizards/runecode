@@ -26,6 +26,11 @@ interface SessionState {
   deleteSession: (sessionId: string, projectId: string) => Promise<void>;
   clearError: () => void;
   
+  // Active skills tracking
+  activeSkills: Set<string>;
+  addActiveSkill: (name: string) => void;
+  removeActiveSkill: (name: string) => void;
+
   // Real-time updates
   handleSessionUpdate: (session: Session) => void;
   handleOutputUpdate: (sessionId: string, output: string) => void;
@@ -47,6 +52,7 @@ const sessionStore: StateCreator<
     isLoadingSessions: false,
     isLoadingOutputs: false,
     error: null,
+    activeSkills: new Set<string>(),
     
     // Fetch all projects
     fetchProjects: async () => {
@@ -149,6 +155,22 @@ const sessionStore: StateCreator<
     
     // Clear error
     clearError: () => set({ error: null }),
+
+    // Active skills
+    addActiveSkill: (name: string) => {
+      set((state) => {
+        const next = new Set(state.activeSkills);
+        next.add(name);
+        return { activeSkills: next };
+      });
+    },
+    removeActiveSkill: (name: string) => {
+      set((state) => {
+        const next = new Set(state.activeSkills);
+        next.delete(name);
+        return { activeSkills: next };
+      });
+    },
     
     // Handle session update
     handleSessionUpdate: (session: Session) => {

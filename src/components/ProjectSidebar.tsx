@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PanelRightClose, PanelRightOpen, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
 import {
   SessionStatsSection,
   type SessionStats,
 } from "./sidebar/SessionStatsSection";
+import { SkillsCatalogSection } from "./sidebar/SkillsCatalogSection";
+import { useSessionStore } from "../stores/sessionStore";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
 const LS_KEY_OPEN = "runecode-sidebar-open";
@@ -33,31 +35,6 @@ const defaultStats: SessionStats = {
   toolsCalled: 0,
 };
 
-function SkillsPlaceholder() {
-  const [isOpen, setIsOpen] = useState(false);
-  return (
-    <div className="border-b border-border/40">
-      <button
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full px-4 py-3 flex items-center gap-2 text-sm font-medium text-foreground/80 hover:bg-accent/30 transition-colors"
-      >
-        {isOpen ? (
-          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
-        )}
-        <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
-        Skills
-      </button>
-      {isOpen && (
-        <div className="px-4 pb-3">
-          <p className="text-xs text-muted-foreground">Coming soon</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function ProjectSidebar({
   projectPath = "",
   messages = [],
@@ -65,6 +42,7 @@ export function ProjectSidebar({
   dirtyFileCount,
   stats = defaultStats,
 }: ProjectSidebarProps) {
+  const activeSkills = useSessionStore((state) => state.activeSkills);
   const [isOpen, setIsOpen] = useState(() => {
     try {
       const stored = localStorage.getItem(LS_KEY_OPEN);
@@ -205,7 +183,7 @@ export function ProjectSidebar({
                 dirtyFileCount={dirtyFileCount}
               />
               <SessionStatsSection stats={stats} />
-              <SkillsPlaceholder />
+              <SkillsCatalogSection activeSkills={activeSkills} />
             </div>
           </motion.div>
         )}
