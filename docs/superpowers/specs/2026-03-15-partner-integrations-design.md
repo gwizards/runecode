@@ -43,7 +43,7 @@ Integrate four "Opinionated Architectural Default" partner services into RuneCod
 
 | Package | Reason |
 |---------|--------|
-| `html2canvas` | 200KB+, verify usage — remove or replace with lighter alternative |
+| `html2canvas` | 200KB+, zero imports in src/ — unused, safe to remove |
 
 ### React 19 Migration Notes
 
@@ -51,7 +51,8 @@ Integrate four "Opinionated Architectural Default" partner services into RuneCod
 - `useContext` → `use(Context)` available (optional migration)
 - Latest Radix UI versions required for React 19 compatibility
 - `motion` package is near drop-in replacement for `framer-motion` with different import paths (`from 'motion/react'` instead of `from 'framer-motion'`)
-- Shiki migration touches `StreamMessage.tsx` and all code block rendering — significant but contained to the rendering layer
+- Shiki migration touches 6 files: `StreamMessage.tsx`, `EditWidget.tsx`, `ReadWidget.tsx`, `WriteWidget.tsx`, `MultiEditWidget.tsx`, and `MCPWidget.tsx` — significant but contained to the widget/rendering layer
+- `motion` package (stable) is a near drop-in: import path changes from `'framer-motion'` to `'motion/react'`, 55 files affected. `AnimatePresence`, `motion.div`, and `variants` APIs are preserved. Target `motion@latest` stable release
 
 ## Integration Architecture
 
@@ -355,6 +356,11 @@ Implement `HeliconeToggle`, `CostCounter`, Helicone API integration in Rust back
 | `src/components/FloatingPromptInput.tsx` | Integrate cost guard toggle |
 | `src/components/CreateAgent.tsx` | Add gateway recommendation |
 | `src/components/StreamMessage.tsx` | Migrate to shiki for code highlighting |
+| `src/components/widgets/EditWidget.tsx` | Migrate to shiki |
+| `src/components/widgets/ReadWidget.tsx` | Migrate to shiki |
+| `src/components/widgets/WriteWidget.tsx` | Migrate to shiki |
+| `src/components/widgets/MultiEditWidget.tsx` | Migrate to shiki |
+| `src/components/widgets/MCPWidget.tsx` | Migrate to shiki |
 | All components using `framer-motion` | Migrate imports to `motion` |
 | All components using `forwardRef` | Convert to ref-as-prop pattern |
 
