@@ -123,7 +123,7 @@ export const Agents: React.FC = () => {
     try {
       const selected = await openDialog({
         filters: [
-          { name: 'opcode Agent', extensions: ['opcode.json', 'json'] },
+          { name: 'RuneCode Agent', extensions: ['runecode.json', 'json'] },
           { name: 'All Files', extensions: ['*'] }
         ],
         multiple: false,
@@ -143,9 +143,9 @@ export const Agents: React.FC = () => {
   const handleExportAgent = async (agent: Agent) => {
     try {
       const path = await save({
-        defaultPath: `${agent.name.toLowerCase().replace(/\s+/g, '-')}.opcode.json`,
+        defaultPath: `${agent.name.toLowerCase().replace(/\s+/g, '-')}.runecode.json`,
         filters: [
-          { name: 'opcode Agent', extensions: ['opcode.json'] }
+          { name: 'RuneCode Agent', extensions: ['runecode.json'] }
         ]
       });
 

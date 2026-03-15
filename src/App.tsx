@@ -27,7 +27,29 @@ import { useTabState } from "@/hooks/useTabState";
 import { useAppLifecycle, useTrackEvent } from "@/hooks";
 import { StartupIntro } from "@/components/StartupIntro";
 
-type View = 
+/**
+ * Migrate localStorage keys from opcode- prefix to runecode- prefix.
+ * Runs once; subsequent calls are no-ops.
+ */
+function migrateLocalStorage() {
+  const migrated = localStorage.getItem('runecode-migrated');
+  if (migrated) return;
+  const keys = Object.keys(localStorage).filter(k => k.startsWith('opcode-') || k.startsWith('opcode_'));
+  for (const key of keys) {
+    const newKey = key.replace(/^opcode[-_]/, (match) => match === 'opcode-' ? 'runecode-' : 'runecode_');
+    const value = localStorage.getItem(key);
+    if (value !== null) {
+      localStorage.setItem(newKey, value);
+      localStorage.removeItem(key);
+    }
+  }
+  localStorage.setItem('runecode-migrated', 'true');
+}
+
+// Run migration immediately on module load
+migrateLocalStorage();
+
+type View =
   | "welcome" 
   | "projects" 
   | "editor" 
@@ -247,7 +269,7 @@ function AppContent() {
               >
                 <h1 className="text-4xl font-bold tracking-tight">
                   <span className="rotating-symbol"></span>
-                  Welcome to opcode
+                  Welcome to RuneCode
                 </h1>
               </motion.div>
 
