@@ -1,4 +1,5 @@
 import { useShiki, highlightCode } from '../hooks/useShiki';
+import { useThemeContext } from '../contexts/ThemeContext';
 
 interface ShikiCodeBlockProps {
   code: string;
@@ -6,7 +7,9 @@ interface ShikiCodeBlockProps {
   theme?: string;
 }
 
-export function ShikiCodeBlock({ code, language = 'text', theme = 'github-dark' }: ShikiCodeBlockProps) {
+export function ShikiCodeBlock({ code, language = 'text', theme: themeProp }: ShikiCodeBlockProps) {
+  const { theme: appTheme } = useThemeContext();
+  const theme = themeProp ?? (appTheme === 'light' ? 'github-light' : 'github-dark');
   const highlighter = useShiki();
 
   if (!highlighter) {

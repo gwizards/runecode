@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Terminal,
   User,
@@ -40,6 +40,8 @@ import {
   WebSearchWidget,
   WebFetchWidget
 } from "./ToolWidgets";
+import { SkillBadgeWidget } from "./widgets/SkillBadgeWidget";
+import { useSessionStore } from "../stores/sessionStore";
 
 /**
  * Collapsible wrapper for tool outputs
@@ -92,6 +94,25 @@ interface StreamMessageProps {
  * Component to render a single Claude Code stream message
  */
 const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, className, streamMessages, onLinkDetected }) => {
+  // Active skill tracking (hooks must be unconditional)
+  const addActiveSkill = useSessionStore(state => state.addActiveSkill);
+  const removeActiveSkill = useSessionStore(state => state.removeActiveSkill);
+
+  // Detect if this message contains a Skill tool call
+  const skillName = useMemo(() => {
+    if (message.type !== 'assistant' || !message.message?.content || !Array.isArray(message.message.content)) return null;
+    const skillContent = message.message.content.find(
+      (c: any) => c.type === 'tool_use' && c.name?.toLowerCase() === 'skill'
+    );
+    return skillContent?.input?.skill || null;
+  }, [message]);
+
+  useEffect(() => {
+    if (!skillName) return;
+    addActiveSkill(skillName);
+    return () => removeActiveSkill(skillName);
+  }, [skillName, addActiveSkill, removeActiveSkill]);
+
   // State to track tool results mapped by tool call ID
   const [toolResults, setToolResults] = useState<Map<string, any>>(new Map());
   
@@ -298,7 +319,13 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                         renderedSomething = true;
                         return <WebFetchWidget url={input.url} prompt={input.prompt} result={toolResult} />;
                       }
-                      
+
+                      // Skill tool
+                      if (toolName === "skill") {
+                        renderedSomething = true;
+                        return <SkillBadgeWidget skillName={input?.skill || 'unknown'} />;
+                      }
+
                       // Default - return null
                       return null;
                     };
@@ -434,7 +461,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                           const toolUse = prevMsg.message.content.find((c: any) => c.type === 'tool_use' && c.id === content.tool_use_id);
                           if (toolUse) {
                             const toolName = toolUse.name?.toLowerCase();
-                            const toolsWithWidgets = ['task','edit','multiedit','todowrite','todoread','ls','read','glob','bash','write','grep','websearch','webfetch'];
+                            const toolsWithWidgets = ['task','edit','multiedit','todowrite','todoread','ls','read','glob','bash','write','grep','websearch','webfetch','skill'];
                             if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) {
                               hasCorrespondingWidget = true;
                             }
