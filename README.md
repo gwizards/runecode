@@ -37,7 +37,7 @@ https://github.com/user-attachments/assets/6bceea0f-60b6-4c3e-a745-b891de00b8d0
 
 Think of RuneCode as your command center for Claude Code - bridging the gap between the command-line tool and a visual experience that makes AI-assisted development more intuitive and productive.
 
-Created by [Mr Polti](https://www.youtube.com/@MrPoltiOfficial) from [Wizards](https://www.wizards.us)
+Created by [Mr Polti](https://www.youtube.com/@MrPoltiOfficial) from [Wizards](https://www.wizards.us) | [runecode.sh](https://runecode.sh)
 
 ## Table of Contents
 
@@ -413,6 +413,8 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
     <strong>Created by <a href="https://www.youtube.com/@MrPoltiOfficial">Mr Polti</a> from <a href="https://www.wizards.us">Wizards</a></strong>
   </p>
   <p>
+    <a href="https://runecode.sh">runecode.sh</a>
+    ·
     <a href="https://github.com/getAsterisk/runecode/issues">Report Bug</a>
     ·
     <a href="https://github.com/getAsterisk/runecode/issues">Request Feature</a>

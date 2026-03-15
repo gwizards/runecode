@@ -8,6 +8,7 @@ Rename the project from "Opcode" to "RuneCode" (by Wizards), establish the brand
 
 **Product Name:** RuneCode (stylized as `rune` in CLI)
 **Company:** Wizards (https://www.wizards.us)
+**Website:** https://runecode.sh
 **Creator:** Mr Polti (https://www.youtube.com/@MrPoltiOfficial)
 **Tagline:** "A blazingly fast, beautiful desktop engine that turns Claude Code into a fully autonomous, local developer."
 
