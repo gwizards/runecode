@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Plus, 
-  Trash2, 
-  Save, 
+  Plus,
+  Trash2,
+  Save,
   AlertCircle,
   Loader2,
   Shield,
   Check,
+  Cpu,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,7 @@ import { useTheme, useTrackEvent } from "@/hooks";
 import { analytics } from "@/lib/analytics";
 import { TabPersistenceService } from "@/services/tabPersistence";
 import { useIntegrationConfig } from "@/integrations/hooks/useIntegrationConfig";
+import { INTEGRATIONS } from "@/integrations/config";
 
 interface SettingsProps {
   /**
@@ -100,6 +103,90 @@ function ObservabilitySettings() {
           className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm text-right"
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Compute settings sub-component for cloud compute recommendations
+ */
+function ComputeSettings() {
+  const { config, updateConfig } = useIntegrationConfig();
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border p-4">
+      <div className="flex items-center gap-2">
+        <Cpu className="h-4 w-4 text-blue-400" />
+        <h4 className="text-sm font-medium">Cloud Compute</h4>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        When heavy workloads are detected, get a recommendation to eject to the cloud.
+      </p>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-sm">Cloud Provider</label>
+          <select
+            value={config.compute.provider}
+            onChange={(e) => updateConfig({ compute: { ...config.compute, provider: e.target.value as any } })}
+            className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+          >
+            <option value="railway">Railway (Recommended)</option>
+            <option value="digitalocean">DigitalOcean ($200 credit)</option>
+          </select>
+        </div>
+        <div className="flex items-center justify-between">
+          <label className="text-sm">CPU threshold</label>
+          <div className="flex items-center gap-1">
+            <input type="number" value={config.compute.thresholdCpu}
+              onChange={(e) => updateConfig({ compute: { ...config.compute, thresholdCpu: parseInt(e.target.value) || 80 } })}
+              className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm text-right" />
+            <span className="text-xs text-muted-foreground">%</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <label className="text-sm">RAM threshold</label>
+          <div className="flex items-center gap-1">
+            <input type="number" value={config.compute.thresholdRam}
+              onChange={(e) => updateConfig({ compute: { ...config.compute, thresholdRam: parseInt(e.target.value) || 85 } })}
+              className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm text-right" />
+            <span className="text-xs text-muted-foreground">%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Security settings sub-component for secrets management
+ */
+function SecuritySettings() {
+  const { config, updateConfig } = useIntegrationConfig();
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border p-4">
+      <div className="flex items-center gap-2">
+        <Shield className="h-4 w-4 text-yellow-400" />
+        <h4 className="text-sm font-medium">Secrets Management</h4>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Scan for plaintext secrets and get recommendations for secure alternatives.
+      </p>
+      <div className="flex items-center justify-between">
+        <label className="text-sm">Scan for plaintext secrets</label>
+        <Switch
+          checked={config.security.scanEnabled}
+          onCheckedChange={(v) => updateConfig({ security: { ...config.security, scanEnabled: v } })}
+        />
+      </div>
+      <a
+        href={INTEGRATIONS.security.infisical.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+      >
+        Set up Infisical <ExternalLink className="h-3 w-3" />
+      </a>
     </div>
   );
 }
@@ -1185,6 +1272,8 @@ export const Settings: React.FC<SettingsProps> = ({
                 <div>
                   <h3 className="text-heading-4 mb-4">Integrations</h3>
                   <ObservabilitySettings />
+                  <ComputeSettings />
+                  <SecuritySettings />
                 </div>
               </Card>
             </TabsContent>
