@@ -37,6 +37,8 @@ use commands::mcp::{
 };
 
 use commands::proxy::{apply_proxy_settings, get_proxy_settings, save_proxy_settings};
+use commands::resources::get_system_resources;
+use commands::skills::get_skills_catalog;
 use commands::storage::{
     storage_delete_row, storage_execute_sql, storage_insert_row, storage_list_tables,
     storage_read_table, storage_reset_database, storage_update_row,
@@ -289,6 +291,9 @@ fn main() {
             // Proxy Settings
             get_proxy_settings,
             save_proxy_settings,
+            // System Resources & Skills
+            get_system_resources,
+            get_skills_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
