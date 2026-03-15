@@ -2,10 +2,11 @@ use axum::extract::ws::{Message, WebSocket};
 use axum::http::Method;
 use axum::{
     extract::{Path, State as AxumState, WebSocketUpgrade},
-    response::{Html, Json, Response},
-    routing::get,
+    response::{IntoResponse, Json, Response},
+    routing::{get, post},
     Router,
 };
+use rust_embed::Embed;
 use chrono;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -15,8 +16,11 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
 use which;
+
+#[derive(Embed)]
+#[folder = "../dist/"]
+struct FrontendAssets;
 
 use crate::commands;
 
@@ -106,9 +110,32 @@ impl<T> ApiResponse<T> {
     }
 }
 
-/// Serve the React frontend
-async fn serve_frontend() -> Html<&'static str> {
-    Html(include_str!("../../dist/index.html"))
+/// Serve embedded frontend assets with SPA fallback
+async fn serve_frontend(uri: axum::http::Uri) -> impl IntoResponse {
+    let path = uri.path().trim_start_matches('/');
+    let path = if path.is_empty() { "index.html" } else { path };
+
+    match FrontendAssets::get(path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            (
+                [(axum::http::header::CONTENT_TYPE, mime.as_ref())],
+                content.data.into_owned(),
+            )
+                .into_response()
+        }
+        None => {
+            // SPA fallback
+            match FrontendAssets::get("index.html") {
+                Some(content) => (
+                    [(axum::http::header::CONTENT_TYPE, "text/html")],
+                    content.data.into_owned(),
+                )
+                    .into_response(),
+                None => axum::http::StatusCode::NOT_FOUND.into_response(),
+            }
+        }
+    }
 }
 
 /// API endpoint to get projects (equivalent to Tauri command)
@@ -189,6 +216,51 @@ async fn get_system_prompt() -> Json<ApiResponse<String>> {
 async fn open_new_session() -> Json<ApiResponse<String>> {
     let session_id = format!("web-session-{}", chrono::Utc::now().timestamp());
     Json(ApiResponse::success(session_id))
+}
+
+/// Get system resources
+async fn get_resources() -> impl IntoResponse {
+    // TODO: Implement with sysinfo crate
+    axum::Json(serde_json::json!({
+        "cpuPercent": 0,
+        "ramPercent": 0,
+        "ramUsedGb": 0,
+        "ramTotalGb": 0
+    }))
+}
+
+/// Get integrations configuration
+async fn get_integrations() -> impl IntoResponse {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let config_path = format!("{}/.runecode/integrations.json", home);
+
+    match std::fs::read_to_string(&config_path) {
+        Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
+            Ok(config) => axum::Json(config).into_response(),
+            Err(_) => axum::Json(serde_json::json!({})).into_response(),
+        },
+        Err(_) => axum::Json(serde_json::json!({})).into_response(),
+    }
+}
+
+/// Save integrations configuration
+async fn save_integrations(
+    axum::Json(config): axum::Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let dir_path = format!("{}/.runecode", home);
+    let config_path = format!("{}/integrations.json", dir_path);
+
+    let _ = std::fs::create_dir_all(&dir_path);
+    match serde_json::to_string_pretty(&config) {
+        Ok(content) => match std::fs::write(&config_path, content) {
+            Ok(_) => axum::http::StatusCode::OK.into_response(),
+            Err(e) => {
+                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+            }
+        },
+        Err(e) => (axum::http::StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
 }
 
 /// List slash commands - return empty for web mode
@@ -780,14 +852,13 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
 
     // Create router with API endpoints
     let app = Router::new()
-        // Frontend routes
-        .route("/", get(serve_frontend))
-        .route("/index.html", get(serve_frontend))
         // API routes (REST API equivalent of Tauri commands)
         .route("/api/projects", get(get_projects))
         .route("/api/projects/{project_id}/sessions", get(get_sessions))
         .route("/api/agents", get(get_agents))
         .route("/api/usage", get(get_usage))
+        .route("/api/resources", get(get_resources))
+        .route("/api/integrations", get(get_integrations).post(save_integrations))
         // Settings and configuration
         .route("/api/settings/claude", get(get_claude_settings))
         .route("/api/settings/claude/version", get(check_claude_version))
@@ -822,9 +893,8 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         )
         // WebSocket endpoint for real-time Claude execution
         .route("/ws/claude", get(claude_websocket))
-        // Serve static assets
-        .nest_service("/assets", ServeDir::new("../dist/assets"))
-        .nest_service("/vite.svg", ServeDir::new("../dist/vite.svg"))
+        // Serve embedded frontend assets with SPA fallback
+        .fallback(serve_frontend)
         .layer(cors)
         .with_state(state);
 

@@ -17,6 +17,10 @@ struct Args {
     /// Host to bind to (0.0.0.0 for all interfaces)
     #[arg(short = 'H', long, default_value = "0.0.0.0")]
     host: String,
+
+    /// Automatically open the browser
+    #[arg(long)]
+    open: bool,
 }
 
 #[tokio::main]
@@ -25,14 +29,16 @@ async fn main() {
 
     let args = Args::parse();
 
-    println!("🚀 Starting RuneCode Web Server...");
-    println!(
-        "📱 Will be accessible from phones at: http://{}:{}",
-        args.host, args.port
-    );
+    println!("RuneCode running at http://{}:{}", args.host, args.port);
+    println!("Press Ctrl+C to stop");
+
+    if args.open {
+        let url = format!("http://localhost:{}", args.port);
+        let _ = open::that(&url);
+    }
 
     if let Err(e) = web_server::start_web_mode(Some(args.port)).await {
-        eprintln!("❌ Failed to start web server: {}", e);
+        eprintln!("Failed to start web server: {}", e);
         std::process::exit(1);
     }
 }
