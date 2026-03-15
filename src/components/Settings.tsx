@@ -101,6 +101,12 @@ export const Settings: React.FC<SettingsProps> = ({
   const [reducedEffects, setReducedEffects] = useState(() => {
     return localStorage.getItem('runecode-reduced-effects') === 'true';
   });
+
+  // Auto-scroll preference
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(() => {
+    const stored = localStorage.getItem('runecode-auto-scroll');
+    return stored !== null ? stored === 'true' : true;
+  });
   
   // Apply reduced effects class on mount
   useEffect(() => {
@@ -795,6 +801,25 @@ export const Settings: React.FC<SettingsProps> = ({
                           localStorage.setItem('runecode-reduced-effects', String(checked));
                           document.documentElement.classList.toggle('reduced-effects', checked);
                           setReducedEffects(checked);
+                        }}
+                      />
+                    </div>
+
+                    {/* Auto-scroll Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label htmlFor="auto-scroll">Auto-scroll to bottom</Label>
+                        <p className="text-caption text-muted-foreground">
+                          Automatically follow new messages
+                        </p>
+                      </div>
+                      <Switch
+                        id="auto-scroll"
+                        checked={autoScrollEnabled}
+                        onCheckedChange={(checked) => {
+                          localStorage.setItem('runecode-auto-scroll', String(checked));
+                          window.dispatchEvent(new Event('runecode-settings-changed'));
+                          setAutoScrollEnabled(checked);
                         }}
                       />
                     </div>

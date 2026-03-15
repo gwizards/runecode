@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Copy,
@@ -47,6 +47,7 @@ const listen = tauriListen || ((eventName: string, callback: (event: any) => voi
     window.removeEventListener(eventName, domEventHandler);
   });
 });
+import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { StreamMessage } from "./StreamMessage";
 import { FloatingPromptInput, type FloatingPromptInputRef } from "./FloatingPromptInput";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -146,7 +147,16 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const isListeningRef = useRef(false);
   const sessionStartTime = useRef<number>(Date.now());
   const isIMEComposingRef = useRef(false);
-  
+
+  // Smart auto-scroll state
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const [newMessageCount, setNewMessageCount] = useState(0);
+  const isAtBottomRef = useRef(true);
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(() => {
+    const stored = localStorage.getItem('runecode-auto-scroll');
+    return stored !== null ? stored === 'true' : true;
+  });
+
   // Session metrics state for enhanced analytics
   const sessionMetrics = useRef({
     firstMessageTime: null as number | null,
@@ -171,6 +181,34 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // const aiTracking = useAIInteractionTracking('sonnet'); // Default model
   const workflowTracking = useWorkflowTracking('claude_session');
   
+  // Scroll event handler to detect when user is near bottom
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    isAtBottomRef.current = atBottom;
+    if (atBottom) {
+      setIsUserScrolledUp(false);
+      setNewMessageCount(0);
+    } else {
+      setIsUserScrolledUp(true);
+    }
+  }, []);
+
+  // Listen for auto-scroll settings changes
+  useEffect(() => {
+    const handler = () => {
+      const stored = localStorage.getItem('runecode-auto-scroll');
+      setAutoScrollEnabled(stored !== null ? stored === 'true' : true);
+    };
+    window.addEventListener('storage', handler);
+    window.addEventListener('runecode-settings-changed', handler);
+    return () => {
+      window.removeEventListener('storage', handler);
+      window.removeEventListener('runecode-settings-changed', handler);
+    };
+  }, []);
+
   // Call onProjectPathChange when component mounts with initial path
   useEffect(() => {
     if (onProjectPathChange && projectPath) {
@@ -267,6 +305,24 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     overscan: 5,
   });
 
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback(() => {
+    if (displayableMessages.length > 0) {
+      rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'smooth' });
+      requestAnimationFrame(() => {
+        const scrollElement = parentRef.current;
+        if (scrollElement) {
+          scrollElement.scrollTo({
+            top: scrollElement.scrollHeight,
+            behavior: 'smooth',
+          });
+        }
+      });
+    }
+    setIsUserScrolledUp(false);
+    setNewMessageCount(0);
+  }, [rowVirtualizer, displayableMessages.length]);
+
   // Debug logging
   useEffect(() => {
     console.log('[ClaudeCodeSession] State update:', {
@@ -306,6 +362,13 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (displayableMessages.length > 0) {
+      if (!autoScrollEnabled || !isAtBottomRef.current) {
+        // User has scrolled up or auto-scroll is disabled — don't scroll, just increment counter
+        if (!isAtBottomRef.current) {
+          setNewMessageCount(prev => prev + 1);
+        }
+        return;
+      }
       // Use a more precise scrolling method to ensure content is fully visible
       setTimeout(() => {
         const scrollElement = parentRef.current;
@@ -323,7 +386,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         }
       }, 50);
     }
-  }, [displayableMessages.length, rowVirtualizer]);
+  }, [displayableMessages.length, rowVirtualizer, autoScrollEnabled]);
 
   // Calculate total tokens from messages
   useEffect(() => {
@@ -1225,7 +1288,13 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       style={{
         contain: 'strict',
       }}
+      onScroll={handleScroll}
     >
+      <ScrollToBottomButton
+        visible={isUserScrolledUp && displayableMessages.length > 0}
+        newMessageCount={newMessageCount}
+        onClick={scrollToBottom}
+      />
       <div
         className="relative w-full max-w-6xl mx-auto px-4 pt-8 pb-4"
         style={{
