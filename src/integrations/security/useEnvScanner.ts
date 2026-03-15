@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 
 interface EnvScanResult {
   hasEnvFiles: boolean;
@@ -6,36 +6,65 @@ interface EnvScanResult {
   hasHardcodedSecrets: boolean;
 }
 
-export function useEnvScanner(messages: any[], projectFiles?: string[]): EnvScanResult {
-  return useMemo(() => {
-    const envFiles: string[] = [];
-    const envPatterns = ['.env', '.env.local', '.env.production', '.env.development'];
+const ENV_PATTERNS = ['.env', '.env.local', '.env.production', '.env.development'];
 
-    // Check project files for .env files
-    if (projectFiles) {
-      for (const file of projectFiles) {
-        const name = file.split('/').pop() || '';
-        if (envPatterns.includes(name)) {
-          envFiles.push(file);
+/**
+ * Scans a project directory for .env files by querying the project-info endpoint.
+ * Falls back to an empty result on error.
+ */
+export function useEnvScanner(projectPath: string): EnvScanResult {
+  const [result, setResult] = useState<EnvScanResult>({
+    hasEnvFiles: false,
+    envFiles: [],
+    hasHardcodedSecrets: false,
+  });
+
+  useEffect(() => {
+    if (!projectPath) {
+      setResult({ hasEnvFiles: false, envFiles: [], hasHardcodedSecrets: false });
+      return;
+    }
+
+    let cancelled = false;
+
+    async function scan() {
+      try {
+        const res = await fetch(
+          `/api/project-info?path=${encodeURIComponent(projectPath)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // The project-info endpoint may return a files list or envFiles directly
+        const files: string[] = data.envFiles ?? data.env_files ?? [];
+
+        // If files list is provided but envFiles isn't, scan the files list
+        if (files.length === 0 && Array.isArray(data.files)) {
+          for (const file of data.files as string[]) {
+            const name = file.split('/').pop() || '';
+            if (ENV_PATTERNS.includes(name)) {
+              files.push(file);
+            }
+          }
         }
+
+        if (!cancelled) {
+          setResult({
+            hasEnvFiles: files.length > 0,
+            envFiles: files,
+            hasHardcodedSecrets: false,
+          });
+        }
+      } catch {
+        // Silently fail — env scanning is best-effort
       }
     }
 
-    // Also check messages for .env references in tool calls
-    for (const msg of messages) {
-      if (msg?.tool_name === 'Read' || msg?.tool_name === 'Write') {
-        const filePath = msg.tool_input?.file_path || msg.tool_input?.path || '';
-        const name = filePath.split('/').pop() || '';
-        if (envPatterns.includes(name) && !envFiles.includes(filePath)) {
-          envFiles.push(filePath);
-        }
-      }
-    }
-
-    return {
-      hasEnvFiles: envFiles.length > 0,
-      envFiles,
-      hasHardcodedSecrets: false, // simplified for v1
+    scan();
+    return () => {
+      cancelled = true;
     };
-  }, [messages, projectFiles]);
+  }, [projectPath]);
+
+  return result;
 }

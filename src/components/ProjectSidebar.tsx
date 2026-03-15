@@ -3,12 +3,10 @@ import { motion, AnimatePresence } from "motion/react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
-import {
-  SessionStatsSection,
-  type SessionStats,
-} from "./sidebar/SessionStatsSection";
 import { SkillsCatalogSection } from "./sidebar/SkillsCatalogSection";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
+import { SecurityWarning } from "../integrations/security/SecurityWarning";
+import { useEnvScanner } from "../integrations/security/useEnvScanner";
 import { useSessionStore } from "../stores/sessionStore";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
@@ -21,29 +19,13 @@ const AUTO_COLLAPSE_BREAKPOINT = 1024;
 
 interface ProjectSidebarProps {
   projectPath?: string;
-  messages?: any[];
-  gitBranch?: string;
-  dirtyFileCount?: number;
-  stats?: SessionStats;
 }
-
-const defaultStats: SessionStats = {
-  inputTokens: 0,
-  outputTokens: 0,
-  estimatedCostUsd: 0,
-  elapsedMs: 0,
-  filesModified: 0,
-  toolsCalled: 0,
-};
 
 export function ProjectSidebar({
   projectPath = "",
-  messages = [],
-  gitBranch,
-  dirtyFileCount,
-  stats = defaultStats,
 }: ProjectSidebarProps) {
   const activeSkills = useSessionStore((state) => state.activeSkills);
+  const envScan = useEnvScanner(projectPath);
   const [isOpen, setIsOpen] = useState(() => {
     try {
       const stored = localStorage.getItem(LS_KEY_OPEN);
@@ -179,14 +161,15 @@ export function ProjectSidebar({
             <div className="flex-1 overflow-y-auto">
               <ProjectInfoSection projectPath={projectPath} />
               <LiveContextSection
-                messages={messages}
-                gitBranch={gitBranch}
-                dirtyFileCount={dirtyFileCount}
+                projectPath={projectPath}
+                envFilesDetected={envScan.envFiles}
               />
-              <SessionStatsSection stats={stats} />
               <ResourcesSection />
               <SkillsCatalogSection activeSkills={activeSkills} />
             </div>
+
+            {/* Security warning (side-effect only, renders nothing) */}
+            <SecurityWarning hasEnvFiles={envScan.hasEnvFiles} envFiles={envScan.envFiles} />
           </motion.div>
         )}
       </AnimatePresence>

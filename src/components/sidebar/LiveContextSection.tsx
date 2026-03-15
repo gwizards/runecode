@@ -1,75 +1,58 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Activity,
   GitBranch,
-  FileEdit,
-  AlertCircle,
   ChevronDown,
   ChevronRight,
   Shield,
 } from "lucide-react";
 
 interface LiveContextSectionProps {
-  messages: any[];
-  gitBranch?: string;
-  dirtyFileCount?: number;
+  projectPath: string;
   envFilesDetected?: string[];
 }
 
-function extractModifiedFiles(messages: any[]): string[] {
-  const files = new Set<string>();
-
-  for (const msg of messages) {
-    if (!msg?.content) continue;
-
-    const contents = Array.isArray(msg.content) ? msg.content : [msg.content];
-    for (const block of contents) {
-      if (block?.type !== "tool_use") continue;
-      const name = block.name?.toLowerCase() ?? "";
-      if (name === "write" || name === "edit" || name === "multiedit") {
-        const filePath =
-          block.input?.file_path ?? block.input?.path ?? null;
-        if (typeof filePath === "string") {
-          files.add(filePath);
-        }
-      }
-    }
+/**
+ * Fetches the current git branch for a project path by calling the web server.
+ * Falls back to null on any error.
+ */
+async function fetchGitBranch(projectPath: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `/api/project-info?path=${encodeURIComponent(projectPath)}`
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.gitBranch ?? data.git_branch ?? null;
+  } catch {
+    return null;
   }
-
-  return Array.from(files);
-}
-
-function extractLastError(messages: any[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (!msg?.content) continue;
-
-    const contents = Array.isArray(msg.content) ? msg.content : [msg.content];
-    for (const block of contents) {
-      if (block?.type !== "tool_result") continue;
-      if (block.is_error || (block.exit_code && block.exit_code !== 0)) {
-        const text =
-          typeof block.content === "string"
-            ? block.content
-            : block.content?.[0]?.text ?? "Unknown error";
-        return text.length > 120 ? text.slice(0, 120) + "..." : text;
-      }
-    }
-  }
-
-  return null;
 }
 
 export function LiveContextSection({
-  messages,
-  gitBranch,
-  dirtyFileCount,
+  projectPath,
   envFilesDetected,
 }: LiveContextSectionProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const [gitBranch, setGitBranch] = useState<string | null>(null);
 
-  const modifiedFiles = useMemo(() => extractModifiedFiles(messages), [messages]);
-  const lastError = useMemo(() => extractLastError(messages), [messages]);
+  // Fetch git branch when projectPath changes
+  useEffect(() => {
+    if (!projectPath) {
+      setGitBranch(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchGitBranch(projectPath).then((branch) => {
+      if (!cancelled) setGitBranch(branch);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath]);
 
   return (
     <div className="border-b border-border/40">
@@ -93,44 +76,6 @@ export function LiveContextSection({
             <div className="flex items-center gap-1.5 text-sm text-foreground">
               <GitBranch className="h-3 w-3 text-muted-foreground flex-shrink-0" />
               <span className="truncate">{gitBranch}</span>
-              {dirtyFileCount !== undefined && dirtyFileCount > 0 && (
-                <span className="text-xs text-yellow-500 ml-auto flex-shrink-0">
-                  {dirtyFileCount} dirty
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Modified files */}
-          {modifiedFiles.length > 0 && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">
-                Modified Files ({modifiedFiles.length})
-              </p>
-              <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                {modifiedFiles.map((file) => (
-                  <div
-                    key={file}
-                    className="flex items-center gap-1.5 text-xs text-foreground/70"
-                  >
-                    <FileEdit className="h-3 w-3 flex-shrink-0" />
-                    <span className="truncate">
-                      {file.split("/").slice(-2).join("/")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Last error */}
-          {lastError && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Last Error</p>
-              <div className="flex items-start gap-1.5 text-xs text-red-400 bg-red-500/10 rounded px-2 py-1.5">
-                <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                <span className="break-words">{lastError}</span>
-              </div>
             </div>
           )}
 
@@ -146,7 +91,7 @@ export function LiveContextSection({
           )}
 
           {/* Empty state */}
-          {!gitBranch && modifiedFiles.length === 0 && !lastError && (
+          {!gitBranch && (!envFilesDetected || envFilesDetected.length === 0) && (
             <p className="text-xs text-muted-foreground">
               No live context yet
             </p>
