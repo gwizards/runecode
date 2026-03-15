@@ -903,7 +903,7 @@ const FloatingPromptInputInner = (
                 onCompositionStart={handleCompositionStart}
                 onCompositionEnd={handleCompositionEnd}
                 onPaste={handlePaste}
-                placeholder="Type your message..."
+                placeholder="Cast a rune..."
                 className="min-h-[200px] resize-none"
                 disabled={disabled}
                 onDragEnter={handleDrag}
@@ -1234,7 +1234,7 @@ const FloatingPromptInputInner = (
                   placeholder={
                     dragActive
                       ? "Drop images here..."
-                      : "Message Claude (@ for files, / for commands)..."
+                      : "Cast a rune... (@ for files, / for commands)"
                   }
                   disabled={disabled}
                   className={cn(
