@@ -8,6 +8,7 @@ import {
   type SessionStats,
 } from "./sidebar/SessionStatsSection";
 import { SkillsCatalogSection } from "./sidebar/SkillsCatalogSection";
+import { ResourcesSection } from "../integrations/compute/ResourcesSection";
 import { useSessionStore } from "../stores/sessionStore";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
@@ -183,6 +184,7 @@ export function ProjectSidebar({
                 dirtyFileCount={dirtyFileCount}
               />
               <SessionStatsSection stats={stats} />
+              <ResourcesSection />
               <SkillsCatalogSection activeSkills={activeSkills} />
             </div>
           </motion.div>
