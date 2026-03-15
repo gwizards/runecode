@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { PanelRightClose, PanelRightOpen, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
+import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
+import { LiveContextSection } from "./sidebar/LiveContextSection";
 import {
-  PanelRightClose,
-  PanelRightOpen,
-  Info,
-  Activity,
-  BarChart3,
-  Sparkles,
-} from "lucide-react";
+  SessionStatsSection,
+  type SessionStats,
+} from "./sidebar/SessionStatsSection";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
 const LS_KEY_OPEN = "runecode-sidebar-open";
@@ -17,24 +16,55 @@ const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
 const AUTO_COLLAPSE_BREAKPOINT = 1024;
 
-interface PlaceholderSectionProps {
-  title: string;
-  icon: React.ReactNode;
+interface ProjectSidebarProps {
+  projectPath?: string;
+  messages?: any[];
+  gitBranch?: string;
+  dirtyFileCount?: number;
+  stats?: SessionStats;
 }
 
-function PlaceholderSection({ title, icon }: PlaceholderSectionProps) {
+const defaultStats: SessionStats = {
+  inputTokens: 0,
+  outputTokens: 0,
+  estimatedCostUsd: 0,
+  elapsedMs: 0,
+  filesModified: 0,
+  toolsCalled: 0,
+};
+
+function SkillsPlaceholder() {
+  const [isOpen, setIsOpen] = useState(false);
   return (
-    <div className="px-4 py-3 border-b border-border/40">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 mb-2">
-        {icon}
-        {title}
-      </div>
-      <p className="text-xs text-muted-foreground">Coming soon</p>
+    <div className="border-b border-border/40">
+      <button
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full px-4 py-3 flex items-center gap-2 text-sm font-medium text-foreground/80 hover:bg-accent/30 transition-colors"
+      >
+        {isOpen ? (
+          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+        )}
+        <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+        Skills
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-3">
+          <p className="text-xs text-muted-foreground">Coming soon</p>
+        </div>
+      )}
     </div>
   );
 }
 
-export function ProjectSidebar() {
+export function ProjectSidebar({
+  projectPath = "",
+  messages = [],
+  gitBranch,
+  dirtyFileCount,
+  stats = defaultStats,
+}: ProjectSidebarProps) {
   const [isOpen, setIsOpen] = useState(() => {
     try {
       const stored = localStorage.getItem(LS_KEY_OPEN);
@@ -168,22 +198,14 @@ export function ProjectSidebar() {
 
             {/* Sections */}
             <div className="flex-1 overflow-y-auto">
-              <PlaceholderSection
-                title="Project Info"
-                icon={<Info className="h-3.5 w-3.5" />}
+              <ProjectInfoSection projectPath={projectPath} />
+              <LiveContextSection
+                messages={messages}
+                gitBranch={gitBranch}
+                dirtyFileCount={dirtyFileCount}
               />
-              <PlaceholderSection
-                title="Live Context"
-                icon={<Activity className="h-3.5 w-3.5" />}
-              />
-              <PlaceholderSection
-                title="Session Stats"
-                icon={<BarChart3 className="h-3.5 w-3.5" />}
-              />
-              <PlaceholderSection
-                title="Skills"
-                icon={<Sparkles className="h-3.5 w-3.5" />}
-              />
+              <SessionStatsSection stats={stats} />
+              <SkillsPlaceholder />
             </div>
           </motion.div>
         )}
