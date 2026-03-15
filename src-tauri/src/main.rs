@@ -36,6 +36,7 @@ use commands::mcp::{
     mcp_serve, mcp_test_connection,
 };
 
+use commands::helicone::post_to_helicone;
 use commands::proxy::{apply_proxy_settings, get_proxy_settings, save_proxy_settings};
 use commands::resources::get_system_resources;
 use commands::skills::get_skills_catalog;
@@ -294,6 +295,8 @@ fn main() {
             // System Resources & Skills
             get_system_resources,
             get_skills_catalog,
+            // Helicone
+            post_to_helicone,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
