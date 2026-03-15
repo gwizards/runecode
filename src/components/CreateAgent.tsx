@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import MDEditor from "@uiw/react-md-editor";
 import { type AgentIconName } from "./CCAgents";
 import { IconPicker, ICON_MAP } from "./IconPicker";
+import { GatewayRecommendation } from "@/integrations/intelligence/GatewayRecommendation";
 
 
 interface CreateAgentProps {
@@ -287,6 +288,7 @@ export const CreateAgent: React.FC<CreateAgentProps> = ({
                     </div>
                   </motion.button>
                 </div>
+                <GatewayRecommendation variant="inline" />
               </div>
             </Card>
 

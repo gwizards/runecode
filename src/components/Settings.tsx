@@ -27,9 +27,11 @@ import { StorageTab } from "./StorageTab";
 import { HooksEditor } from "./HooksEditor";
 import { SlashCommandsManager } from "./SlashCommandsManager";
 import { ProxySettings } from "./ProxySettings";
+import { GatewayRecommendation } from "@/integrations/intelligence/GatewayRecommendation";
 import { useTheme, useTrackEvent } from "@/hooks";
 import { analytics } from "@/lib/analytics";
 import { TabPersistenceService } from "@/services/tabPersistence";
+import { useIntegrationConfig } from "@/integrations/hooks/useIntegrationConfig";
 
 interface SettingsProps {
   /**
@@ -51,6 +53,55 @@ interface EnvironmentVariable {
   id: string;
   key: string;
   value: string;
+}
+
+/**
+ * Observability settings sub-component for Cost Guard / Helicone integration
+ */
+function ObservabilitySettings() {
+  const { config, updateConfig } = useIntegrationConfig();
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border p-4">
+      <div className="flex items-center gap-2">
+        <Shield className="h-4 w-4 text-green-500" />
+        <h4 className="text-sm font-medium">Cost Guard</h4>
+        <span className="text-xs text-muted-foreground">Powered by Helicone</span>
+      </div>
+      <div>
+        <label className="text-xs text-muted-foreground">Helicone API Key</label>
+        <input
+          type="password"
+          value={config.observability.heliconeKey}
+          onChange={(e) => updateConfig({
+            observability: { ...config.observability, heliconeKey: e.target.value }
+          })}
+          placeholder="Enter Helicone API key"
+          className="mt-1 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm"
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="text-sm">Show cost counter</label>
+        <Switch checked={config.observability.showCounter} onCheckedChange={(v) =>
+          updateConfig({ observability: { ...config.observability, showCounter: v } })
+        } />
+      </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="text-sm">Cost limit alert</label>
+          <p className="text-xs text-muted-foreground">Warn when session cost exceeds threshold</p>
+        </div>
+        <input
+          type="number"
+          value={config.observability.costLimit}
+          onChange={(e) => updateConfig({
+            observability: { ...config.observability, costLimit: parseFloat(e.target.value) || 5 }
+          })}
+          className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm text-right"
+        />
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -411,8 +462,9 @@ export const Settings: React.FC<SettingsProps> = ({
       ) : (
         <div className="flex-1 overflow-y-auto p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-8 w-full mb-6 h-auto p-1">
+            <TabsList className="grid grid-cols-10 w-full mb-6 h-auto p-1">
               <TabsTrigger value="general" className="py-2.5 px-3">General</TabsTrigger>
+              <TabsTrigger value="models" className="py-2.5 px-3">Models</TabsTrigger>
               <TabsTrigger value="permissions" className="py-2.5 px-3">Permissions</TabsTrigger>
               <TabsTrigger value="environment" className="py-2.5 px-3">Environment</TabsTrigger>
               <TabsTrigger value="advanced" className="py-2.5 px-3">Advanced</TabsTrigger>
@@ -420,8 +472,20 @@ export const Settings: React.FC<SettingsProps> = ({
               <TabsTrigger value="commands" className="py-2.5 px-3">Commands</TabsTrigger>
               <TabsTrigger value="storage" className="py-2.5 px-3">Storage</TabsTrigger>
               <TabsTrigger value="proxy" className="py-2.5 px-3">Proxy</TabsTrigger>
+              <TabsTrigger value="integrations" className="py-2.5 px-3">Integrations</TabsTrigger>
             </TabsList>
             
+            {/* Models / Intelligence */}
+            <TabsContent value="models" className="space-y-6 mt-6">
+              <Card className="p-6 space-y-4">
+                <h3 className="text-heading-4 mb-2">Model Providers</h3>
+                <p className="text-body-small text-muted-foreground mb-4">
+                  Configure how your agents connect to LLM providers.
+                </p>
+                <GatewayRecommendation variant="settings" />
+              </Card>
+            </TabsContent>
+
             {/* General Settings */}
             <TabsContent value="general" className="space-y-6 mt-6">
               <Card className="p-6 space-y-6">
@@ -1114,7 +1178,17 @@ export const Settings: React.FC<SettingsProps> = ({
                 />
               </Card>
             </TabsContent>
-            
+
+            {/* Integrations */}
+            <TabsContent value="integrations">
+              <Card className="p-6 space-y-6">
+                <div>
+                  <h3 className="text-heading-4 mb-4">Integrations</h3>
+                  <ObservabilitySettings />
+                </div>
+              </Card>
+            </TabsContent>
+
           </Tabs>
         </div>
       )}
