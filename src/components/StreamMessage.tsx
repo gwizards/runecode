@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { 
-  Terminal, 
-  User, 
-  Bot, 
-  AlertCircle, 
-  CheckCircle2
+import {
+  Terminal,
+  User,
+  Bot,
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  ChevronDown
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -40,6 +42,46 @@ import {
   WebSearchWidget,
   WebFetchWidget
 } from "./ToolWidgets";
+
+/**
+ * Collapsible wrapper for tool outputs
+ */
+const CollapsibleToolOutput: React.FC<{
+  toolName: string;
+  summary?: string;
+  children: React.ReactNode;
+  defaultExpanded?: boolean;
+}> = ({ toolName, summary, children, defaultExpanded = false }) => {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  return (
+    <div className="rounded-lg border border-muted-foreground/15 overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors text-left"
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        )}
+        <span className="text-xs font-medium text-muted-foreground">
+          {toolName}
+        </span>
+        {summary && !isExpanded && (
+          <span className="text-xs text-muted-foreground/70 truncate">
+            — {summary}
+          </span>
+        )}
+      </button>
+      {isExpanded && (
+        <div className="border-t border-muted-foreground/10">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface StreamMessageProps {
   message: ClaudeStreamMessage;
@@ -97,12 +139,14 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
     // System initialization message
     if (message.type === "system" && message.subtype === "init") {
       return (
-        <SystemInitializedWidget
-          sessionId={message.session_id}
-          model={message.model}
-          cwd={message.cwd}
-          tools={message.tools}
-        />
+        <div className="border-l-2 border-l-gray-400/40 pl-3 opacity-75">
+          <SystemInitializedWidget
+            sessionId={message.session_id}
+            model={message.model}
+            cwd={message.cwd}
+            tools={message.tools}
+          />
+        </div>
       );
     }
 
@@ -113,10 +157,10 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
       let renderedSomething = false;
       
       const renderedCard = (
-        <Card className={cn("border-primary/20 bg-primary/5", className)}>
+        <Card className={cn("border-l-2 border-l-emerald-500/50 border-emerald-500/15 bg-emerald-500/[0.03]", className)}>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <Bot className="h-5 w-5 text-primary mt-0.5" />
+              <Bot className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5" />
               <div className="flex-1 space-y-2 min-w-0">
                 {msg.content && Array.isArray(msg.content) && msg.content.map((content: any, idx: number) => {
                   // Text content - render as markdown
@@ -273,7 +317,27 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                     const widget = renderToolWidget();
                     if (widget) {
                       renderedSomething = true;
-                      return <div key={idx}>{widget}</div>;
+                      const toolDisplayName = content.name || 'Tool';
+                      const toolSummary = input?.command
+                        ? input.command.substring(0, 80)
+                        : input?.file_path
+                        ? input.file_path
+                        : input?.pattern
+                        ? `pattern: ${input.pattern}`
+                        : input?.query
+                        ? input.query
+                        : undefined;
+                      return (
+                        <div key={idx}>
+                          <CollapsibleToolOutput
+                            toolName={toolDisplayName}
+                            summary={toolSummary}
+                            defaultExpanded={true}
+                          >
+                            {widget}
+                          </CollapsibleToolOutput>
+                        </div>
+                      );
                     }
                     
                     // Fallback to basic tool display
@@ -326,10 +390,10 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
       let renderedSomething = false;
       
       const renderedCard = (
-        <Card className={cn("border-muted-foreground/20 bg-muted/20", className)}>
+        <Card className={cn("border-l-2 border-l-blue-500/50 border-blue-500/15 bg-blue-500/[0.03]", className)}>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <User className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
               <div className="flex-1 space-y-2 min-w-0">
                 {/* Handle content that is a simple string (e.g. from user commands) */}
                 {(typeof msg.content === 'string' || (msg.content && !Array.isArray(msg.content))) && (

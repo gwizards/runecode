@@ -15,34 +15,26 @@ import { extractResultContent } from "./types";
 export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ filePath, result }) => {
   if (result) {
     const { content: resultContent } = extractResultContent(result);
-    
+
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-          <FileText className="h-4 w-4 text-primary" />
-          <span className="text-sm">File content:</span>
-          <code className="text-sm font-mono bg-background px-2 py-0.5 rounded flex-1 truncate">
-            {filePath}
-          </code>
-        </div>
+      <div className="space-y-0">
         {resultContent && <ReadResultWidget content={resultContent} filePath={filePath} />}
       </div>
     );
   }
-  
+
   return (
-    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-      <FileText className="h-4 w-4 text-primary" />
-      <span className="text-sm">Reading file:</span>
-      <code className="text-sm font-mono bg-background px-2 py-0.5 rounded flex-1 truncate">
-        {filePath}
-      </code>
-      {!result && (
+    <div className="rounded-lg border border-muted-foreground/15 overflow-hidden">
+      <div className="px-3 py-2 bg-muted/50 flex items-center gap-2">
+        <FileText className="h-3.5 w-3.5 text-blue-500" />
+        <span className="text-xs font-mono text-muted-foreground truncate">
+          {filePath}
+        </span>
         <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
           <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse" />
-          <span>Loading...</span>
+          <span>Reading...</span>
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -145,11 +137,11 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
   const isLargeFile = lineCount > 20;
 
   return (
-    <div className="rounded-lg overflow-hidden border bg-background w-full">
-      <div className="px-4 py-2 border-b bg-muted/50 flex items-center justify-between">
+    <div className="rounded-lg overflow-hidden border border-muted-foreground/15 bg-background w-full">
+      <div className="px-3 py-2 border-b bg-muted/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-mono text-muted-foreground">
+          <FileText className="h-3.5 w-3.5 text-blue-500" />
+          <span className="text-xs font-mono text-muted-foreground truncate">
             {filePath || "File content"}
           </span>
           {isLargeFile && (
@@ -188,10 +180,12 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
               }
             }}
             lineNumberStyle={{
-              minWidth: "3.5rem",
+              minWidth: "3rem",
               paddingRight: "1rem",
               textAlign: "right",
-              opacity: 0.5,
+              opacity: 0.3,
+              fontSize: "0.7rem",
+              userSelect: "none",
             }}
           >
             {codeContent}

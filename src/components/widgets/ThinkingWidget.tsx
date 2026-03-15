@@ -30,7 +30,7 @@ export const ThinkingWidget: React.FC<{
             <Sparkles className="h-2.5 w-2.5 text-gray-400 absolute -top-1 -right-1 animate-pulse" />
           </div>
           <span className="text-sm font-medium text-gray-600 dark:text-gray-400 italic">
-            Thinking...
+            {isExpanded ? "Thinking..." : "Thinking... (click to expand)"}
           </span>
         </div>
         <ChevronRight className={cn(

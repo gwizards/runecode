@@ -39,13 +39,13 @@ export const EditWidget: React.FC<{
         </code>
       </div>
 
-      <div className="rounded-lg border bg-background overflow-hidden text-xs font-mono">
+      <div className="rounded-lg border border-muted-foreground/15 bg-background overflow-hidden text-xs font-mono">
         <div className="max-h-[440px] overflow-y-auto overflow-x-auto">
           {diffResult.map((part, index) => {
-            const partClass = part.added 
-              ? 'bg-green-950/20' 
-              : part.removed 
-              ? 'bg-red-950/20'
+            const partClass = part.added
+              ? 'bg-green-500/10 border-l-2 border-l-green-500'
+              : part.removed
+              ? 'bg-red-500/10 border-l-2 border-l-red-500'
               : '';
             
             if (!part.added && !part.removed && part.count && part.count > 8) {
