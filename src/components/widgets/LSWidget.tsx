@@ -1,29 +1,21 @@
 import React, { useState } from "react";
-import { FolderOpen, Folder, FileCode, FileText, Terminal, ChevronRight } from "lucide-react";
+import {
+  FolderOpen,
+  Folder,
+  FileText,
+  FileCode,
+  Terminal,
+  ChevronRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { extractResultContent } from "./types";
 
-interface LSWidgetProps {
-  path: string;
-  result?: any;
-}
-
-export const LSWidget: React.FC<LSWidgetProps> = ({ path, result }) => {
-  // If we have a result, show it using the LSResultWidget
+/**
+ * Widget for LS (List Directory) tool
+ */
+export const LSWidget: React.FC<{ path: string; result?: any }> = ({ path, result }) => {
   if (result) {
-    let resultContent = '';
-    if (typeof result.content === 'string') {
-      resultContent = result.content;
-    } else if (result.content && typeof result.content === 'object') {
-      if (result.content.text) {
-        resultContent = result.content.text;
-      } else if (Array.isArray(result.content)) {
-        resultContent = result.content
-          .map((c: any) => (typeof c === 'string' ? c : c.text || JSON.stringify(c)))
-          .join('\n');
-      } else {
-        resultContent = JSON.stringify(result.content, null, 2);
-      }
-    }
+    const { content: resultContent } = extractResultContent(result);
     
     return (
       <div className="space-y-2">
@@ -56,14 +48,12 @@ export const LSWidget: React.FC<LSWidgetProps> = ({ path, result }) => {
   );
 };
 
-interface LSResultWidgetProps {
-  content: string;
-}
-
-export const LSResultWidget: React.FC<LSResultWidgetProps> = ({ content }) => {
+/**
+ * Widget for LS tool result - displays directory tree structure
+ */
+export const LSResultWidget: React.FC<{ content: string }> = ({ content }) => {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   
-  // Parse the directory tree structure
   const parseDirectoryTree = (rawContent: string) => {
     const lines = rawContent.split('\n');
     const entries: Array<{
@@ -76,19 +66,15 @@ export const LSResultWidget: React.FC<LSResultWidgetProps> = ({ content }) => {
     let currentPath: string[] = [];
     
     for (const line of lines) {
-      // Skip NOTE section and everything after it
       if (line.startsWith('NOTE:')) {
         break;
       }
       
-      // Skip empty lines
       if (!line.trim()) continue;
       
-      // Calculate indentation level
       const indent = line.match(/^(\s*)/)?.[1] || '';
       const level = Math.floor(indent.length / 2);
       
-      // Extract the entry name
       const entryMatch = line.match(/^\s*-\s+(.+?)(\/$)?$/);
       if (!entryMatch) continue;
       
@@ -96,7 +82,6 @@ export const LSResultWidget: React.FC<LSResultWidgetProps> = ({ content }) => {
       const isDirectory = line.trim().endsWith('/');
       const name = isDirectory ? fullName : fullName;
       
-      // Update current path based on level
       currentPath = currentPath.slice(0, level);
       currentPath.push(name);
       
@@ -125,17 +110,14 @@ export const LSResultWidget: React.FC<LSResultWidgetProps> = ({ content }) => {
     });
   };
   
-  // Group entries by parent for collapsible display
   const getChildren = (parentPath: string, parentLevel: number) => {
     return entries.filter(e => {
       if (e.level !== parentLevel + 1) return false;
       const parentParts = parentPath.split('/').filter(Boolean);
       const entryParts = e.path.split('/').filter(Boolean);
       
-      // Check if this entry is a direct child of the parent
       if (entryParts.length !== parentParts.length + 1) return false;
       
-      // Check if all parent parts match
       for (let i = 0; i < parentParts.length; i++) {
         if (parentParts[i] !== entryParts[i]) return false;
       }
@@ -156,7 +138,6 @@ export const LSResultWidget: React.FC<LSResultWidgetProps> = ({ content }) => {
           <Folder className="h-3.5 w-3.5 text-blue-500" />;
       }
       
-      // File type icons based on extension
       const ext = entry.name.split('.').pop()?.toLowerCase();
       switch (ext) {
         case 'rs':
@@ -216,7 +197,6 @@ export const LSResultWidget: React.FC<LSResultWidgetProps> = ({ content }) => {
     );
   };
   
-  // Get root entries
   const rootEntries = entries.filter(e => e.level === 0);
   
   return (
