@@ -1,5 +1,6 @@
 {
-  "name": "opcode",
+  "name": "runecode",
+  "description": "RuneCode - A blazingly fast desktop engine for Claude Code",
   "private": true,
   "version": "0.2.1",
   "license": "AGPL-3.0",

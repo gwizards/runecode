@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "opcode",
+  "productName": "RuneCode",
   "version": "0.2.1",
-  "identifier": "opcode.asterisk.so",
+  "identifier": "us.wizards.runecode",
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "bun run build",
@@ -12,7 +12,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "opcode",
+        "title": "RuneCode",
         "width": 800,
         "height": 600,
         "decorations": false,
@@ -74,10 +74,10 @@
     ],
     "resources": [],
     "externalBin": [],
-    "copyright": "© 2025 Asterisk. All rights reserved.",
+    "copyright": "© 2025 Wizards. All rights reserved.",
     "category": "DeveloperTool",
-    "shortDescription": "GUI app and Toolkit for Claude Code",
-    "longDescription": "opcode is a comprehensive GUI application and toolkit for working with Claude Code, providing an intuitive interface for AI-assisted development.",
+    "shortDescription": "RuneCode - A blazingly fast desktop engine for Claude Code",
+    "longDescription": "RuneCode is a blazingly fast desktop engine for Claude Code, providing an intuitive interface for AI-assisted development.",
     "linux": {
       "appimage": {
         "bundleMediaFramework": true
