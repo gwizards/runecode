@@ -161,6 +161,11 @@ async fn get_agents() -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(vec![]))
 }
 
+/// Get live/running agents - returns empty array until process registry is wired
+async fn get_live_agents() -> impl IntoResponse {
+    axum::Json(serde_json::json!([]))
+}
+
 /// Simple usage endpoint - return empty for now
 async fn get_usage() -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(vec![]))
@@ -856,6 +861,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/projects", get(get_projects))
         .route("/api/projects/{project_id}/sessions", get(get_sessions))
         .route("/api/agents", get(get_agents))
+        .route("/api/agents/live", get(get_live_agents))
         .route("/api/usage", get(get_usage))
         .route("/api/resources", get(get_resources))
         .route("/api/integrations", get(get_integrations).post(save_integrations))

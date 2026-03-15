@@ -826,6 +826,15 @@ async fn spawn_agent_system(
     info!("🚀 Spawning Claude system process...");
     let mut child = cmd.spawn().map_err(|e| {
         error!("❌ Failed to spawn Claude process: {}", e);
+        // Emit agent lifecycle failed event on spawn failure
+        let _ = app.emit("agent-lifecycle", serde_json::json!({
+            "event": "failed",
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "run_id": run_id,
+            "error": format!("Failed to spawn Claude: {}", e),
+            "timestamp": chrono::Utc::now().timestamp_millis()
+        }));
         format!("Failed to spawn Claude: {}", e)
     })?;
 
@@ -845,6 +854,15 @@ async fn spawn_agent_system(
         ).map_err(|e| e.to_string())?;
         info!("📝 Updated database with running status and PID");
     }
+
+    // Emit agent lifecycle started event
+    let _ = app.emit("agent-lifecycle", serde_json::json!({
+        "event": "started",
+        "agent_id": agent_id,
+        "agent_name": agent_name,
+        "run_id": run_id,
+        "timestamp": chrono::Utc::now().timestamp_millis()
+    }));
 
     // Get stdout and stderr
     let stdout = child.stdout.take().ok_or("Failed to get stdout")?;
@@ -1067,6 +1085,15 @@ async fn spawn_agent_system(
                     );
                 }
 
+                // Emit agent lifecycle failed event
+                let _ = app.emit("agent-lifecycle", serde_json::json!({
+                    "event": "failed",
+                    "agent_id": agent_id,
+                    "run_id": run_id,
+                    "error": "Process timed out waiting for output after 30 seconds",
+                    "timestamp": chrono::Utc::now().timestamp_millis()
+                }));
+
                 let _ = app.emit("agent-complete", false);
                 let _ = app.emit(&format!("agent-complete:{}", run_id), false);
                 return;
@@ -1122,6 +1149,14 @@ async fn spawn_agent_system(
         }
 
         // Cleanup will be handled by the cleanup_finished_processes function
+
+        // Emit agent lifecycle completed event
+        let _ = app.emit("agent-lifecycle", serde_json::json!({
+            "event": "completed",
+            "agent_id": agent_id,
+            "run_id": run_id,
+            "timestamp": chrono::Utc::now().timestamp_millis()
+        }));
 
         let _ = app.emit("agent-complete", true);
         let _ = app.emit(&format!("agent-complete:{}", run_id), true);
