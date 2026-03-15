@@ -24,6 +24,7 @@ import { ProjectSettings } from '@/components/ProjectSettings';
 import { TabManager } from "@/components/TabManager";
 import { TabContent } from "@/components/TabContent";
 import { useTabState } from "@/hooks/useTabState";
+import { useAgentLifecycle } from "@/hooks/useAgentLifecycle";
 import { useAppLifecycle, useTrackEvent } from "@/hooks";
 import { StartupIntro } from "@/components/StartupIntro";
 import { ProjectSidebar } from "@/components/ProjectSidebar";
@@ -73,7 +74,13 @@ type View =
  */
 function AppContent() {
   const [view, setView] = useState<View>("tabs");
-  const { createClaudeMdTab, createSettingsTab, createUsageTab, createMCPTab, createAgentsTab } = useTabState();
+  const { activeTab, createClaudeMdTab, createSettingsTab, createUsageTab, createMCPTab, createAgentsTab } = useTabState();
+
+  // Wire sidebar to active tab's project path
+  const projectPath = activeTab?.projectPath || activeTab?.initialProjectPath || '';
+
+  // Listen for agent lifecycle events
+  useAgentLifecycle();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -369,7 +376,7 @@ function AppContent() {
               <div className="flex-1 overflow-hidden">
                 <TabContent />
               </div>
-              <ProjectSidebar />
+              <ProjectSidebar projectPath={projectPath} />
             </div>
           </div>
         );
