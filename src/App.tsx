@@ -26,6 +26,7 @@ import { TabContent } from "@/components/TabContent";
 import { useTabState } from "@/hooks/useTabState";
 import { useAppLifecycle, useTrackEvent } from "@/hooks";
 import { StartupIntro } from "@/components/StartupIntro";
+import { ProjectSidebar } from "@/components/ProjectSidebar";
 
 /**
  * Migrate localStorage keys from opcode- prefix to runecode- prefix.
@@ -362,8 +363,11 @@ function AppContent() {
         return (
           <div className="h-full flex flex-col">
             <TabManager className="flex-shrink-0 glass-subtle" />
-            <div className="flex-1 overflow-hidden">
-              <TabContent />
+            <div className="flex-1 overflow-hidden flex">
+              <div className="flex-1 overflow-hidden">
+                <TabContent />
+              </div>
+              <ProjectSidebar />
             </div>
           </div>
         );
