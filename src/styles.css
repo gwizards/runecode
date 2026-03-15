@@ -94,8 +94,8 @@ html {
   --color-card-foreground: oklch(0.95 0.01 240);
   --color-popover: oklch(0.13 0.01 240);
   --color-popover-foreground: oklch(0.95 0.01 240);
-  --color-primary: oklch(0.95 0.01 240);
-  --color-primary-foreground: oklch(0.14 0.01 240);
+  --color-primary: oklch(0.59 0.24 292);
+  --color-primary-foreground: oklch(0.98 0.01 292);
   --color-secondary: oklch(0.18 0.01 240);
   --color-secondary-foreground: oklch(0.95 0.01 240);
   --color-muted: oklch(0.16 0.01 240);
@@ -177,8 +177,8 @@ html {
   --color-card-foreground: oklch(0.12 0.01 240);
   --color-popover: oklch(0.98 0.01 240);
   --color-popover-foreground: oklch(0.12 0.01 240);
-  --color-primary: oklch(0.12 0.01 240);
-  --color-primary-foreground: oklch(0.98 0.01 240);
+  --color-primary: oklch(0.55 0.24 292);
+  --color-primary-foreground: oklch(0.98 0.01 292);
   --color-secondary: oklch(0.94 0.01 240);
   --color-secondary-foreground: oklch(0.12 0.01 240);
   --color-muted: oklch(0.94 0.01 240);
@@ -204,8 +204,8 @@ html {
   --color-card-foreground: oklch(0.95 0.01 240);
   --color-popover: oklch(0.21 0.01 240);
   --color-popover-foreground: oklch(0.95 0.01 240);
-  --color-primary: oklch(0.95 0.01 240);
-  --color-primary-foreground: oklch(0.23 0.01 240);
+  --color-primary: oklch(0.59 0.24 292);
+  --color-primary-foreground: oklch(0.98 0.01 292);
   --color-secondary: oklch(0.27 0.01 240);
   --color-secondary-foreground: oklch(0.95 0.01 240);
   --color-muted: oklch(0.27 0.01 240);
@@ -231,8 +231,8 @@ html {
   --color-card-foreground: oklch(0.10 0 240);
   --color-popover: oklch(1.0 0 240);
   --color-popover-foreground: oklch(0.10 0 240);
-  --color-primary: oklch(0.10 0 240);
-  --color-primary-foreground: oklch(1.0 0 240);
+  --color-primary: oklch(0.52 0.24 292);
+  --color-primary-foreground: oklch(0.98 0.01 292);
   --color-secondary: oklch(0.95 0.01 240);
   --color-secondary-foreground: oklch(0.10 0 240);
   --color-muted: oklch(0.93 0.01 240);
@@ -449,6 +449,66 @@ html.is-macos body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+/* RuneCode Glassmorphic Design Tokens */
+@layer utilities {
+  .glass {
+    background: color-mix(in oklch, var(--color-background) 80%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid color-mix(in oklch, var(--color-foreground) 10%, transparent);
+  }
+
+  .glass-elevated {
+    background: color-mix(in oklch, var(--color-background) 60%, transparent);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid color-mix(in oklch, var(--color-foreground) 15%, transparent);
+    box-shadow: 0 8px 32px color-mix(in oklch, var(--color-background) 40%, transparent);
+  }
+
+  .glass-subtle {
+    background: color-mix(in oklch, var(--color-background) 90%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid color-mix(in oklch, var(--color-foreground) 5%, transparent);
+  }
+
+  .rune-glow {
+    box-shadow: 0 0 15px color-mix(in oklch, var(--color-primary) 30%, transparent), 0 0 45px color-mix(in oklch, var(--color-primary) 10%, transparent);
+  }
+
+  .rune-glow-sm {
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-primary) 20%, transparent);
+  }
+
+  .rune-pulse {
+    animation: rune-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes rune-pulse {
+  0%, 100% { box-shadow: 0 0 5px color-mix(in oklch, var(--color-primary) 20%, transparent); }
+  50% { box-shadow: 0 0 20px color-mix(in oklch, var(--color-primary) 40%, transparent); }
+}
+
+/* Reduced visual effects */
+.reduced-effects .glass,
+.reduced-effects .glass-elevated,
+.reduced-effects .glass-subtle {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--color-background);
+}
+
+.reduced-effects .rune-glow,
+.reduced-effects .rune-glow-sm {
+  box-shadow: none;
+}
+
+.reduced-effects .rune-pulse {
+  animation: none;
 }
 
 @keyframes enter {
