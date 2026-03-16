@@ -267,6 +267,22 @@ async fn list_claude_installations(
     }
 }
 
+/// Get Claude binary path for web mode
+async fn get_claude_binary_path_web() -> impl IntoResponse {
+    match find_claude_binary_web() {
+        Ok(path) => axum::Json(serde_json::json!({
+            "success": true,
+            "data": { "path": path },
+            "error": null
+        })),
+        Err(e) => axum::Json(serde_json::json!({
+            "success": true,
+            "data": { "path": null },
+            "error": e
+        })),
+    }
+}
+
 /// Get system prompt - return default for web mode
 async fn get_system_prompt() -> Json<ApiResponse<String>> {
     let default_prompt =
@@ -1038,6 +1054,10 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route(
             "/api/settings/claude/installations",
             get(list_claude_installations),
+        )
+        .route(
+            "/api/settings/claude/binary-path",
+            get(get_claude_binary_path_web),
         )
         .route("/api/settings/system-prompt", get(get_system_prompt))
         // Session management

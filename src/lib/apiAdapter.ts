@@ -428,8 +428,12 @@ export function initializeWebMode() {
           };
           return id;
         },
-        invoke: (...args: any[]) => {
-          console.debug('[Web] Tauri invoke called in web mode:', args[0]);
+        invoke: (cmd: string, ..._args: any[]) => {
+          // Handle Tauri event plugin specially — return a no-op listener
+          if (cmd === 'plugin:event|listen' || cmd === 'plugin:event|unlisten') {
+            return Promise.resolve(0);
+          }
+          console.debug('[Web] Tauri invoke called in web mode:', cmd);
           return Promise.reject(new Error('Not available in web mode'));
         },
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },

@@ -428,7 +428,8 @@ const FloatingPromptInputInner = (
           }
         });
       } catch (error) {
-        console.error('Failed to set up Tauri drag-drop listener:', error);
+        // Silently ignore in web mode — drag-drop via Tauri is not available
+        console.debug('Tauri drag-drop listener not available (expected in web mode):', error);
       }
     };
 
