@@ -897,25 +897,6 @@ const FloatingPromptInputInner = (
 
           <div className="p-3">
             <div className="flex items-center gap-2">
-              {/* Config Pill — centered vertically with input */}
-              <div className="relative config-panel-container shrink-0">
-                <ConfigPill
-                  onClick={() => setConfigPanelOpen(!configPanelOpen)}
-                  isOpen={configPanelOpen}
-                  checkpointCount={checkpointCount}
-                />
-                <AnimatePresence>
-                  {configPanelOpen && (
-                    <ConfigPanel
-                      onClose={() => setConfigPanelOpen(false)}
-                      sessionId={sessionId}
-                      projectId={projectId}
-                      projectPath={projectPath}
-                    />
-                  )}
-                </AnimatePresence>
-              </div>
-
               {/* Input area — takes most space */}
               <div className="flex-1 relative">
                 <Textarea
@@ -995,7 +976,26 @@ const FloatingPromptInputInner = (
                 </AnimatePresence>
               </div>
 
-              {/* Timeline button — only icon on the right */}
+              {/* Config Pill — right of input, centered vertically */}
+              <div className="relative config-panel-container shrink-0">
+                <ConfigPill
+                  onClick={() => setConfigPanelOpen(!configPanelOpen)}
+                  isOpen={configPanelOpen}
+                  checkpointCount={checkpointCount}
+                />
+                <AnimatePresence>
+                  {configPanelOpen && (
+                    <ConfigPanel
+                      onClose={() => setConfigPanelOpen(false)}
+                      sessionId={sessionId}
+                      projectId={projectId}
+                      projectPath={projectPath}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Timeline button — right of ConfigPill */}
               <TooltipSimple content="Checkpoint Timeline" side="top">
                 <Button
                   variant="ghost"
