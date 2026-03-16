@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Bot, FolderCode } from "lucide-react";
 import { api, type Project, type Session, type ClaudeMdFile } from "@/lib/api";
 import { initializeWebMode } from "@/lib/apiAdapter";
+import { isDevMode, checkBackendConnected } from "@/lib/devFallback";
 import { OutputCacheProvider } from "@/lib/outputCache";
 import { TabProvider } from "@/contexts/TabContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -111,9 +112,27 @@ function AppContent() {
     }
   }, [view, projects.length, hasTrackedFirstChat, trackEvent]);
 
+  // Dev-mode backend connectivity indicator
+  const [backendConnected, setBackendConnected] = useState(true);
+
   // Initialize web mode compatibility on mount
   useEffect(() => {
     initializeWebMode();
+  }, []);
+
+  // Periodically check backend connectivity in dev mode
+  useEffect(() => {
+    if (!isDevMode()) return;
+    let cancelled = false;
+
+    const check = async () => {
+      const ok = await checkBackendConnected();
+      if (!cancelled) setBackendConnected(ok);
+    };
+
+    check();
+    const interval = setInterval(check, 15_000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
   // Load projects on mount when in projects view
@@ -408,6 +427,13 @@ function AppContent() {
         onInfoClick={() => setShowNFO(true)}
       />
       
+      {/* Dev-mode backend status banner */}
+      {isDevMode() && !backendConnected && (
+        <div className="text-xs text-yellow-400 bg-yellow-500/10 px-3 py-1.5 text-center select-none">
+          Backend not connected — showing placeholder data. Run <code className="font-mono bg-yellow-500/15 px-1 rounded">cargo build --bin runecode-web</code> for full functionality.
+        </div>
+      )}
+
       {/* Topbar - Commented out since navigation moved to titlebar */}
       {/* <Topbar
         onClaudeClick={() => createClaudeMdTab()}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
 import { Popover } from '../ui/popover';
+import { isDevMode } from '@/lib/devFallback';
 
 interface Skill {
   name: string;
@@ -20,6 +21,7 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
   const [isOpen, setIsOpen] = useState(false);
   const [catalog, setCatalog] = useState<PluginGroup[]>([]);
   const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     async function loadSkills() {
@@ -30,10 +32,11 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
           setCatalog(data as PluginGroup[]);
         } else {
           const res = await fetch('/api/skills');
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           setCatalog(await res.json());
         }
       } catch {
-        /* silently fail */
+        setLoadFailed(true);
       }
     }
     loadSkills();
@@ -71,7 +74,11 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
       {isOpen && (
         <div className="px-2 pb-3">
           {catalog.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-2">No skills installed</p>
+            <p className="text-xs text-muted-foreground px-2">
+              {loadFailed && isDevMode()
+                ? 'Connect backend to see skills'
+                : 'No skills installed'}
+            </p>
           ) : (
             catalog.map((group) => (
               <div key={group.plugin} className="mb-1">
