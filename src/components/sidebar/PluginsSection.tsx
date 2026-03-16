@@ -49,14 +49,14 @@ export function PluginsSection() {
     <div className="px-3">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded transition-colors sidebar-item"
       >
         {collapsed ? (
           <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        <h3 className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
           Plugins
         </h3>
         <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
@@ -87,7 +87,7 @@ export function PluginsSection() {
                         {/* Plugin row */}
                         <button
                           onClick={() => togglePlugin(plugin.plugin)}
-                          className="flex items-center gap-1.5 w-full text-left px-1 py-1 rounded hover:bg-accent/20 transition-colors group"
+                          className="flex items-center gap-1.5 w-full text-left px-1 py-1 rounded transition-colors group sidebar-item"
                         >
                           {isExpanded ? (
                             <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60 flex-shrink-0" />
@@ -95,7 +95,7 @@ export function PluginsSection() {
                             <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/60 flex-shrink-0" />
                           )}
                           <Package className="h-3 w-3 text-muted-foreground/70 flex-shrink-0" />
-                          <span className="text-[11px] font-medium text-foreground/80 group-hover:text-foreground/95 truncate transition-colors">
+                          <span className="text-[11px] font-medium truncate transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
                             {plugin.plugin}
                           </span>
                           <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums flex-shrink-0">
@@ -117,7 +117,7 @@ export function PluginsSection() {
                                 {plugin.skills.map((skill) => (
                                   <div
                                     key={skill.name}
-                                    className="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-accent/10 transition-colors"
+                                    className={`flex items-center gap-1.5 px-1 py-0.5 rounded transition-colors sidebar-item${activeSkills.has(skill.name) ? ' sidebar-item-active' : ''}`}
                                     title={skill.description}
                                   >
                                     {activeSkills.has(skill.name) ? (
@@ -128,7 +128,7 @@ export function PluginsSection() {
                                     ) : (
                                       <span className="h-1 w-1 rounded-full bg-muted-foreground/30 flex-shrink-0" />
                                     )}
-                                    <span className="text-[10px] text-foreground/50 hover:text-foreground/75 truncate transition-colors">
+                                    <span className="text-[10px] truncate transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
                                       {skill.name}
                                     </span>
                                   </div>

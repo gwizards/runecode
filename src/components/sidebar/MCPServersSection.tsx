@@ -78,14 +78,14 @@ export function MCPServersSection() {
     <div className="px-3">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded transition-colors sidebar-item"
       >
         {collapsed ? (
           <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        <h3 className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
           MCP Servers
         </h3>
         <span className="ml-auto text-[10px] text-muted-foreground">
@@ -112,13 +112,13 @@ export function MCPServersSection() {
               {sorted.map((server) => (
                 <div
                   key={server.name}
-                  className="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-accent/20 transition-colors group"
+                  className="flex items-center gap-1.5 px-1 py-1 rounded transition-colors group sidebar-item"
                   title={server.command || server.name}
                 >
                   <span
                     className={`h-2 w-2 rounded-full flex-shrink-0 ${STATUS_DOT_COLOR[server.status]}`}
                   />
-                  <span className="text-[11px] text-foreground/60 group-hover:text-foreground/90 truncate transition-colors flex-1 min-w-0">
+                  <span className="text-[11px] truncate transition-colors flex-1 min-w-0" style={{ color: 'var(--color-text-secondary)' }}>
                     {server.name.replace(/^plugin:.*?:/, '').replace(/^claude\.ai /, '')}
                   </span>
                   {server.status === 'needs_auth' && (

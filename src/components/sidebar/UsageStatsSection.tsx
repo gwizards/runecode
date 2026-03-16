@@ -312,14 +312,14 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
     <div className="px-3">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded transition-colors sidebar-item"
       >
         {collapsed ? (
           <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        <h3 className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
           Usage
         </h3>
         {/* Rich collapsed summary */}
@@ -420,7 +420,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
               <div className="space-y-1 mt-2 pt-2 border-t border-border/20">
                 <div className="flex items-center gap-1">
                   <Activity className={`h-2.5 w-2.5 ${liveUsage.messageCount > 0 ? 'text-emerald-400 animate-pulse' : 'text-muted-foreground/40'}`} />
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">This Session</span>
+                  <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>This Session</span>
                 </div>
                 <div className="space-y-0.5 text-[10px]">
                   <div className="flex justify-between text-muted-foreground">
@@ -451,7 +451,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
               {/* 5-hour rolling window data — combines API + live session */}
               {windowData && isIncludedPlan && (
                 <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last 5 Hours</span>
+                  <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>Last 5 Hours</span>
 
                   <div className="space-y-1 text-[10px]">
                     <div className="flex items-center justify-between text-muted-foreground">
@@ -503,7 +503,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                       {/* Cost by Model */}
                       {usage.by_model.length > 0 && (
                         <div className="space-y-1.5">
-                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                          <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
                             Cost by Model
                           </span>
                           {usage.by_model.map((m) => (
@@ -535,7 +535,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
 
                       {/* Token Breakdown */}
                       <div className="space-y-1.5">
-                        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                        <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
                           Token Breakdown
                         </span>
                         {tokenBreakdown
@@ -561,7 +561,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                       {/* Cost by Project (top 5) */}
                       {topProjects.length > 0 && (
                         <div className="space-y-1.5">
-                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                          <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
                             Top Projects
                           </span>
                           {topProjects.map((p) => (
@@ -588,7 +588,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                       {/* 7-day cost trend */}
                       {last7Days.length > 1 && (
                         <div className="space-y-1.5">
-                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                          <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
                             Last 7 Days
                           </span>
                           <SparklineBar data={last7Days} />

@@ -85,14 +85,14 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
     <div className="px-3">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded transition-colors sidebar-item"
       >
         {collapsed ? (
           <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        <h3 className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
           Skills
         </h3>
         <span className="ml-auto text-[10px] text-muted-foreground">
@@ -135,7 +135,7 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
                     <button
                       key={`${skill.plugin}:${skill.name}`}
                       onClick={() => handleCopy(skill.name)}
-                      className="flex items-center gap-1.5 px-1 py-1 w-full text-left rounded hover:bg-accent/20 transition-colors group"
+                      className={`flex items-center gap-1.5 px-1 py-1 w-full text-left rounded transition-colors group sidebar-item${activeSkills?.has(skill.name) ? ' sidebar-item-active' : ''}`}
                       title={`${skill.description}\nClick to copy /${skill.name}`}
                     >
                       {activeSkills?.has(skill.name) ? (
@@ -146,7 +146,7 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
                       ) : (
                         <Sparkles className="h-2.5 w-2.5 text-muted-foreground/50 flex-shrink-0" />
                       )}
-                      <span className="text-[11px] text-foreground/60 group-hover:text-foreground/90 truncate transition-colors">
+                      <span className="text-[11px] truncate transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
                         {skill.name}
                       </span>
                       <span className="ml-auto text-[9px] text-muted-foreground/40 truncate max-w-[80px]">

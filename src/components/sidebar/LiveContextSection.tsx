@@ -60,20 +60,20 @@ export function LiveContextSection({
     <div className="px-3">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded transition-colors sidebar-item"
       >
         {collapsed ? (
           <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        <h3 className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
           Context
         </h3>
         {hasEnvWarning && (
           <span className="ml-auto flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-yellow-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
+            <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full opacity-75 sidebar-notification-dot" />
+            <span className="relative inline-flex rounded-full h-2 w-2 sidebar-notification-dot" />
           </span>
         )}
       </button>

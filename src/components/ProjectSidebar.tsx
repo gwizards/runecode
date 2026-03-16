@@ -47,14 +47,34 @@ interface CompactIconProps {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
+  isActive?: boolean;
 }
 
-function CompactIcon({ icon, label, onClick }: CompactIconProps) {
+function CompactIcon({ icon, label, onClick, isActive }: CompactIconProps) {
   return (
     <button
       onClick={onClick}
       title={label}
-      className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+      className="flex items-center justify-center w-10 h-10 rounded-lg transition-colors"
+      style={{
+        color: isActive ? 'var(--color-purple-400)' : 'var(--color-text-secondary)',
+        backgroundColor: isActive
+          ? 'color-mix(in oklch, var(--color-purple-500) 10%, transparent)'
+          : undefined,
+        boxShadow: isActive ? '0 0 12px var(--color-purple-glow)' : undefined,
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.backgroundColor = 'var(--color-void-elevated)';
+          e.currentTarget.style.color = 'var(--color-text-primary)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.backgroundColor = '';
+          e.currentTarget.style.color = 'var(--color-text-secondary)';
+        }
+      }}
     >
       {icon}
     </button>
@@ -247,7 +267,11 @@ export function ProjectSidebar({
             animate={{ width: compactMode ? COMPACT_WIDTH : width, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="h-full border-l border-border/50 bg-background/80 backdrop-blur-sm overflow-hidden flex flex-col"
+            className="h-full overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: 'var(--color-void-deep)',
+              borderRight: '1px solid var(--color-border-subtle)',
+            }}
           >
             {/* Compact icon-strip mode */}
             {compactMode ? (
