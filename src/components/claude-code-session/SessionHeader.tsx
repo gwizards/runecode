@@ -55,7 +55,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = React.memo(({
     <motion.div 
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-background/95 backdrop-blur-sm border-b px-4 py-3 sticky top-0 z-40"
+      className="bg-background/95 backdrop-blur-sm border-b px-4 py-3 sticky top-0 z-30"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

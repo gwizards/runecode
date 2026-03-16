@@ -51,7 +51,7 @@ export const ExecutionControlBar: React.FC<ExecutionControlBarProps> = ({
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className={cn(
-            "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
+            "fixed bottom-6 left-1/2 -translate-x-1/2 z-40",
             "bg-background/95 backdrop-blur-md border rounded-full shadow-lg",
             "px-6 py-3 flex items-center gap-4",
             className
