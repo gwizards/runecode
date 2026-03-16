@@ -47,6 +47,8 @@ export function ProjectSidebar({
     return DEFAULT_WIDTH;
   });
 
+  const toggleSidebar = useCallback(() => setIsOpen((prev) => !prev), []);
+
   const widthRef = useRef(width);
   const isResizingRef = useRef(false);
 
@@ -68,6 +70,18 @@ export function ProjectSidebar({
       localStorage.setItem(LS_KEY_WIDTH, String(width));
     } catch {}
   }, [width]);
+
+  // Keyboard shortcut: Ctrl+B / Cmd+B to toggle sidebar
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleSidebar]);
 
   // Auto-collapse on narrow windows
   useEffect(() => {
@@ -121,12 +135,12 @@ export function ProjectSidebar({
     <div className="relative flex-shrink-0 flex">
       {/* Toggle button */}
       <button
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={toggleSidebar}
         className="absolute top-2 right-2 z-10 p-1.5 rounded-md hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
         style={
           isOpen ? undefined : { right: "auto", left: "-36px", position: "absolute" }
         }
-        title={isOpen ? "Close sidebar" : "Open sidebar"}
+        title={isOpen ? "Close sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}
       >
         {isOpen ? (
           <PanelRightClose className="h-4 w-4" />
