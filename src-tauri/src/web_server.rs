@@ -25,7 +25,7 @@ struct FrontendAssets;
 
 use crate::commands;
 
-// Find Claude binary for web mode - use bundled binary first
+// Find Claude binary for web mode - use bundled binary first, then system paths
 fn find_claude_binary_web() -> Result<String, String> {
     // First try the bundled binary (same location as Tauri app uses)
     let bundled_binary = "src-tauri/binaries/claude-code-x86_64-unknown-linux-gnu";
@@ -37,28 +37,48 @@ fn find_claude_binary_web() -> Result<String, String> {
         return Ok(bundled_binary.to_string());
     }
 
-    // Fall back to system installation paths
-    let home_path = format!(
-        "{}/.local/bin/claude",
-        std::env::var("HOME").unwrap_or_default()
-    );
+    // Try 'which' for PATH-based lookup (handles "claude" and "claude-code")
+    for name in &["claude", "claude-code"] {
+        if let Ok(path) = which::which(name) {
+            let path_str = path.to_string_lossy().to_string();
+            println!(
+                "[find_claude_binary_web] Found '{}' via PATH: {}",
+                name, path_str
+            );
+            return Ok(path_str);
+        }
+    }
+
+    // Fall back to well-known filesystem paths (check existence directly)
+    let home = std::env::var("HOME").unwrap_or_default();
     let candidates = vec![
-        "claude",
-        "claude-code",
-        "/usr/local/bin/claude",
-        "/usr/bin/claude",
-        "/opt/homebrew/bin/claude",
-        &home_path,
+        format!("{}/.local/bin/claude", home),
+        "/usr/local/bin/claude".to_string(),
+        "/usr/bin/claude".to_string(),
+        "/opt/homebrew/bin/claude".to_string(),
+        format!("{}/.claude/local/claude", home),
+        format!("{}/.npm-global/bin/claude", home),
     ];
 
-    for candidate in candidates {
-        if which::which(candidate).is_ok() {
+    for candidate in &candidates {
+        let path = std::path::Path::new(candidate);
+        if path.exists() && path.is_file() {
             println!(
-                "[find_claude_binary_web] Using system binary: {}",
+                "[find_claude_binary_web] Using binary at filesystem path: {}",
                 candidate
             );
-            return Ok(candidate.to_string());
+            return Ok(candidate.clone());
         }
+    }
+
+    // Last resort: use the full discovery from claude_binary module
+    let installations = crate::claude_binary::discover_claude_installations();
+    if let Some(best) = installations.into_iter().next() {
+        println!(
+            "[find_claude_binary_web] Using discovered installation: {} (source: {})",
+            best.path, best.source
+        );
+        return Ok(best.path);
     }
 
     Err("Claude binary not found in bundled location or system paths".to_string())
@@ -226,13 +246,8 @@ async fn open_new_session() -> Json<ApiResponse<String>> {
 
 /// Get system resources
 async fn get_resources() -> impl IntoResponse {
-    // TODO: Implement with sysinfo crate
-    axum::Json(serde_json::json!({
-        "cpuPercent": 0,
-        "ramPercent": 0,
-        "ramUsedGb": 0,
-        "ramTotalGb": 0
-    }))
+    let resources = crate::commands::resources::get_system_resources();
+    axum::Json(resources)
 }
 
 /// Get integrations configuration
@@ -274,6 +289,25 @@ async fn list_slash_commands() -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(vec![]))
 }
 
+/// Initialize a new project (create .runecode/project.json)
+async fn init_project(
+    axum::Json(body): axum::Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let path = body
+        .get("path")
+        .and_then(|p| p.as_str())
+        .unwrap_or_default();
+    let name = body
+        .get("name")
+        .and_then(|n| n.as_str())
+        .unwrap_or("New Project");
+
+    match crate::commands::project_info::initialize_project(path.to_string(), name.to_string()) {
+        Ok(_) => axum::http::StatusCode::OK.into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
 /// Get project info by scanning project directory
 async fn get_project_info(
     Query(params): Query<std::collections::HashMap<String, String>>,
@@ -290,6 +324,12 @@ async fn get_project_info(
 
     let info = crate::commands::project_info::collect_project_info(&project_path);
     axum::Json(info).into_response()
+}
+
+/// Get skills catalog
+async fn get_skills_catalog_web() -> impl IntoResponse {
+    let catalog = crate::commands::skills::get_skills_catalog();
+    axum::Json(catalog)
 }
 
 /// MCP list servers - return empty for web mode
@@ -579,17 +619,21 @@ async fn execute_claude_command(
     // Create Claude command
     println!("[TRACE] Creating Claude command...");
     let mut cmd = Command::new(&claude_path);
-    let args = [
-        "-p",
-        &prompt,
-        "--model",
-        &model,
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--dangerously-skip-permissions",
+    let mut args: Vec<String> = vec![
+        "-p".to_string(),
+        prompt.clone(),
     ];
-    cmd.args(args);
+    if !model.is_empty() {
+        args.push("--model".to_string());
+        args.push(model.clone());
+    }
+    args.extend_from_slice(&[
+        "--output-format".to_string(),
+        "stream-json".to_string(),
+        "--verbose".to_string(),
+        "--dangerously-skip-permissions".to_string(),
+    ]);
+    cmd.args(&args);
     cmd.current_dir(&project_path);
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
@@ -608,12 +652,32 @@ async fn execute_claude_command(
     })?;
     println!("[TRACE] Claude process spawned successfully");
 
-    // Get stdout for streaming
+    // Get stdout and stderr for streaming
     let stdout = child.stdout.take().ok_or_else(|| {
         println!("[TRACE] Failed to get stdout from child process");
         "Failed to get stdout".to_string()
     })?;
+    let stderr = child.stderr.take();
     let stdout_reader = BufReader::new(stdout);
+
+    // Spawn stderr reader to capture error output
+    let state_for_stderr = state.clone();
+    let session_id_for_stderr = session_id.clone();
+    let stderr_task = tokio::spawn(async move {
+        if let Some(stderr) = stderr {
+            let stderr_reader = BufReader::new(stderr);
+            let mut lines = stderr_reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                println!("[TRACE] Claude stderr: {}", line);
+                let message = json!({
+                    "type": "output",
+                    "content": format!("[stderr] {}", line)
+                })
+                .to_string();
+                send_to_session(&state_for_stderr, &session_id_for_stderr, message).await;
+            }
+        }
+    });
 
     println!("[TRACE] Starting to read Claude output...");
     // Stream output line by line
@@ -629,7 +693,6 @@ async fn execute_claude_command(
             "content": line
         })
         .to_string();
-        println!("[TRACE] Sending output message to session: {}", message);
         send_to_session(&state, &session_id, message).await;
     }
 
@@ -638,7 +701,8 @@ async fn execute_claude_command(
         line_count
     );
 
-    // Wait for process to complete
+    // Wait for stderr task and process to complete
+    let _ = stderr_task.await;
     println!("[TRACE] Waiting for Claude process to complete...");
     let exit_status = child.wait().await.map_err(|e| {
         let error = format!("Failed to wait for Claude: {}", e);
@@ -880,6 +944,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/projects", get(get_projects))
         .route("/api/projects/{project_id}/sessions", get(get_sessions))
         .route("/api/project-info", get(get_project_info))
+        .route("/api/project/init", post(init_project))
         .route("/api/agents", get(get_agents))
         .route("/api/agents/live", get(get_live_agents))
         .route("/api/usage", get(get_usage))
@@ -895,6 +960,8 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/settings/system-prompt", get(get_system_prompt))
         // Session management
         .route("/api/sessions/new", get(open_new_session))
+        // Skills
+        .route("/api/skills", get(get_skills_catalog_web))
         // Slash commands
         .route("/api/slash-commands", get(list_slash_commands))
         // MCP
