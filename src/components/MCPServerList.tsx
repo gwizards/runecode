@@ -207,7 +207,7 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
-        className="group p-4 rounded-lg border border-border bg-card hover:bg-accent/5 hover:border-primary/20 transition-all overflow-hidden"
+        className="group p-4 rounded-lg border border-border bg-card card-hover hover:bg-accent/5 hover:border-primary/20 transition-all overflow-hidden"
       >
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-4">

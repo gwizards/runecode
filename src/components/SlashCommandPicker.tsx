@@ -400,7 +400,7 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
       className={cn(
         "absolute bottom-full mb-2 left-0 z-50",
         "w-[600px] h-[400px]",
-        "bg-background border border-border rounded-lg shadow-lg",
+        "glass-elevated rounded-lg",
         "flex flex-col overflow-hidden",
         className
       )}

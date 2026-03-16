@@ -72,13 +72,13 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
       onKeyDown={handleKeyDown}
     >
-      <div className="glass-elevated rounded-xl p-6 w-[480px] space-y-4 border border-border/50 shadow-2xl bg-background">
+      <div className="glass-elevated rounded-xl p-6 w-[480px] space-y-4">
         <h2 className="text-lg font-semibold">Create New Project</h2>
 
         <div className="space-y-2">
