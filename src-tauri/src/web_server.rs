@@ -1856,7 +1856,8 @@ async fn get_proxy_settings() -> Json<ApiResponse<serde_json::Value>> {
         "enabled": false,
         "http_proxy": null,
         "https_proxy": null,
-        "no_proxy": null
+        "no_proxy": null,
+        "all_proxy": null
     })))
 }
 

@@ -15,6 +15,7 @@ import {
   X,
   Table,
   Loader2,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { getEnvironmentInfo } from "@/lib/apiAdapter";
 import { Toast, ToastContainer } from "./ui/toast";
 
 interface TableInfo {
@@ -79,8 +81,32 @@ interface QueryResult {
 
 /**
  * StorageTab component - A beautiful SQLite database viewer/editor
+ * Shows a desktop-only message when running in web server mode.
  */
 export const StorageTab: React.FC = () => {
+  const isWebMode = !getEnvironmentInfo().isTauri;
+
+  if (isWebMode) {
+    return (
+      <Card className="p-8">
+        <div className="flex flex-col items-center justify-center text-center space-y-4">
+          <Monitor className="h-12 w-12 text-muted-foreground" />
+          <div>
+            <h3 className="text-lg font-semibold mb-1">Desktop Only</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              The database storage viewer requires the desktop app. SQLite storage
+              is not accessible in web server mode.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return <StorageTabInner />;
+};
+
+const StorageTabInner: React.FC = () => {
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [tableData, setTableData] = useState<TableData | null>(null);
