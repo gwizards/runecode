@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Component, type ReactNode, useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   PanelRightClose,
@@ -79,6 +79,28 @@ function CompactIcon({ icon, label, onClick, isActive }: CompactIconProps) {
       {icon}
     </button>
   );
+}
+
+class SectionErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.debug('[Sidebar] Section error caught:', error.message);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || null;
+    }
+    return this.props.children;
+  }
 }
 
 export function ProjectSidebar({
@@ -332,59 +354,75 @@ export function ProjectSidebar({
                 <div className="flex-1 overflow-y-auto scrollbar-thin">
                   {/* 1. Project Info -- always visible, compact */}
                   <div ref={(el) => { sectionRefs.current["project"] = el; }}>
-                    <ProjectInfoSection projectPath={projectPath} />
+                    <SectionErrorBoundary>
+                      <ProjectInfoSection projectPath={projectPath} />
+                    </SectionErrorBoundary>
                   </div>
 
                   <SectionDivider />
 
                   {/* 2. Live Context */}
                   <div ref={(el) => { sectionRefs.current["context"] = el; }}>
-                    <LiveContextSection
-                      projectPath={projectPath}
-                      envFilesDetected={envScan.envFiles}
-                    />
+                    <SectionErrorBoundary>
+                      <LiveContextSection
+                        projectPath={projectPath}
+                        envFilesDetected={envScan.envFiles}
+                      />
+                    </SectionErrorBoundary>
                   </div>
 
                   <SectionDivider />
 
                   {/* 3. Usage Stats -- expanded by default */}
                   <div ref={(el) => { sectionRefs.current["usage"] = el; }}>
-                    <UsageStatsSection projectPath={projectPath} />
+                    <SectionErrorBoundary>
+                      <UsageStatsSection projectPath={projectPath} />
+                    </SectionErrorBoundary>
                   </div>
 
                   <SectionDivider />
 
                   {/* 4. Resources -- compact */}
                   <div ref={(el) => { sectionRefs.current["resources"] = el; }}>
-                    <ResourcesSection />
+                    <SectionErrorBoundary>
+                      <ResourcesSection />
+                    </SectionErrorBoundary>
                   </div>
 
                   <SectionDivider />
 
                   {/* 5. Agents */}
                   <div ref={(el) => { sectionRefs.current["agents"] = el; }}>
-                    <AgentsSection />
+                    <SectionErrorBoundary>
+                      <AgentsSection />
+                    </SectionErrorBoundary>
                   </div>
 
                   <SectionDivider />
 
                   {/* 6. MCP Servers */}
                   <div ref={(el) => { sectionRefs.current["mcp"] = el; }}>
-                    <MCPServersSection />
+                    <SectionErrorBoundary>
+                      <MCPServersSection />
+                    </SectionErrorBoundary>
                   </div>
 
                   <SectionDivider />
 
                   {/* 7. Plugins */}
                   <div ref={(el) => { sectionRefs.current["plugins"] = el; }}>
-                    <PluginsSection />
+                    <SectionErrorBoundary>
+                      <PluginsSection />
+                    </SectionErrorBoundary>
                   </div>
 
                   <SectionDivider />
 
                   {/* 8. Skills -- flat searchable list */}
                   <div ref={(el) => { sectionRefs.current["skills"] = el; }}>
-                    <SkillsCatalogSection activeSkills={activeSkills} />
+                    <SectionErrorBoundary>
+                      <SkillsCatalogSection activeSkills={activeSkills} />
+                    </SectionErrorBoundary>
                   </div>
                 </div>
 

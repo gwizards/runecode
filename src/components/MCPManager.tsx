@@ -46,10 +46,7 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
     try {
       setLoading(true);
       setError(null);
-      console.log("MCPManager: Loading servers...");
       const serverList = await api.mcpList();
-      console.log("MCPManager: Received server list:", serverList);
-      console.log("MCPManager: Server count:", serverList.length);
       setServers(serverList);
     } catch (err) {
       console.error("MCPManager: Failed to load MCP servers:", err);

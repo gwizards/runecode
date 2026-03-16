@@ -399,6 +399,25 @@ html[data-atmosphere="none"] {
   --atm-transition-duration: 0ms;
 }
 
+/* Suppress glow box-shadows without hiding elements */
+html[data-atmosphere="none"] .glow-purple,
+html[data-atmosphere="none"] .glow-purple-sm,
+html[data-atmosphere="none"] .glow-gold,
+html[data-atmosphere="none"] .glow-gold-sm,
+html[data-atmosphere="none"] .rune-glow,
+html[data-atmosphere="none"] .rune-glow-sm {
+  box-shadow: none;
+}
+
+html[data-atmosphere="minimal"] .glow-purple,
+html[data-atmosphere="minimal"] .glow-purple-sm,
+html[data-atmosphere="minimal"] .glow-gold,
+html[data-atmosphere="minimal"] .glow-gold-sm,
+html[data-atmosphere="minimal"] .rune-glow,
+html[data-atmosphere="minimal"] .rune-glow-sm {
+  box-shadow: none;
+}
+
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   html:not([data-atmosphere]) {
@@ -670,12 +689,10 @@ html.is-macos body {
     box-shadow:
       0 0 15px color-mix(in oklch, var(--color-purple-500) 30%, transparent),
       0 0 45px color-mix(in oklch, var(--color-purple-500) 10%, transparent);
-    opacity: var(--atm-glow-opacity, 1);
   }
 
   .glow-purple-sm {
     box-shadow: 0 0 8px color-mix(in oklch, var(--color-purple-500) 20%, transparent);
-    opacity: var(--atm-glow-opacity, 1);
   }
 
   /* --- Gold glow --- */
@@ -683,12 +700,10 @@ html.is-macos body {
     box-shadow:
       0 0 15px color-mix(in oklch, var(--color-gold-400) 30%, transparent),
       0 0 45px color-mix(in oklch, var(--color-gold-400) 10%, transparent);
-    opacity: var(--atm-glow-opacity, 1);
   }
 
   .glow-gold-sm {
     box-shadow: 0 0 8px color-mix(in oklch, var(--color-gold-400) 20%, transparent);
-    opacity: var(--atm-glow-opacity, 1);
   }
 
   /* --- Legacy glow aliases --- */
@@ -696,12 +711,10 @@ html.is-macos body {
     box-shadow:
       0 0 15px color-mix(in oklch, var(--color-purple-500) 30%, transparent),
       0 0 45px color-mix(in oklch, var(--color-purple-500) 10%, transparent);
-    opacity: var(--atm-glow-opacity, 1);
   }
 
   .rune-glow-sm {
     box-shadow: 0 0 8px color-mix(in oklch, var(--color-purple-500) 20%, transparent);
-    opacity: var(--atm-glow-opacity, 1);
   }
 
   .rune-pulse {
