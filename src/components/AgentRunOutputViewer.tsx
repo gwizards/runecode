@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Maximize2, 
-  Minimize2, 
-  Copy, 
-  RefreshCw, 
-  RotateCcw, 
+import {
+  Maximize2,
+  Minimize2,
+  Copy,
+  RefreshCw,
+  RotateCcw,
   ChevronDown,
   Bot,
   Clock,
@@ -13,6 +13,7 @@ import {
   DollarSign,
   StopCircle
 } from 'lucide-react';
+import { RuneSpinner } from './RuneCodeLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -534,8 +535,7 @@ export function AgentRunOutputViewer({
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading agent run...</p>
+          <RuneSpinner size={32} label="Loading agent run..." />
         </div>
       </div>
     );

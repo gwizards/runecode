@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Terminal,
   User,
-  Bot,
   AlertCircle,
   CheckCircle2,
   ChevronRight,
   ChevronDown
 } from "lucide-react";
+import { RuneCodeLogo } from './RuneCodeLogo';
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -175,7 +175,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
         <Card className={cn("border-l-2 border-l-emerald-500/50 border-emerald-500/15 bg-emerald-500/[0.03]", className)}>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <Bot className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+              <RuneCodeLogo size={20} className="mt-0.5" />
               <div className="flex-1 space-y-2 min-w-0">
                 {msg.content && Array.isArray(msg.content) && msg.content.map((content: any, idx: number) => {
                   // Text content - render as markdown

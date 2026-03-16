@@ -1,6 +1,6 @@
 
 <div align="center">
-  <img src="public/runecode-icon.svg" alt="RuneCode" width="120" height="120">
+  <img src="public/runecode-logo.svg" alt="RuneCode" width="120" height="120">
 
   <h1>RuneCode</h1>
 

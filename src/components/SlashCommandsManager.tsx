@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight
 } from "lucide-react";
+import { RuneSpinner } from './RuneCodeLogo';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -357,7 +358,7 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
       {/* Commands List */}
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <RuneSpinner size={24} label="Loading commands..." />
         </div>
       ) : filteredCommands.length === 0 ? (
         <Card className="p-8">

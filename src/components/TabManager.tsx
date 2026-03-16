@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
-import { X, Plus, MessageSquare, Bot, AlertCircle, Loader2, Folder, BarChart, Server, Settings, FileText, ChevronDown } from 'lucide-react';
+import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown } from 'lucide-react';
+import { RuneSpinner } from './RuneCodeLogo';
 import { useTabState } from '@/hooks/useTabState';
 import { Tab, useTabContext } from '@/contexts/TabContext';
 import { cn } from '@/lib/utils';
@@ -72,7 +73,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
   const getStatusIcon = () => {
     switch (tab.status) {
       case 'running':
-        return <Loader2 className="w-3 h-3 animate-spin" />;
+        return <RuneSpinner size={12} />;
       case 'error':
         return <AlertCircle className="w-3 h-3 text-red-500" />;
       default:

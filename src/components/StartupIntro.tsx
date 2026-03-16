@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
-import runecodeLogo from "../../src-tauri/icons/icon.png";
 import type { CSSProperties } from "react";
+import { RuneCodeLogo } from './RuneCodeLogo';
 
 /**
  * StartupIntro - a lightweight startup overlay shown on app launch.
@@ -65,12 +65,7 @@ export function StartupIntro({ visible }: { visible: boolean }) {
                   animate={{ opacity: [0, 1, 0.9] }}
                   transition={{ duration: 0.9, ease: "easeOut" }}
                 />
-                <motion.img
-                  src={runecodeLogo}
-                  alt="RuneCode"
-                  className="h-20 w-20 rounded-lg shadow-sm"
-                  transition={{ repeat: Infinity, repeatType: "loop", ease: "linear", duration: 0.5 }}
-                />
+                <RuneCodeLogo size={80} />
               </motion.div>
 
               {/* Brand text reveals left-to-right in the freed space */}
