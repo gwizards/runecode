@@ -98,10 +98,10 @@ jobs:
           files: release-assets/*
           body: |
             <div align="center">
-              <img src="https://raw.githubusercontent.com/${{ github.repository }}/${{ steps.version.outputs.version }}/src-tauri/icons/icon.png" alt="opcode Logo" width="128" height="128">
+              <img src="https://raw.githubusercontent.com/${{ github.repository }}/${{ steps.version.outputs.version }}/src-tauri/icons/icon.png" alt="RuneCode Logo" width="128" height="128">
             </div>
 
-            ## opcode ${{ steps.version.outputs.version }}
+            ## RuneCode ${{ steps.version.outputs.version }}
 
             This release was built and signed by CI. Artifacts for macOS and Linux are attached below.
 
