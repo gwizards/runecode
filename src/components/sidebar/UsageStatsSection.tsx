@@ -279,15 +279,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   // 5-hour rolling window for Max/Pro plans
   // Use server-calculated effective tokens (weighted by rate limit impact)
   // Cache reads are free, input at 0.2x, cache creation at 0.25x, output at 1x
-  const windowPercent = windowData?.usagePercent ?? 0;
-  const effectiveTokens = windowData?.effectiveTokens ?? 0;
-  const estimatedLimit = windowData?.estimatedLimitTokens ?? 5_000_000;
-  const barColor = windowPercent > 80 ? 'bg-red-500' : windowPercent > 50 ? 'bg-yellow-500' : 'bg-green-500';
-  const barGradient = windowPercent > 80
-    ? 'bg-gradient-to-r from-red-500 to-red-400'
-    : windowPercent > 50
-      ? 'bg-gradient-to-r from-yellow-500 to-yellow-400'
-      : 'bg-gradient-to-r from-green-500 to-emerald-400';
+  // Window data available for display (no limit estimation)
 
   // Get last 7 days for sparkline
   const last7Days = (usage.by_date || [])
