@@ -22,7 +22,10 @@ pub struct SystemResources {
 
 #[tauri::command]
 pub fn get_system_resources() -> SystemResources {
-    let mut sys = SYSTEM.lock().unwrap();
+    let mut sys = match SYSTEM.lock() {
+        Ok(s) => s,
+        Err(poisoned) => poisoned.into_inner(),
+    };
     sys.refresh_cpu_usage();
     sys.refresh_memory();
 

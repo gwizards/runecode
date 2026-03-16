@@ -18,6 +18,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 use which;
+use std::time::Duration;
 
 #[derive(Embed)]
 #[folder = "../dist/"]
@@ -189,27 +190,30 @@ async fn get_live_agents() -> impl IntoResponse {
 
 /// Auth status endpoint - returns Claude auth/plan info
 async fn get_auth_status() -> impl IntoResponse {
-    let output = std::process::Command::new("claude")
-        .args(["auth", "status"])
-        .output();
+    let default_response = serde_json::json!({
+        "loggedIn": false,
+        "subscriptionType": "unknown"
+    });
 
-    match output {
-        Ok(out) => {
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::task::spawn_blocking(|| {
+            std::process::Command::new("claude")
+                .args(["auth", "status"])
+                .output()
+        }),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(Ok(out))) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
             match serde_json::from_str::<serde_json::Value>(&stdout) {
                 Ok(json) => axum::Json(ApiResponse::success(json)).into_response(),
-                Err(_) => axum::Json(ApiResponse::success(serde_json::json!({
-                    "loggedIn": false,
-                    "subscriptionType": "unknown"
-                })))
-                .into_response(),
+                Err(_) => axum::Json(ApiResponse::success(default_response)).into_response(),
             }
         }
-        Err(_) => axum::Json(ApiResponse::success(serde_json::json!({
-            "loggedIn": false,
-            "subscriptionType": "unknown"
-        })))
-        .into_response(),
+        _ => axum::Json(ApiResponse::success(default_response)).into_response(),
     }
 }
 
@@ -220,11 +224,12 @@ async fn get_usage(
     let days = params
         .get("days")
         .and_then(|d| d.parse::<u32>().ok());
-    match commands::usage::get_usage_stats(days) {
-        Ok(stats) => Json(ApiResponse::success(
+    match tokio::task::spawn_blocking(move || commands::usage::get_usage_stats(days)).await {
+        Ok(Ok(stats)) => Json(ApiResponse::success(
             serde_json::to_value(stats).unwrap_or_default(),
         )),
-        Err(e) => Json(ApiResponse::error(e)),
+        Ok(Err(e)) => Json(ApiResponse::error(e)),
+        Err(_) => Json(ApiResponse::error("Task failed".to_string())),
     }
 }
 
@@ -244,11 +249,12 @@ async fn get_usage_range(
         .get("end")
         .cloned()
         .unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
-    match commands::usage::get_usage_by_date_range(start, end) {
-        Ok(stats) => Json(ApiResponse::success(
+    match tokio::task::spawn_blocking(move || commands::usage::get_usage_by_date_range(start, end)).await {
+        Ok(Ok(stats)) => Json(ApiResponse::success(
             serde_json::to_value(stats).unwrap_or_default(),
         )),
-        Err(e) => Json(ApiResponse::error(e)),
+        Ok(Err(e)) => Json(ApiResponse::error(e)),
+        Err(_) => Json(ApiResponse::error("Task failed".to_string())),
     }
 }
 
@@ -259,11 +265,12 @@ async fn get_usage_sessions(
     let since = params.get("since").cloned();
     let until = params.get("until").cloned();
     let order = params.get("order").cloned();
-    match commands::usage::get_session_stats(since, until, order) {
-        Ok(sessions) => Json(ApiResponse::success(
+    match tokio::task::spawn_blocking(move || commands::usage::get_session_stats(since, until, order)).await {
+        Ok(Ok(sessions)) => Json(ApiResponse::success(
             serde_json::to_value(sessions).unwrap_or_default(),
         )),
-        Err(e) => Json(ApiResponse::error(e)),
+        Ok(Err(e)) => Json(ApiResponse::error(e)),
+        Err(_) => Json(ApiResponse::error("Task failed".to_string())),
     }
 }
 
@@ -273,99 +280,102 @@ async fn get_usage_details(
 ) -> Json<ApiResponse<serde_json::Value>> {
     let project_path = params.get("project_path").cloned();
     let date = params.get("date").cloned();
-    match commands::usage::get_usage_details(project_path, date) {
-        Ok(details) => Json(ApiResponse::success(
+    match tokio::task::spawn_blocking(move || commands::usage::get_usage_details(project_path, date)).await {
+        Ok(Ok(details)) => Json(ApiResponse::success(
             serde_json::to_value(details).unwrap_or_default(),
         )),
-        Err(e) => Json(ApiResponse::error(e)),
+        Ok(Err(e)) => Json(ApiResponse::error(e)),
+        Err(_) => Json(ApiResponse::error("Task failed".to_string())),
     }
 }
 
 /// Get 5-hour rolling usage window for Max/Pro plan users
 async fn get_usage_window() -> impl IntoResponse {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let claude_dir = format!("{}/.claude/projects", home);
+    let result = tokio::task::spawn_blocking(|| {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let claude_dir = format!("{}/.claude/projects", home);
 
-    let five_hours_ago = chrono::Utc::now() - chrono::Duration::hours(5);
-    let five_hours_ago_ms = five_hours_ago.timestamp_millis();
+        let five_hours_ago = chrono::Utc::now() - chrono::Duration::hours(5);
+        let five_hours_ago_ms = five_hours_ago.timestamp_millis();
 
-    let mut total_input = 0u64;
-    let mut total_output = 0u64;
-    let mut total_cache_creation = 0u64;
-    let mut total_cache_read = 0u64;
-    let mut message_count = 0u64;
+        let mut total_input = 0u64;
+        let mut total_output = 0u64;
+        let mut total_cache_creation = 0u64;
+        let mut total_cache_read = 0u64;
+        let mut message_count = 0u64;
 
-    // Walk all JSONL files, only process recent ones (modified in last 5 hours)
-    if let Ok(projects) = std::fs::read_dir(&claude_dir) {
-        for project in projects.flatten() {
-            if project.file_type().map_or(false, |t| t.is_dir()) {
-                for entry in walkdir::WalkDir::new(project.path())
-                    .into_iter()
-                    .filter_map(Result::ok)
-                    .filter(|e| e.path().extension().map_or(false, |ext| ext == "jsonl"))
-                {
-                    let path = entry.path();
-                    // Only process files modified recently
-                    if let Ok(metadata) = path.metadata() {
-                        if let Ok(modified) = metadata.modified() {
-                            let mod_time = modified
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as i64;
-                            if mod_time < five_hours_ago_ms {
-                                continue; // Skip old files
+        // Walk all JSONL files, only process recent ones (modified in last 5 hours)
+        if let Ok(projects) = std::fs::read_dir(&claude_dir) {
+            for project in projects.flatten() {
+                if project.file_type().map_or(false, |t| t.is_dir()) {
+                    for entry in walkdir::WalkDir::new(project.path())
+                        .into_iter()
+                        .filter_map(Result::ok)
+                        .filter(|e| e.path().extension().map_or(false, |ext| ext == "jsonl"))
+                    {
+                        let path = entry.path();
+                        // Only process files modified recently
+                        if let Ok(metadata) = path.metadata() {
+                            if let Ok(modified) = metadata.modified() {
+                                let mod_time = modified
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_millis() as i64;
+                                if mod_time < five_hours_ago_ms {
+                                    continue; // Skip old files
+                                }
                             }
                         }
-                    }
 
-                    if let Ok(content) = std::fs::read_to_string(path) {
-                        for line in content.lines() {
-                            if let Ok(json) =
-                                serde_json::from_str::<serde_json::Value>(line)
-                            {
-                                // Check timestamp
-                                let timestamp = json
-                                    .get("timestamp")
-                                    .and_then(|t| t.as_str())
-                                    .and_then(|t| {
-                                        chrono::DateTime::parse_from_rfc3339(t).ok()
-                                    })
-                                    .map(|t| t.timestamp_millis())
-                                    .unwrap_or(0);
+                        if let Ok(content) = std::fs::read_to_string(path) {
+                            for line in content.lines() {
+                                if let Ok(json) =
+                                    serde_json::from_str::<serde_json::Value>(line)
+                                {
+                                    // Check timestamp
+                                    let timestamp = json
+                                        .get("timestamp")
+                                        .and_then(|t| t.as_str())
+                                        .and_then(|t| {
+                                            chrono::DateTime::parse_from_rfc3339(t).ok()
+                                        })
+                                        .map(|t| t.timestamp_millis())
+                                        .unwrap_or(0);
 
-                                if timestamp < five_hours_ago_ms {
-                                    continue;
-                                }
+                                    if timestamp < five_hours_ago_ms {
+                                        continue;
+                                    }
 
-                                // Extract usage from nested message structure
-                                let usage = json
-                                    .get("message")
-                                    .and_then(|m| m.get("usage"))
-                                    .or_else(|| {
-                                        json.get("data")
-                                            .and_then(|d| d.get("message"))
-                                            .and_then(|m| m.get("message"))
-                                            .and_then(|m| m.get("usage"))
-                                    });
+                                    // Extract usage from nested message structure
+                                    let usage = json
+                                        .get("message")
+                                        .and_then(|m| m.get("usage"))
+                                        .or_else(|| {
+                                            json.get("data")
+                                                .and_then(|d| d.get("message"))
+                                                .and_then(|m| m.get("message"))
+                                                .and_then(|m| m.get("usage"))
+                                        });
 
-                                if let Some(usage) = usage {
-                                    total_input += usage
-                                        .get("input_tokens")
-                                        .and_then(|v| v.as_u64())
-                                        .unwrap_or(0);
-                                    total_output += usage
-                                        .get("output_tokens")
-                                        .and_then(|v| v.as_u64())
-                                        .unwrap_or(0);
-                                    total_cache_creation += usage
-                                        .get("cache_creation_input_tokens")
-                                        .and_then(|v| v.as_u64())
-                                        .unwrap_or(0);
-                                    total_cache_read += usage
-                                        .get("cache_read_input_tokens")
-                                        .and_then(|v| v.as_u64())
-                                        .unwrap_or(0);
-                                    message_count += 1;
+                                    if let Some(usage) = usage {
+                                        total_input += usage
+                                            .get("input_tokens")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        total_output += usage
+                                            .get("output_tokens")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        total_cache_creation += usage
+                                            .get("cache_creation_input_tokens")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        total_cache_read += usage
+                                            .get("cache_read_input_tokens")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        message_count += 1;
+                                    }
                                 }
                             }
                         }
@@ -373,44 +383,53 @@ async fn get_usage_window() -> impl IntoResponse {
                 }
             }
         }
-    }
 
-    // Calculate effective tokens weighted by rate limit impact
-    // Output tokens count at full rate (1x)
-    // Input tokens count at ~0.2x of output rate
-    // Cache creation tokens count at ~0.25x of output rate
-    // Cache read tokens are essentially free (0x)
-    let effective_tokens = (total_input as f64 * 0.2) + (total_output as f64) + (total_cache_creation as f64 * 0.25);
-    let estimated_limit: f64 = 5_000_000.0;
-    let usage_percent = (effective_tokens / estimated_limit * 100.0).min(100.0);
+        // Calculate effective tokens weighted by rate limit impact
+        let effective_tokens = (total_input as f64 * 0.2) + (total_output as f64) + (total_cache_creation as f64 * 0.25);
+        let estimated_limit: f64 = 5_000_000.0;
+        let usage_percent = (effective_tokens / estimated_limit * 100.0).min(100.0);
 
-    axum::Json(serde_json::json!({
-        "windowHours": 5,
-        "inputTokens": total_input,
-        "outputTokens": total_output,
-        "cacheCreationTokens": total_cache_creation,
-        "cacheReadTokens": total_cache_read,
-        "totalTokens": total_input + total_output + total_cache_creation + total_cache_read,
-        "effectiveTokens": effective_tokens as u64,
-        "estimatedLimitTokens": estimated_limit as u64,
-        "usagePercent": usage_percent,
-        "rateRelevantTokens": total_input + total_output + total_cache_creation,
-        "messageCount": message_count,
-        "windowStart": five_hours_ago.to_rfc3339(),
-        "windowEnd": chrono::Utc::now().to_rfc3339()
-    }))
+        serde_json::json!({
+            "windowHours": 5,
+            "inputTokens": total_input,
+            "outputTokens": total_output,
+            "cacheCreationTokens": total_cache_creation,
+            "cacheReadTokens": total_cache_read,
+            "totalTokens": total_input + total_output + total_cache_creation + total_cache_read,
+            "effectiveTokens": effective_tokens as u64,
+            "estimatedLimitTokens": estimated_limit as u64,
+            "usagePercent": usage_percent,
+            "rateRelevantTokens": total_input + total_output + total_cache_creation,
+            "messageCount": message_count,
+            "windowStart": five_hours_ago.to_rfc3339(),
+            "windowEnd": chrono::Utc::now().to_rfc3339()
+        })
+    }).await.unwrap_or_else(|_| serde_json::json!({}));
+
+    axum::Json(result)
 }
 
 /// Get usage cost info by running `claude -p "/cost" --output-format json`
 async fn get_usage_cost() -> impl IntoResponse {
     let claude_bin = find_claude_binary_web().unwrap_or_else(|_| "claude".to_string());
 
-    let output = std::process::Command::new(&claude_bin)
-        .args(["-p", "/cost", "--output-format", "json"])
-        .output();
+    let default_response = serde_json::json!({
+        "total_cost_usd": 0,
+        "result": "Claude binary not available or timed out"
+    });
 
-    match output {
-        Ok(out) => {
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::task::spawn_blocking(move || {
+            std::process::Command::new(&claude_bin)
+                .args(["-p", "/cost", "--output-format", "json"])
+                .output()
+        }),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(Ok(out))) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
             match serde_json::from_str::<serde_json::Value>(&stdout) {
                 Ok(json) => axum::Json(json).into_response(),
@@ -421,11 +440,7 @@ async fn get_usage_cost() -> impl IntoResponse {
                 .into_response(),
             }
         }
-        Err(_) => axum::Json(serde_json::json!({
-            "total_cost_usd": 0,
-            "result": "Claude binary not available"
-        }))
-        .into_response(),
+        _ => axum::Json(default_response).into_response(),
     }
 }
 
@@ -499,39 +514,57 @@ async fn open_new_session() -> Json<ApiResponse<String>> {
 
 /// Get system resources
 async fn get_resources() -> impl IntoResponse {
-    let resources = crate::commands::resources::get_system_resources();
-    axum::Json(resources)
+    let resources = tokio::task::spawn_blocking(|| {
+        crate::commands::resources::get_system_resources()
+    }).await;
+    match resources {
+        Ok(r) => axum::Json(serde_json::to_value(r).unwrap_or_default()).into_response(),
+        Err(_) => axum::Json(serde_json::json!({
+            "cpuPercent": 0.0,
+            "ramPercent": 0.0,
+            "ramUsedGb": 0.0,
+            "ramTotalGb": 0.0
+        })).into_response(),
+    }
 }
 
 /// Get integrations configuration
 async fn get_integrations() -> impl IntoResponse {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let config_path = format!("{}/.runecode/integrations.json", home);
+    let result = tokio::task::spawn_blocking(|| {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let config_path = format!("{}/.runecode/integrations.json", home);
 
-    match std::fs::read_to_string(&config_path) {
-        Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
-            Ok(config) => axum::Json(config).into_response(),
-            Err(_) => axum::Json(serde_json::json!({})).into_response(),
-        },
-        Err(_) => axum::Json(serde_json::json!({})).into_response(),
-    }
+        match std::fs::read_to_string(&config_path) {
+            Ok(content) => serde_json::from_str::<serde_json::Value>(&content)
+                .unwrap_or_else(|_| serde_json::json!({})),
+            Err(_) => serde_json::json!({}),
+        }
+    }).await.unwrap_or_else(|_| serde_json::json!({}));
+
+    axum::Json(result)
 }
 
 /// Save integrations configuration
 async fn save_integrations(axum::Json(config): axum::Json<serde_json::Value>) -> impl IntoResponse {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let dir_path = format!("{}/.runecode", home);
-    let config_path = format!("{}/integrations.json", dir_path);
+    let result = tokio::task::spawn_blocking(move || {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let dir_path = format!("{}/.runecode", home);
+        let config_path = format!("{}/integrations.json", dir_path);
 
-    let _ = std::fs::create_dir_all(&dir_path);
-    match serde_json::to_string_pretty(&config) {
-        Ok(content) => match std::fs::write(&config_path, content) {
-            Ok(_) => axum::http::StatusCode::OK.into_response(),
-            Err(e) => {
-                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-            }
-        },
-        Err(e) => (axum::http::StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        let _ = std::fs::create_dir_all(&dir_path);
+        match serde_json::to_string_pretty(&config) {
+            Ok(content) => match std::fs::write(&config_path, content) {
+                Ok(_) => Ok(()),
+                Err(e) => Err((axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+            },
+            Err(e) => Err((axum::http::StatusCode::BAD_REQUEST, e.to_string())),
+        }
+    }).await;
+
+    match result {
+        Ok(Ok(())) => axum::http::StatusCode::OK.into_response(),
+        Ok(Err((status, msg))) => (status, msg).into_response(),
+        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Task failed".to_string()).into_response(),
     }
 }
 
@@ -572,15 +605,22 @@ async fn init_project(axum::Json(body): axum::Json<serde_json::Value>) -> impl I
     let path = body
         .get("path")
         .and_then(|p| p.as_str())
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .to_string();
     let name = body
         .get("name")
         .and_then(|n| n.as_str())
-        .unwrap_or("New Project");
+        .unwrap_or("New Project")
+        .to_string();
 
-    match crate::commands::project_info::initialize_project(path.to_string(), name.to_string()) {
-        Ok(_) => axum::http::StatusCode::OK.into_response(),
-        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    let result = tokio::task::spawn_blocking(move || {
+        crate::commands::project_info::initialize_project(path, name)
+    }).await;
+
+    match result {
+        Ok(Ok(_)) => axum::http::StatusCode::OK.into_response(),
+        Ok(Err(e)) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Task failed".to_string()).into_response(),
     }
 }
 
@@ -598,29 +638,47 @@ async fn get_project_info(
         }
     };
 
-    let info = crate::commands::project_info::collect_project_info(&project_path);
-    axum::Json(info).into_response()
+    let result = tokio::task::spawn_blocking(move || {
+        crate::commands::project_info::collect_project_info(&project_path)
+    }).await;
+
+    match result {
+        Ok(info) => axum::Json(serde_json::to_value(info).unwrap_or_default()).into_response(),
+        Err(_) => axum::Json(serde_json::json!({"error": "Task failed"})).into_response(),
+    }
 }
 
 /// Get skills catalog
 async fn get_skills_catalog_web() -> impl IntoResponse {
-    let catalog = crate::commands::skills::get_skills_catalog();
-    axum::Json(catalog)
+    let result = tokio::task::spawn_blocking(|| {
+        crate::commands::skills::get_skills_catalog()
+    }).await;
+
+    match result {
+        Ok(catalog) => axum::Json(serde_json::to_value(catalog).unwrap_or_default()).into_response(),
+        Err(_) => axum::Json(serde_json::json!([])).into_response(),
+    }
 }
 
 /// Discover built-in commands from the Claude binary
 async fn get_builtin_commands() -> impl IntoResponse {
-    let output = std::process::Command::new("claude")
-        .args(["--help"])
-        .output();
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::task::spawn_blocking(|| {
+            std::process::Command::new("claude")
+                .args(["--help"])
+                .output()
+        }),
+    )
+    .await;
 
-    match output {
-        Ok(out) => {
+    match result {
+        Ok(Ok(Ok(out))) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
             let commands = parse_claude_help_output(&stdout);
             axum::Json(ApiResponse::success(commands))
         }
-        Err(_) => {
+        _ => {
             // Return empty -- frontend will use hardcoded fallback
             axum::Json(ApiResponse::success(serde_json::json!([])))
         }
@@ -702,17 +760,23 @@ fn parse_claude_help_output(output: &str) -> serde_json::Value {
 
 /// Discover agents from `claude agents` command
 async fn get_agents_list() -> impl IntoResponse {
-    let output = std::process::Command::new("claude")
-        .arg("agents")
-        .output();
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::task::spawn_blocking(|| {
+            std::process::Command::new("claude")
+                .arg("agents")
+                .output()
+        }),
+    )
+    .await;
 
-    match output {
-        Ok(out) => {
+    match result {
+        Ok(Ok(Ok(out))) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
             let agents = parse_agents_output(&stdout);
             axum::Json(ApiResponse::success(agents))
         }
-        Err(_) => axum::Json(ApiResponse::success(serde_json::json!([]))),
+        _ => axum::Json(ApiResponse::success(serde_json::json!([]))),
     }
 }
 
@@ -749,17 +813,23 @@ fn parse_agents_output(output: &str) -> serde_json::Value {
 
 /// Discover MCP servers from `claude mcp list` command
 async fn get_mcp_servers_list() -> impl IntoResponse {
-    let output = std::process::Command::new("claude")
-        .args(["mcp", "list"])
-        .output();
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::task::spawn_blocking(|| {
+            std::process::Command::new("claude")
+                .args(["mcp", "list"])
+                .output()
+        }),
+    )
+    .await;
 
-    match output {
-        Ok(out) => {
+    match result {
+        Ok(Ok(Ok(out))) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
             let servers = parse_mcp_list_output(&stdout);
             axum::Json(ApiResponse::success(servers))
         }
-        Err(_) => axum::Json(ApiResponse::success(serde_json::json!([]))),
+        _ => axum::Json(ApiResponse::success(serde_json::json!([]))),
     }
 }
 
@@ -1434,7 +1504,10 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         active_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
     };
 
-    // CORS layer to allow requests from phone browsers
+    // CORS layer to allow requests from phone browsers and local network devices.
+    // NOTE: Allow-all origins is acceptable for local/development use (LAN access from
+    // phones/tablets). For production or internet-exposed deployments, restrict origins
+    // to specific allowed domains to prevent unauthorized cross-origin requests.
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
