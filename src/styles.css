@@ -154,27 +154,27 @@ html {
   --color-info: oklch(0.65 0.15 250);
 
   /* ===== POPOVER (used by Radix UI) ===== */
-  --color-popover: var(--color-void-elevated);
-  --color-popover-foreground: var(--color-text-primary);
+  --color-popover: oklch(0.14 0.025 288);
+  --color-popover-foreground: oklch(0.93 0.01 285);
 
-  /* ===== LEGACY ALIASES (remove after one release) ===== */
-  --color-background: var(--color-void-base);
-  --color-foreground: var(--color-text-primary);
-  --color-card: var(--color-void-raised);
-  --color-card-foreground: var(--color-text-primary);
-  --color-primary: var(--color-purple-500);
-  --color-primary-foreground: var(--color-text-on-purple);
-  --color-secondary: var(--color-void-overlay);
-  --color-secondary-foreground: var(--color-text-primary);
-  --color-muted: var(--color-void-raised);
-  --color-muted-foreground: var(--color-text-muted);
-  --color-accent: var(--color-gold-400);
-  --color-accent-foreground: var(--color-text-on-gold);
-  --color-destructive: var(--color-error);
+  /* ===== LEGACY ALIASES — use raw values so Tailwind opacity modifiers work ===== */
+  --color-background: oklch(0.06 0.02 285);
+  --color-foreground: oklch(0.93 0.01 285);
+  --color-card: oklch(0.10 0.02 285);
+  --color-card-foreground: oklch(0.93 0.01 285);
+  --color-primary: oklch(0.62 0.28 292);
+  --color-primary-foreground: oklch(0.98 0.01 292);
+  --color-secondary: oklch(0.18 0.02 285);
+  --color-secondary-foreground: oklch(0.93 0.01 285);
+  --color-muted: oklch(0.10 0.02 285);
+  --color-muted-foreground: oklch(0.50 0.02 285);
+  --color-accent: oklch(0.78 0.15 80);
+  --color-accent-foreground: oklch(0.15 0.02 80);
+  --color-destructive: oklch(0.65 0.22 25);
   --color-destructive-foreground: oklch(0.98 0.01 25);
-  --color-border: var(--color-border-subtle);
-  --color-input: var(--color-border-subtle);
-  --color-ring: var(--color-purple-glow);
+  --color-border: oklch(0.20 0.02 285);
+  --color-input: oklch(0.20 0.02 285);
+  --color-ring: oklch(0.62 0.28 292 / 0.3);
 
   /* ===== BORDER RADIUS ===== */
   --radius-sm: 0.25rem;
@@ -265,6 +265,21 @@ html, html[data-theme="void-protocol"] {
   --color-border-subtle: oklch(0.20 0.02 285);
   --color-border-purple: oklch(0.40 0.15 292 / 0.4);
   --color-border-gold: oklch(0.60 0.10 80 / 0.3);
+  /* Legacy aliases for Void Protocol */
+  --color-background: oklch(0.06 0.02 285);
+  --color-foreground: oklch(0.93 0.01 285);
+  --color-card: oklch(0.10 0.02 285);
+  --color-card-foreground: oklch(0.93 0.01 285);
+  --color-primary: oklch(0.62 0.28 292);
+  --color-primary-foreground: oklch(0.98 0.01 292);
+  --color-secondary: oklch(0.18 0.02 285);
+  --color-muted: oklch(0.10 0.02 285);
+  --color-muted-foreground: oklch(0.50 0.02 285);
+  --color-accent: oklch(0.78 0.15 80);
+  --color-border: oklch(0.20 0.02 285);
+  --color-input: oklch(0.20 0.02 285);
+  --color-popover: oklch(0.14 0.025 288);
+  --color-popover-foreground: oklch(0.93 0.01 285);
 }
 
 /* ===== THEME: DAYLIGHT ===== */
@@ -287,6 +302,21 @@ html[data-theme="daylight"] {
   --color-border-subtle: oklch(0.85 0.01 270);
   --color-border-purple: oklch(0.50 0.20 292 / 0.3);
   --color-border-gold: oklch(0.65 0.12 80 / 0.3);
+  /* Legacy aliases for Daylight */
+  --color-background: oklch(0.97 0.005 270);
+  --color-foreground: oklch(0.15 0.01 285);
+  --color-card: oklch(0.99 0.003 270);
+  --color-card-foreground: oklch(0.15 0.01 285);
+  --color-primary: oklch(0.50 0.26 292);
+  --color-primary-foreground: oklch(0.98 0.01 292);
+  --color-secondary: oklch(0.93 0.01 270);
+  --color-muted: oklch(0.99 0.003 270);
+  --color-muted-foreground: oklch(0.55 0.02 285);
+  --color-accent: oklch(0.65 0.17 75);
+  --color-border: oklch(0.85 0.01 270);
+  --color-input: oklch(0.85 0.01 270);
+  --color-popover: oklch(1.0 0 0);
+  --color-popover-foreground: oklch(0.15 0.01 285);
 }
 
 /* ===== THEME: SLATE ===== */
@@ -298,6 +328,15 @@ html[data-theme="slate"] {
   --color-void-elevated: oklch(0.23 0.005 260);
   --color-void-overlay: oklch(0.27 0.005 260);
   --color-border-subtle: oklch(0.28 0.005 260);
+  /* Legacy aliases for Slate */
+  --color-background: oklch(0.15 0.005 260);
+  --color-foreground: oklch(0.93 0.01 285);
+  --color-card: oklch(0.19 0.005 260);
+  --color-muted: oklch(0.19 0.005 260);
+  --color-secondary: oklch(0.27 0.005 260);
+  --color-border: oklch(0.28 0.005 260);
+  --color-input: oklch(0.28 0.005 260);
+  --color-popover: oklch(0.23 0.005 260);
 }
 
 /* ===== THEME: CUSTOM ===== */
