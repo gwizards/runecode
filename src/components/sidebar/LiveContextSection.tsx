@@ -33,7 +33,7 @@ export function LiveContextSection({
   projectPath,
   envFilesDetected,
 }: LiveContextSectionProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
 
   // Fetch git branch when projectPath changes

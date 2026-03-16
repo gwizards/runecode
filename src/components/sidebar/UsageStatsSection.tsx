@@ -201,7 +201,7 @@ function PlanBadge({ type, compact = false }: { type: string; compact?: boolean 
 }
 
 export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
-  const [collapsed, setCollapsed] = useState(false); // OPEN by default
+  const [collapsed, setCollapsed] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { data: usage } = useQuery<UsageStats>({
