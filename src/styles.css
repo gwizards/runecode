@@ -241,107 +241,167 @@ html {
   --color-green-600: oklch(0.64 0.22 155);
 }
 
-/* Theme Variations */
-/* Default is dark theme - already defined above */
-
-/* Light Theme */
-.theme-light {
-  --color-background: oklch(0.98 0.01 240);
-  --color-foreground: oklch(0.12 0.01 240);
-  --color-card: oklch(0.96 0.01 240);
-  --color-card-foreground: oklch(0.12 0.01 240);
-  --color-popover: oklch(0.98 0.01 240);
-  --color-popover-foreground: oklch(0.12 0.01 240);
-  --color-primary: oklch(0.55 0.24 292);
-  --color-primary-foreground: oklch(0.98 0.01 292);
-  --color-secondary: oklch(0.94 0.01 240);
-  --color-secondary-foreground: oklch(0.12 0.01 240);
-  --color-muted: oklch(0.94 0.01 240);
-  --color-muted-foreground: oklch(0.45 0.01 240);
-  --color-accent: oklch(0.94 0.01 240);
-  --color-accent-foreground: oklch(0.12 0.01 240);
-  --color-destructive: oklch(0.6 0.2 25);
-  --color-destructive-foreground: oklch(0.98 0.01 240);
-  --color-border: oklch(0.90 0.01 240);
-  --color-input: oklch(0.90 0.01 240);
-  --color-ring: oklch(0.52 0.015 240);
-  
-  /* Additional colors for status messages */
-  --color-green-500: oklch(0.62 0.20 142);
-  --color-green-600: oklch(0.54 0.22 142);
+/* ===== THEME: VOID PROTOCOL (default dark) ===== */
+html, html[data-theme="void-protocol"] {
+  color-scheme: dark;
+  --color-void-deep: oklch(0.05 0.02 285);
+  --color-void-base: oklch(0.06 0.02 285);
+  --color-void-raised: oklch(0.10 0.02 285);
+  --color-void-elevated: oklch(0.14 0.025 288);
+  --color-void-overlay: oklch(0.18 0.02 285);
+  --color-purple-400: oklch(0.72 0.22 292);
+  --color-purple-500: oklch(0.62 0.28 292);
+  --color-purple-600: oklch(0.52 0.26 292);
+  --color-purple-glow: oklch(0.62 0.28 292 / 0.3);
+  --color-gold-300: oklch(0.85 0.12 80);
+  --color-gold-400: oklch(0.78 0.15 80);
+  --color-gold-500: oklch(0.70 0.17 75);
+  --color-gold-glow: oklch(0.78 0.15 80 / 0.25);
+  --color-text-primary: oklch(0.93 0.01 285);
+  --color-text-secondary: oklch(0.70 0.02 285);
+  --color-text-muted: oklch(0.50 0.02 285);
+  --color-text-on-purple: oklch(0.98 0.01 292);
+  --color-text-on-gold: oklch(0.15 0.02 80);
+  --color-border-subtle: oklch(0.20 0.02 285);
+  --color-border-purple: oklch(0.40 0.15 292 / 0.4);
+  --color-border-gold: oklch(0.60 0.10 80 / 0.3);
 }
 
-/* Gray Theme */
-.theme-gray {
-  --color-background: oklch(0.18 0.01 240);
-  --color-foreground: oklch(0.95 0.01 240);
-  --color-card: oklch(0.23 0.01 240);
-  --color-card-foreground: oklch(0.95 0.01 240);
-  --color-popover: oklch(0.21 0.01 240);
-  --color-popover-foreground: oklch(0.95 0.01 240);
-  --color-primary: oklch(0.59 0.24 292);
-  --color-primary-foreground: oklch(0.98 0.01 292);
-  --color-secondary: oklch(0.27 0.01 240);
-  --color-secondary-foreground: oklch(0.95 0.01 240);
-  --color-muted: oklch(0.27 0.01 240);
-  --color-muted-foreground: oklch(0.65 0.01 240);
-  --color-accent: oklch(0.27 0.01 240);
-  --color-accent-foreground: oklch(0.95 0.01 240);
-  --color-destructive: oklch(0.6 0.2 25);
-  --color-destructive-foreground: oklch(0.98 0.01 240);
-  --color-border: oklch(0.32 0.01 240);
-  --color-input: oklch(0.32 0.01 240);
-  --color-ring: oklch(0.55 0.015 240);
-  
-  /* Additional colors for status messages */
-  --color-green-500: oklch(0.72 0.20 142);
-  --color-green-600: oklch(0.64 0.22 142);
+/* ===== THEME: DAYLIGHT ===== */
+html[data-theme="daylight"] {
+  color-scheme: light;
+  --color-void-deep: oklch(0.95 0.01 270);
+  --color-void-base: oklch(0.97 0.005 270);
+  --color-void-raised: oklch(0.99 0.003 270);
+  --color-void-elevated: oklch(1.0 0 0);
+  --color-void-overlay: oklch(0.93 0.01 270);
+  --color-purple-500: oklch(0.50 0.26 292);
+  --color-purple-400: oklch(0.58 0.24 292);
+  --color-purple-600: oklch(0.42 0.24 292);
+  --color-gold-400: oklch(0.65 0.17 75);
+  --color-text-primary: oklch(0.15 0.01 285);
+  --color-text-secondary: oklch(0.40 0.02 285);
+  --color-text-muted: oklch(0.55 0.02 285);
+  --color-text-on-purple: oklch(0.98 0.01 292);
+  --color-text-on-gold: oklch(0.15 0.02 80);
+  --color-border-subtle: oklch(0.85 0.01 270);
+  --color-border-purple: oklch(0.50 0.20 292 / 0.3);
+  --color-border-gold: oklch(0.65 0.12 80 / 0.3);
 }
 
-/* White Theme (High Contrast Light) */
-.theme-white {
-  --color-background: oklch(0.99 0 240);
-  --color-foreground: oklch(0.10 0 240);
-  --color-card: oklch(1.0 0 240);
-  --color-card-foreground: oklch(0.10 0 240);
-  --color-popover: oklch(1.0 0 240);
-  --color-popover-foreground: oklch(0.10 0 240);
-  --color-primary: oklch(0.52 0.24 292);
-  --color-primary-foreground: oklch(0.98 0.01 292);
-  --color-secondary: oklch(0.95 0.01 240);
-  --color-secondary-foreground: oklch(0.10 0 240);
-  --color-muted: oklch(0.93 0.01 240);
-  --color-muted-foreground: oklch(0.40 0.01 240);
-  --color-accent: oklch(0.95 0.01 240);
-  --color-accent-foreground: oklch(0.10 0 240);
-  --color-destructive: oklch(0.55 0.25 25);
-  --color-destructive-foreground: oklch(1.0 0 240);
-  --color-border: oklch(0.88 0.01 240);
-  --color-input: oklch(0.88 0.01 240);
-  --color-ring: oklch(0.45 0.015 240);
-  
-  /* Additional colors for status messages */
-  --color-green-500: oklch(0.55 0.25 142);
-  --color-green-600: oklch(0.47 0.27 142);
+/* ===== THEME: SLATE ===== */
+html[data-theme="slate"] {
+  color-scheme: dark;
+  --color-void-deep: oklch(0.12 0.005 260);
+  --color-void-base: oklch(0.15 0.005 260);
+  --color-void-raised: oklch(0.19 0.005 260);
+  --color-void-elevated: oklch(0.23 0.005 260);
+  --color-void-overlay: oklch(0.27 0.005 260);
+  --color-border-subtle: oklch(0.28 0.005 260);
 }
 
-/* Custom Theme - CSS variables will be set dynamically by ThemeContext */
-.theme-custom {
-  /* Custom theme variables are applied dynamically via JavaScript */
+/* ===== THEME: CUSTOM ===== */
+html[data-theme="custom"] {
+  /* All tokens overridden via inline style from ThemeContext */
 }
+
+/* ===== DENSITY: SPACIOUS ===== */
+html[data-density="spacious"] {
+  --density-sidebar: 300px;
+  --density-card-padding: 24px;
+  --density-sidebar-padding: 16px;
+  --density-gap: 16px;
+}
+
+/* ===== DENSITY: ADAPTIVE (default) ===== */
+html, html[data-density="adaptive"] {
+  --density-sidebar: 260px;
+  --density-sidebar-compact: 48px;
+  --density-card-padding: 20px;
+  --density-sidebar-padding: 12px;
+  --density-gap: 12px;
+}
+
+/* ===== DENSITY: DENSE ===== */
+html[data-density="dense"] {
+  --density-sidebar: 220px;
+  --density-card-padding: 12px;
+  --density-sidebar-padding: 8px;
+  --density-gap: 8px;
+}
+
+/* ===== ATMOSPHERE: FULL (default) ===== */
+html, html[data-atmosphere="full"] {
+  --atm-grain-opacity: 0.03;
+  --atm-blur: 24px;
+  --atm-blur-elevated: 40px;
+  --atm-glow-opacity: 1;
+  --atm-mesh-opacity: 1;
+  --atm-transition-duration: var(--duration-base);
+}
+
+/* ===== ATMOSPHERE: MINIMAL ===== */
+html[data-atmosphere="minimal"] {
+  --atm-grain-opacity: 0.015;
+  --atm-blur: 0px;
+  --atm-blur-elevated: 12px;
+  --atm-glow-opacity: 0;
+  --atm-mesh-opacity: 0;
+  --atm-transition-duration: var(--duration-base);
+}
+
+/* ===== ATMOSPHERE: NONE ===== */
+html[data-atmosphere="none"] {
+  --atm-grain-opacity: 0;
+  --atm-blur: 0px;
+  --atm-blur-elevated: 0px;
+  --atm-glow-opacity: 0;
+  --atm-mesh-opacity: 0;
+  --atm-transition-duration: 0ms;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-atmosphere]) {
+    --atm-grain-opacity: 0;
+    --atm-blur: 0px;
+    --atm-blur-elevated: 0px;
+    --atm-glow-opacity: 0;
+    --atm-mesh-opacity: 0;
+    --atm-transition-duration: 0ms;
+  }
+}
+
+/* ===== RESPONSIVE DENSITY OVERRIDES ===== */
+@media (max-width: 767px) {
+  html {
+    --density-sidebar: 0px;
+    --density-card-padding: 12px;
+    --density-gap: 8px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  html:not([data-sidebar-override]) {
+    --density-sidebar: var(--density-sidebar-compact);
+  }
+}
+
+/* Legacy class aliases (transition period) */
+.theme-dark { /* handled by default html rules */ }
+.theme-gray { /* mapped to slate via ThemeContext */ }
+.theme-light { /* mapped to daylight via ThemeContext */ }
+.theme-white { /* mapped to daylight via ThemeContext */ }
+.theme-custom { /* mapped to custom via ThemeContext */ }
 
 /* Reset and base styles */
 * {
   border-color: var(--color-border);
 }
 
-html {
-  color-scheme: dark;
-}
-
 body {
-  background-color: var(--color-background);
-  color: var(--color-foreground);
+  background-color: var(--color-void-base);
+  color: var(--color-text-primary);
   font-family: var(--font-sans);
 }
 
@@ -416,8 +476,7 @@ button:focus-visible,
 
 /* macOS-only: subtle window outline for transparent, custom-decorated window */
 html.is-macos body {
-  /* Maintain rounded-corner shape and add a gentle 1px inner outline */
-  box-shadow: inset 0 0 0 1px var(--color-border);
+  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
 }
 
 /* Typography Utility Classes */
@@ -631,8 +690,8 @@ html.is-macos body {
 
 /* Markdown Editor Theme-aware Styles */
 [data-color-mode="dark"],
-.theme-dark [data-color-mode="dark"],
-.theme-gray [data-color-mode="dark"] {
+[data-theme="void-protocol"] [data-color-mode="dark"],
+[data-theme="slate"] [data-color-mode="dark"] {
   --color-border-default: rgb(48, 54, 61);
   --color-canvas-default: rgb(13, 17, 23);
   --color-canvas-subtle: rgb(22, 27, 34);
@@ -644,8 +703,7 @@ html.is-macos body {
 }
 
 [data-color-mode="light"],
-.theme-light [data-color-mode="light"],
-.theme-white [data-color-mode="light"] {
+[data-theme="daylight"] [data-color-mode="light"] {
   --color-border-default: rgb(216, 222, 228);
   --color-canvas-default: rgb(255, 255, 255);
   --color-canvas-subtle: rgb(246, 248, 250);
