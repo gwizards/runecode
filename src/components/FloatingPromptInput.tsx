@@ -4,27 +4,22 @@ import {
   Send,
   Maximize2,
   Minimize2,
-  ChevronUp,
-  Sparkles,
-  Zap,
   Square,
-  Brain,
-  Lightbulb,
-  Cpu,
-  Rocket,
-  
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RotatingRune } from "./RuneCodeLogo";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { TooltipProvider, TooltipSimple, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip-modern";
+import { TooltipProvider, TooltipSimple } from "@/components/ui/tooltip-modern";
 import { FilePicker } from "./FilePicker";
 import { SlashCommandPicker } from "./SlashCommandPicker";
 import { ImagePreview } from "./ImagePreview";
 import { type FileEntry, type SlashCommand } from "@/lib/api";
-import { HeliconeToggle } from "../integrations/observability/HeliconeToggle";
+import { ConfigPill } from '@/components/ConfigPill';
+import { ConfigPanel } from '@/components/ConfigPanel';
+import { useSessionConfig, type ThinkingMode } from '@/hooks/useSessionConfig';
 
 // Conditional import for Tauri webview window
 let tauriGetCurrentWebviewWindow: any;
@@ -73,13 +68,13 @@ interface FloatingPromptInputProps {
    */
   onCancel?: () => void;
   /**
-   * Extra menu items to display in the prompt bar
+   * Callback to copy conversation as Markdown
    */
-  extraMenuItems?: React.ReactNode;
+  onCopyMarkdown?: () => void;
   /**
-   * Cumulative session cost in USD for Helicone cost guard
+   * Callback to copy conversation as JSONL
    */
-  sessionCostUsd?: number;
+  onCopyJsonl?: () => void;
 }
 
 export interface FloatingPromptInputRef {
@@ -87,128 +82,15 @@ export interface FloatingPromptInputRef {
 }
 
 /**
- * Thinking mode type definition
+ * Thinking mode phrase mapping for appending to prompts
  */
-type ThinkingMode = "auto" | "think" | "think_hard" | "think_harder" | "ultrathink";
-
-/**
- * Thinking mode configuration
- */
-type ThinkingModeConfig = {
-  id: ThinkingMode;
-  name: string;
-  description: string;
-  level: number; // 0-4 for visual indicator
-  phrase?: string; // The phrase to append
-  icon: React.ReactNode;
-  color: string;
-  shortName: string;
+const THINKING_PHRASES: Record<ThinkingMode, string | undefined> = {
+  auto: undefined,
+  think: "think",
+  think_hard: "think hard",
+  think_harder: "think harder",
+  ultrathink: "ultrathink",
 };
-
-const THINKING_MODES: ThinkingModeConfig[] = [
-  {
-    id: "auto",
-    name: "Auto",
-    description: "Let Claude decide",
-    level: 0,
-    icon: <Sparkles className="h-3.5 w-3.5" />,
-    color: "text-muted-foreground",
-    shortName: "A"
-  },
-  {
-    id: "think",
-    name: "Think",
-    description: "Basic reasoning",
-    level: 1,
-    phrase: "think",
-    icon: <Lightbulb className="h-3.5 w-3.5" />,
-    color: "text-primary",
-    shortName: "T"
-  },
-  {
-    id: "think_hard",
-    name: "Think Hard",
-    description: "Deeper analysis",
-    level: 2,
-    phrase: "think hard",
-    icon: <Brain className="h-3.5 w-3.5" />,
-    color: "text-primary",
-    shortName: "T+"
-  },
-  {
-    id: "think_harder",
-    name: "Think Harder",
-    description: "Extensive reasoning",
-    level: 3,
-    phrase: "think harder",
-    icon: <Cpu className="h-3.5 w-3.5" />,
-    color: "text-primary",
-    shortName: "T++"
-  },
-  {
-    id: "ultrathink",
-    name: "Ultrathink",
-    description: "Maximum computation",
-    level: 4,
-    phrase: "ultrathink",
-    icon: <Rocket className="h-3.5 w-3.5" />,
-    color: "text-primary",
-    shortName: "Ultra"
-  }
-];
-
-/**
- * ThinkingModeIndicator component - Shows visual indicator bars for thinking level
- */
-const ThinkingModeIndicator: React.FC<{ level: number; color?: string }> = ({ level, color: _color }) => {
-  const getBarColor = (barIndex: number) => {
-    if (barIndex > level) return "bg-muted";
-    return "bg-primary";
-  };
-  
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4].map((i) => (
-        <div
-          key={i}
-          className={cn(
-            "w-1 h-3 rounded-full transition-all duration-200",
-            getBarColor(i),
-            i <= level && "shadow-sm"
-          )}
-        />
-      ))}
-    </div>
-  );
-};
-
-type Model = {
-  id: "sonnet" | "opus";
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  shortName: string;
-  color: string;
-};
-
-const MODELS: Model[] = [
-  {
-    id: "sonnet",
-    name: "Claude 4 Sonnet",
-    description: "Faster, efficient for most tasks",
-    icon: <Zap className="h-3.5 w-3.5" />,
-    shortName: "S",
-    color: "text-primary"
-  },
-  {
-    id: "opus",
-    name: "Claude 4 Opus",
-    description: "More capable, better for complex tasks",
-    icon: <Zap className="h-3.5 w-3.5" />,
-    shortName: "O",
-    color: "text-primary"
-  }
-];
 
 /**
  * FloatingPromptInput component - Fixed position prompt input with model picker
@@ -226,21 +108,20 @@ const FloatingPromptInputInner = (
     onSend,
     isLoading = false,
     disabled = false,
-    defaultModel = "sonnet",
+    defaultModel: _defaultModel = "sonnet",
     projectPath,
     className,
     onCancel,
-    extraMenuItems,
-    sessionCostUsd = 0,
+    onCopyMarkdown,
+    onCopyJsonl,
   }: FloatingPromptInputProps,
   ref: React.Ref<FloatingPromptInputRef>,
 ) => {
+  // Model and thinking mode are read from the store at send time
+  // via useSessionConfig.getState()
   const [prompt, setPrompt] = useState("");
-  const [selectedModel, setSelectedModel] = useState<"sonnet" | "opus">(defaultModel);
-  const [selectedThinkingMode, setSelectedThinkingMode] = useState<ThinkingMode>("auto");
   const [isExpanded, setIsExpanded] = useState(false);
-  const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const [thinkingModePickerOpen, setThinkingModePickerOpen] = useState(false);
+  const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerQuery, setFilePickerQuery] = useState("");
   const [showSlashCommandPicker, setShowSlashCommandPicker] = useState(false);
@@ -471,6 +352,7 @@ const FloatingPromptInputInner = (
       if (isStartOfCommand) {
         setShowSlashCommandPicker(true);
         setSlashCommandQuery("");
+        setConfigPanelOpen(false);
         setCursorPosition(newCursorPosition);
       }
     }
@@ -479,6 +361,7 @@ const FloatingPromptInputInner = (
     if (projectPath?.trim() && newValue.length > prompt.length && newValue[newCursorPosition - 1] === '@') {
       setShowFilePicker(true);
       setFilePickerQuery("");
+      setConfigPanelOpen(false);
       setCursorPosition(newCursorPosition);
     }
 
@@ -701,12 +584,13 @@ const FloatingPromptInputInner = (
       let finalPrompt = prompt.trim();
 
       // Append thinking phrase if not auto mode
-      const thinkingMode = THINKING_MODES.find(m => m.id === selectedThinkingMode);
-      if (thinkingMode && thinkingMode.phrase) {
-        finalPrompt = `${finalPrompt}.\n\n${thinkingMode.phrase}.`;
+      const { model, thinkingMode } = useSessionConfig.getState();
+      const phrase = THINKING_PHRASES[thinkingMode];
+      if (phrase) {
+        finalPrompt = `${finalPrompt}.\n\n${phrase}.`;
       }
 
-      onSend(finalPrompt, selectedModel);
+      onSend(finalPrompt, model);
       setPrompt("");
       setEmbeddedImages([]);
       setTextareaHeight(48); // Reset height after sending
@@ -844,7 +728,34 @@ const FloatingPromptInputInner = (
     setPrompt(newPrompt.trim());
   };
 
-  const selectedModelData = MODELS.find(m => m.id === selectedModel) || MODELS[0];
+  // Click-outside handler for config panel
+  useEffect(() => {
+    if (!configPanelOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.config-panel-container')) {
+        setConfigPanelOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [configPanelOpen]);
+
+  // Keyboard shortcuts for model and thinking mode cycling
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'm') {
+        e.preventDefault();
+        useSessionConfig.getState().cycleModel();
+      }
+      if (e.ctrlKey && e.key === 't' && !e.shiftKey) {
+        e.preventDefault();
+        useSessionConfig.getState().cycleThinkingMode();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   return (
     <TooltipProvider>
@@ -911,126 +822,7 @@ const FloatingPromptInputInner = (
                 onDrop={handleDrop}
               />
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Model:</span>
-                    <Popover
-                      trigger={
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setModelPickerOpen(!modelPickerOpen)}
-                          className="gap-2"
-                        >
-                          <span className={selectedModelData.color}>
-                            {selectedModelData.icon}
-                          </span>
-                          {selectedModelData.name}
-                        </Button>
-                      }
-                      content={
-                        <div className="w-[300px] p-1">
-                          {MODELS.map((model) => (
-                            <button
-                              key={model.id}
-                              onClick={() => {
-                                setSelectedModel(model.id);
-                                setModelPickerOpen(false);
-                              }}
-                              className={cn(
-                                "w-full flex items-start gap-3 p-3 rounded-md transition-colors text-left",
-                                "hover:bg-accent",
-                                selectedModel === model.id && "bg-accent"
-                              )}
-                            >
-                              <div className="mt-0.5">
-                                <span className={model.color}>
-                                  {model.icon}
-                                </span>
-                              </div>
-                              <div className="flex-1 space-y-1">
-                                <div className="font-medium text-sm">{model.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {model.description}
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      }
-                      open={modelPickerOpen}
-                      onOpenChange={setModelPickerOpen}
-                      align="start"
-                      side="top"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Thinking:</span>
-                    <Popover
-                      trigger={
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                                size="sm"
-                                onClick={() => setThinkingModePickerOpen(!thinkingModePickerOpen)}
-                                className="gap-2"
-                              >
-                                <span className={THINKING_MODES.find(m => m.id === selectedThinkingMode)?.color}>
-                                  {THINKING_MODES.find(m => m.id === selectedThinkingMode)?.icon}
-                                </span>
-                                <ThinkingModeIndicator 
-                                  level={THINKING_MODES.find(m => m.id === selectedThinkingMode)?.level || 0} 
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="font-medium">{THINKING_MODES.find(m => m.id === selectedThinkingMode)?.name || "Auto"}</p>
-                              <p className="text-xs text-muted-foreground">{THINKING_MODES.find(m => m.id === selectedThinkingMode)?.description}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                      }
-                      content={
-                        <div className="w-[280px] p-1">
-                          {THINKING_MODES.map((mode) => (
-                            <button
-                              key={mode.id}
-                              onClick={() => {
-                                setSelectedThinkingMode(mode.id);
-                                setThinkingModePickerOpen(false);
-                              }}
-                              className={cn(
-                                "w-full flex items-start gap-3 p-3 rounded-md transition-colors text-left",
-                                "hover:bg-accent",
-                                selectedThinkingMode === mode.id && "bg-accent"
-                              )}
-                            >
-                              <span className={cn("mt-0.5", mode.color)}>
-                                {mode.icon}
-                              </span>
-                              <div className="flex-1 space-y-1">
-                                <div className="font-medium text-sm">
-                                  {mode.name}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {mode.description}
-                                </div>
-                              </div>
-                              <ThinkingModeIndicator level={mode.level} />
-                            </button>
-                          ))}
-                        </div>
-                      }
-                      open={thinkingModePickerOpen}
-                      onOpenChange={setThinkingModePickerOpen}
-                      align="start"
-                      side="top"
-                    />
-                  </div>
-                </div>
-
+              <div className="flex items-center justify-end">
                 <TooltipSimple content="Send message" side="top">
                   <motion.div
                     whileTap={{ scale: 0.97 }}
@@ -1083,141 +875,18 @@ const FloatingPromptInputInner = (
 
           <div className="p-3">
             <div className="flex items-end gap-2">
-              {/* Model & Thinking Mode Selectors - Left side, fixed at bottom */}
-              <div className="flex items-center gap-1 shrink-0 mb-1">
-                <Popover
-                  trigger={
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div
-                          whileTap={{ scale: 0.97 }}
-                            transition={{ duration: 0.15 }}
-                          >
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={disabled}
-                              className="h-9 px-2 hover:bg-accent/50 gap-1"
-                            >
-                              <span className={selectedModelData.color}>
-                                {selectedModelData.icon}
-                              </span>
-                              <span className="text-[10px] font-bold opacity-70">
-                                {selectedModelData.shortName}
-                              </span>
-                              <ChevronUp className="h-3 w-3 ml-0.5 opacity-50" />
-                            </Button>
-                          </motion.div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p className="text-xs font-medium">{selectedModelData.name}</p>
-                          <p className="text-xs text-muted-foreground">{selectedModelData.description}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                  }
-                content={
-                  <div className="w-[300px] p-1">
-                    {MODELS.map((model) => (
-                      <button
-                        key={model.id}
-                        onClick={() => {
-                          setSelectedModel(model.id);
-                          setModelPickerOpen(false);
-                        }}
-                        className={cn(
-                          "w-full flex items-start gap-3 p-3 rounded-md transition-colors text-left",
-                          "hover:bg-accent",
-                          selectedModel === model.id && "bg-accent"
-                        )}
-                      >
-                        <div className="mt-0.5">
-                          <span className={model.color}>
-                            {model.icon}
-                          </span>
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="font-medium text-sm">{model.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {model.description}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                }
-                open={modelPickerOpen}
-                onOpenChange={setModelPickerOpen}
-                align="start"
-                side="top"
-              />
-
-                <Popover
-                  trigger={
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div
-                          whileTap={{ scale: 0.97 }}
-                            transition={{ duration: 0.15 }}
-                          >
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={disabled}
-                              className="h-9 px-2 hover:bg-accent/50 gap-1"
-                            >
-                              <span className={THINKING_MODES.find(m => m.id === selectedThinkingMode)?.color}>
-                                {THINKING_MODES.find(m => m.id === selectedThinkingMode)?.icon}
-                              </span>
-                              <span className="text-[10px] font-semibold opacity-70">
-                                {THINKING_MODES.find(m => m.id === selectedThinkingMode)?.shortName}
-                              </span>
-                              <ChevronUp className="h-3 w-3 ml-0.5 opacity-50" />
-                            </Button>
-                          </motion.div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p className="text-xs font-medium">Thinking: {THINKING_MODES.find(m => m.id === selectedThinkingMode)?.name || "Auto"}</p>
-                          <p className="text-xs text-muted-foreground">{THINKING_MODES.find(m => m.id === selectedThinkingMode)?.description}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                  }
-                content={
-                  <div className="w-[280px] p-1">
-                    {THINKING_MODES.map((mode) => (
-                      <button
-                        key={mode.id}
-                        onClick={() => {
-                          setSelectedThinkingMode(mode.id);
-                          setThinkingModePickerOpen(false);
-                        }}
-                        className={cn(
-                          "w-full flex items-start gap-3 p-3 rounded-md transition-colors text-left",
-                          "hover:bg-accent",
-                          selectedThinkingMode === mode.id && "bg-accent"
-                        )}
-                      >
-                        <span className={cn("mt-0.5", mode.color)}>
-                          {mode.icon}
-                        </span>
-                        <div className="flex-1 space-y-1">
-                          <div className="font-medium text-sm">
-                            {mode.name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {mode.description}
-                          </div>
-                        </div>
-                        <ThinkingModeIndicator level={mode.level} />
-                      </button>
-                    ))}
-                  </div>
-                }
-                open={thinkingModePickerOpen}
-                onOpenChange={setThinkingModePickerOpen}
-                align="start"
-                side="top"
-              />
-
+              {/* Config Pill - Left side, fixed at bottom */}
+              <div className="relative shrink-0 mb-1 config-panel-container">
+                <ConfigPill
+                  onClick={() => setConfigPanelOpen(!configPanelOpen)}
+                  isOpen={configPanelOpen}
+                  checkpointCount={0}
+                />
+                <AnimatePresence>
+                  {configPanelOpen && (
+                    <ConfigPanel onClose={() => setConfigPanelOpen(false)} />
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Prompt Input - Center */}
@@ -1237,7 +906,7 @@ const FloatingPromptInputInner = (
                   }
                   disabled={disabled}
                   className={cn(
-                    "resize-none pr-20 pl-3 py-2.5 transition-all duration-150",
+                    "resize-none pr-28 pl-3 py-2.5 transition-all duration-150",
                     dragActive && "border-primary",
                     textareaHeight >= 240 && "overflow-y-auto scrollbar-thin"
                   )}
@@ -1249,6 +918,53 @@ const FloatingPromptInputInner = (
 
                 {/* Action buttons inside input - fixed at bottom right */}
                 <div className="absolute right-1.5 bottom-1.5 flex items-center gap-0.5">
+                  {(onCopyMarkdown || onCopyJsonl) && (
+                    <Popover
+                      trigger={
+                        <TooltipSimple content="Copy conversation" side="top">
+                          <motion.div whileTap={{ scale: 0.97 }} transition={{ duration: 0.15 }}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              style={{ color: 'var(--color-text-muted)' }}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </motion.div>
+                        </TooltipSimple>
+                      }
+                      content={
+                        <div className="w-44 p-1">
+                          {onCopyMarkdown && (
+                            <button
+                              className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
+                              style={{ color: 'var(--color-text-secondary)' }}
+                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'color-mix(in oklch, var(--color-void-overlay) 80%, transparent)')}
+                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                              onClick={onCopyMarkdown}
+                            >
+                              Copy as Markdown
+                            </button>
+                          )}
+                          {onCopyJsonl && (
+                            <button
+                              className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
+                              style={{ color: 'var(--color-text-secondary)' }}
+                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'color-mix(in oklch, var(--color-void-overlay) 80%, transparent)')}
+                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                              onClick={onCopyJsonl}
+                            >
+                              Copy as JSONL
+                            </button>
+                          )}
+                        </div>
+                      }
+                      align="end"
+                      side="top"
+                    />
+                  )}
+
                   <TooltipSimple content="Expand (Ctrl+Shift+E)" side="top">
                     <motion.div
                       whileTap={{ scale: 0.97 }}
@@ -1316,17 +1032,6 @@ const FloatingPromptInputInner = (
                 </AnimatePresence>
               </div>
 
-              {/* Extra menu items - Right side, fixed at bottom */}
-              {extraMenuItems && (
-                <div className="flex items-center gap-0.5 shrink-0 mb-1">
-                  {extraMenuItems}
-                </div>
-              )}
-
-              {/* Cost Guard - Helicone integration */}
-              <div className="flex items-center shrink-0 mb-1">
-                <HeliconeToggle sessionCostUsd={sessionCostUsd} />
-              </div>
             </div>
           </div>
         </div>

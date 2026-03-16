@@ -1,4 +1,3 @@
-import React from 'react';
 import { Zap } from 'lucide-react';
 import { useSessionConfig, type ModelId, type ThinkingMode } from '@/hooks/useSessionConfig';
 

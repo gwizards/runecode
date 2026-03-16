@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'motion/react';
 import { Zap } from 'lucide-react';
 import { useSessionConfig, type ModelId } from '@/hooks/useSessionConfig';
@@ -13,7 +12,7 @@ interface ConfigPanelProps {
   onClose: () => void;
 }
 
-export function ConfigPanel({ onClose }: ConfigPanelProps) {
+export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
   const { model, setModel } = useSessionConfig();
 
   return (

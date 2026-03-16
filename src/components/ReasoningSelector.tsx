@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSessionConfig, type ThinkingMode } from '@/hooks/useSessionConfig';
 
 const LEVELS: { id: ThinkingMode; label: string }[] = [
