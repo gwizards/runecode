@@ -413,12 +413,18 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   useEffect(() => {
     let totalIn = 0;
     let totalOut = 0;
+    let totalCacheWrite = 0;
+    let totalCacheRead = 0;
     let msgCount = 0;
     for (const msg of messages) {
       const usage = msg.message?.usage ?? msg.usage;
       if (usage) {
         totalIn += usage.input_tokens;
         totalOut += usage.output_tokens;
+        // Cache token fields are present in Claude API responses but not in the base TS type
+        const usageAny = usage as Record<string, number>;
+        totalCacheWrite += usageAny.cache_creation_input_tokens || 0;
+        totalCacheRead += usageAny.cache_read_input_tokens || 0;
         msgCount++;
       }
     }
@@ -429,17 +435,17 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     setSessionCostUsd(cost);
 
     // Push to global store for sidebar usage display
-    if (msgCount > 0) {
-      useSessionStore.setState((state) => ({
-        liveUsage: {
-          ...state.liveUsage,
-          inputTokens: totalIn,
-          outputTokens: totalOut,
-          costUsd: cost,
-          messageCount: msgCount,
-        },
-      }));
-    }
+    useSessionStore.setState((state) => ({
+      liveUsage: {
+        ...state.liveUsage,
+        inputTokens: totalIn,
+        outputTokens: totalOut,
+        cacheCreationTokens: totalCacheWrite,
+        cacheReadTokens: totalCacheRead,
+        costUsd: cost,
+        messageCount: msgCount,
+      },
+    }));
   }, [messages]);
 
   const loadSessionHistory = async () => {

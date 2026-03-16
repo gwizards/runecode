@@ -194,15 +194,6 @@ function PlanBadge({ type, compact = false }: { type: string; compact?: boolean 
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded bg-accent/20 px-1.5 py-1 text-center">
-      <div className="text-xs font-medium text-foreground truncate">{value}</div>
-      <div className="text-[9px] text-muted-foreground">{label}</div>
-    </div>
-  );
-}
-
 export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   const [collapsed, setCollapsed] = useState(false); // OPEN by default
   const [isExpanded, setIsExpanded] = useState(false);
@@ -232,7 +223,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
       if (!res.ok) return null;
       return await res.json();
     },
-    refetchInterval: 60000, // refresh every minute
+    refetchInterval: 15000, // refresh every 15s for responsive updates
   });
 
   const { data: costData } = useQuery({
@@ -425,7 +416,39 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                 </p>
               )}
 
-              {/* 5-hour rolling window data */}
+              {/* Live session stats — shown whenever a session exists */}
+              <div className="space-y-1 mt-2 pt-2 border-t border-border/20">
+                <div className="flex items-center gap-1">
+                  <Activity className={`h-2.5 w-2.5 ${liveUsage.messageCount > 0 ? 'text-emerald-400 animate-pulse' : 'text-muted-foreground/40'}`} />
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">This Session</span>
+                </div>
+                <div className="space-y-0.5 text-[10px]">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Output</span><span className="font-mono">{formatTokens(liveUsage.outputTokens)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Input</span><span className="font-mono">{formatTokens(liveUsage.inputTokens)}</span>
+                  </div>
+                  {liveUsage.cacheCreationTokens > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Cache writes</span><span className="font-mono">{formatTokens(liveUsage.cacheCreationTokens)}</span>
+                    </div>
+                  )}
+                  {liveUsage.cacheReadTokens > 0 && (
+                    <div className="flex justify-between text-muted-foreground/60">
+                      <span>Cache reads</span><span className="font-mono">{formatTokens(liveUsage.cacheReadTokens)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Value</span><span className="font-mono">${liveUsage.costUsd.toFixed(3)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground/60">
+                    <span>{liveUsage.messageCount} messages</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5-hour rolling window data — combines API + live session */}
               {windowData && isIncludedPlan && (
                 <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last 5 Hours</span>
@@ -433,41 +456,26 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                   <div className="space-y-1 text-[10px]">
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Output tokens</span>
-                      <span className="font-mono">{formatTokens(windowData.outputTokens)}</span>
+                      <span className="font-mono">{formatTokens((windowData.outputTokens || 0) + liveUsage.outputTokens)}</span>
                     </div>
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Input tokens</span>
-                      <span className="font-mono">{formatTokens(windowData.inputTokens)}</span>
+                      <span className="font-mono">{formatTokens((windowData.inputTokens || 0) + liveUsage.inputTokens)}</span>
                     </div>
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Cache writes</span>
-                      <span className="font-mono">{formatTokens(windowData.cacheCreationTokens)}</span>
+                      <span className="font-mono">{formatTokens(windowData.cacheCreationTokens || 0)}</span>
                     </div>
                     <div className="flex items-center justify-between text-muted-foreground/40">
                       <span>Cache reads (free)</span>
-                      <span className="font-mono">{formatTokens(windowData.cacheReadTokens)}</span>
+                      <span className="font-mono">{formatTokens(windowData.cacheReadTokens || 0)}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <span>{windowData.messageCount} messages</span>
+                    <span>{(windowData.messageCount || 0) + liveUsage.messageCount} messages</span>
                     <span>&middot;</span>
                     <span>Rolling window</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Live session stats */}
-              {liveUsage.messageCount > 0 && (
-                <div className="space-y-1 mt-2 pt-2 border-t border-border/20">
-                  <div className="flex items-center gap-1">
-                    <Activity className="h-2.5 w-2.5 text-emerald-400 animate-pulse" />
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">This Session</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <MiniStat label="Cost" value={`$${liveUsage.costUsd.toFixed(3)}`} />
-                    <MiniStat label="In" value={formatTokens(liveUsage.inputTokens)} />
-                    <MiniStat label="Out" value={formatTokens(liveUsage.outputTokens)} />
                   </div>
                 </div>
               )}
