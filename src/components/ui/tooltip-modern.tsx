@@ -17,8 +17,8 @@ const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-[100] overflow-hidden rounded-lg border border-border bg-popover px-3 py-2",
-        "text-xs text-popover-foreground shadow-md",
+        "z-[100] overflow-hidden rounded-lg px-3 py-2",
+        "text-xs shadow-md",
         "animate-in fade-in-0 zoom-in-95",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
         "data-[side=bottom]:slide-in-from-top-2",
@@ -27,6 +27,11 @@ const TooltipContent = React.forwardRef<
         "data-[side=top]:slide-in-from-bottom-2",
         className
       )}
+      style={{
+        backgroundColor: 'var(--color-void-elevated)',
+        color: 'var(--color-text-primary)',
+        border: '1px solid var(--color-border-subtle)'
+      }}
       {...props}
     />
   </TooltipPrimitive.Portal>

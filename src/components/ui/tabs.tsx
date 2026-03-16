@@ -69,8 +69,8 @@ const TabsList = React.forwardRef<HTMLDivElement, TabsListProps>(
         className
       )}
       style={{
-        backgroundColor: "var(--color-muted)",
-        color: "var(--color-muted-foreground)"
+        backgroundColor: "var(--color-void-overlay)",
+        color: "var(--color-text-muted)"
       }}
       {...props}
     />
@@ -110,9 +110,10 @@ const TabsTrigger = React.forwardRef<
         className
       )}
       style={{
-        backgroundColor: isSelected ? "var(--color-background)" : "transparent",
-        color: isSelected ? "var(--color-foreground)" : "inherit",
-        boxShadow: isSelected ? "0 1px 2px rgba(0,0,0,0.1)" : "none"
+        backgroundColor: isSelected ? "transparent" : "transparent",
+        color: isSelected ? "var(--color-purple-400)" : "var(--color-text-muted)",
+        borderBottom: isSelected ? "2px solid var(--color-purple-500)" : "2px solid transparent",
+        boxShadow: "none"
       }}
       {...props}
     />

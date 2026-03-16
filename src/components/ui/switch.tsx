@@ -34,7 +34,8 @@ const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(
           className
         )}
         style={{
-          backgroundColor: checked ? "var(--color-primary)" : "var(--color-muted)"
+          backgroundColor: checked ? "var(--color-purple-500)" : "var(--color-void-overlay)",
+          boxShadow: checked ? '0 0 12px var(--color-purple-glow)' : 'none'
         }}
       >
         <span
