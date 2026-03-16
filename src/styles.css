@@ -109,45 +109,81 @@ html {
   background-color: var(--color-muted-foreground);
 }
 
-/* Dark theme configuration */
+/* Void Protocol Design System */
 @theme {
-  /* Colors */
-  --color-background: oklch(0.10 0.01 240);
-  --color-foreground: oklch(0.95 0.01 240);
-  --color-card: oklch(0.14 0.01 240);
-  --color-card-foreground: oklch(0.95 0.01 240);
-  --color-popover: oklch(0.13 0.01 240);
-  --color-popover-foreground: oklch(0.95 0.01 240);
-  --color-primary: oklch(0.59 0.24 292);
-  --color-primary-foreground: oklch(0.98 0.01 292);
-  --color-secondary: oklch(0.18 0.01 240);
-  --color-secondary-foreground: oklch(0.95 0.01 240);
-  --color-muted: oklch(0.16 0.01 240);
-  --color-muted-foreground: oklch(0.65 0.01 240);
-  --color-accent: oklch(0.18 0.01 240);
-  --color-accent-foreground: oklch(0.95 0.01 240);
-  --color-destructive: oklch(0.6 0.2 25);
-  --color-destructive-foreground: oklch(0.98 0.01 240);
-  --color-border: oklch(0.20 0.01 240);
-  --color-input: oklch(0.20 0.01 240);
-  --color-ring: oklch(0.50 0.015 240);
-  
-  /* Additional colors for status messages */
-  --color-green-500: oklch(0.72 0.20 142);
-  --color-green-600: oklch(0.64 0.22 142);
+  /* ===== FONTS ===== */
+  --font-heading: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
 
-  /* Border radius */
+  /* ===== BACKGROUNDS ===== */
+  --color-void-deep: oklch(0.05 0.02 285);
+  --color-void-base: oklch(0.06 0.02 285);
+  --color-void-raised: oklch(0.10 0.02 285);
+  --color-void-elevated: oklch(0.14 0.025 288);
+  --color-void-overlay: oklch(0.18 0.02 285);
+
+  /* ===== PRIMARY — ELECTRIC PURPLE ===== */
+  --color-purple-400: oklch(0.72 0.22 292);
+  --color-purple-500: oklch(0.62 0.28 292);
+  --color-purple-600: oklch(0.52 0.26 292);
+  --color-purple-glow: oklch(0.62 0.28 292 / 0.3);
+
+  /* ===== ACCENT — WARM GOLD ===== */
+  --color-gold-300: oklch(0.85 0.12 80);
+  --color-gold-400: oklch(0.78 0.15 80);
+  --color-gold-500: oklch(0.70 0.17 75);
+  --color-gold-glow: oklch(0.78 0.15 80 / 0.25);
+
+  /* ===== TEXT ===== */
+  --color-text-primary: oklch(0.93 0.01 285);
+  --color-text-secondary: oklch(0.70 0.02 285);
+  --color-text-muted: oklch(0.50 0.02 285);
+  --color-text-on-purple: oklch(0.98 0.01 292);
+  --color-text-on-gold: oklch(0.15 0.02 80);
+
+  /* ===== BORDERS ===== */
+  --color-border-subtle: oklch(0.20 0.02 285);
+  --color-border-purple: oklch(0.40 0.15 292 / 0.4);
+  --color-border-gold: oklch(0.60 0.10 80 / 0.3);
+
+  /* ===== SEMANTIC ===== */
+  --color-success: oklch(0.72 0.20 155);
+  --color-warning: oklch(0.78 0.18 60);
+  --color-error: oklch(0.65 0.22 25);
+  --color-info: oklch(0.65 0.15 250);
+
+  /* ===== POPOVER (used by Radix UI) ===== */
+  --color-popover: var(--color-void-elevated);
+  --color-popover-foreground: var(--color-text-primary);
+
+  /* ===== LEGACY ALIASES (remove after one release) ===== */
+  --color-background: var(--color-void-base);
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-void-raised);
+  --color-card-foreground: var(--color-text-primary);
+  --color-primary: var(--color-purple-500);
+  --color-primary-foreground: var(--color-text-on-purple);
+  --color-secondary: var(--color-void-overlay);
+  --color-secondary-foreground: var(--color-text-primary);
+  --color-muted: var(--color-void-raised);
+  --color-muted-foreground: var(--color-text-muted);
+  --color-accent: var(--color-gold-400);
+  --color-accent-foreground: var(--color-text-on-gold);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: oklch(0.98 0.01 25);
+  --color-border: var(--color-border-subtle);
+  --color-input: var(--color-border-subtle);
+  --color-ring: var(--color-purple-glow);
+
+  /* ===== BORDER RADIUS ===== */
   --radius-sm: 0.25rem;
   --radius-base: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 
-  /* Fonts */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
-  
-  /* Font Weights */
+  /* ===== FONT WEIGHTS ===== */
   --font-weight-thin: 100;
   --font-weight-extralight: 200;
   --font-weight-light: 300;
@@ -157,8 +193,8 @@ html {
   --font-weight-bold: 700;
   --font-weight-extrabold: 800;
   --font-weight-black: 900;
-  
-  /* Font Sizes */
+
+  /* ===== FONT SIZES ===== */
   --text-xs: 0.75rem;      /* 12px */
   --text-sm: 0.875rem;     /* 14px */
   --text-base: 1rem;       /* 16px */
@@ -168,16 +204,16 @@ html {
   --text-3xl: 1.875rem;    /* 30px */
   --text-4xl: 2.25rem;     /* 36px */
   --text-5xl: 3rem;        /* 48px */
-  
-  /* Line Heights */
+
+  /* ===== LINE HEIGHTS ===== */
   --leading-none: 1;
   --leading-tight: 1.25;
   --leading-snug: 1.375;
   --leading-normal: 1.5;
   --leading-relaxed: 1.625;
   --leading-loose: 1.75;
-  
-  /* Letter Spacing */
+
+  /* ===== LETTER SPACING ===== */
   --tracking-tighter: -0.05em;
   --tracking-tight: -0.025em;
   --tracking-normal: 0;
@@ -185,9 +221,24 @@ html {
   --tracking-wider: 0.05em;
   --tracking-widest: 0.1em;
 
-  /* Transitions */
+  /* ===== TRANSITIONS ===== */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 100ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+  --duration-glow: 2000ms;
+
+  /* ===== DENSITY — ADAPTIVE (default) ===== */
+  --density-sidebar: 260px;
+  --density-sidebar-compact: 48px;
+  --density-card-padding: 20px;
+  --density-sidebar-padding: 12px;
+  --density-gap: 12px;
+
+  /* ===== STATUS COLORS (existing, remapped) ===== */
+  --color-green-500: var(--color-success);
+  --color-green-600: oklch(0.64 0.22 155);
 }
 
 /* Theme Variations */
