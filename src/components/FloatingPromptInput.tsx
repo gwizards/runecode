@@ -898,10 +898,89 @@ const FloatingPromptInputInner = (
           )}
 
           <div className="p-3">
-            {/* Bottom bar — buttons outside input */}
-            <div className="flex items-center justify-between mb-2 px-1">
-              <div className="flex items-center gap-1">
-                {/* Config Pill */}
+            <div className="flex items-end gap-2">
+              {/* Input area — takes most space */}
+              <div className="flex-1 relative">
+                <Textarea
+                  ref={textareaRef}
+                  value={prompt}
+                  onChange={handleTextChange}
+                  onKeyDown={handleKeyDown}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
+                  onPaste={handlePaste}
+                  placeholder={
+                    dragActive
+                      ? "Drop images here..."
+                      : "Cast a rune... (@ for files, / for commands)"
+                  }
+                  disabled={disabled}
+                  className={cn(
+                    "resize-none pr-12 pl-3 py-2.5 transition-all duration-150",
+                    dragActive && "border-primary",
+                    textareaHeight >= 240 && "overflow-y-auto scrollbar-thin"
+                  )}
+                  style={{
+                    height: `${textareaHeight}px`,
+                    overflowY: textareaHeight >= 240 ? 'auto' : 'hidden'
+                  }}
+                />
+
+                {/* Only Send/Stop button inside */}
+                <div className="absolute right-1.5 bottom-1.5">
+                  <TooltipSimple content={isLoading ? "Stop generation" : "Send message (Enter)"} side="top">
+                    <motion.div
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <Button
+                        onClick={isLoading ? onCancel : handleSend}
+                        disabled={isLoading ? false : (!prompt.trim() || disabled)}
+                        variant={isLoading ? "destructive" : prompt.trim() ? "default" : "ghost"}
+                        size="icon"
+                        className={cn(
+                          "h-8 w-8 transition-all",
+                          prompt.trim() && !isLoading && "shadow-sm"
+                        )}
+                      >
+                        {isLoading ? (
+                          <Square className="h-4 w-4" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </motion.div>
+                  </TooltipSimple>
+                </div>
+
+                {/* File Picker */}
+                <AnimatePresence>
+                  {showFilePicker && projectPath && projectPath.trim() && (
+                    <FilePicker
+                      basePath={projectPath.trim()}
+                      onSelect={handleFileSelect}
+                      onClose={handleFilePickerClose}
+                      initialQuery={filePickerQuery}
+                    />
+                  )}
+                </AnimatePresence>
+
+                {/* Slash Command Picker */}
+                <AnimatePresence>
+                  {showSlashCommandPicker && (
+                    <SlashCommandPicker
+                      projectPath={projectPath}
+                      onSelect={handleSlashCommandSelect}
+                      onClose={handleSlashCommandPickerClose}
+                      initialQuery={slashCommandQuery}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Right button strip */}
+              <div className="flex flex-col gap-1 pb-1">
+                {/* Config Pill — compact */}
                 <div className="relative config-panel-container">
                   <ConfigPill
                     onClick={() => setConfigPanelOpen(!configPanelOpen)}
@@ -920,159 +999,83 @@ const FloatingPromptInputInner = (
                   </AnimatePresence>
                 </div>
 
-                {/* Copy button */}
-                {(onCopyMarkdown || onCopyJsonl) && (
-                  <Popover
-                    trigger={
-                      <TooltipSimple content="Copy conversation" side="top">
-                        <motion.div whileTap={{ scale: 0.97 }} transition={{ duration: 0.15 }}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            style={{ color: 'var(--color-text-muted)' }}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                        </motion.div>
-                      </TooltipSimple>
-                    }
-                    content={
-                      <div className="w-44 p-1">
-                        {onCopyMarkdown && (
-                          <button
-                            className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
-                            style={{ color: 'var(--color-text-secondary)' }}
-                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
-                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                            onClick={onCopyMarkdown}
-                          >
-                            Copy as Markdown
-                          </button>
-                        )}
-                        {onCopyJsonl && (
-                          <button
-                            className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
-                            style={{ color: 'var(--color-text-secondary)' }}
-                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
-                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                            onClick={onCopyJsonl}
-                          >
-                            Copy as JSONL
-                          </button>
-                        )}
-                      </div>
-                    }
-                    align="end"
-                    side="top"
-                  />
-                )}
+                {/* Action buttons row */}
+                <div className="flex items-center gap-0.5">
+                  {/* Copy button */}
+                  {(onCopyMarkdown || onCopyJsonl) && (
+                    <Popover
+                      trigger={
+                        <TooltipSimple content="Copy conversation" side="top">
+                          <motion.div whileTap={{ scale: 0.97 }} transition={{ duration: 0.15 }}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              style={{ color: 'var(--color-text-muted)' }}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </motion.div>
+                        </TooltipSimple>
+                      }
+                      content={
+                        <div className="w-44 p-1">
+                          {onCopyMarkdown && (
+                            <button
+                              className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
+                              style={{ color: 'var(--color-text-secondary)' }}
+                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
+                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                              onClick={onCopyMarkdown}
+                            >
+                              Copy as Markdown
+                            </button>
+                          )}
+                          {onCopyJsonl && (
+                            <button
+                              className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
+                              style={{ color: 'var(--color-text-secondary)' }}
+                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
+                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                              onClick={onCopyJsonl}
+                            >
+                              Copy as JSONL
+                            </button>
+                          )}
+                        </div>
+                      }
+                      align="end"
+                      side="top"
+                    />
+                  )}
 
-                {/* Expand button */}
-                <TooltipSimple content="Expand (Ctrl+Shift+E)" side="top">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsExpanded(true)}
-                    disabled={disabled}
-                    className="h-7 w-7"
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipSimple>
-
-                {/* Timeline button */}
-                <TooltipSimple content="Checkpoint Timeline" side="top">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => window.dispatchEvent(new Event('opcode:open-timeline'))}
-                    className="h-7 w-7"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
-                    <GitBranch className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipSimple>
-              </div>
-            </div>
-
-            {/* Input area — only send button inside */}
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                value={prompt}
-                onChange={handleTextChange}
-                onKeyDown={handleKeyDown}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
-                onPaste={handlePaste}
-                placeholder={
-                  dragActive
-                    ? "Drop images here..."
-                    : "Cast a rune... (@ for files, / for commands)"
-                }
-                disabled={disabled}
-                className={cn(
-                  "resize-none pr-12 pl-3 py-2.5 transition-all duration-150",
-                  dragActive && "border-primary",
-                  textareaHeight >= 240 && "overflow-y-auto scrollbar-thin"
-                )}
-                style={{
-                  height: `${textareaHeight}px`,
-                  overflowY: textareaHeight >= 240 ? 'auto' : 'hidden'
-                }}
-              />
-
-              {/* Only Send/Stop button inside */}
-              <div className="absolute right-1.5 bottom-1.5">
-                <TooltipSimple content={isLoading ? "Stop generation" : "Send message (Enter)"} side="top">
-                  <motion.div
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                  >
+                  {/* Expand button */}
+                  <TooltipSimple content="Expand (Ctrl+Shift+E)" side="top">
                     <Button
-                      onClick={isLoading ? onCancel : handleSend}
-                      disabled={isLoading ? false : (!prompt.trim() || disabled)}
-                      variant={isLoading ? "destructive" : prompt.trim() ? "default" : "ghost"}
+                      variant="ghost"
                       size="icon"
-                      className={cn(
-                        "h-8 w-8 transition-all",
-                        prompt.trim() && !isLoading && "shadow-sm"
-                      )}
+                      onClick={() => setIsExpanded(true)}
+                      disabled={disabled}
+                      className="h-7 w-7"
                     >
-                      {isLoading ? (
-                        <Square className="h-4 w-4" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
+                      <Maximize2 className="h-3.5 w-3.5" />
                     </Button>
-                  </motion.div>
-                </TooltipSimple>
+                  </TooltipSimple>
+
+                  {/* Timeline button */}
+                  <TooltipSimple content="Checkpoint Timeline" side="top">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => window.dispatchEvent(new Event('opcode:open-timeline'))}
+                      className="h-7 w-7"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      <GitBranch className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipSimple>
+                </div>
               </div>
-
-              {/* File Picker */}
-              <AnimatePresence>
-                {showFilePicker && projectPath && projectPath.trim() && (
-                  <FilePicker
-                    basePath={projectPath.trim()}
-                    onSelect={handleFileSelect}
-                    onClose={handleFilePickerClose}
-                    initialQuery={filePickerQuery}
-                  />
-                )}
-              </AnimatePresence>
-
-              {/* Slash Command Picker */}
-              <AnimatePresence>
-                {showSlashCommandPicker && (
-                  <SlashCommandPicker
-                    projectPath={projectPath}
-                    onSelect={handleSlashCommandSelect}
-                    onClose={handleSlashCommandPickerClose}
-                    initialQuery={slashCommandQuery}
-                  />
-                )}
-              </AnimatePresence>
             </div>
           </div>
         </div>
