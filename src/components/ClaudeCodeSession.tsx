@@ -239,6 +239,12 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // Filter out messages that shouldn't be displayed
   const displayableMessages = useMemo(() => {
     return messages.filter((message, index) => {
+      // Skip non-renderable message types (progress, file-history-snapshot, queue-operation, last-prompt)
+      const nonDisplayableTypes = ['progress', 'file-history-snapshot', 'queue-operation', 'last-prompt'];
+      if (nonDisplayableTypes.includes(message.type)) {
+        return false;
+      }
+
       // Skip meta messages that don't have meaningful content
       if (message.isMeta && !message.leafUuid && !message.summary) {
         return false;
