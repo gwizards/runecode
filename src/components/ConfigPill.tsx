@@ -1,4 +1,4 @@
-import { Zap } from 'lucide-react';
+import { Zap, ChevronUp } from 'lucide-react';
 import { useSessionConfig, type ModelId, type ThinkingMode } from '@/hooks/useSessionConfig';
 
 const MODEL_INFO: Record<ModelId, { name: string; iconColor: string }> = {
@@ -14,6 +14,14 @@ const THINKING_LABELS: Record<ThinkingMode, string> = {
   ultrathink: 'Ultra',
 };
 
+const THINKING_COLORS: Record<ThinkingMode, string> = {
+  auto: 'var(--color-text-secondary)',
+  think: 'var(--color-purple-400)',
+  think_hard: 'var(--color-purple-400)',
+  think_harder: 'var(--color-purple-400)',
+  ultrathink: 'var(--color-gold-400)',
+};
+
 interface ConfigPillProps {
   onClick: () => void;
   isOpen: boolean;
@@ -24,29 +32,62 @@ export function ConfigPill({ onClick, isOpen, checkpointCount = 0 }: ConfigPillP
   const { model, thinkingMode } = useSessionConfig();
   const modelInfo = MODEL_INFO[model];
   const thinkingLabel = THINKING_LABELS[thinkingMode];
+  const thinkingColor = THINKING_COLORS[thinkingMode];
 
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 rounded-full px-3 h-8 shrink-0 transition-all cursor-pointer"
+      className="flex items-center gap-2 rounded-full px-3.5 h-9 shrink-0 transition-all cursor-pointer group"
       style={{
-        backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+        backgroundColor: isOpen
+          ? 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)'
+          : 'color-mix(in oklch, var(--color-void-overlay) 50%, transparent)',
         border: `1px solid ${isOpen ? 'var(--color-border-purple)' : 'var(--color-border-subtle)'}`,
-        ...(isOpen && { boxShadow: '0 0 12px var(--color-purple-glow)' }),
+        boxShadow: isOpen ? '0 0 15px var(--color-purple-glow)' : 'none',
       }}
     >
-      <Zap className="h-3 w-3" style={{ color: modelInfo.iconColor }} />
-      <span className="text-[11px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-        {modelInfo.name}
-      </span>
-      <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>&middot;</span>
-      <span className="text-[11px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+      {/* Model icon + name */}
+      <div className="flex items-center gap-1.5">
+        <div
+          className="w-5 h-5 rounded flex items-center justify-center"
+          style={{
+            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+          }}
+        >
+          <Zap className="h-3 w-3" style={{ color: modelInfo.iconColor }} />
+        </div>
+        <span
+          className="text-[11px] font-semibold"
+          style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-heading)' }}
+        >
+          {modelInfo.name}
+        </span>
+      </div>
+
+      {/* Separator */}
+      <div className="w-px h-3.5" style={{ backgroundColor: 'var(--color-border-subtle)' }} />
+
+      {/* Thinking mode */}
+      <span className="text-[11px] font-medium" style={{ color: thinkingColor }}>
         {thinkingLabel}
       </span>
-      <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>&middot;</span>
-      <span className="text-[11px] font-medium" style={{ color: 'var(--color-gold-400)' }}>
+
+      {/* Separator */}
+      <div className="w-px h-3.5" style={{ backgroundColor: 'var(--color-border-subtle)' }} />
+
+      {/* Checkpoint count */}
+      <span className="text-[10px] font-mono" style={{ color: 'var(--color-gold-400)' }}>
         ✓{checkpointCount}
       </span>
+
+      {/* Chevron */}
+      <ChevronUp
+        className="h-2.5 w-2.5 transition-transform"
+        style={{
+          color: 'var(--color-text-muted)',
+          transform: isOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+        }}
+      />
     </button>
   );
 }

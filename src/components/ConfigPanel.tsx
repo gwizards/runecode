@@ -1,11 +1,77 @@
 import { motion } from 'motion/react';
-import { Zap } from 'lucide-react';
-import { useSessionConfig, type ModelId } from '@/hooks/useSessionConfig';
-import { ReasoningSelector } from '@/components/ReasoningSelector';
+import { Zap, Sparkles, Lightbulb, Brain, Cpu, Rocket, GitBranch } from 'lucide-react';
+import { useSessionConfig, type ModelId, type ThinkingMode } from '@/hooks/useSessionConfig';
 
-const MODELS: { id: ModelId; name: string; description: string; iconColor: string }[] = [
-  { id: 'sonnet', name: 'Claude Sonnet', description: 'Fast & efficient', iconColor: 'var(--color-gold-400)' },
-  { id: 'opus', name: 'Claude Opus', description: 'Most capable', iconColor: 'var(--color-purple-400)' },
+const MODELS: {
+  id: ModelId;
+  name: string;
+  fullName: string;
+  description: string;
+  iconColor: string;
+  badge?: string;
+  specs: string;
+}[] = [
+  {
+    id: 'sonnet',
+    name: 'Sonnet',
+    fullName: 'Claude 4 Sonnet',
+    description: 'Fast responses, great for most tasks',
+    iconColor: 'var(--color-gold-400)',
+    specs: '200K context · Fast',
+  },
+  {
+    id: 'opus',
+    name: 'Opus',
+    fullName: 'Claude 4 Opus',
+    description: 'Maximum capability for complex work',
+    iconColor: 'var(--color-purple-400)',
+    badge: 'PRO',
+    specs: '200K context · Powerful',
+  },
+];
+
+const THINKING_LEVELS: {
+  id: ThinkingMode;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  iconColor: string;
+}[] = [
+  {
+    id: 'auto',
+    label: 'Auto',
+    description: 'Let Claude decide',
+    icon: <Sparkles className="h-3.5 w-3.5" />,
+    iconColor: 'var(--color-text-muted)',
+  },
+  {
+    id: 'think',
+    label: 'Think',
+    description: 'Basic reasoning',
+    icon: <Lightbulb className="h-3.5 w-3.5" />,
+    iconColor: 'var(--color-purple-400)',
+  },
+  {
+    id: 'think_hard',
+    label: 'Deep',
+    description: 'Deeper analysis',
+    icon: <Brain className="h-3.5 w-3.5" />,
+    iconColor: 'var(--color-purple-400)',
+  },
+  {
+    id: 'think_harder',
+    label: 'Hard',
+    description: 'Extensive reasoning',
+    icon: <Cpu className="h-3.5 w-3.5" />,
+    iconColor: 'var(--color-purple-400)',
+  },
+  {
+    id: 'ultrathink',
+    label: 'Ultra',
+    description: 'Maximum computation',
+    icon: <Rocket className="h-3.5 w-3.5" />,
+    iconColor: 'var(--color-gold-400)',
+  },
 ];
 
 interface ConfigPanelProps {
@@ -13,54 +79,184 @@ interface ConfigPanelProps {
 }
 
 export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
-  const { model, setModel } = useSessionConfig();
+  const { model, setModel, thinkingMode, setThinkingMode } = useSessionConfig();
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.15 }}
-      className="absolute bottom-full mb-2 left-0 z-50 glass-elevated rounded-xl p-5 space-y-5"
-      style={{ width: '420px' }}
+      initial={{ opacity: 0, scale: 0.95, y: 8 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: 8 }}
+      transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+      className="absolute bottom-full mb-2 left-0 z-50 glass-elevated rounded-xl overflow-hidden"
+      style={{ width: '440px' }}
       onClick={(e) => e.stopPropagation()}
     >
       {/* MODEL SECTION */}
-      <div>
-        <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
-          Model
-        </span>
-        <div className="grid grid-cols-2 gap-3 mt-3">
+      <div className="p-4 pb-0">
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="h-3 w-3" style={{ color: 'var(--color-gold-300)' }} />
+          <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
+            Model
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
           {MODELS.map((m) => {
             const isSelected = model === m.id;
             return (
               <button
                 key={m.id}
-                onClick={() => { setModel(m.id); }}
-                className="rounded-lg p-3 text-left transition-all cursor-pointer"
+                onClick={() => setModel(m.id)}
+                className="rounded-xl p-3.5 text-left transition-all cursor-pointer group"
                 style={{
                   border: `1px solid ${isSelected ? 'var(--color-purple-500)' : 'var(--color-border-subtle)'}`,
                   backgroundColor: isSelected
                     ? 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)'
-                    : 'transparent',
-                  boxShadow: isSelected ? '0 0 12px var(--color-purple-glow)' : 'none',
+                    : 'color-mix(in oklch, var(--color-void-raised) 50%, transparent)',
+                  boxShadow: isSelected ? '0 0 20px var(--color-purple-glow)' : 'none',
                 }}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                   <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 10%, transparent)' }}
+                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all"
+                    style={{
+                      backgroundColor: isSelected
+                        ? 'color-mix(in oklch, var(--color-purple-500) 15%, transparent)'
+                        : 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+                      border: `1px solid ${isSelected ? 'color-mix(in oklch, var(--color-purple-500) 20%, transparent)' : 'transparent'}`,
+                    }}
                   >
                     <Zap className="h-4 w-4" style={{ color: m.iconColor }} />
                   </div>
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      {m.name}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="text-[13px] font-semibold"
+                        style={{
+                          color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                          fontFamily: 'var(--font-heading)',
+                        }}
+                      >
+                        {m.name}
+                      </span>
+                      {m.badge && (
+                        <span
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                          style={{
+                            backgroundColor: 'color-mix(in oklch, var(--color-gold-400) 15%, transparent)',
+                            color: 'var(--color-gold-400)',
+                            letterSpacing: '0.05em',
+                          }}
+                        >
+                          {m.badge}
+                        </span>
+                      )}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
                       {m.description}
-                    </div>
+                    </p>
+                    <p
+                      className="text-[10px] mt-1.5 font-mono"
+                      style={{ color: 'color-mix(in oklch, var(--color-text-muted) 60%, transparent)' }}
+                    >
+                      {m.specs}
+                    </p>
                   </div>
+                </div>
+                {/* Selection indicator */}
+                {isSelected && (
+                  <div
+                    className="mt-3 h-0.5 rounded-full"
+                    style={{
+                      background: 'linear-gradient(90deg, var(--color-purple-500), var(--color-purple-400), transparent)',
+                    }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* DIVIDER */}
+      <div className="mx-4 my-3 h-px" style={{
+        background: 'linear-gradient(90deg, transparent, var(--color-border-subtle), transparent)',
+      }} />
+
+      {/* REASONING SECTION */}
+      <div className="px-4 pb-0">
+        <div className="flex items-center gap-2 mb-3">
+          <Brain className="h-3 w-3" style={{ color: 'var(--color-gold-300)' }} />
+          <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
+            Reasoning
+          </span>
+        </div>
+        <div className="flex flex-col gap-1">
+          {THINKING_LEVELS.map((level) => {
+            const isSelected = thinkingMode === level.id;
+            const isUltra = level.id === 'ultrathink';
+            const activeColor = isUltra ? 'var(--color-gold-400)' : 'var(--color-purple-500)';
+            const activeGlow = isUltra ? 'var(--color-gold-glow)' : 'var(--color-purple-glow)';
+
+            return (
+              <button
+                key={level.id}
+                onClick={() => setThinkingMode(level.id)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 transition-all cursor-pointer text-left"
+                style={{
+                  backgroundColor: isSelected
+                    ? `color-mix(in oklch, ${activeColor} 10%, transparent)`
+                    : 'transparent',
+                  border: `1px solid ${isSelected ? activeColor : 'transparent'}`,
+                  boxShadow: isSelected ? `0 0 12px ${activeGlow}` : 'none',
+                }}
+              >
+                <div
+                  className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                  style={{
+                    backgroundColor: isSelected
+                      ? `color-mix(in oklch, ${activeColor} 15%, transparent)`
+                      : 'color-mix(in oklch, var(--color-void-overlay) 40%, transparent)',
+                    color: isSelected ? level.iconColor : 'var(--color-text-muted)',
+                  }}
+                >
+                  {level.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span
+                    className="text-[12px] font-medium"
+                    style={{
+                      color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                    }}
+                  >
+                    {level.label}
+                  </span>
+                  <span
+                    className="text-[10px] ml-2"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    {level.description}
+                  </span>
+                </div>
+                {/* Level indicator bars */}
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4].map((i) => {
+                    const levelNum = THINKING_LEVELS.findIndex((l) => l.id === level.id);
+                    const filled = i <= levelNum;
+                    return (
+                      <div
+                        key={i}
+                        className="w-1 rounded-full transition-all"
+                        style={{
+                          height: `${8 + i * 2}px`,
+                          backgroundColor: filled
+                            ? isSelected
+                              ? isUltra ? 'var(--color-gold-400)' : 'var(--color-purple-500)'
+                              : 'var(--color-text-muted)'
+                            : 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </button>
             );
@@ -68,35 +264,97 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
         </div>
       </div>
 
-      {/* REASONING SECTION */}
-      <div>
-        <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
-          Reasoning
-        </span>
-        <div className="mt-3">
-          <ReasoningSelector />
+      {/* DIVIDER */}
+      <div className="mx-4 my-3 h-px" style={{
+        background: 'linear-gradient(90deg, transparent, var(--color-border-subtle), transparent)',
+      }} />
+
+      {/* CHECKPOINTS SECTION */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-3 w-3" style={{ color: 'var(--color-gold-300)' }} />
+            <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
+              Checkpoints
+            </span>
+          </div>
+          <button
+            className="text-[10px] font-medium rounded-full px-2.5 py-1 transition-all cursor-not-allowed"
+            style={{
+              color: 'var(--color-purple-400)',
+              backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+              border: '1px solid color-mix(in oklch, var(--color-purple-500) 15%, transparent)',
+              opacity: 0.5,
+            }}
+            disabled
+          >
+            ↺ Rewind
+          </button>
+        </div>
+
+        {/* Checkpoint timeline placeholder */}
+        <div
+          className="rounded-lg p-4 flex flex-col items-center justify-center gap-2"
+          style={{
+            backgroundColor: 'color-mix(in oklch, var(--color-void-raised) 50%, transparent)',
+            border: '1px dashed color-mix(in oklch, var(--color-border-subtle) 50%, transparent)',
+          }}
+        >
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex flex-col items-center gap-1">
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{
+                    backgroundColor: i === 1
+                      ? 'var(--color-purple-500)'
+                      : 'color-mix(in oklch, var(--color-text-muted) 30%, transparent)',
+                  }}
+                />
+              </div>
+            ))}
+            <div className="flex-1 h-px ml-1" style={{
+              background: 'linear-gradient(90deg, var(--color-border-subtle), transparent)',
+            }} />
+          </div>
+          <p className="text-[10px] italic" style={{ color: 'var(--color-text-muted)' }}>
+            Auto-checkpoints coming soon
+          </p>
         </div>
       </div>
 
-      {/* CHECKPOINTS SECTION (empty state) */}
-      <div>
-        <div className="flex items-center justify-between">
-          <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
-            Checkpoints
-          </span>
-          <button
-            className="text-xs font-medium transition-colors opacity-50 cursor-not-allowed"
-            style={{ color: 'var(--color-purple-400)' }}
-            disabled
-          >
-            Rewind
-          </button>
-        </div>
-        <div className="mt-3">
-          <p className="text-xs italic" style={{ color: 'var(--color-text-muted)' }}>
-            Checkpoints coming soon
-          </p>
-        </div>
+      {/* KEYBOARD SHORTCUTS FOOTER */}
+      <div
+        className="px-4 py-2.5 flex items-center justify-center gap-4"
+        style={{
+          backgroundColor: 'color-mix(in oklch, var(--color-void-deep) 80%, transparent)',
+          borderTop: '1px solid color-mix(in oklch, var(--color-border-subtle) 30%, transparent)',
+        }}
+      >
+        <span className="text-[9px] font-mono flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
+          <kbd className="px-1 py-0.5 rounded" style={{
+            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+            border: '1px solid var(--color-border-subtle)',
+            fontSize: '9px',
+          }}>⌘M</kbd>
+          model
+        </span>
+        <span className="text-[9px] font-mono flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
+          <kbd className="px-1 py-0.5 rounded" style={{
+            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+            border: '1px solid var(--color-border-subtle)',
+            fontSize: '9px',
+          }}>⌘T</kbd>
+          reasoning
+        </span>
+        <span className="text-[9px] font-mono flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
+          <kbd className="px-1 py-0.5 rounded" style={{
+            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+            border: '1px solid var(--color-border-subtle)',
+            fontSize: '9px',
+          }}>Esc</kbd>
+          close
+        </span>
       </div>
     </motion.div>
   );
