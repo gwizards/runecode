@@ -431,47 +431,13 @@ button:disabled,
   cursor: not-allowed !important;
 }
 
-/* Remove all focus styles globally */
-* {
-  outline: none !important;
-  outline-offset: 0 !important;
+/* Focus styles — accessible focus-visible ring */
+*:focus {
+  outline: none;
 }
 
-*:focus,
-*:focus-visible,
-*:focus-within {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* Specifically remove focus styles from form elements */
-input:focus,
-input:focus-visible,
-textarea:focus,
-textarea:focus-visible,
-select:focus,
-select:focus-visible,
-button:focus,
-button:focus-visible,
-[role="button"]:focus,
-[role="button"]:focus-visible,
-[role="combobox"]:focus,
-[role="combobox"]:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-  border-color: var(--color-input) !important;
-}
-
-/* Remove ring styles */
-.ring-0,
-.ring-1,
-.ring-2,
-.ring,
-.ring-offset-0,
-.ring-offset-1,
-.ring-offset-2,
-.ring-offset {
-  box-shadow: none !important;
+*:focus-visible {
+  box-shadow: 0 0 0 3px var(--color-purple-glow), 0 0 15px color-mix(in oklch, var(--color-purple-500) 10%, transparent);
 }
 
 /* macOS-only: subtle window outline for transparent, custom-decorated window */
@@ -606,64 +572,141 @@ html.is-macos body {
   -webkit-line-clamp: 2;
 }
 
-/* RuneCode Glassmorphic Design Tokens */
+/* Void Protocol Glassmorphic & Ambient Utilities */
 @layer utilities {
+  /* --- Glass panels --- */
   .glass {
-    background: color-mix(in oklch, var(--color-background) 80%, transparent);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid color-mix(in oklch, var(--color-foreground) 10%, transparent);
+    background: color-mix(in oklch, var(--color-void-base) 80%, transparent);
+    backdrop-filter: blur(var(--atm-blur));
+    -webkit-backdrop-filter: blur(var(--atm-blur));
+    border: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    transition: backdrop-filter var(--atm-transition-duration) var(--ease-smooth),
+                background var(--atm-transition-duration) var(--ease-smooth);
   }
 
   .glass-elevated {
-    background: color-mix(in oklch, var(--color-background) 60%, transparent);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    border: 1px solid color-mix(in oklch, var(--color-foreground) 15%, transparent);
-    box-shadow: 0 8px 32px color-mix(in oklch, var(--color-background) 40%, transparent);
+    background: color-mix(in oklch, var(--color-void-elevated) 70%, transparent);
+    backdrop-filter: blur(var(--atm-blur-elevated));
+    -webkit-backdrop-filter: blur(var(--atm-blur-elevated));
+    border: 1px solid color-mix(in oklch, var(--color-text-primary) 12%, transparent);
+    box-shadow: 0 8px 32px color-mix(in oklch, var(--color-void-deep) 50%, transparent);
+    transition: backdrop-filter var(--atm-transition-duration) var(--ease-smooth),
+                background var(--atm-transition-duration) var(--ease-smooth);
   }
 
   .glass-subtle {
-    background: color-mix(in oklch, var(--color-background) 90%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid color-mix(in oklch, var(--color-foreground) 5%, transparent);
+    background: color-mix(in oklch, var(--color-void-base) 90%, transparent);
+    backdrop-filter: blur(calc(var(--atm-blur) / 2));
+    -webkit-backdrop-filter: blur(calc(var(--atm-blur) / 2));
+    border: 1px solid color-mix(in oklch, var(--color-text-primary) 5%, transparent);
+    transition: backdrop-filter var(--atm-transition-duration) var(--ease-smooth),
+                background var(--atm-transition-duration) var(--ease-smooth);
   }
 
+  /* --- Purple glow --- */
+  .glow-purple {
+    box-shadow:
+      0 0 15px color-mix(in oklch, var(--color-purple-500) 30%, transparent),
+      0 0 45px color-mix(in oklch, var(--color-purple-500) 10%, transparent);
+    opacity: var(--atm-glow-opacity, 1);
+  }
+
+  .glow-purple-sm {
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-purple-500) 20%, transparent);
+    opacity: var(--atm-glow-opacity, 1);
+  }
+
+  /* --- Gold glow --- */
+  .glow-gold {
+    box-shadow:
+      0 0 15px color-mix(in oklch, var(--color-gold-400) 30%, transparent),
+      0 0 45px color-mix(in oklch, var(--color-gold-400) 10%, transparent);
+    opacity: var(--atm-glow-opacity, 1);
+  }
+
+  .glow-gold-sm {
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-gold-400) 20%, transparent);
+    opacity: var(--atm-glow-opacity, 1);
+  }
+
+  /* --- Legacy glow aliases --- */
   .rune-glow {
-    box-shadow: 0 0 15px color-mix(in oklch, var(--color-primary) 30%, transparent), 0 0 45px color-mix(in oklch, var(--color-primary) 10%, transparent);
+    box-shadow:
+      0 0 15px color-mix(in oklch, var(--color-purple-500) 30%, transparent),
+      0 0 45px color-mix(in oklch, var(--color-purple-500) 10%, transparent);
+    opacity: var(--atm-glow-opacity, 1);
   }
 
   .rune-glow-sm {
-    box-shadow: 0 0 8px color-mix(in oklch, var(--color-primary) 20%, transparent);
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-purple-500) 20%, transparent);
+    opacity: var(--atm-glow-opacity, 1);
   }
 
   .rune-pulse {
-    animation: rune-pulse 2s ease-in-out infinite;
+    animation: rune-pulse var(--duration-glow) ease-in-out infinite;
+  }
+
+  /* --- Grain overlay --- */
+  .grain-overlay {
+    position: relative;
+  }
+
+  .grain-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: var(--atm-grain-opacity, 0.03);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    pointer-events: none;
+    z-index: 1;
+    mix-blend-mode: overlay;
+  }
+
+  /* --- Mesh gradient orbs --- */
+  .mesh-orb-purple {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--color-purple-glow) 0%, transparent 70%);
+    filter: blur(80px);
+    opacity: var(--atm-mesh-opacity, 1);
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity var(--atm-transition-duration) var(--ease-smooth);
+  }
+
+  .mesh-orb-gold {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--color-gold-glow) 0%, transparent 70%);
+    filter: blur(60px);
+    opacity: var(--atm-mesh-opacity, 1);
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity var(--atm-transition-duration) var(--ease-smooth);
+  }
+
+  /* --- Card hover effect --- */
+  .card-hover {
+    transition: transform var(--duration-base) var(--ease-smooth),
+                box-shadow var(--duration-base) var(--ease-smooth),
+                border-color var(--duration-base) var(--ease-smooth);
+  }
+
+  .card-hover:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 24px color-mix(in oklch, var(--color-void-deep) 60%, transparent);
+    border-color: var(--color-border-purple);
   }
 }
 
 @keyframes rune-pulse {
-  0%, 100% { box-shadow: 0 0 5px color-mix(in oklch, var(--color-primary) 20%, transparent); }
-  50% { box-shadow: 0 0 20px color-mix(in oklch, var(--color-primary) 40%, transparent); }
-}
-
-/* Reduced visual effects */
-.reduced-effects .glass,
-.reduced-effects .glass-elevated,
-.reduced-effects .glass-subtle {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  background: var(--color-background);
-}
-
-.reduced-effects .rune-glow,
-.reduced-effects .rune-glow-sm {
-  box-shadow: none;
-}
-
-.reduced-effects .rune-pulse {
-  animation: none;
+  0%, 100% { box-shadow: 0 0 5px color-mix(in oklch, var(--color-purple-500) 20%, transparent); }
+  50% { box-shadow: 0 0 20px color-mix(in oklch, var(--color-purple-500) 40%, transparent); }
 }
 
 /* RuneCode spinner animations */
