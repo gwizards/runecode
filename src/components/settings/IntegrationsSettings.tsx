@@ -1,4 +1,4 @@
-import { Shield, Cpu, ExternalLink } from "lucide-react";
+import { Sparkles, Eye, Cloud, Lock, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useIntegrationConfig } from "@/integrations/hooks/useIntegrationConfig";
 import { INTEGRATIONS } from "@/integrations/config";
@@ -13,11 +13,6 @@ interface IntegrationCardProps {
 function ObservabilityCard({ config, updateConfig }: IntegrationCardProps) {
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
-      <div className="flex items-center gap-2">
-        <Shield className="h-4 w-4 text-green-500" />
-        <h4 className="text-sm font-medium">Cost Guard</h4>
-        <span className="text-xs text-muted-foreground">Powered by Helicone</span>
-      </div>
       <div>
         <label className="text-xs text-muted-foreground">Helicone API Key</label>
         <input
@@ -57,10 +52,6 @@ function ObservabilityCard({ config, updateConfig }: IntegrationCardProps) {
 function ComputeCard({ config, updateConfig }: IntegrationCardProps) {
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
-      <div className="flex items-center gap-2">
-        <Cpu className="h-4 w-4 text-blue-400" />
-        <h4 className="text-sm font-medium">Cloud Compute</h4>
-      </div>
       <p className="text-xs text-muted-foreground">
         When heavy workloads are detected, get a recommendation to eject to the cloud.
       </p>
@@ -102,10 +93,6 @@ function ComputeCard({ config, updateConfig }: IntegrationCardProps) {
 function SecurityCard({ config, updateConfig }: IntegrationCardProps) {
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
-      <div className="flex items-center gap-2">
-        <Shield className="h-4 w-4 text-yellow-400" />
-        <h4 className="text-sm font-medium">Secrets Management</h4>
-      </div>
       <p className="text-xs text-muted-foreground">
         Scan for plaintext secrets and get recommendations for secure alternatives.
       </p>
@@ -128,27 +115,63 @@ function SecurityCard({ config, updateConfig }: IntegrationCardProps) {
   );
 }
 
+function Divider() {
+  return <div className="border-t border-border/20" />;
+}
+
 export function IntegrationsSettings() {
   const { config, updateConfig } = useIntegrationConfig();
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-8 max-w-2xl">
       <div>
-        <h3 className="text-lg font-semibold mb-1">Integrations</h3>
-        <p className="text-sm text-muted-foreground mb-4">Partner services and recommendations</p>
+        <h3 className="text-lg font-semibold mb-1">Partner Stack</h3>
+        <p className="text-sm text-muted-foreground mb-6">
+          Opinionated defaults for a production-ready AI development stack
+        </p>
       </div>
 
-      {/* Gateway / Models */}
-      <GatewayRecommendation variant="settings" />
+      {/* Models / LLM Gateway */}
+      <section>
+        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          LLM Gateway
+        </h4>
+        <GatewayRecommendation variant="settings" />
+      </section>
 
-      {/* Observability / Helicone */}
-      <ObservabilityCard config={config} updateConfig={updateConfig} />
+      <Divider />
 
-      {/* Compute */}
-      <ComputeCard config={config} updateConfig={updateConfig} />
+      {/* Observability / Cost Guard */}
+      <section>
+        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Eye className="h-4 w-4 text-green-400" />
+          Cost Guard
+        </h4>
+        <ObservabilityCard config={config} updateConfig={updateConfig} />
+      </section>
 
-      {/* Security */}
-      <SecurityCard config={config} updateConfig={updateConfig} />
+      <Divider />
+
+      {/* Compute / Cloud Eject */}
+      <section>
+        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Cloud className="h-4 w-4 text-blue-400" />
+          Cloud Compute
+        </h4>
+        <ComputeCard config={config} updateConfig={updateConfig} />
+      </section>
+
+      <Divider />
+
+      {/* Security / Secrets */}
+      <section>
+        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Lock className="h-4 w-4 text-yellow-400" />
+          Secrets Management
+        </h4>
+        <SecurityCard config={config} updateConfig={updateConfig} />
+      </section>
     </div>
   );
 }
