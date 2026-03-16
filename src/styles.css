@@ -773,79 +773,95 @@ html.is-macos body {
   }
 }
 
-/* Markdown Editor Theme-aware Styles */
+/* Markdown Editor Theme-aware Styles — Void Protocol tokens */
 [data-color-mode="dark"],
 [data-theme="void-protocol"] [data-color-mode="dark"],
 [data-theme="slate"] [data-color-mode="dark"] {
-  --color-border-default: rgb(48, 54, 61);
-  --color-canvas-default: rgb(13, 17, 23);
-  --color-canvas-subtle: rgb(22, 27, 34);
-  --color-fg-default: rgb(201, 209, 217);
-  --color-fg-muted: rgb(139, 148, 158);
-  --color-fg-subtle: rgb(110, 118, 129);
-  --color-accent-fg: rgb(88, 166, 255);
-  --color-danger-fg: rgb(248, 81, 73);
+  --color-border-default: var(--color-border-subtle);
+  --color-canvas-default: var(--color-void-base);
+  --color-canvas-subtle: var(--color-void-raised);
+  --color-fg-default: var(--color-text-primary);
+  --color-fg-muted: var(--color-text-secondary);
+  --color-fg-subtle: var(--color-text-muted);
+  --color-accent-fg: var(--color-purple-400);
+  --color-danger-fg: var(--color-error);
 }
 
 [data-color-mode="light"],
 [data-theme="daylight"] [data-color-mode="light"] {
-  --color-border-default: rgb(216, 222, 228);
-  --color-canvas-default: rgb(255, 255, 255);
-  --color-canvas-subtle: rgb(246, 248, 250);
-  --color-fg-default: rgb(31, 35, 40);
-  --color-fg-muted: rgb(101, 109, 118);
-  --color-fg-subtle: rgb(149, 157, 165);
-  --color-accent-fg: rgb(9, 105, 218);
-  --color-danger-fg: rgb(207, 34, 46);
+  --color-border-default: var(--color-border-subtle);
+  --color-canvas-default: var(--color-void-base);
+  --color-canvas-subtle: var(--color-void-raised);
+  --color-fg-default: var(--color-text-primary);
+  --color-fg-muted: var(--color-text-secondary);
+  --color-fg-subtle: var(--color-text-muted);
+  --color-accent-fg: var(--color-purple-400);
+  --color-danger-fg: var(--color-error);
 }
 
 .w-md-editor {
   background-color: transparent !important;
-  color: var(--color-foreground) !important;
+  color: var(--color-text-primary) !important;
 }
 
 .w-md-editor.w-md-editor-focus {
   box-shadow: none !important;
-  border-color: var(--color-border) !important;
+  border-color: var(--color-border-subtle) !important;
   outline: none !important;
 }
 
 .w-md-editor-toolbar {
-  background-color: var(--color-card) !important;
-  border-bottom: 1px solid var(--color-border) !important;
+  background-color: var(--color-void-raised) !important;
+  border-bottom: 1px solid var(--color-border-subtle) !important;
 }
 
 .w-md-editor-toolbar-divider {
-  background-color: var(--color-border) !important;
+  background-color: var(--color-border-subtle) !important;
 }
 
 .w-md-editor-toolbar button {
-  color: var(--color-foreground) !important;
+  color: var(--color-text-primary) !important;
 }
 
 .w-md-editor-toolbar button:hover {
-  background-color: var(--color-accent) !important;
-  color: var(--color-accent-foreground) !important;
+  background-color: var(--color-void-elevated) !important;
+  color: var(--color-purple-400) !important;
 }
 
 .w-md-editor-content {
-  background-color: var(--color-background) !important;
+  background-color: var(--color-void-raised) !important;
 }
 
 .w-md-editor-text-pre,
 .w-md-editor-text-input,
 .w-md-editor-text {
-  color: var(--color-foreground) !important;
+  color: var(--color-text-primary) !important;
   background-color: transparent !important;
 }
 
 .w-md-editor-preview {
-  background-color: var(--color-background) !important;
+  background-color: var(--color-void-raised) !important;
 }
 
 .wmde-markdown {
   background-color: transparent !important;
-  color: var(--color-foreground) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Markdown editor syntax highlighting — Void Protocol tokens */
+.w-md-editor-text-pre .token.keyword,
+.w-md-editor-text-pre .token.tag {
+  color: var(--color-purple-400) !important;
+}
+
+.w-md-editor-text-pre .token.string,
+.w-md-editor-text-pre .token.attr-value {
+  color: var(--color-success) !important;
+}
+
+.w-md-editor-text-pre .token.comment,
+.w-md-editor-text-pre .token.prolog {
+  color: var(--color-text-muted) !important;
 }
 
 /* Prose styles for markdown rendering */
