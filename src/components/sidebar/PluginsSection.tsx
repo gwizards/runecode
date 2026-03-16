@@ -28,6 +28,7 @@ export function PluginsSection() {
         ? (raw.map(safeParsePluginGroup).filter(Boolean) as SafePluginGroup[])
         : [];
     },
+    staleTime: 60000,
     refetchInterval: 60000,
   });
 

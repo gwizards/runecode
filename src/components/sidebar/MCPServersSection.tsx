@@ -64,6 +64,7 @@ export function MCPServersSection() {
         return [];
       }
     },
+    staleTime: 30000,
     refetchInterval: 30000,
   });
 

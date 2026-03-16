@@ -51,6 +51,7 @@ export function AgentsSection() {
           typeof (item as Agent).type === 'string'
       );
     },
+    staleTime: 60000,
     refetchInterval: 60000,
   });
 
