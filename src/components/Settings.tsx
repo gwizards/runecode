@@ -597,47 +597,47 @@ export const Settings: React.FC<SettingsProps> = ({
                       </div>
                       <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg">
                         <button
-                          onClick={() => setTheme('dark')}
+                          onClick={() => setTheme('void-protocol')}
                           className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                            theme === 'dark' 
-                              ? "bg-background shadow-sm" 
+                            theme === 'void-protocol'
+                              ? "bg-background shadow-sm"
                               : "hover:bg-background/50"
                           )}
                         >
-                          {theme === 'dark' && <Check className="h-3 w-3" />}
+                          {theme === 'void-protocol' && <Check className="h-3 w-3" />}
                           Dark
                         </button>
                         <button
-                          onClick={() => setTheme('gray')}
+                          onClick={() => setTheme('slate')}
                           className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                            theme === 'gray' 
-                              ? "bg-background shadow-sm" 
+                            theme === 'slate'
+                              ? "bg-background shadow-sm"
                               : "hover:bg-background/50"
                           )}
                         >
-                          {theme === 'gray' && <Check className="h-3 w-3" />}
-                          Gray
+                          {theme === 'slate' && <Check className="h-3 w-3" />}
+                          Slate
                         </button>
                         <button
-                          onClick={() => setTheme('light')}
+                          onClick={() => setTheme('daylight')}
                           className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                            theme === 'light' 
-                              ? "bg-background shadow-sm" 
+                            theme === 'daylight'
+                              ? "bg-background shadow-sm"
                               : "hover:bg-background/50"
                           )}
                         >
-                          {theme === 'light' && <Check className="h-3 w-3" />}
+                          {theme === 'daylight' && <Check className="h-3 w-3" />}
                           Light
                         </button>
                         <button
                           onClick={() => setTheme('custom')}
                           className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                            theme === 'custom' 
-                              ? "bg-background shadow-sm" 
+                            theme === 'custom'
+                              ? "bg-background shadow-sm"
                               : "hover:bg-background/50"
                           )}
                         >
@@ -653,116 +653,116 @@ export const Settings: React.FC<SettingsProps> = ({
                         <h4 className="text-label">Custom Theme Colors</h4>
                         
                         <div className="grid grid-cols-2 gap-4">
-                          {/* Background Color */}
+                          {/* Void Base */}
                           <div className="space-y-2">
-                            <Label htmlFor="color-background" className="text-caption">Background</Label>
+                            <Label htmlFor="color-void-base" className="text-caption">Background</Label>
                             <div className="flex gap-2">
                               <Input
-                                id="color-background"
+                                id="color-void-base"
                                 type="text"
-                                value={customColors.background}
-                                onChange={(e) => setCustomColors({ background: e.target.value })}
-                                placeholder="oklch(0.12 0.01 240)"
+                                value={customColors.voidBase}
+                                onChange={(e) => setCustomColors({ voidBase: e.target.value })}
+                                placeholder="oklch(0.06 0.02 285)"
                                 className="font-mono text-xs"
                               />
-                              <div 
+                              <div
                                 className="w-10 h-10 rounded border"
-                                style={{ backgroundColor: customColors.background }}
+                                style={{ backgroundColor: customColors.voidBase }}
                               />
                             </div>
                           </div>
-                          
-                          {/* Foreground Color */}
+
+                          {/* Text Primary */}
                           <div className="space-y-2">
-                            <Label htmlFor="color-foreground" className="text-caption">Foreground</Label>
+                            <Label htmlFor="color-text-primary" className="text-caption">Text</Label>
                             <div className="flex gap-2">
                               <Input
-                                id="color-foreground"
+                                id="color-text-primary"
                                 type="text"
-                                value={customColors.foreground}
-                                onChange={(e) => setCustomColors({ foreground: e.target.value })}
-                                placeholder="oklch(0.98 0.01 240)"
+                                value={customColors.textPrimary}
+                                onChange={(e) => setCustomColors({ textPrimary: e.target.value })}
+                                placeholder="oklch(0.93 0.01 285)"
                                 className="font-mono text-xs"
                               />
-                              <div 
+                              <div
                                 className="w-10 h-10 rounded border"
-                                style={{ backgroundColor: customColors.foreground }}
+                                style={{ backgroundColor: customColors.textPrimary }}
                               />
                             </div>
                           </div>
-                          
-                          {/* Primary Color */}
+
+                          {/* Purple 500 (Primary) */}
                           <div className="space-y-2">
-                            <Label htmlFor="color-primary" className="text-caption">Primary</Label>
+                            <Label htmlFor="color-purple-500" className="text-caption">Primary</Label>
                             <div className="flex gap-2">
                               <Input
-                                id="color-primary"
+                                id="color-purple-500"
                                 type="text"
-                                value={customColors.primary}
-                                onChange={(e) => setCustomColors({ primary: e.target.value })}
-                                placeholder="oklch(0.98 0.01 240)"
+                                value={customColors.purple500}
+                                onChange={(e) => setCustomColors({ purple500: e.target.value })}
+                                placeholder="oklch(0.62 0.28 292)"
                                 className="font-mono text-xs"
                               />
-                              <div 
+                              <div
                                 className="w-10 h-10 rounded border"
-                                style={{ backgroundColor: customColors.primary }}
+                                style={{ backgroundColor: customColors.purple500 }}
                               />
                             </div>
                           </div>
-                          
-                          {/* Card Color */}
+
+                          {/* Void Raised (Card) */}
                           <div className="space-y-2">
-                            <Label htmlFor="color-card" className="text-caption">Card</Label>
+                            <Label htmlFor="color-void-raised" className="text-caption">Card</Label>
                             <div className="flex gap-2">
                               <Input
-                                id="color-card"
+                                id="color-void-raised"
                                 type="text"
-                                value={customColors.card}
-                                onChange={(e) => setCustomColors({ card: e.target.value })}
-                                placeholder="oklch(0.14 0.01 240)"
+                                value={customColors.voidRaised}
+                                onChange={(e) => setCustomColors({ voidRaised: e.target.value })}
+                                placeholder="oklch(0.10 0.02 285)"
                                 className="font-mono text-xs"
                               />
-                              <div 
+                              <div
                                 className="w-10 h-10 rounded border"
-                                style={{ backgroundColor: customColors.card }}
+                                style={{ backgroundColor: customColors.voidRaised }}
                               />
                             </div>
                           </div>
-                          
-                          {/* Accent Color */}
+
+                          {/* Gold 400 (Accent) */}
                           <div className="space-y-2">
-                            <Label htmlFor="color-accent" className="text-caption">Accent</Label>
+                            <Label htmlFor="color-gold-400" className="text-caption">Accent</Label>
                             <div className="flex gap-2">
                               <Input
-                                id="color-accent"
+                                id="color-gold-400"
                                 type="text"
-                                value={customColors.accent}
-                                onChange={(e) => setCustomColors({ accent: e.target.value })}
-                                placeholder="oklch(0.16 0.01 240)"
+                                value={customColors.gold400}
+                                onChange={(e) => setCustomColors({ gold400: e.target.value })}
+                                placeholder="oklch(0.78 0.15 80)"
                                 className="font-mono text-xs"
                               />
-                              <div 
+                              <div
                                 className="w-10 h-10 rounded border"
-                                style={{ backgroundColor: customColors.accent }}
+                                style={{ backgroundColor: customColors.gold400 }}
                               />
                             </div>
                           </div>
-                          
-                          {/* Destructive Color */}
+
+                          {/* Border Subtle */}
                           <div className="space-y-2">
-                            <Label htmlFor="color-destructive" className="text-caption">Destructive</Label>
+                            <Label htmlFor="color-border-subtle" className="text-caption">Border</Label>
                             <div className="flex gap-2">
                               <Input
-                                id="color-destructive"
+                                id="color-border-subtle"
                                 type="text"
-                                value={customColors.destructive}
-                                onChange={(e) => setCustomColors({ destructive: e.target.value })}
-                                placeholder="oklch(0.6 0.2 25)"
+                                value={customColors.borderSubtle}
+                                onChange={(e) => setCustomColors({ borderSubtle: e.target.value })}
+                                placeholder="oklch(0.20 0.02 285)"
                                 className="font-mono text-xs"
                               />
-                              <div 
+                              <div
                                 className="w-10 h-10 rounded border"
-                                style={{ backgroundColor: customColors.destructive }}
+                                style={{ backgroundColor: customColors.borderSubtle }}
                               />
                             </div>
                           </div>
