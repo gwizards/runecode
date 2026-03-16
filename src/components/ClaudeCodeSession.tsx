@@ -1410,7 +1410,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
         {/* Main Content Area */}
         <div className={cn(
-          "flex-1 overflow-hidden transition-all duration-300",
+          "flex-1 overflow-hidden transition-all duration-300 relative",
           showTimeline && "sm:mr-96"
         )}>
           {showPreview ? (
@@ -1454,6 +1454,81 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Navigation Arrows - inside content area so they respect sidebar */}
+          {displayableMessages.length > 5 && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ delay: 0.5 }}
+              className="absolute bottom-20 right-6 z-30"
+            >
+              <div className="flex items-center glass border rounded-full shadow-lg overflow-hidden">
+                <TooltipSimple content="Scroll to top" side="top">
+                  <motion.div
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                      if (displayableMessages.length > 0) {
+                        parentRef.current?.scrollTo({
+                          top: 0,
+                          behavior: 'smooth'
+                        });
+                        setTimeout(() => {
+                          if (parentRef.current) {
+                            parentRef.current.scrollTop = 1;
+                            requestAnimationFrame(() => {
+                              if (parentRef.current) {
+                                parentRef.current.scrollTop = 0;
+                              }
+                            });
+                          }
+                        }, 500);
+                      }
+                    }}
+                      className="px-4 py-3 hover:bg-accent rounded-none"
+                    >
+                      <ChevronUp className="h-5 w-5" />
+                    </Button>
+                  </motion.div>
+                </TooltipSimple>
+                <div className="w-px h-4 bg-border" />
+                <TooltipSimple content="Scroll to bottom" side="top">
+                  <motion.div
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (displayableMessages.length > 0) {
+                          const scrollElement = parentRef.current;
+                          if (scrollElement) {
+                            rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
+                            requestAnimationFrame(() => {
+                              scrollElement.scrollTo({
+                                top: scrollElement.scrollHeight,
+                                behavior: 'smooth'
+                              });
+                            });
+                          }
+                        }
+                      }}
+                      className="px-4 py-3 hover:bg-accent rounded-none"
+                    >
+                      <ChevronDown className="h-5 w-5" />
+                    </Button>
+                  </motion.div>
+                </TooltipSimple>
+              </div>
+            </motion.div>
           )}
         </div>
 
@@ -1521,93 +1596,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Navigation Arrows - positioned above prompt bar with spacing */}
-          {displayableMessages.length > 5 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ delay: 0.5 }}
-              className={cn(
-                "fixed bottom-20 right-6 z-30 transition-all duration-300",
-                showTimeline && "sm:right-[25.5rem]"
-              )}
-            >
-              <div className="flex items-center glass border rounded-full shadow-lg overflow-hidden">
-                <TooltipSimple content="Scroll to top" side="top">
-                  <motion.div
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                      // Use virtualizer to scroll to the first item
-                      if (displayableMessages.length > 0) {
-                        // Scroll to top of the container
-                        parentRef.current?.scrollTo({
-                          top: 0,
-                          behavior: 'smooth'
-                        });
-                        
-                        // After smooth scroll completes, trigger a small scroll to ensure rendering
-                        setTimeout(() => {
-                          if (parentRef.current) {
-                            // Scroll down 1px then back to 0 to trigger virtualizer update
-                            parentRef.current.scrollTop = 1;
-                            requestAnimationFrame(() => {
-                              if (parentRef.current) {
-                                parentRef.current.scrollTop = 0;
-                              }
-                            });
-                          }
-                        }, 500); // Wait for smooth scroll to complete
-                      }
-                    }}
-                      className="px-4 py-3 hover:bg-accent rounded-none"
-                    >
-                      <ChevronUp className="h-5 w-5" />
-                    </Button>
-                  </motion.div>
-                </TooltipSimple>
-                <div className="w-px h-4 bg-border" />
-                <TooltipSimple content="Scroll to bottom" side="top">
-                  <motion.div
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        // Use the improved scrolling method for manual scroll to bottom
-                        if (displayableMessages.length > 0) {
-                          const scrollElement = parentRef.current;
-                          if (scrollElement) {
-                            // First, scroll using virtualizer to get close to the bottom
-                            rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
-
-                            // Then use direct scroll to ensure we reach the absolute bottom
-                            requestAnimationFrame(() => {
-                              scrollElement.scrollTo({
-                                top: scrollElement.scrollHeight,
-                                behavior: 'smooth'
-                              });
-                            });
-                          }
-                        }
-                      }}
-                      className="px-4 py-3 hover:bg-accent rounded-none"
-                    >
-                      <ChevronDown className="h-5 w-5" />
-                    </Button>
-                  </motion.div>
-                </TooltipSimple>
-              </div>
-            </motion.div>
-          )}
 
           <div className={cn(
             "fixed bottom-0 left-0 right-0 transition-all duration-300 z-40",
