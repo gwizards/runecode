@@ -1165,15 +1165,15 @@ html.is-macos body {
   z-index: 1;
 }
 
-/* --- ELEGANT SCROLLBARS --- */
+/* --- VOID PROTOCOL SCROLLBARS --- */
 
-/* Firefox - thin and minimal */
+/* Firefox - thin with purple tint */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+  scrollbar-color: color-mix(in oklch, var(--color-purple-500) 30%, transparent) transparent;
 }
 
-/* Global webkit scrollbar - ultra thin and elegant */
+/* Global webkit scrollbar - ultra thin, purple-tinted */
 ::-webkit-scrollbar {
   width: 3px;
   height: 3px;
@@ -1184,13 +1184,13 @@ html.is-macos body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
+  background-color: color-mix(in oklch, var(--color-purple-500) 35%, transparent);
   border-radius: 2px;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--duration-base) var(--ease-smooth);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.6);
+  background-color: color-mix(in oklch, var(--color-purple-500) 55%, transparent);
 }
 
 ::-webkit-scrollbar-corner {
@@ -1208,14 +1208,14 @@ code::-webkit-scrollbar {
 pre::-webkit-scrollbar-thumb,
 .w-md-editor-content::-webkit-scrollbar-thumb,
 code::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.4);
+  background-color: color-mix(in oklch, var(--color-purple-500) 30%, transparent);
   border-radius: 4px;
 }
 
 pre::-webkit-scrollbar-thumb:hover,
 .w-md-editor-content::-webkit-scrollbar-thumb:hover,
 code::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.6);
+  background-color: color-mix(in oklch, var(--color-purple-500) 50%, transparent);
 }
 
 /* NFO Credits Scanlines Animation */
