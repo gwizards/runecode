@@ -2,10 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Send,
-  Maximize2,
   Minimize2,
   Square,
-  Copy,
   GitBranch,
 } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
