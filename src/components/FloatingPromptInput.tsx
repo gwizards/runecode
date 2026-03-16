@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
 import { RotatingRune } from "./RuneCodeLogo";
 import { Button } from "@/components/ui/button";
-import { Popover } from "@/components/ui/popover";
+// Popover removed — copy button moved to context menu
 import { Textarea } from "@/components/ui/textarea";
 import { TooltipProvider, TooltipSimple } from "@/components/ui/tooltip-modern";
 import { FilePicker } from "./FilePicker";
@@ -124,8 +124,8 @@ const FloatingPromptInputInner = (
     projectId,
     className,
     onCancel,
-    onCopyMarkdown,
-    onCopyJsonl,
+    onCopyMarkdown: _onCopyMarkdown,
+    onCopyJsonl: _onCopyJsonl,
   }: FloatingPromptInputProps,
   ref: React.Ref<FloatingPromptInputRef>,
 ) => {
