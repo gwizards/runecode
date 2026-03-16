@@ -1473,7 +1473,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 w-full max-w-3xl px-4"
+                className="fixed bottom-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-3xl px-4"
               >
                 <div className="bg-background/95 backdrop-blur-md border rounded-lg shadow-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
@@ -1536,9 +1536,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ delay: 0.5 }}
-              className="fixed bottom-32 right-6 z-40"
+              className="fixed bottom-20 right-6 z-30"
             >
-              <div className="flex items-center bg-background/95 backdrop-blur-md border rounded-full shadow-lg overflow-hidden">
+              <div className="flex items-center glass border rounded-full shadow-lg overflow-hidden">
                 <TooltipSimple content="Scroll to top" side="top">
                   <motion.div
                     whileTap={{ scale: 0.97 }}
@@ -1570,9 +1570,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                         }, 500); // Wait for smooth scroll to complete
                       }
                     }}
-                      className="px-3 py-2 hover:bg-accent rounded-none"
+                      className="px-4 py-3 hover:bg-accent rounded-none"
                     >
-                      <ChevronUp className="h-4 w-4" />
+                      <ChevronUp className="h-5 w-5" />
                     </Button>
                   </motion.div>
                 </TooltipSimple>
@@ -1603,9 +1603,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                           }
                         }
                       }}
-                      className="px-3 py-2 hover:bg-accent rounded-none"
+                      className="px-4 py-3 hover:bg-accent rounded-none"
                     >
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="h-5 w-5" />
                     </Button>
                   </motion.div>
                 </TooltipSimple>
@@ -1710,9 +1710,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
           {/* Token Counter - positioned under the Send button */}
           {totalTokens > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none">
-              <div className="max-w-6xl mx-auto">
-                <div className="flex justify-end px-4 pb-2">
+            <div className="fixed bottom-16 right-4 z-30 pointer-events-none">
+              <div>
+                <div className="flex justify-end">
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
