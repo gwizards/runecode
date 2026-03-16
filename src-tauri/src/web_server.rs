@@ -7,9 +7,9 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
-use rust_embed::Embed;
 use chrono;
 use futures_util::{SinkExt, StreamExt};
+use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::SocketAddr;
@@ -302,9 +302,7 @@ async fn get_integrations() -> impl IntoResponse {
 }
 
 /// Save integrations configuration
-async fn save_integrations(
-    axum::Json(config): axum::Json<serde_json::Value>,
-) -> impl IntoResponse {
+async fn save_integrations(axum::Json(config): axum::Json<serde_json::Value>) -> impl IntoResponse {
     let home = std::env::var("HOME").unwrap_or_default();
     let dir_path = format!("{}/.runecode", home);
     let config_path = format!("{}/integrations.json", dir_path);
@@ -332,9 +330,7 @@ async fn list_slash_commands(
 async fn get_slash_command(
     Path(_command_id): Path<String>,
 ) -> Json<ApiResponse<serde_json::Value>> {
-    Json(ApiResponse::error(
-        "Slash command not found".to_string(),
-    ))
+    Json(ApiResponse::error("Slash command not found".to_string()))
 }
 
 /// Save (create/update) a slash command - stub for web mode
@@ -356,9 +352,7 @@ async fn delete_slash_command(
 }
 
 /// Initialize a new project (create .runecode/project.json)
-async fn init_project(
-    axum::Json(body): axum::Json<serde_json::Value>,
-) -> impl IntoResponse {
+async fn init_project(axum::Json(body): axum::Json<serde_json::Value>) -> impl IntoResponse {
     let path = body
         .get("path")
         .and_then(|p| p.as_str())
@@ -685,10 +679,7 @@ async fn execute_claude_command(
     // Create Claude command
     println!("[TRACE] Creating Claude command...");
     let mut cmd = Command::new(&claude_path);
-    let mut args: Vec<String> = vec![
-        "-p".to_string(),
-        prompt.clone(),
-    ];
+    let mut args: Vec<String> = vec!["-p".to_string(), prompt.clone()];
     if !model.is_empty() {
         args.push("--model".to_string());
         args.push(model.clone());
@@ -823,8 +814,7 @@ async fn continue_claude_command(
     let mut cmd = Command::new(&claude_path);
     let mut args: Vec<&str> = vec![
         "-c", // Continue flag
-        "-p",
-        &prompt,
+        "-p", &prompt,
     ];
     if !model.is_empty() {
         args.push("--model");
@@ -913,12 +903,7 @@ async fn resume_claude_command(
     // Create resume command
     println!("[resume_claude_command] Creating command...");
     let mut cmd = Command::new(&claude_path);
-    let mut args: Vec<&str> = vec![
-        "--resume",
-        &claude_session_id,
-        "-p",
-        &prompt,
-    ];
+    let mut args: Vec<&str> = vec!["--resume", &claude_session_id, "-p", &prompt];
     if !model.is_empty() {
         args.push("--model");
         args.push(&model);
@@ -1027,7 +1012,10 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/usage/sessions", get(get_usage_sessions))
         .route("/api/usage/details", get(get_usage_details))
         .route("/api/resources", get(get_resources))
-        .route("/api/integrations", get(get_integrations).post(save_integrations))
+        .route(
+            "/api/integrations",
+            get(get_integrations).post(save_integrations),
+        )
         // Settings and configuration
         .route("/api/settings/claude", get(get_claude_settings))
         .route("/api/settings/claude/version", get(check_claude_version))
@@ -1041,8 +1029,14 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         // Skills
         .route("/api/skills", get(get_skills_catalog_web))
         // Slash commands
-        .route("/api/slash-commands", get(list_slash_commands).post(save_slash_command))
-        .route("/api/slash-commands/{commandId}", get(get_slash_command).delete(delete_slash_command))
+        .route(
+            "/api/slash-commands",
+            get(list_slash_commands).post(save_slash_command),
+        )
+        .route(
+            "/api/slash-commands/{commandId}",
+            get(get_slash_command).delete(delete_slash_command),
+        )
         // MCP
         .route("/api/mcp/servers", get(mcp_list))
         // Session history
