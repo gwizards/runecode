@@ -37,13 +37,14 @@ const ITEMS_PER_PAGE = 5;
  * />
  */
 export const AgentRunsList: React.FC<AgentRunsListProps> = ({
-  runs,
+  runs: rawRuns,
   onRunClick,
   className,
 }) => {
+  const runs = rawRuns || [];
   const [currentPage, setCurrentPage] = useState(1);
   const { createAgentTab } = useTabState();
-  
+
   // Calculate pagination
   const totalPages = Math.ceil(runs.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;

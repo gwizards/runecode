@@ -105,7 +105,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
     try {
       setRunsLoading(true);
       const runsList = await api.listAgentRuns();
-      setRuns(runsList);
+      setRuns(runsList || []);
     } catch (err) {
       console.error("Failed to load runs:", err);
     } finally {

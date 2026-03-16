@@ -53,7 +53,7 @@ export const ClaudeMemoriesDropdown: React.FC<ClaudeMemoriesDropdownProps> = ({
       setLoading(true);
       setError(null);
       const foundFiles = await api.findClaudeMdFiles(projectPath);
-      setFiles(foundFiles);
+      setFiles(foundFiles || []);
     } catch (err) {
       console.error("Failed to load CLAUDE.md files:", err);
       setError("Failed to load CLAUDE.md files");

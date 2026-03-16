@@ -309,9 +309,10 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   const maxTokenType = Math.max(...tokenBreakdown.map((t) => t.value), 1);
 
   // Model cost max
+  const models = usage.by_model || [];
   const maxModelCost =
-    usage.by_model.length > 0
-      ? Math.max(...usage.by_model.map((m) => m.total_cost), 0.01)
+    models.length > 0
+      ? Math.max(...models.map((m) => m.total_cost), 0.01)
       : 1;
 
   return (
@@ -507,12 +508,12 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                   >
                     <div className="space-y-3 pt-1">
                       {/* Cost by Model */}
-                      {usage.by_model.length > 0 && (
+                      {models.length > 0 && (
                         <div className="space-y-1.5">
                           <span className="text-overline" style={{ color: 'var(--color-gold-300)' }}>
                             Cost by Model
                           </span>
-                          {usage.by_model.map((m) => (
+                          {models.map((m) => (
                             <div key={m.model} className="space-y-0.5">
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-foreground/70 truncate max-w-[60%]">
