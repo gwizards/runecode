@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { isDevMode } from '@/lib/devFallback';
 import { safeParsePluginGroup } from '../../lib/safeParser';
 
@@ -14,14 +14,19 @@ interface PluginGroup {
   skills: Skill[];
 }
 
+interface FlatSkill extends Skill {
+  plugin: string;
+}
+
 interface SkillsCatalogSectionProps {
   activeSkills?: Set<string>;
 }
 
 export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps) {
-  const [collapsed, setCollapsed] = useState(true); // Collapsed by default
+  const [collapsed, setCollapsed] = useState(true);
   const [catalog, setCatalog] = useState<PluginGroup[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     async function loadSkills() {
@@ -48,15 +53,33 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
     loadSkills();
   }, []);
 
-  const totalSkills = catalog.reduce((sum, group) => sum + group.skills.length, 0);
+  // Flatten all skills into a single sorted list
+  const allSkills = useMemo<FlatSkill[]>(() => {
+    const flat = catalog.flatMap((group) =>
+      group.skills.map((skill) => ({
+        ...skill,
+        plugin: group.plugin,
+      }))
+    );
+    return flat.sort((a, b) => a.name.localeCompare(b.name));
+  }, [catalog]);
 
-  // Flatten all skills for clean flat list in sidebar
-  const allSkills = catalog.flatMap((group) =>
-    group.skills.map((skill) => ({
-      ...skill,
-      plugin: group.plugin,
-    }))
-  );
+  // Filter by search query (matches skill name or plugin name)
+  const filteredSkills = useMemo(() => {
+    if (!search.trim()) return allSkills;
+    const q = search.toLowerCase();
+    return allSkills.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.plugin.toLowerCase().includes(q)
+    );
+  }, [allSkills, search]);
+
+  const totalSkills = allSkills.length;
+
+  const handleCopy = (skillName: string) => {
+    navigator.clipboard.writeText(`/${skillName}`);
+  };
 
   return (
     <div className="px-3">
@@ -87,19 +110,33 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
             className="overflow-hidden"
           >
             <div className="py-1.5">
+              {/* Search input */}
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter skills..."
+                className="w-full h-[28px] text-[11px] px-2 mb-1.5 rounded border border-border bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+
               {allSkills.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground pl-1">
                   {loadFailed && isDevMode()
                     ? 'Connect backend to see skills'
                     : 'No skills installed'}
                 </p>
+              ) : filteredSkills.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground pl-1">
+                  No skills match
+                </p>
               ) : (
-                <div className="space-y-0.5">
-                  {allSkills.map((skill) => (
-                    <div
+                <div className="max-h-[200px] overflow-y-auto space-y-0.5">
+                  {filteredSkills.map((skill) => (
+                    <button
                       key={`${skill.plugin}:${skill.name}`}
-                      className="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-accent/20 transition-colors group"
-                      title={skill.description}
+                      onClick={() => handleCopy(skill.name)}
+                      className="flex items-center gap-1.5 px-1 py-1 w-full text-left rounded hover:bg-accent/20 transition-colors group"
+                      title={`${skill.description}\nClick to copy /${skill.name}`}
                     >
                       {activeSkills?.has(skill.name) ? (
                         <span className="relative flex h-2 w-2 flex-shrink-0">
@@ -112,7 +149,10 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
                       <span className="text-[11px] text-foreground/60 group-hover:text-foreground/90 truncate transition-colors">
                         {skill.name}
                       </span>
-                    </div>
+                      <span className="ml-auto text-[9px] text-muted-foreground/40 truncate max-w-[80px]">
+                        {skill.plugin}
+                      </span>
+                    </button>
                   ))}
                 </div>
               )}

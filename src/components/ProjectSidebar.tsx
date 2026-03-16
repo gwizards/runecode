@@ -11,11 +11,15 @@ import {
   ChevronsRight,
   ChevronsLeft,
 } from "lucide-react";
+import { Bot, Server, Package } from "lucide-react";
 import { RuneCodeLogo } from "./RuneCodeLogo";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { SkillsCatalogSection } from "./sidebar/SkillsCatalogSection";
 import { UsageStatsSection } from "./sidebar/UsageStatsSection";
+import { MCPServersSection } from "./sidebar/MCPServersSection";
+import { AgentsSection } from "./sidebar/AgentsSection";
+import { PluginsSection } from "./sidebar/PluginsSection";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
 import { SecurityWarning } from "../integrations/security/SecurityWarning";
 import { useEnvScanner } from "../integrations/security/useEnvScanner";
@@ -212,6 +216,9 @@ export function ProjectSidebar({
     { key: "context", icon: <GitBranch className="h-5 w-5" />, label: "Live Context" },
     { key: "usage", icon: <BarChart3 className="h-5 w-5" />, label: "Usage Stats" },
     { key: "resources", icon: <Cpu className="h-5 w-5" />, label: "Resources" },
+    { key: "agents", icon: <Bot className="h-5 w-5" />, label: "Agents" },
+    { key: "mcp", icon: <Server className="h-5 w-5" />, label: "MCP Servers" },
+    { key: "plugins", icon: <Package className="h-5 w-5" />, label: "Plugins" },
     { key: "skills", icon: <Sparkles className="h-5 w-5" />, label: "Skills" },
   ];
 
@@ -330,7 +337,28 @@ export function ProjectSidebar({
 
                   <SectionDivider />
 
-                  {/* 5. Skills -- collapsed by default */}
+                  {/* 5. Agents */}
+                  <div ref={(el) => { sectionRefs.current["agents"] = el; }}>
+                    <AgentsSection />
+                  </div>
+
+                  <SectionDivider />
+
+                  {/* 6. MCP Servers */}
+                  <div ref={(el) => { sectionRefs.current["mcp"] = el; }}>
+                    <MCPServersSection />
+                  </div>
+
+                  <SectionDivider />
+
+                  {/* 7. Plugins */}
+                  <div ref={(el) => { sectionRefs.current["plugins"] = el; }}>
+                    <PluginsSection />
+                  </div>
+
+                  <SectionDivider />
+
+                  {/* 8. Skills -- flat searchable list */}
                   <div ref={(el) => { sectionRefs.current["skills"] = el; }}>
                     <SkillsCatalogSection activeSkills={activeSkills} />
                   </div>
