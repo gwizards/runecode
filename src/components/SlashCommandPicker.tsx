@@ -20,6 +20,31 @@ import type { SlashCommand } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useTrackEvent, useFeatureAdoptionTracking } from "@/hooks";
 
+const BUILTIN_COMMANDS: SlashCommand[] = [
+  { id: 'builtin-help', name: 'help', full_command: '/help', description: 'Show help and available commands', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-clear', name: 'clear', full_command: '/clear', description: 'Clear conversation history', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-compact', name: 'compact', full_command: '/compact', description: 'Compact conversation to save context', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: true },
+  { id: 'builtin-review', name: 'review', full_command: '/review', description: 'Review code changes in the current session', scope: 'default', namespace: 'code', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-init', name: 'init', full_command: '/init', description: 'Initialize CLAUDE.md in the current project', scope: 'default', namespace: 'project', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-bug', name: 'bug', full_command: '/bug', description: 'Report a bug with Claude Code', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: true },
+  { id: 'builtin-config', name: 'config', full_command: '/config', description: 'View or modify Claude Code configuration', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: true },
+  { id: 'builtin-cost', name: 'cost', full_command: '/cost', description: 'Show token usage and cost for this session', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-doctor', name: 'doctor', full_command: '/doctor', description: 'Run diagnostic checks on your environment', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-login', name: 'login', full_command: '/login', description: 'Switch Anthropic accounts', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-logout', name: 'logout', full_command: '/logout', description: 'Sign out from your Anthropic account', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-memory', name: 'memory', full_command: '/memory', description: 'Edit CLAUDE.md memory files', scope: 'default', namespace: 'project', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: true, accepts_arguments: false },
+  { id: 'builtin-model', name: 'model', full_command: '/model', description: 'Switch the active Claude model', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: true },
+  { id: 'builtin-permissions', name: 'permissions', full_command: '/permissions', description: 'View or modify tool permissions', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: true },
+  { id: 'builtin-status', name: 'status', full_command: '/status', description: 'Show current session status', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-terminal-setup', name: 'terminal-setup', full_command: '/terminal-setup', description: 'Install Shift+Enter key binding for terminal', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-vim', name: 'vim', full_command: '/vim', description: 'Toggle vim mode for input', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-undo', name: 'undo', full_command: '/undo', description: 'Undo the last file changes', scope: 'default', namespace: 'code', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-pr-comments', name: 'pr-comments', full_command: '/pr-comments', description: 'View and address PR review comments', scope: 'default', namespace: 'code', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-listen', name: 'listen', full_command: '/listen', description: 'Listen for changes and run commands', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: true },
+  { id: 'builtin-fast', name: 'fast', full_command: '/fast', description: 'Toggle fast mode (faster output, same model)', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+  { id: 'builtin-think', name: 'think', full_command: '/think', description: 'Toggle extended thinking mode', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
+];
+
 interface SlashCommandPickerProps {
   /**
    * The project path for loading project-specific commands
@@ -85,7 +110,7 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [activeTab, setActiveTab] = useState<string>("custom");
+  const [activeTab, setActiveTab] = useState<string>("default");
   
   const commandListRef = useRef<HTMLDivElement>(null);
   
@@ -215,14 +240,53 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Always load fresh commands from filesystem
-      const loadedCommands = await api.slashCommandsList(projectPath);
-      setCommands(loadedCommands);
+
+      // Start with built-in commands
+      const allCommands = [...BUILTIN_COMMANDS];
+
+      // Load custom commands from API
+      try {
+        const apiCommands = await api.slashCommandsList(projectPath);
+        for (const cmd of apiCommands) {
+          if (!allCommands.find(c => c.name === cmd.name)) {
+            allCommands.push(cmd);
+          }
+        }
+      } catch {
+        // API may be unavailable in web mode, continue with built-ins
+      }
+
+      // Also load plugin skills as slash commands
+      try {
+        const res = await fetch('/api/skills');
+        const skills = await res.json();
+        for (const group of skills) {
+          for (const skill of group.skills) {
+            if (!allCommands.find(c => c.name === skill.name)) {
+              allCommands.push({
+                id: `skill-${group.plugin}-${skill.name}`,
+                name: skill.name,
+                full_command: `/${skill.name}`,
+                description: skill.description,
+                scope: 'default',
+                namespace: group.plugin,
+                file_path: '',
+                content: '',
+                allowed_tools: [],
+                has_bash_commands: false,
+                has_file_references: false,
+                accepts_arguments: true,
+              });
+            }
+          }
+        }
+      } catch { /* skills API unavailable */ }
+
+      setCommands(allCommands);
     } catch (err) {
       console.error("Failed to load slash commands:", err);
       setError(err instanceof Error ? err.message : 'Failed to load commands');
-      setCommands([]);
+      setCommands(BUILTIN_COMMANDS);
     } finally {
       setIsLoading(false);
     }
