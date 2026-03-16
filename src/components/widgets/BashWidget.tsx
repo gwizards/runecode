@@ -41,7 +41,7 @@ export const BashWidget: React.FC<{
           </div>
         )}
       </div>
-      <div className="px-3 py-2.5 bg-gray-950/40 dark:bg-gray-950/60">
+      <div className="px-3 py-2.5 bg-background/60">
         <code className="text-sm font-mono text-green-400 block">
           <span className="text-muted-foreground/60 select-none">$ </span>{command}
         </code>
