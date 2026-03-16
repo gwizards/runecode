@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Hash,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RotatingRune } from "./RuneCodeLogo";
@@ -1623,27 +1622,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             />
           </div>
 
-          {/* Token Counter - positioned under the Send button */}
-          {totalTokens > 0 && (
-            <div className="fixed bottom-16 right-4 z-30 pointer-events-none">
-              <div>
-                <div className="flex justify-end">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className="bg-background/95 backdrop-blur-md border rounded-full px-3 py-1 shadow-lg pointer-events-auto"
-                  >
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <Hash className="h-3 w-3 text-muted-foreground" />
-                      <span className="font-mono">{totalTokens.toLocaleString()}</span>
-                      <span className="text-muted-foreground">tokens</span>
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-            </div>
-          )}
         </ErrorBoundary>
 
         {/* Timeline */}
