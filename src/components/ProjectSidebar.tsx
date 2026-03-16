@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { RuneCodeLogo } from "./RuneCodeLogo";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { SkillsCatalogSection } from "./sidebar/SkillsCatalogSection";
@@ -20,6 +21,10 @@ const AUTO_COLLAPSE_BREAKPOINT = 1024;
 
 interface ProjectSidebarProps {
   projectPath?: string;
+}
+
+function SectionDivider() {
+  return <div className="border-t border-border/30 my-2 mx-3" />;
 }
 
 export function ProjectSidebar({
@@ -166,21 +171,41 @@ export function ProjectSidebar({
             />
 
             {/* Header */}
-            <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
-              <span className="text-sm font-semibold text-foreground/90">
-                Project Context
-              </span>
+            <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RuneCodeLogo size={18} />
+                <span className="text-sm font-semibold tracking-tight text-foreground/90">
+                  RuneCode
+                </span>
+              </div>
             </div>
 
             {/* Sections */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto scrollbar-thin">
+              {/* 1. Project Info — always visible, compact */}
               <ProjectInfoSection projectPath={projectPath} />
+
+              <SectionDivider />
+
+              {/* 2. Live Context */}
               <LiveContextSection
                 projectPath={projectPath}
                 envFilesDetected={envScan.envFiles}
               />
+
+              <SectionDivider />
+
+              {/* 3. Usage Stats — expanded by default */}
               <UsageStatsSection />
+
+              <SectionDivider />
+
+              {/* 4. Resources — compact */}
               <ResourcesSection />
+
+              <SectionDivider />
+
+              {/* 5. Skills — collapsed by default */}
               <SkillsCatalogSection activeSkills={activeSkills} />
             </div>
 

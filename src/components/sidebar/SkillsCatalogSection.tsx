@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
-import { Popover } from '../ui/popover';
 import { isDevMode } from '@/lib/devFallback';
 
 interface Skill {
@@ -18,9 +18,8 @@ interface SkillsCatalogSectionProps {
 }
 
 export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(true); // Collapsed by default
   const [catalog, setCatalog] = useState<PluginGroup[]>([]);
-  const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
@@ -44,91 +43,76 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
 
   const totalSkills = catalog.reduce((sum, group) => sum + group.skills.length, 0);
 
-  const togglePlugin = (plugin: string) => {
-    setExpandedPlugins((prev) => {
-      const next = new Set(prev);
-      if (next.has(plugin)) {
-        next.delete(plugin);
-      } else {
-        next.add(plugin);
-      }
-      return next;
-    });
-  };
+  // Flatten all skills for clean flat list in sidebar
+  const allSkills = catalog.flatMap((group) =>
+    group.skills.map((skill) => ({
+      ...skill,
+      plugin: group.plugin,
+    }))
+  );
 
   return (
-    <div className="border-b border-border/40">
+    <div className="px-3">
       <button
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full px-4 py-3 flex items-center gap-2 text-sm font-medium text-foreground/80 hover:bg-accent/30 transition-colors"
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
       >
-        {isOpen ? (
-          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+        {collapsed ? (
+          <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
-        Skills ({totalSkills})
+        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Skills
+        </h3>
+        <span className="ml-auto text-[10px] text-muted-foreground">
+          {totalSkills}
+        </span>
       </button>
 
-      {isOpen && (
-        <div className="px-2 pb-3">
-          {catalog.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-2">
-              {loadFailed && isDevMode()
-                ? 'Connect backend to see skills'
-                : 'No skills installed'}
-            </p>
-          ) : (
-            catalog.map((group) => (
-              <div key={group.plugin} className="mb-1">
-                <button
-                  onClick={() => togglePlugin(group.plugin)}
-                  className="w-full px-2 py-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground/70 hover:bg-accent/20 rounded transition-colors"
-                >
-                  {expandedPlugins.has(group.plugin) ? (
-                    <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3 flex-shrink-0" />
-                  )}
-                  <span className="truncate">{group.plugin}</span>
-                  <span className="ml-auto text-muted-foreground">{group.skills.length}</span>
-                </button>
-
-                {expandedPlugins.has(group.plugin) && (
-                  <div className="ml-4 mt-0.5 space-y-0.5">
-                    {group.skills.map((skill) => (
-                      <Popover
-                        key={skill.name}
-                        align="start"
-                        side="bottom"
-                        className="max-w-[220px] p-3"
-                        trigger={
-                          <button className="w-full px-2 py-1 flex items-center gap-1.5 text-xs text-foreground/60 hover:text-foreground/90 hover:bg-accent/20 rounded transition-colors">
-                            {activeSkills?.has(skill.name) && (
-                              <span className="relative flex h-2 w-2 flex-shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                              </span>
-                            )}
-                            <span className="truncate">{skill.name}</span>
-                          </button>
-                        }
-                        content={
-                          <div>
-                            <p className="text-xs font-medium mb-1">{skill.name}</p>
-                            <p className="text-xs text-muted-foreground">{skill.description}</p>
-                          </div>
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="py-1.5">
+              {allSkills.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground pl-1">
+                  {loadFailed && isDevMode()
+                    ? 'Connect backend to see skills'
+                    : 'No skills installed'}
+                </p>
+              ) : (
+                <div className="space-y-0.5">
+                  {allSkills.map((skill) => (
+                    <div
+                      key={`${skill.plugin}:${skill.name}`}
+                      className="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-accent/20 transition-colors group"
+                      title={skill.description}
+                    >
+                      {activeSkills?.has(skill.name) ? (
+                        <span className="relative flex h-2 w-2 flex-shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                        </span>
+                      ) : (
+                        <Sparkles className="h-2.5 w-2.5 text-muted-foreground/50 flex-shrink-0" />
+                      )}
+                      <span className="text-[11px] text-foreground/60 group-hover:text-foreground/90 truncate transition-colors">
+                        {skill.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

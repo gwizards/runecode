@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
-  Activity,
   GitBranch,
   ChevronDown,
   ChevronRight,
@@ -33,7 +33,7 @@ export function LiveContextSection({
   projectPath,
   envFilesDetected,
 }: LiveContextSectionProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
 
   // Fetch git branch when projectPath changes
@@ -54,50 +54,71 @@ export function LiveContextSection({
     };
   }, [projectPath]);
 
+  const hasEnvWarning = envFilesDetected && envFilesDetected.length > 0;
+
   return (
-    <div className="border-b border-border/40">
+    <div className="px-3">
       <button
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full px-4 py-3 flex items-center gap-2 text-sm font-medium text-foreground/80 hover:bg-accent/30 transition-colors"
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
       >
-        {isOpen ? (
-          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+        {collapsed ? (
+          <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <Activity className="h-3.5 w-3.5 flex-shrink-0" />
-        Live Context
+        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Context
+        </h3>
+        {hasEnvWarning && (
+          <span className="ml-auto flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-yellow-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
+          </span>
+        )}
       </button>
 
-      {isOpen && (
-        <div className="px-4 pb-3 space-y-2">
-          {/* Git branch */}
-          {gitBranch && (
-            <div className="flex items-center gap-1.5 text-sm text-foreground">
-              <GitBranch className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              <span className="truncate">{gitBranch}</span>
-            </div>
-          )}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="py-1.5 space-y-1.5">
+              {/* Git branch as pill */}
+              {gitBranch && (
+                <div className="flex items-center gap-1.5">
+                  <GitBranch className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] bg-accent/60 text-foreground/80 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                    {gitBranch}
+                  </span>
+                </div>
+              )}
 
-          {/* Env files warning */}
-          {envFilesDetected && envFilesDetected.length > 0 && (
-            <div className="flex items-start gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 rounded p-2">
-              <Shield className="h-3 w-3 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="font-medium">Plaintext secrets detected</div>
-                <div className="opacity-75">{envFilesDetected.length} .env file{envFilesDetected.length > 1 ? 's' : ''} found</div>
-              </div>
-            </div>
-          )}
+              {/* Env files warning — compact */}
+              {hasEnvWarning && (
+                <div className="flex items-center gap-1.5 text-[11px] text-yellow-400">
+                  <Shield className="h-3 w-3 flex-shrink-0" />
+                  <span className="font-medium">
+                    {envFilesDetected!.length} .env file{envFilesDetected!.length > 1 ? "s" : ""} detected
+                  </span>
+                </div>
+              )}
 
-          {/* Empty state */}
-          {!gitBranch && (!envFilesDetected || envFilesDetected.length === 0) && (
-            <p className="text-xs text-muted-foreground">
-              No live context yet
-            </p>
-          )}
-        </div>
-      )}
+              {/* Empty state */}
+              {!gitBranch && !hasEnvWarning && (
+                <p className="text-[11px] text-muted-foreground pl-1">
+                  No live context yet
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

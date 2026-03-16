@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
 import {
   DollarSign,
   Zap,
-  Activity,
   ChevronDown,
   ChevronRight,
-  TrendingUp,
   Layers,
   FolderOpen,
 } from "lucide-react";
@@ -99,22 +98,29 @@ function shortModelName(model: string): string {
   return model;
 }
 
-function ProgressBar({
+function GradientBar({
   value,
   max,
-  color = "bg-purple-500",
+  gradient,
+  label,
 }: {
   value: number;
   max: number;
-  color?: string;
+  gradient: string;
+  label?: string;
 }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+    <div className="relative w-full h-2 rounded-full bg-white/5 overflow-hidden">
       <div
-        className={`h-full rounded-full ${color} transition-all duration-500`}
+        className={`h-full rounded-full transition-all duration-500 ${gradient}`}
         style={{ width: `${pct}%` }}
       />
+      {label && pct > 15 && (
+        <span className="absolute inset-0 flex items-center justify-end pr-1 text-[8px] font-medium text-white/70">
+          {Math.round(pct)}%
+        </span>
+      )}
     </div>
   );
 }
@@ -129,7 +135,7 @@ function SparklineBar({ data }: { data: { value: number; label: string }[] }) {
         return (
           <div
             key={i}
-            className="flex-1 rounded-t-sm bg-purple-500/70 hover:bg-purple-400/90 transition-colors cursor-default"
+            className="flex-1 rounded-t-sm bg-gradient-to-t from-purple-600 to-purple-400 hover:from-purple-500 hover:to-purple-300 transition-colors cursor-default"
             style={{ height: `${heightPct}%` }}
             title={`${d.label}: ${formatCost(d.value)}`}
           />
@@ -139,8 +145,28 @@ function SparklineBar({ data }: { data: { value: number; label: string }[] }) {
   );
 }
 
+function StatCard({
+  value,
+  label,
+  icon,
+}: {
+  value: string;
+  label: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="flex-1 rounded-lg bg-accent/30 border border-border/30 px-2.5 py-2 text-center min-w-0">
+      <div className="flex items-center justify-center gap-1 mb-0.5">
+        <span className="text-muted-foreground">{icon}</span>
+      </div>
+      <div className="text-sm font-semibold text-foreground truncate">{value}</div>
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
 export function UsageStatsSection() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false); // OPEN by default
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { data: usage } = useQuery<UsageStats>({
@@ -162,26 +188,23 @@ export function UsageStatsSection() {
       label: d.date,
     }));
 
-  const avgCostPerSession =
-    usage.total_sessions > 0 ? usage.total_cost / usage.total_sessions : 0;
-
   // Top 5 projects by cost
   const topProjects = (usage.by_project || []).slice(0, 5);
   const maxProjectCost = topProjects.length > 0 ? topProjects[0].total_cost : 1;
 
   // Token breakdown
   const tokenBreakdown = [
-    { label: "Input", value: usage.total_input_tokens, color: "bg-blue-500" },
-    { label: "Output", value: usage.total_output_tokens, color: "bg-emerald-500" },
+    { label: "Input", value: usage.total_input_tokens, gradient: "bg-gradient-to-r from-blue-600 to-blue-400" },
+    { label: "Output", value: usage.total_output_tokens, gradient: "bg-gradient-to-r from-emerald-600 to-emerald-400" },
     {
       label: "Cache Write",
       value: usage.total_cache_creation_tokens,
-      color: "bg-amber-500",
+      gradient: "bg-gradient-to-r from-amber-600 to-amber-400",
     },
     {
       label: "Cache Read",
       value: usage.total_cache_read_tokens,
-      color: "bg-purple-500",
+      gradient: "bg-gradient-to-r from-purple-600 to-purple-400",
     },
   ];
   const maxTokenType = Math.max(...tokenBreakdown.map((t) => t.value), 1);
@@ -193,166 +216,181 @@ export function UsageStatsSection() {
       : 1;
 
   return (
-    <div className="border-b border-border/40">
+    <div className="px-3">
       <button
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full px-4 py-3 flex items-center gap-2 text-sm font-medium text-foreground/80 hover:bg-accent/30 transition-colors"
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center gap-1.5 w-full text-left py-1 px-1 -mx-1 rounded hover:bg-muted/50 transition-colors"
       >
-        {isOpen ? (
-          <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+        {collapsed ? (
+          <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
         )}
-        <Activity className="h-3.5 w-3.5 flex-shrink-0" />
-        Usage Stats
+        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Usage
+        </h3>
+        {hasData && (
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            {formatCost(usage.total_cost)}
+          </span>
+        )}
       </button>
 
-      {isOpen && (
-        <div className="px-4 pb-3 space-y-2">
-          {/* Collapsed summary */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <DollarSign className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Total Cost</span>
-              <span className="text-sm text-foreground ml-auto font-medium">
-                {formatCost(usage.total_cost)}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Zap className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Tokens</span>
-              <span className="text-sm text-foreground ml-auto">
-                {formatTokens(usage.total_tokens)}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Layers className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Sessions</span>
-              <span className="text-sm text-foreground ml-auto">
-                {usage.total_sessions.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Avg/Sess</span>
-              <span className="text-sm text-foreground ml-auto">
-                {formatCost(avgCostPerSession)}
-              </span>
-            </div>
-          </div>
-
-          {hasData && (
-            <button
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
-            >
-              {isExpanded ? "Hide details" : "View details"}
-            </button>
-          )}
-
-          {/* Expanded details */}
-          {isExpanded && hasData && (
-            <div className="space-y-3 pt-1">
-              {/* Cost by Model */}
-              {usage.by_model.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Cost by Model
-                  </span>
-                  {usage.by_model.map((m) => (
-                    <div key={m.model} className="space-y-0.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-foreground/70 truncate max-w-[60%]">
-                          {shortModelName(m.model)}
-                        </span>
-                        <span className="text-foreground/90 font-medium">
-                          {formatCost(m.total_cost)}
-                        </span>
-                      </div>
-                      <ProgressBar
-                        value={m.total_cost}
-                        max={maxModelCost}
-                        color={
-                          m.model.includes("opus")
-                            ? "bg-purple-500"
-                            : m.model.includes("sonnet")
-                              ? "bg-blue-500"
-                              : "bg-gray-500"
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Token Breakdown */}
-              <div className="space-y-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Token Breakdown
-                </span>
-                {tokenBreakdown
-                  .filter((t) => t.value > 0)
-                  .map((t) => (
-                    <div key={t.label} className="space-y-0.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-foreground/70">{t.label}</span>
-                        <span className="text-foreground/90">
-                          {formatTokens(t.value)}
-                        </span>
-                      </div>
-                      <ProgressBar
-                        value={t.value}
-                        max={maxTokenType}
-                        color={t.color}
-                      />
-                    </div>
-                  ))}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="py-1.5 space-y-2">
+              {/* Stat cards */}
+              <div className="flex gap-1.5">
+                <StatCard
+                  value={formatCost(usage.total_cost)}
+                  label="cost"
+                  icon={<DollarSign className="h-3 w-3" />}
+                />
+                <StatCard
+                  value={formatTokens(usage.total_tokens)}
+                  label="tokens"
+                  icon={<Zap className="h-3 w-3" />}
+                />
+                <StatCard
+                  value={usage.total_sessions.toLocaleString()}
+                  label="sessions"
+                  icon={<Layers className="h-3 w-3" />}
+                />
               </div>
 
-              {/* Cost by Project (top 5) */}
-              {topProjects.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Top Projects
-                  </span>
-                  {topProjects.map((p) => (
-                    <div key={p.project_path} className="space-y-0.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-foreground/70 truncate max-w-[60%] flex items-center gap-1">
-                          <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />
-                          {p.project_name}
-                        </span>
-                        <span className="text-foreground/90 font-medium">
-                          {formatCost(p.total_cost)}
-                        </span>
-                      </div>
-                      <ProgressBar
-                        value={p.total_cost}
-                        max={maxProjectCost}
-                        color="bg-emerald-500"
-                      />
-                    </div>
-                  ))}
-                </div>
+              {hasData && (
+                <button
+                  onClick={() => setIsExpanded((prev) => !prev)}
+                  className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                >
+                  {isExpanded ? "Hide details" : "View details"}
+                </button>
               )}
 
-              {/* 7-day cost trend */}
-              {last7Days.length > 1 && (
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Last 7 Days
-                  </span>
-                  <SparklineBar data={last7Days} />
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>{last7Days[0]?.label?.slice(5)}</span>
-                    <span>{last7Days[last7Days.length - 1]?.label?.slice(5)}</span>
-                  </div>
-                </div>
-              )}
+              {/* Expanded details */}
+              <AnimatePresence>
+                {isExpanded && hasData && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-3 pt-1">
+                      {/* Cost by Model */}
+                      {usage.by_model.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                            Cost by Model
+                          </span>
+                          {usage.by_model.map((m) => (
+                            <div key={m.model} className="space-y-0.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-foreground/70 truncate max-w-[60%]">
+                                  {shortModelName(m.model)}
+                                </span>
+                                <span className="text-foreground/90 font-medium">
+                                  {formatCost(m.total_cost)}
+                                </span>
+                              </div>
+                              <GradientBar
+                                value={m.total_cost}
+                                max={maxModelCost}
+                                gradient={
+                                  m.model.includes("opus")
+                                    ? "bg-gradient-to-r from-purple-600 to-purple-400"
+                                    : m.model.includes("sonnet")
+                                      ? "bg-gradient-to-r from-blue-600 to-blue-400"
+                                      : "bg-gradient-to-r from-gray-600 to-gray-400"
+                                }
+                                label={`${Math.round((m.total_cost / usage.total_cost) * 100)}%`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Token Breakdown */}
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                          Token Breakdown
+                        </span>
+                        {tokenBreakdown
+                          .filter((t) => t.value > 0)
+                          .map((t) => (
+                            <div key={t.label} className="space-y-0.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-foreground/70">{t.label}</span>
+                                <span className="text-foreground/90">
+                                  {formatTokens(t.value)}
+                                </span>
+                              </div>
+                              <GradientBar
+                                value={t.value}
+                                max={maxTokenType}
+                                gradient={t.gradient}
+                                label=""
+                              />
+                            </div>
+                          ))}
+                      </div>
+
+                      {/* Cost by Project (top 5) */}
+                      {topProjects.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                            Top Projects
+                          </span>
+                          {topProjects.map((p) => (
+                            <div key={p.project_path} className="space-y-0.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-foreground/70 truncate max-w-[60%] flex items-center gap-1">
+                                  <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />
+                                  {p.project_name}
+                                </span>
+                                <span className="text-foreground/90 font-medium">
+                                  {formatCost(p.total_cost)}
+                                </span>
+                              </div>
+                              <GradientBar
+                                value={p.total_cost}
+                                max={maxProjectCost}
+                                gradient="bg-gradient-to-r from-emerald-600 to-emerald-400"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 7-day cost trend */}
+                      {last7Days.length > 1 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                            Last 7 Days
+                          </span>
+                          <SparklineBar data={last7Days} />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>{last7Days[0]?.label?.slice(5)}</span>
+                            <span>{last7Days[last7Days.length - 1]?.label?.slice(5)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
