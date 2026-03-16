@@ -15,7 +15,9 @@ import {
   AlertCircle,
   User,
   Building2,
-  RefreshCw
+  RefreshCw,
+  Bot,
+  Server
 } from "lucide-react";
 import type { SlashCommand } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -46,6 +48,18 @@ const BUILTIN_COMMANDS_FALLBACK: SlashCommand[] = [
   { id: 'builtin-fast', name: 'fast', full_command: '/fast', description: 'Toggle fast mode (faster output, same model)', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
   { id: 'builtin-think', name: 'think', full_command: '/think', description: 'Toggle extended thinking mode', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
 ];
+
+interface AgentInfo {
+  name: string;
+  model: string;
+  type: string;
+}
+
+interface McpServerInfo {
+  name: string;
+  command: string;
+  status: string;
+}
 
 interface SlashCommandPickerProps {
   /**
@@ -113,6 +127,8 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [activeTab, setActiveTab] = useState<string>("default");
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([]);
   
   const commandListRef = useRef<HTMLDivElement>(null);
   
@@ -279,6 +295,30 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
         // API may be unavailable in web mode, continue with built-ins
       }
 
+      // Load agents
+      try {
+        const agentsRes = await fetch('/api/commands/agents');
+        if (agentsRes.ok) {
+          const contentType = agentsRes.headers.get('content-type') || '';
+          if (contentType.includes('json')) {
+            const data = await agentsRes.json();
+            setAgents(Array.isArray(data?.data) ? data.data : []);
+          }
+        }
+      } catch { /* agents discovery unavailable */ }
+
+      // Load MCP servers
+      try {
+        const mcpRes = await fetch('/api/commands/mcp');
+        if (mcpRes.ok) {
+          const contentType = mcpRes.headers.get('content-type') || '';
+          if (contentType.includes('json')) {
+            const data = await mcpRes.json();
+            setMcpServers(Array.isArray(data?.data) ? data.data : []);
+          }
+        }
+      } catch { /* MCP discovery unavailable */ }
+
       // Try loading skills as commands
       try {
         const res = await fetch('/api/skills');
@@ -399,8 +439,10 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
         {/* Tabs */}
         <div className="mt-3">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="default">Default</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="default">Commands</TabsTrigger>
+              <TabsTrigger value="agents">Agents{agents.length > 0 ? ` (${agents.length})` : ''}</TabsTrigger>
+              <TabsTrigger value="mcp">MCP{mcpServers.length > 0 ? ` (${mcpServers.length})` : ''}</TabsTrigger>
               <TabsTrigger value="custom">Custom</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -486,6 +528,128 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
               </>
             )}
             
+            {/* Agents Tab Content */}
+            {activeTab === "agents" && (
+              <>
+                {agents.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <Bot className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      No agents discovered
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-2 text-center px-4">
+                      Run <code className="px-1">claude agents</code> to verify available agents
+                    </p>
+                  </div>
+                )}
+
+                {agents.length > 0 && (
+                  <div className="p-2">
+                    <div className="space-y-0.5">
+                      {agents
+                        .filter(agent => {
+                          if (!searchQuery) return true;
+                          const q = searchQuery.toLowerCase();
+                          return agent.name.toLowerCase().includes(q) ||
+                                 agent.model.toLowerCase().includes(q) ||
+                                 agent.type.toLowerCase().includes(q);
+                        })
+                        .map((agent, index) => (
+                        <button
+                          key={`${agent.type}-${agent.name}`}
+                          data-index={index}
+                          onClick={() => handleCommandClick({
+                            id: `agent-${agent.name}`,
+                            name: agent.name,
+                            full_command: `@${agent.name}`,
+                            description: `${agent.type} agent`,
+                            scope: 'default',
+                            namespace: agent.type,
+                            file_path: '',
+                            content: '',
+                            allowed_tools: [],
+                            has_bash_commands: false,
+                            has_file_references: false,
+                            accepts_arguments: true,
+                          })}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                          className={cn(
+                            "w-full flex items-center justify-between px-3 py-2 rounded-md",
+                            "hover:bg-accent transition-colors",
+                            "text-left",
+                            index === selectedIndex && "bg-accent"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Bot className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <div>
+                              <div className="text-sm font-medium">{agent.name}</div>
+                              <div className="text-xs text-muted-foreground">{agent.type} agent</div>
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{agent.model}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* MCP Tab Content */}
+            {activeTab === "mcp" && (
+              <>
+                {mcpServers.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <Server className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      No MCP servers discovered
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-2 text-center px-4">
+                      Run <code className="px-1">claude mcp list</code> to verify configured servers
+                    </p>
+                  </div>
+                )}
+
+                {mcpServers.length > 0 && (
+                  <div className="p-2">
+                    <div className="space-y-0.5">
+                      {mcpServers
+                        .filter(server => {
+                          if (!searchQuery) return true;
+                          const q = searchQuery.toLowerCase();
+                          return server.name.toLowerCase().includes(q) ||
+                                 server.command.toLowerCase().includes(q) ||
+                                 server.status.toLowerCase().includes(q);
+                        })
+                        .map((server) => (
+                        <div
+                          key={server.name}
+                          className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Server className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <div>
+                              <div className="text-sm font-medium">{server.name}</div>
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]">{server.command}</div>
+                            </div>
+                          </div>
+                          <span className={cn(
+                            "text-xs px-1.5 py-0.5 rounded",
+                            server.status === 'connected' && "bg-green-500/10 text-green-500",
+                            server.status === 'needs_auth' && "bg-yellow-500/10 text-yellow-500",
+                            server.status !== 'connected' && server.status !== 'needs_auth' && "bg-red-500/10 text-red-500"
+                          )}>
+                            {server.status === 'connected' ? 'Connected' : server.status === 'needs_auth' ? 'Auth needed' : 'Error'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Custom Tab Content */}
             {activeTab === "custom" && (
               <>
