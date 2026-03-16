@@ -168,7 +168,7 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
   const getScopeIcon = (scope: string) => {
     switch (scope) {
       case "local":
-        return <User className="h-3 w-3 text-slate-500" />;
+        return <User className="h-3 w-3 text-muted-foreground" />;
       case "project":
         return <FolderOpen className="h-3 w-3 text-orange-500" />;
       case "user":

@@ -95,7 +95,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
                 }
               }}
               placeholder="/path/to/your/project"
-              className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
               autoFocus
             />
             <button
@@ -115,7 +115,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
             placeholder="my-project"
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
         </div>
 

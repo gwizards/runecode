@@ -112,10 +112,10 @@ export const AnalyticsConsent: React.FC<AnalyticsConsentProps> = ({
             </Card>
           </div>
           
-          <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+          <div className="bg-muted/50 rounded-lg p-4">
             <div className="flex gap-2 items-start">
-              <Info className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
                 This data helps us understand which features are most valuable, identify performance 
                 issues, and prioritize improvements. Your choice won't affect any functionality.
               </p>
@@ -199,7 +199,7 @@ export const AnalyticsConsentBanner: React.FC<AnalyticsConsentBannerProps> = ({
               <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
               <div className="space-y-2 flex-1">
                 <p className="text-sm font-medium">Help improve RuneCode</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   We collect anonymous usage data to improve your experience. No personal data is collected.
                 </p>
                 <div className="flex gap-2 pt-1">
@@ -222,7 +222,7 @@ export const AnalyticsConsentBanner: React.FC<AnalyticsConsentBannerProps> = ({
               </div>
               <button
                 onClick={() => setVisible(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>

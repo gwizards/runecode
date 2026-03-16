@@ -181,7 +181,7 @@ function PlanBadge({ type, compact = false }: { type: string; compact?: boolean 
   const planConfig: Record<string, { label: string; color: string; included: boolean }> = {
     max: { label: 'Max', color: 'bg-purple-500/10 text-purple-400', included: true },
     pro: { label: 'Pro', color: 'bg-blue-500/10 text-blue-400', included: true },
-    free: { label: 'Free', color: 'bg-gray-500/10 text-gray-400', included: false },
+    free: { label: 'Free', color: 'bg-muted text-muted-foreground', included: false },
     api: { label: 'API Key', color: 'bg-orange-500/10 text-orange-400', included: false },
     unknown: { label: 'Unknown', color: 'bg-muted text-muted-foreground', included: false },
   };
