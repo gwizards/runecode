@@ -877,7 +877,7 @@ const FloatingPromptInputInner = (
         className={cn(
           "fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg transition-shadow duration-300",
           dragActive && "ring-2 ring-primary ring-offset-2",
-          isFocused && "rune-glow",
+          isFocused && "rune-glow-sm",
           className
         )}
         onFocus={() => setIsFocused(true)}
@@ -898,7 +898,26 @@ const FloatingPromptInputInner = (
           )}
 
           <div className="p-3">
-            <div className="flex items-end gap-2">
+            <div className="flex items-center gap-2">
+              {/* Config Pill — centered vertically with input */}
+              <div className="relative config-panel-container shrink-0">
+                <ConfigPill
+                  onClick={() => setConfigPanelOpen(!configPanelOpen)}
+                  isOpen={configPanelOpen}
+                  checkpointCount={checkpointCount}
+                />
+                <AnimatePresence>
+                  {configPanelOpen && (
+                    <ConfigPanel
+                      onClose={() => setConfigPanelOpen(false)}
+                      sessionId={sessionId}
+                      projectId={projectId}
+                      projectPath={projectPath}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Input area — takes most space */}
               <div className="flex-1 relative">
                 <Textarea
@@ -978,104 +997,18 @@ const FloatingPromptInputInner = (
                 </AnimatePresence>
               </div>
 
-              {/* Right button strip */}
-              <div className="flex flex-col gap-1 pb-1">
-                {/* Config Pill — compact */}
-                <div className="relative config-panel-container">
-                  <ConfigPill
-                    onClick={() => setConfigPanelOpen(!configPanelOpen)}
-                    isOpen={configPanelOpen}
-                    checkpointCount={checkpointCount}
-                  />
-                  <AnimatePresence>
-                    {configPanelOpen && (
-                      <ConfigPanel
-                        onClose={() => setConfigPanelOpen(false)}
-                        sessionId={sessionId}
-                        projectId={projectId}
-                        projectPath={projectPath}
-                      />
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Action buttons row */}
-                <div className="flex items-center gap-0.5">
-                  {/* Copy button */}
-                  {(onCopyMarkdown || onCopyJsonl) && (
-                    <Popover
-                      trigger={
-                        <TooltipSimple content="Copy conversation" side="top">
-                          <motion.div whileTap={{ scale: 0.97 }} transition={{ duration: 0.15 }}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              style={{ color: 'var(--color-text-muted)' }}
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
-                          </motion.div>
-                        </TooltipSimple>
-                      }
-                      content={
-                        <div className="w-44 p-1">
-                          {onCopyMarkdown && (
-                            <button
-                              className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
-                              style={{ color: 'var(--color-text-secondary)' }}
-                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
-                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                              onClick={onCopyMarkdown}
-                            >
-                              Copy as Markdown
-                            </button>
-                          )}
-                          {onCopyJsonl && (
-                            <button
-                              className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
-                              style={{ color: 'var(--color-text-secondary)' }}
-                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
-                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                              onClick={onCopyJsonl}
-                            >
-                              Copy as JSONL
-                            </button>
-                          )}
-                        </div>
-                      }
-                      align="end"
-                      side="top"
-                    />
-                  )}
-
-                  {/* Expand button */}
-                  <TooltipSimple content="Expand (Ctrl+Shift+E)" side="top">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsExpanded(true)}
-                      disabled={disabled}
-                      className="h-7 w-7"
-                    >
-                      <Maximize2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipSimple>
-
-                  {/* Timeline button */}
-                  <TooltipSimple content="Checkpoint Timeline" side="top">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => window.dispatchEvent(new Event('opcode:open-timeline'))}
-                      className="h-7 w-7"
-                      style={{ color: 'var(--color-text-muted)' }}
-                    >
-                      <GitBranch className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipSimple>
-                </div>
-              </div>
+              {/* Timeline button — only icon on the right */}
+              <TooltipSimple content="Checkpoint Timeline" side="top">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => window.dispatchEvent(new Event('opcode:open-timeline'))}
+                  className="h-9 w-9 shrink-0"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  <GitBranch className="h-4 w-4" />
+                </Button>
+              </TooltipSimple>
             </div>
           </div>
         </div>
