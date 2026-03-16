@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Bot, FolderCode } from "lucide-react";
+import { RotatingRune } from "./components/RuneCodeLogo";
 import { api, type Project, type Session, type ClaudeMdFile } from "@/lib/api";
 import { initializeWebMode } from "@/lib/apiAdapter";
 import { isDevMode, checkBackendConnected } from "@/lib/devFallback";
@@ -293,7 +294,7 @@ function AppContent() {
                 className="mb-12 text-center"
               >
                 <h1 className="text-4xl font-bold tracking-tight">
-                  <span className="rotating-symbol"></span>
+                  <RotatingRune size={20} />
                   Welcome to RuneCode
                 </h1>
               </motion.div>

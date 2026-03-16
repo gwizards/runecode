@@ -15,6 +15,7 @@ import {
   
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RotatingRune } from "./RuneCodeLogo";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
@@ -1055,7 +1056,7 @@ const FloatingPromptInputInner = (
                       className="min-w-[60px]"
                     >
                       {isLoading ? (
-                        <div className="rotating-symbol text-primary-foreground" />
+                        <RotatingRune size={16} className="text-primary-foreground" />
                       ) : (
                         <Send className="h-4 w-4" />
                       )}

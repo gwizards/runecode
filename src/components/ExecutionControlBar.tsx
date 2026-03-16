@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { StopCircle, Clock, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { RotatingRune } from "./RuneCodeLogo";
 
 interface ExecutionControlBarProps {
   isExecuting: boolean;
@@ -58,7 +59,7 @@ export const ExecutionControlBar: React.FC<ExecutionControlBarProps> = ({
         >
           {/* Rotating symbol indicator */}
           <div className="relative flex items-center justify-center">
-            <div className="rotating-symbol text-primary"></div>
+            <RotatingRune size={20} className="text-primary" />
           </div>
 
           {/* Status text */}

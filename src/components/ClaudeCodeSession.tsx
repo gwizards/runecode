@@ -10,6 +10,7 @@ import {
   Wrench
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RotatingRune } from "./RuneCodeLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover } from "@/components/ui/popover";
@@ -1351,7 +1352,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           transition={{ duration: 0.15 }}
           className="flex items-center justify-center py-4 mb-20"
         >
-          <div className="rotating-symbol text-primary" />
+          <RotatingRune size={20} className="text-primary" />
         </motion.div>
       )}
 
@@ -1438,7 +1439,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               {isLoading && messages.length === 0 && (
                 <div className="flex items-center justify-center h-full">
                   <div className="flex items-center gap-3">
-                    <div className="rotating-symbol text-primary" />
+                    <RotatingRune size={20} className="text-primary" />
                     <span className="text-sm text-muted-foreground">
                       {session ? "Loading session history..." : "Inscribing runes..."}
                     </span>
