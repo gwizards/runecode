@@ -84,21 +84,26 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
   };
 
   const handleOpenProject = async () => {
-    console.log('handleOpenProject called');
     try {
-      // Use native dialog to pick folder
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'Select Project Folder',
-        defaultPath: await api.getHomeDirectory(),
-      });
-      
-      console.log('Selected folder:', selected);
-      
-      if (selected && typeof selected === 'string') {
-        // Create or open project for the selected directory
+      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      let selected: string | null = null;
+
+      if (!isWebMode) {
+        // Use native Tauri dialog
+        const { open } = await import('@tauri-apps/plugin-dialog');
+        const result = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Project Folder',
+          defaultPath: await api.getHomeDirectory(),
+        });
+        selected = typeof result === 'string' ? result : null;
+      } else {
+        // Web mode fallback — prompt for path
+        selected = window.prompt('Enter project directory path:', '/home');
+      }
+
+      if (selected) {
         const project = await api.createProject(selected);
         await loadProjects();
         await handleProjectClick(project);
