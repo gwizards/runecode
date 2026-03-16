@@ -4,7 +4,7 @@ use axum::http::Method;
 use axum::{
     extract::{Path, State as AxumState, WebSocketUpgrade},
     response::{IntoResponse, Json, Response},
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 use chrono;
@@ -878,9 +878,23 @@ async fn mcp_list() -> Json<ApiResponse<Vec<serde_json::Value>>> {
 /// Load session history from JSONL file
 async fn load_session_history(
     Path((session_id, project_id)): Path<(String, String)>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<Vec<serde_json::Value>>> {
+    let limit = params.get("limit").and_then(|l| l.parse::<usize>().ok());
     match commands::claude::load_session_history(session_id, project_id).await {
-        Ok(history) => Json(ApiResponse::success(history)),
+        Ok(history) => {
+            let result = if let Some(limit) = limit {
+                let len = history.len();
+                if limit < len {
+                    history.into_iter().skip(len - limit).collect()
+                } else {
+                    history
+                }
+            } else {
+                history
+            };
+            Json(ApiResponse::success(result))
+        }
         Err(e) => Json(ApiResponse::error(e.to_string())),
     }
 }
@@ -907,10 +921,21 @@ async fn resume_claude_code() -> Json<ApiResponse<serde_json::Value>> {
 }
 
 /// Cancel Claude execution
-async fn cancel_claude_execution(Path(sessionId): Path<String>) -> Json<ApiResponse<()>> {
-    // In web mode, we don't have a way to cancel the subprocess cleanly
-    // The WebSocket closing should handle cleanup
-    println!("[TRACE] Cancel request for session: {}", sessionId);
+async fn cancel_claude_execution(
+    Path(session_id): Path<String>,
+    AxumState(state): AxumState<AppState>,
+) -> Json<ApiResponse<()>> {
+    println!("[TRACE] Cancel request for session: {}", session_id);
+    let sessions = state.active_sessions.lock().await;
+    if let Some(sender) = sessions.get(&session_id) {
+        let _ = sender.send("__CANCEL__".to_string()).await;
+        println!("[TRACE] Cancel signal sent to session: {}", session_id);
+    } else {
+        println!(
+            "[TRACE] Session not found for cancel: {}",
+            session_id
+        );
+    }
     Json(ApiResponse::success(()))
 }
 
@@ -1498,6 +1523,592 @@ async fn noop_empty_array() -> impl IntoResponse {
     }))
 }
 
+/// Get home directory
+async fn get_home_directory() -> impl IntoResponse {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| "/".to_string());
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": home,
+        "error": null
+    }))
+}
+
+
+/// Save Claude settings — stub for web mode
+async fn save_claude_settings_post(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Saving settings is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Save system prompt — stub for web mode
+async fn save_system_prompt_post(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "Saving system prompt is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Find CLAUDE.md files for a project
+async fn find_claude_md_files(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let project_path = params
+        .get("projectPath")
+        .or(params.get("project_path"))
+        .cloned()
+        .unwrap_or_default();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let mut files = Vec::new();
+        let home = std::env::var("HOME").unwrap_or_default();
+
+        let project_claude = format!("{}/CLAUDE.md", project_path);
+        if std::path::Path::new(&project_claude).exists() {
+            if let Ok(content) = std::fs::read_to_string(&project_claude) {
+                files.push(serde_json::json!({
+                    "path": project_claude,
+                    "content": content,
+                    "scope": "project"
+                }));
+            }
+        }
+
+        let user_claude = format!("{}/.claude/CLAUDE.md", home);
+        if std::path::Path::new(&user_claude).exists() {
+            if let Ok(content) = std::fs::read_to_string(&user_claude) {
+                files.push(serde_json::json!({
+                    "path": user_claude,
+                    "content": content,
+                    "scope": "user"
+                }));
+            }
+        }
+
+        files
+    })
+    .await
+    .unwrap_or_default();
+
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": result,
+        "error": null
+    }))
+}
+
+/// Read a CLAUDE.md file
+async fn read_claude_md_file(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<String>> {
+    let file_path = params
+        .get("filePath")
+        .or(params.get("file_path"))
+        .cloned()
+        .unwrap_or_default();
+    match std::fs::read_to_string(&file_path) {
+        Ok(content) => Json(ApiResponse::success(content)),
+        Err(e) => Json(ApiResponse::error(format!("Failed to read file: {}", e))),
+    }
+}
+
+/// Save a CLAUDE.md file — stub for web mode
+async fn save_claude_md_file_post(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "Saving CLAUDE.md files is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Get a single agent by ID — stub for web mode
+async fn get_agent_by_id(Path(_id): Path<String>) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error("Agent not found".to_string()))
+}
+
+/// Update an agent — stub for web mode
+async fn update_agent(
+    Path(_id): Path<String>,
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Agent management is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Delete an agent — stub for web mode
+async fn delete_agent_handler(
+    Path(_id): Path<String>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Agent management is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Create agent — stub for web mode
+async fn create_agent_post(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Agent creation is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Export an agent — stub for web mode
+async fn export_agent(Path(_id): Path<String>) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error("Agent not found".to_string()))
+}
+
+/// Import agent — stub for web mode
+async fn import_agent_post(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Agent import is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Import agent from file — stub for web mode
+async fn import_agent_from_file_post(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Agent import is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Fetch GitHub agents — stub for web mode
+async fn fetch_github_agents() -> Json<ApiResponse<Vec<serde_json::Value>>> {
+    Json(ApiResponse::success(vec![]))
+}
+
+/// Fetch GitHub agent content — stub for web mode
+async fn fetch_github_agent_content(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "GitHub agent fetching is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Import agent from GitHub — stub for web mode
+async fn import_agent_from_github_post(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "GitHub agent import is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Execute agent — stub for web mode
+async fn execute_agent_handler(
+    Path(_agent_id): Path<String>,
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Agent execution is not yet available in web mode".to_string(),
+    ))
+}
+
+/// List agent runs — stub for web mode
+async fn list_agent_runs() -> Json<ApiResponse<Vec<serde_json::Value>>> {
+    Json(ApiResponse::success(vec![]))
+}
+
+/// Get agent run by ID — stub for web mode
+async fn get_agent_run(Path(_id): Path<String>) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error("Agent run not found".to_string()))
+}
+
+/// Get agent run with real-time metrics — stub for web mode
+async fn get_agent_run_metrics(Path(_id): Path<String>) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error("Agent run not found".to_string()))
+}
+
+/// Kill agent session — stub for web mode
+async fn kill_agent_session(Path(_run_id): Path<String>) -> Json<ApiResponse<bool>> {
+    Json(ApiResponse::error(
+        "Agent session management is not available in web mode".to_string(),
+    ))
+}
+
+/// Get agent session status — stub for web mode
+async fn get_agent_session_status(
+    Path(_run_id): Path<String>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(serde_json::json!(null)))
+}
+
+/// Cleanup finished processes — stub for web mode
+async fn cleanup_finished_processes() -> Json<ApiResponse<Vec<i64>>> {
+    Json(ApiResponse::success(vec![]))
+}
+
+/// Get agent session output — stub for web mode
+async fn get_agent_session_output(Path(_run_id): Path<String>) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::success(String::new()))
+}
+
+/// Get live agent session output — stub for web mode
+async fn get_live_agent_session_output(Path(_run_id): Path<String>) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::success(String::new()))
+}
+
+/// Stream agent session output — stub for web mode
+async fn stream_agent_session_output(Path(_run_id): Path<String>) -> Json<ApiResponse<()>> {
+    Json(ApiResponse::error(
+        "Streaming not available in web mode".to_string(),
+    ))
+}
+
+/// Load agent session history — stub for web mode
+async fn load_agent_session_history(
+    Path(_session_id): Path<String>,
+) -> Json<ApiResponse<Vec<serde_json::Value>>> {
+    Json(ApiResponse::success(vec![]))
+}
+
+/// Storage: list tables — stub for web mode
+async fn storage_list_tables() -> Json<ApiResponse<Vec<serde_json::Value>>> {
+    Json(ApiResponse::success(vec![]))
+}
+
+/// Storage: update row — stub for web mode
+async fn storage_update_row(
+    Path((_table, _id)): Path<(String, String)>,
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<()>> {
+    Json(ApiResponse::error(
+        "Storage operations are not available in web mode".to_string(),
+    ))
+}
+
+/// Storage: delete row — stub for web mode
+async fn storage_delete_row(Path((_table, _id)): Path<(String, String)>) -> Json<ApiResponse<()>> {
+    Json(ApiResponse::error(
+        "Storage operations are not available in web mode".to_string(),
+    ))
+}
+
+/// Storage: insert row — stub for web mode
+async fn storage_insert_row(
+    Path(_table): Path<String>,
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Storage operations are not available in web mode".to_string(),
+    ))
+}
+
+/// Storage: execute SQL — stub for web mode
+async fn storage_execute_sql(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "SQL execution is not available in web mode".to_string(),
+    ))
+}
+
+/// Storage: reset database — stub for web mode
+async fn storage_reset_database() -> Json<ApiResponse<()>> {
+    Json(ApiResponse::error(
+        "Database reset is not available in web mode".to_string(),
+    ))
+}
+
+/// Hooks: get config — stub for web mode
+async fn get_hooks_config(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(serde_json::json!({
+        "hooks": {}
+    })))
+}
+
+/// Hooks: update config — stub for web mode
+async fn update_hooks_config(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "Hook configuration is not available in web mode".to_string(),
+    ))
+}
+
+/// Hooks: validate command — stub for web mode
+async fn validate_hook_command(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(serde_json::json!({
+        "valid": true,
+        "message": "Validation not available in web mode"
+    })))
+}
+
+/// Proxy settings: get — stub for web mode
+async fn get_proxy_settings() -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(serde_json::json!({
+        "enabled": false,
+        "http_proxy": null,
+        "https_proxy": null,
+        "no_proxy": null
+    })))
+}
+
+/// Proxy settings: save — stub for web mode
+async fn save_proxy_settings(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "Proxy settings are not available in web mode".to_string(),
+    ))
+}
+
+/// Set Claude binary path — stub for web mode
+async fn set_claude_binary_path(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<()>> {
+    Json(ApiResponse::error(
+        "Setting binary path is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: get single server — stub for web mode
+async fn mcp_get_server(Path(_name): Path<String>) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error("MCP server not found".to_string()))
+}
+
+/// MCP: remove server — stub for web mode
+async fn mcp_remove_server(Path(_name): Path<String>) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "MCP server management is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: add server — stub for web mode
+async fn mcp_add_server(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "MCP server management is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: add server from JSON — stub for web mode
+async fn mcp_add_json(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "MCP server management is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: import from Claude Desktop — stub for web mode
+async fn mcp_import_claude_desktop(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "MCP import is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: serve — stub for web mode
+async fn mcp_serve() -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "MCP serve is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: test connection — stub for web mode
+async fn mcp_test_connection(Path(_name): Path<String>) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "MCP connection testing is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: reset project choices — stub for web mode
+async fn mcp_reset_choices() -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "MCP reset is not available in web mode".to_string(),
+    ))
+}
+
+/// MCP: get server status — stub for web mode
+async fn mcp_get_status() -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(serde_json::json!({})))
+}
+
+/// MCP: read project config — stub for web mode
+async fn mcp_read_project_config(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(serde_json::json!({
+        "mcpServers": {}
+    })))
+}
+
+/// MCP: save project config — stub for web mode
+async fn mcp_save_project_config(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::error(
+        "MCP project config save is not available in web mode".to_string(),
+    ))
+}
+
+/// Checkpoint: fork — stub for web mode
+async fn fork_from_checkpoint(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": false,
+        "data": null,
+        "error": "Checkpoint forking is not available in web mode"
+    }))
+}
+
+/// Checkpoint: get session timeline — stub for web mode
+async fn get_session_timeline(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": [],
+        "error": null
+    }))
+}
+
+/// Checkpoint: update settings — stub for web mode
+async fn update_checkpoint_settings(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": false,
+        "data": null,
+        "error": "Checkpoint settings are not available in web mode"
+    }))
+}
+
+/// Checkpoint: track message — stub for web mode
+async fn track_checkpoint_message(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": null,
+        "error": null
+    }))
+}
+
+/// Checkpoint: check auto checkpoint — stub for web mode
+async fn check_auto_checkpoint(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": false,
+        "error": null
+    }))
+}
+
+/// Checkpoint: cleanup old — stub for web mode
+async fn cleanup_old_checkpoints(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": 0,
+        "error": null
+    }))
+}
+
+/// Checkpoint: get settings — stub for web mode
+async fn get_checkpoint_settings(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": {
+            "enabled": false,
+            "auto_checkpoint": false,
+            "interval_messages": 10
+        },
+        "error": null
+    }))
+}
+
+/// Checkpoint: delete — stub for web mode
+async fn delete_checkpoint(Path(_id): Path<String>) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": false,
+        "data": null,
+        "error": "Checkpoint deletion is not available in web mode"
+    }))
+}
+
+/// Track session messages — stub for web mode
+async fn track_session_messages(
+    axum::Json(_body): axum::Json<serde_json::Value>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": null,
+        "error": null
+    }))
+}
+
+/// List directory contents — for web mode file browsing
+async fn list_directory_contents(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let dir_path = params
+        .get("directoryPath")
+        .or(params.get("directory_path"))
+        .cloned()
+        .unwrap_or_default();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let mut entries = Vec::new();
+        if let Ok(dir) = std::fs::read_dir(&dir_path) {
+            for entry in dir.flatten().take(500) {
+                let path = entry.path();
+                let is_dir = path.is_dir();
+                let name = entry.file_name().to_string_lossy().to_string();
+                entries.push(serde_json::json!({
+                    "name": name,
+                    "path": path.to_string_lossy(),
+                    "isDirectory": is_dir,
+                    "isFile": !is_dir
+                }));
+            }
+        }
+        entries
+    })
+    .await
+    .unwrap_or_default();
+
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": result,
+        "error": null
+    }))
+}
+
+/// Search files — stub for web mode
+async fn search_files_handler(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": [],
+        "error": null
+    }))
+}
+
 /// Create the web server
 pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
@@ -1515,12 +2126,69 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
 
     // Create router with API endpoints
     let app = Router::new()
+        // Health check
+        .route(
+            "/api/health",
+            get(|| async {
+                axum::Json(serde_json::json!({ "status": "ok", "uptime": "running" }))
+            }),
+        )
         // API routes (REST API equivalent of Tauri commands)
         .route("/api/projects", get(get_projects))
         .route("/api/projects/{project_id}/sessions", get(get_sessions))
         .route("/api/project-info", get(get_project_info))
         .route("/api/project/init", post(init_project))
-        .route("/api/agents", get(get_agents))
+        .route("/api/agents", get(get_agents).post(create_agent_post))
+        .route(
+            "/api/agents/{id}",
+            get(get_agent_by_id)
+                .put(update_agent)
+                .delete(delete_agent_handler),
+        )
+        .route("/api/agents/{id}/export", get(export_agent))
+        .route("/api/agents/import", post(import_agent_post))
+        .route("/api/agents/import/file", post(import_agent_from_file_post))
+        .route("/api/agents/github", get(fetch_github_agents))
+        .route("/api/agents/github/content", get(fetch_github_agent_content))
+        .route(
+            "/api/agents/import/github",
+            post(import_agent_from_github_post),
+        )
+        .route(
+            "/api/agents/{agentId}/execute",
+            post(execute_agent_handler),
+        )
+        .route("/api/agents/runs", get(list_agent_runs))
+        .route("/api/agents/runs/{id}", get(get_agent_run))
+        .route("/api/agents/runs/{id}/metrics", get(get_agent_run_metrics))
+        .route(
+            "/api/agents/sessions/{runId}/kill",
+            post(kill_agent_session),
+        )
+        .route(
+            "/api/agents/sessions/{runId}/status",
+            get(get_agent_session_status),
+        )
+        .route(
+            "/api/agents/sessions/cleanup",
+            post(cleanup_finished_processes),
+        )
+        .route(
+            "/api/agents/sessions/{runId}/output",
+            get(get_agent_session_output),
+        )
+        .route(
+            "/api/agents/sessions/{runId}/output/live",
+            get(get_live_agent_session_output),
+        )
+        .route(
+            "/api/agents/sessions/{runId}/output/stream",
+            get(stream_agent_session_output),
+        )
+        .route(
+            "/api/agents/sessions/{sessionId}/history",
+            get(load_agent_session_history),
+        )
         .route("/api/agents/live", get(get_live_agents))
         .route("/api/auth/status", get(get_auth_status))
         .route("/api/usage", get(get_usage))
@@ -1535,7 +2203,10 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
             get(get_integrations).post(save_integrations),
         )
         // Settings and configuration
-        .route("/api/settings/claude", get(get_claude_settings))
+        .route(
+            "/api/settings/claude",
+            get(get_claude_settings).post(save_claude_settings_post),
+        )
         .route("/api/settings/claude/version", get(check_claude_version))
         .route(
             "/api/settings/claude/installations",
@@ -1543,9 +2214,16 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         )
         .route(
             "/api/settings/claude/binary-path",
-            get(get_claude_binary_path_web),
+            get(get_claude_binary_path_web).post(set_claude_binary_path),
         )
-        .route("/api/settings/system-prompt", get(get_system_prompt))
+        .route(
+            "/api/settings/system-prompt",
+            get(get_system_prompt).post(save_system_prompt_post),
+        )
+        // CLAUDE.md management
+        .route("/api/claude-md", get(find_claude_md_files))
+        .route("/api/claude-md/read", get(read_claude_md_file))
+        .route("/api/claude-md/save", post(save_claude_md_file_post))
         // Session management
         .route("/api/sessions/new", get(open_new_session))
         // Skills
@@ -1564,9 +2242,43 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
             get(get_slash_command).delete(delete_slash_command),
         )
         // Storage
+        .route("/api/storage/tables", get(storage_list_tables))
         .route("/api/storage/tables/{tableName}", get(get_storage_table))
+        .route(
+            "/api/storage/tables/{tableName}/rows/{id}",
+            put(storage_update_row).delete(storage_delete_row),
+        )
+        .route(
+            "/api/storage/tables/{tableName}/rows",
+            post(storage_insert_row),
+        )
+        .route("/api/storage/sql", post(storage_execute_sql))
+        .route("/api/storage/reset", post(storage_reset_database))
         // MCP
-        .route("/api/mcp/servers", get(mcp_list))
+        .route(
+            "/api/mcp/servers",
+            get(mcp_list).post(mcp_add_server),
+        )
+        .route(
+            "/api/mcp/servers/{name}",
+            get(mcp_get_server).delete(mcp_remove_server),
+        )
+        .route("/api/mcp/servers/json", post(mcp_add_json))
+        .route(
+            "/api/mcp/import/claude-desktop",
+            post(mcp_import_claude_desktop),
+        )
+        .route("/api/mcp/serve", get(mcp_serve))
+        .route(
+            "/api/mcp/servers/{name}/test",
+            get(mcp_test_connection),
+        )
+        .route("/api/mcp/reset-choices", post(mcp_reset_choices))
+        .route("/api/mcp/status", get(mcp_get_status))
+        .route(
+            "/api/mcp/project-config",
+            get(mcp_read_project_config).post(mcp_save_project_config),
+        )
         // Session history
         .route(
             "/api/sessions/{session_id}/history/{project_id}",
@@ -1585,11 +2297,41 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
             "/api/sessions/{sessionId}/output",
             get(get_claude_session_output),
         )
+        // Home directory
+        .route("/api/home-directory", get(get_home_directory))
+        // File browsing
+        .route("/api/files/list", get(list_directory_contents))
+        .route("/api/files/search", get(search_files_handler))
         // Checkpoint management (stubs for web mode)
         .route("/api/checkpoints/clear", get(noop_ok))
         .route("/api/checkpoints/create", post(noop_ok))
         .route("/api/checkpoints", get(noop_empty_array))
+        .route(
+            "/api/checkpoints/{id}",
+            get(noop_ok).delete(delete_checkpoint),
+        )
         .route("/api/checkpoints/{id}/diff", get(noop_ok))
+        .route("/api/checkpoints/fork", post(fork_from_checkpoint))
+        .route("/api/checkpoints/timeline", get(get_session_timeline))
+        .route(
+            "/api/checkpoints/settings",
+            get(get_checkpoint_settings).post(update_checkpoint_settings),
+        )
+        .route("/api/checkpoints/track-message", post(track_checkpoint_message))
+        .route("/api/checkpoints/auto-check", get(check_auto_checkpoint))
+        .route("/api/checkpoints/cleanup", post(cleanup_old_checkpoints))
+        .route("/api/checkpoints/track-sessions", post(track_session_messages))
+        // Proxy settings
+        .route(
+            "/api/settings/proxy",
+            get(get_proxy_settings).post(save_proxy_settings),
+        )
+        // Hooks configuration
+        .route(
+            "/api/hooks/config",
+            get(get_hooks_config).post(update_hooks_config),
+        )
+        .route("/api/hooks/validate", post(validate_hook_command))
         // Catch-all for unmapped commands (prevents HTML fallback errors)
         .route("/api/noop/{command}", get(noop_ok))
         // WebSocket endpoint for real-time Claude execution

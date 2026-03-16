@@ -12,9 +12,13 @@ import { invoke } from "@tauri-apps/api/core";
 // Extend Window interface for Tauri
 declare global {
   interface Window {
-    __TAURI__?: any;
-    __TAURI_METADATA__?: any;
-    __TAURI_INTERNALS__?: any;
+    __TAURI__?: Record<string, unknown>;
+    __TAURI_METADATA__?: Record<string, unknown>;
+    __TAURI_INTERNALS__?: {
+      __WEB_MODE_MOCK__?: boolean;
+      transformCallback?: (callback: ((response: any) => void) | undefined, once?: boolean) => string | number;
+      [key: string]: any;
+    };
   }
 }
 
@@ -119,7 +123,14 @@ async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
     // Direct data format (no wrapper)
     return (json?.data ?? json) as T;
   } catch (error) {
-    console.error(`REST API call failed for ${endpoint}:`, error);
+    // Suppress errors for endpoints expected to be unavailable in web mode
+    const knownUnavailable = ['/api/storage/', '/api/hooks/', '/api/noop/', '/api/checkpoints/', '/api/settings/proxy'];
+    const isKnown = knownUnavailable.some((p) => endpoint.includes(p));
+    if (isKnown) {
+      console.debug(`[API] Expected unavailable: ${endpoint}`);
+    } else {
+      console.error(`REST API call failed for ${endpoint}:`, error);
+    }
     throw error;
   }
 }
@@ -332,6 +343,14 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
               detail: claudeMessage
             });
             window.dispatchEvent(customEvent);
+
+            // Also dispatch session-scoped event for concurrent session support
+            const sid = params?.sessionId;
+            if (sid) {
+              window.dispatchEvent(new CustomEvent(`claude-output:${sid}`, {
+                detail: claudeMessage
+              }));
+            }
           } catch (e) {
           }
         } else if (message.type === 'completion') {
@@ -341,7 +360,15 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
             detail: message.status === 'success'
           });
           window.dispatchEvent(completeEvent);
-          
+
+          // Also dispatch session-scoped completion event
+          const completeSid = params?.sessionId;
+          if (completeSid) {
+            window.dispatchEvent(new CustomEvent(`claude-complete:${completeSid}`, {
+              detail: message.status === 'success'
+            }));
+          }
+
           ws.close();
           if (message.status === 'success') {
             resolve({} as T); // Return empty object for now
@@ -355,7 +382,15 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
             detail: message.message || 'Unknown error'
           });
           window.dispatchEvent(errorEvent);
-          
+
+          // Also dispatch session-scoped error event
+          const errorSid = params?.sessionId;
+          if (errorSid) {
+            window.dispatchEvent(new CustomEvent(`claude-error:${errorSid}`, {
+              detail: message.message || 'Unknown error'
+            }));
+          }
+
           reject(new Error(message.message || 'Unknown error'));
         } else {
         }
@@ -446,7 +481,7 @@ export function initializeWebMode() {
             console.debug('[Web] Tauri core.invoke called in web mode:', args[0]);
             return Promise.reject(new Error('Not available in web mode'));
           },
-          transformCallback: (window as any).__TAURI_INTERNALS__.transformCallback,
+          transformCallback: window.__TAURI_INTERNALS__?.transformCallback,
         }
       };
     }
