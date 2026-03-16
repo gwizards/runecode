@@ -41,6 +41,7 @@ import {
   WebFetchWidget
 } from "./ToolWidgets";
 import { SkillBadgeWidget } from "./widgets/SkillBadgeWidget";
+import { TaskNotificationWidget } from "./widgets/TaskNotificationWidget";
 import { useSessionStore } from "../stores/sessionStore";
 
 /**
@@ -82,6 +83,54 @@ const CollapsibleToolOutput: React.FC<{
     </div>
   );
 };
+
+/** Extract text content of an XML tag from a string */
+function extractTag(content: string, tagName: string): string | null {
+  const regex = new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`);
+  const match = content.match(regex);
+  return match ? match[1].trim() : null;
+}
+
+/** Parse <task-notification> blocks out of content, returning parsed objects and cleaned content */
+function parseTaskNotifications(content: string): { notifications: { taskId: string; status: string; summary: string; result?: string; usage?: { totalTokens?: number; toolUses?: number; durationMs?: number } }[]; cleanContent: string } {
+  const notifications: { taskId: string; status: string; summary: string; result?: string; usage?: { totalTokens?: number; toolUses?: number; durationMs?: number } }[] = [];
+  const regex = /<task-notification>([\s\S]*?)<\/task-notification>/g;
+  let match;
+
+  while ((match = regex.exec(content)) !== null) {
+    const block = match[1];
+    const taskId = extractTag(block, 'task-id') || '';
+    const status = extractTag(block, 'status') || 'unknown';
+    const summary = extractTag(block, 'summary') || 'Task notification';
+    const result = extractTag(block, 'result') || '';
+
+    const usageBlock = extractTag(block, 'usage') || '';
+    const totalTokens = parseInt(extractTag(usageBlock, 'total_tokens') || '0');
+    const toolUses = parseInt(extractTag(usageBlock, 'tool_uses') || '0');
+    const durationMs = parseInt(extractTag(usageBlock, 'duration_ms') || '0');
+
+    notifications.push({
+      taskId, status, summary, result: result || undefined,
+      usage: totalTokens ? { totalTokens, toolUses, durationMs } : undefined,
+    });
+  }
+
+  const cleanContent = content.replace(/<task-notification>[\s\S]*?<\/task-notification>/g, '').trim();
+  const finalContent = cleanContent.replace(/Full transcript available at:.*$/gm, '').trim();
+
+  return { notifications, cleanContent: finalContent };
+}
+
+/** Strip metadata XML tags that should not be rendered in chat */
+function stripMetadataTags(content: string): string {
+  return content
+    .replace(/<output-file>[\s\S]*?<\/output-file>/g, '')
+    .replace(/<tool-use-id>[\s\S]*?<\/tool-use-id>/g, '')
+    .replace(/<usage>[\s\S]*?<\/usage>/g, '')
+    .replace(/<result>[\s\S]*?<\/result>/g, '')
+    .replace(/Full transcript available at:.*$/gm, '')
+    .trim();
+}
 
 interface StreamMessageProps {
   message: ClaudeStreamMessage;
@@ -181,33 +230,45 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                   // Text content - render as markdown
                   if (content.type === "text") {
                     // Ensure we have a string to render
-                    const textContent = typeof content.text === 'string' 
-                      ? content.text 
+                    const rawTextContent = typeof content.text === 'string'
+                      ? content.text
                       : (content.text?.text || JSON.stringify(content.text || content));
-                    
+
+                    // Parse task notifications and strip metadata tags
+                    const { notifications, cleanContent: afterNotifications } = parseTaskNotifications(rawTextContent);
+                    const textContent = stripMetadataTags(afterNotifications);
+
+                    if (!textContent && notifications.length === 0) return null;
                     renderedSomething = true;
                     return (
-                      <div key={idx} className="prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            code({ node, inline, className, children, ...props }: any) {
-                              const match = /language-(\w+)/.exec(className || '');
-                              return !inline && match ? (
-                                <ShikiCodeBlock
-                                  code={String(children).replace(/\n$/, '')}
-                                  language={match[1]}
-                                />
-                              ) : (
-                                <code className={className} {...props}>
-                                  {children}
-                                </code>
-                              );
-                            }
-                          }}
-                        >
-                          {textContent}
-                        </ReactMarkdown>
+                      <div key={idx}>
+                        {notifications.map((n, i) => (
+                          <TaskNotificationWidget key={`notif-${i}`} {...n} />
+                        ))}
+                        {textContent && (
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                code({ node, inline, className, children, ...props }: any) {
+                                  const match = /language-(\w+)/.exec(className || '');
+                                  return !inline && match ? (
+                                    <ShikiCodeBlock
+                                      code={String(children).replace(/\n$/, '')}
+                                      language={match[1]}
+                                    />
+                                  ) : (
+                                    <code className={className} {...props}>
+                                      {children}
+                                    </code>
+                                  );
+                                }
+                              }}
+                            >
+                              {textContent}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                     );
                   }
@@ -439,6 +500,25 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                       return <CommandOutputWidget output={output} onLinkDetected={onLinkDetected} />;
                     }
                     
+                    // Parse task notifications and strip metadata tags
+                    const { notifications: userNotifications, cleanContent: afterUserNotifications } = parseTaskNotifications(contentStr);
+                    const userDisplayContent = stripMetadataTags(afterUserNotifications);
+
+                    if (userNotifications.length > 0 || userDisplayContent) {
+                      return (
+                        <div>
+                          {userNotifications.map((n, i) => (
+                            <TaskNotificationWidget key={`user-notif-${i}`} {...n} />
+                          ))}
+                          {userDisplayContent && (
+                            <div className="text-sm">
+                              {userDisplayContent}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
                     // Otherwise render as plain text
                     return (
                       <div className="text-sm">
@@ -670,6 +750,10 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                       );
                     }
                     
+                    // Parse task notifications and strip metadata from tool result
+                    const { notifications: toolNotifications, cleanContent: afterToolNotifications } = parseTaskNotifications(contentText);
+                    const toolDisplayText = stripMetadataTags(afterToolNotifications);
+
                     renderedSomething = true;
                     return (
                       <div key={idx} className="space-y-2">
@@ -681,11 +765,18 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                           )}
                           <span className="text-sm font-medium">Tool Result</span>
                         </div>
-                        <div className="ml-6 p-2 bg-background rounded-md border">
-                          <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap">
-                            {contentText}
-                          </pre>
-                        </div>
+                        {toolNotifications.map((n, i) => (
+                          <div key={`tool-notif-${i}`} className="ml-6">
+                            <TaskNotificationWidget {...n} />
+                          </div>
+                        ))}
+                        {toolDisplayText && (
+                          <div className="ml-6 p-2 bg-background rounded-md border">
+                            <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+                              {toolDisplayText}
+                            </pre>
+                          </div>
+                        )}
                       </div>
                     );
                   }
@@ -737,30 +828,41 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                   {isError ? "Execution Failed" : "Execution Complete"}
                 </h4>
                 
-                {message.result && (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code({ node, inline, className, children, ...props }: any) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          return !inline && match ? (
-                            <ShikiCodeBlock
-                              code={String(children).replace(/\n$/, '')}
-                              language={match[1]}
-                            />
-                          ) : (
-                            <code className={className} {...props}>
-                              {children}
-                            </code>
-                          );
-                        }
-                      }}
-                    >
-                      {message.result}
-                    </ReactMarkdown>
-                  </div>
-                )}
+                {message.result && (() => {
+                  const { notifications: resultNotifications, cleanContent: afterResultNotifications } = parseTaskNotifications(message.result);
+                  const resultDisplayContent = stripMetadataTags(afterResultNotifications);
+                  return (
+                    <>
+                      {resultNotifications.map((n, i) => (
+                        <TaskNotificationWidget key={`result-notif-${i}`} {...n} />
+                      ))}
+                      {resultDisplayContent && (
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              code({ node, inline, className, children, ...props }: any) {
+                                const match = /language-(\w+)/.exec(className || '');
+                                return !inline && match ? (
+                                  <ShikiCodeBlock
+                                    code={String(children).replace(/\n$/, '')}
+                                    language={match[1]}
+                                  />
+                                ) : (
+                                  <code className={className} {...props}>
+                                    {children}
+                                  </code>
+                                );
+                              }
+                            }}
+                          >
+                            {resultDisplayContent}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 
                 {message.error && (
                   <div className="text-sm text-destructive">{message.error}</div>

@@ -19,3 +19,4 @@ export { WebFetchWidget } from './WebFetchWidget';
 export { ThinkingWidget } from './ThinkingWidget';
 export { TodoReadWidget } from './TodoReadWidget';
 export { SkillBadgeWidget } from './SkillBadgeWidget';
+export { TaskNotificationWidget } from './TaskNotificationWidget';
