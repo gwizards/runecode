@@ -56,10 +56,7 @@ export default defineConfig(async () => ({
           if (id.includes('node_modules/@uiw/react-md-editor')) {
             return 'editor-vendor';
           }
-          if (id.includes('node_modules/react-syntax-highlighter')) {
-            return 'syntax-vendor';
-          }
-          if (id.includes('node_modules/@tauri-apps/')) {
+if (id.includes('node_modules/@tauri-apps/')) {
             return 'tauri';
           }
           if (id.includes('node_modules/date-fns') || id.includes('node_modules/clsx') || id.includes('node_modules/tailwind-merge')) {
