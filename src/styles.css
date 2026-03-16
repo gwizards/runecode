@@ -313,6 +313,9 @@ html[data-theme="daylight"] {
   --color-muted: oklch(0.99 0.003 270);
   --color-muted-foreground: oklch(0.55 0.02 285);
   --color-accent: oklch(0.65 0.17 75);
+  --color-secondary-foreground: oklch(0.15 0.01 285);
+  --color-accent-foreground: oklch(0.15 0.02 80);
+  --color-destructive-foreground: oklch(0.98 0.01 25);
   --color-border: oklch(0.85 0.01 270);
   --color-input: oklch(0.85 0.01 270);
   --color-popover: oklch(1.0 0 0);
@@ -797,8 +800,8 @@ html.is-macos body {
 }
 
 @keyframes rune-bolt-glow {
-  0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 2px #a78bfa); }
-  50% { opacity: 1; filter: drop-shadow(0 0 6px #8b5cf6); }
+  0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 2px var(--color-purple-400)); }
+  50% { opacity: 1; filter: drop-shadow(0 0 6px var(--color-purple-500)); }
 }
 
 .reduced-effects .rune-spinner-ring {
@@ -1227,9 +1230,9 @@ html.is-macos body {
     from var(--angle),
     transparent 0%,
     transparent 85%,
-    #d97757 90%,
-    #ff9a7a 92.5%,
-    #d97757 95%,
+    var(--color-gold-400) 90%,
+    var(--color-gold-300) 92.5%,
+    var(--color-gold-400) 95%,
     transparent 100%
   );
   -webkit-mask: 
