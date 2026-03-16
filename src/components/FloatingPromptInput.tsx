@@ -1059,12 +1059,11 @@ const FloatingPromptInputInner = (
       {/* Fixed Position Input Bar */}
       <div
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-40 backdrop-blur-sm border-t border-border shadow-lg transition-shadow duration-300",
+          "fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg transition-shadow duration-300",
           dragActive && "ring-2 ring-primary ring-offset-2",
           isFocused && "rune-glow",
           className
         )}
-        style={{ backgroundColor: 'color-mix(in oklch, var(--color-void-base) 95%, transparent)' }}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         onDragEnter={handleDrag}
