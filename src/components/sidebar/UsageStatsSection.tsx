@@ -117,7 +117,7 @@ function GradientBar({
 }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="relative w-full h-2 rounded-full bg-white/5 overflow-hidden">
+    <div className="relative w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'color-mix(in oklch, var(--color-text-primary) 5%, transparent)' }}>
       <div
         className={`h-full rounded-full transition-all duration-500 ${gradient}`}
         style={{ width: `${pct}%` }}
@@ -161,12 +161,18 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="flex-1 rounded-lg bg-accent/30 border border-border/30 px-2.5 py-2 text-center min-w-0">
+    <div
+      className="flex-1 rounded-lg border px-2.5 py-2 text-center min-w-0"
+      style={{
+        backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+        borderColor: 'color-mix(in oklch, var(--color-purple-500) 12%, transparent)',
+      }}
+    >
       <div className="flex items-center justify-center gap-1 mb-0.5">
-        <span className="text-muted-foreground">{icon}</span>
+        <span style={{ color: 'var(--color-text-muted)' }}>{icon}</span>
       </div>
-      <div className="text-sm font-semibold text-foreground truncate">{value}</div>
-      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>{value}</div>
+      <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{label}</div>
     </div>
   );
 }
