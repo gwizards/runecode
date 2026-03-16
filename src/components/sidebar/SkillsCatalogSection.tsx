@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
 import { isDevMode } from '@/lib/devFallback';
+import { safeParsePluginGroup } from '../../lib/safeParser';
 
 interface Skill {
   name: string;
@@ -25,15 +26,21 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
   useEffect(() => {
     async function loadSkills() {
       try {
+        let raw: any;
         if ((window as any).__TAURI__) {
           const { invoke } = await import('@tauri-apps/api/core');
-          const data = await invoke('get_skills_catalog');
-          setCatalog(data as PluginGroup[]);
+          raw = await invoke('get_skills_catalog');
         } else {
           const res = await fetch('/api/skills');
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          setCatalog(await res.json());
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('json')) throw new Error('Non-JSON response');
+          raw = await res.json();
         }
+        const parsed = Array.isArray(raw)
+          ? (raw.map(safeParsePluginGroup).filter(Boolean) as PluginGroup[])
+          : [];
+        setCatalog(parsed);
       } catch {
         setLoadFailed(true);
       }

@@ -3,8 +3,8 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { 
-  X, 
+import {
+  X,
   Command,
   Search,
   Globe,
@@ -14,13 +14,15 @@ import {
   Terminal,
   AlertCircle,
   User,
-  Building2
+  Building2,
+  RefreshCw
 } from "lucide-react";
 import type { SlashCommand } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { safeParseCommand, safeParseSkill, toSlashCommand } from "@/lib/safeParser";
 import { useTrackEvent, useFeatureAdoptionTracking } from "@/hooks";
 
-const BUILTIN_COMMANDS: SlashCommand[] = [
+const BUILTIN_COMMANDS_FALLBACK: SlashCommand[] = [
   { id: 'builtin-help', name: 'help', full_command: '/help', description: 'Show help and available commands', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
   { id: 'builtin-clear', name: 'clear', full_command: '/clear', description: 'Clear conversation history', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
   { id: 'builtin-compact', name: 'compact', full_command: '/compact', description: 'Compact conversation to save context', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: true },
@@ -241,42 +243,68 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
       setIsLoading(true);
       setError(null);
 
-      // Start with built-in commands
-      const allCommands = [...BUILTIN_COMMANDS];
+      // Start with fallback built-in commands
+      const allCommands: SlashCommand[] = [...BUILTIN_COMMANDS_FALLBACK];
+
+      // Try dynamic discovery from backend (queries Claude binary)
+      try {
+        const res = await fetch('/api/commands/builtin');
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('json')) {
+            const data = await res.json();
+            const items = Array.isArray(data?.data) ? data.data : [];
+            for (const raw of items) {
+              const parsed = safeParseCommand(raw);
+              if (parsed && !allCommands.find(c => c.name === parsed.name)) {
+                allCommands.push(toSlashCommand(parsed, 'discovered'));
+              }
+            }
+          }
+        }
+      } catch { /* dynamic discovery unavailable, using fallbacks */ }
 
       // Load custom commands from API
       try {
         const apiCommands = await api.slashCommandsList(projectPath);
-        for (const cmd of apiCommands) {
-          if (!allCommands.find(c => c.name === cmd.name)) {
-            allCommands.push(cmd);
+        if (Array.isArray(apiCommands)) {
+          for (const cmd of apiCommands) {
+            const parsed = safeParseCommand(cmd);
+            if (parsed && !allCommands.find(c => c.name === parsed.name)) {
+              allCommands.push(toSlashCommand(parsed, 'api'));
+            }
           }
         }
       } catch {
         // API may be unavailable in web mode, continue with built-ins
       }
 
-      // Also load plugin skills as slash commands
+      // Try loading skills as commands
       try {
         const res = await fetch('/api/skills');
-        const skills = await res.json();
-        for (const group of skills) {
-          for (const skill of group.skills) {
-            if (!allCommands.find(c => c.name === skill.name)) {
-              allCommands.push({
-                id: `skill-${group.plugin}-${skill.name}`,
-                name: skill.name,
-                full_command: `/${skill.name}`,
-                description: skill.description,
-                scope: 'default',
-                namespace: group.plugin,
-                file_path: '',
-                content: '',
-                allowed_tools: [],
-                has_bash_commands: false,
-                has_file_references: false,
-                accepts_arguments: true,
-              });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('json')) {
+            const skills = await res.json();
+            if (Array.isArray(skills)) {
+              for (const group of skills) {
+                const pluginName = String(group?.plugin || 'Plugin');
+                const groupSkills = Array.isArray(group?.skills) ? group.skills : [];
+                for (const skill of groupSkills) {
+                  const parsed = safeParseSkill(skill);
+                  if (parsed && !allCommands.find(c => c.name === parsed.name)) {
+                    const cmdParsed = safeParseCommand({
+                      name: parsed.name,
+                      description: parsed.description,
+                      namespace: pluginName,
+                      accepts_arguments: true,
+                    });
+                    if (cmdParsed) {
+                      allCommands.push(toSlashCommand(cmdParsed, `skill-${pluginName}`));
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -286,7 +314,7 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
     } catch (err) {
       console.error("Failed to load slash commands:", err);
       setError(err instanceof Error ? err.message : 'Failed to load commands');
-      setCommands(BUILTIN_COMMANDS);
+      setCommands(BUILTIN_COMMANDS_FALLBACK);
     } finally {
       setIsLoading(false);
     }
@@ -349,14 +377,23 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
               </span>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={loadCommands}
+              className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors"
+              title="Refresh commands"
+            >
+              <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         
         {/* Tabs */}

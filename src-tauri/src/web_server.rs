@@ -434,6 +434,47 @@ async fn get_skills_catalog_web() -> impl IntoResponse {
     axum::Json(catalog)
 }
 
+/// Discover built-in commands from the Claude binary
+async fn get_builtin_commands() -> impl IntoResponse {
+    let output = std::process::Command::new("claude")
+        .args(["--help"])
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let commands = parse_claude_help_output(&stdout);
+            axum::Json(ApiResponse::success(commands))
+        }
+        Err(_) => {
+            // Return empty -- frontend will use hardcoded fallback
+            axum::Json(ApiResponse::success(serde_json::json!([])))
+        }
+    }
+}
+
+fn parse_claude_help_output(output: &str) -> serde_json::Value {
+    let mut commands = Vec::new();
+    // Parse lines that look like command descriptions
+    // Format varies but typically: "  /command    Description text"
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('/') {
+            let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
+            if let Some(name) = parts.first() {
+                let desc = parts.get(1).unwrap_or(&"").trim();
+                commands.push(serde_json::json!({
+                    "name": name.trim_start_matches('/'),
+                    "full_command": *name,
+                    "description": desc,
+                    "scope": "default"
+                }));
+            }
+        }
+    }
+    serde_json::json!(commands)
+}
+
 /// MCP list servers - return empty for web mode
 async fn mcp_list() -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(vec![]))
@@ -1090,6 +1131,8 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/sessions/new", get(open_new_session))
         // Skills
         .route("/api/skills", get(get_skills_catalog_web))
+        // Dynamic command discovery
+        .route("/api/commands/builtin", get(get_builtin_commands))
         // Slash commands
         .route(
             "/api/slash-commands",
