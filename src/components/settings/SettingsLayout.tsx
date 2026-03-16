@@ -1,10 +1,8 @@
 import {
-  Palette, Settings2, Code2, Puzzle, Wrench,
-  Sun, Layers, Paintbrush,
+  Palette, Settings2, Code2, Puzzle,
   Timer, Shield, Variable,
-  Binary, Terminal, Webhook, Bot,
-  Cloud, Lock, Eye, Sparkles,
-  Globe, Database, Key, Bug
+  Binary, Terminal,
+  Sparkles, Globe, Database
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -20,9 +18,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Appearance',
     icon: Palette,
     items: [
-      { id: 'theme', label: 'Theme', icon: Sun },
-      { id: 'density', label: 'Density', icon: Layers },
-      { id: 'colors', label: 'Colors', icon: Paintbrush },
+      { id: 'appearance', label: 'Appearance', icon: Palette },
     ],
   },
   {
@@ -40,10 +36,8 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Claude Code',
     icon: Code2,
     items: [
-      { id: 'binary', label: 'Binary', icon: Binary },
-      { id: 'commands', label: 'Commands', icon: Terminal },
-      { id: 'hooks', label: 'Hooks', icon: Webhook },
-      { id: 'models', label: 'Models', icon: Bot },
+      { id: 'installation', label: 'Installation', icon: Binary },
+      { id: 'commands-hooks', label: 'Commands & Hooks', icon: Terminal },
     ],
   },
   {
@@ -51,21 +45,9 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Integrations',
     icon: Puzzle,
     items: [
-      { id: 'compute', label: 'Compute', icon: Cloud },
-      { id: 'security', label: 'Security', icon: Lock },
-      { id: 'observability', label: 'Observability', icon: Eye },
-      { id: 'gateway', label: 'Gateway', icon: Sparkles },
-    ],
-  },
-  {
-    id: 'advanced',
-    label: 'Advanced',
-    icon: Wrench,
-    items: [
-      { id: 'proxy', label: 'Proxy', icon: Globe },
+      { id: 'partner-stack', label: 'Partner Stack', icon: Sparkles },
+      { id: 'network', label: 'Proxy & Network', icon: Globe },
       { id: 'storage', label: 'Storage', icon: Database },
-      { id: 'api-keys', label: 'API Keys', icon: Key },
-      { id: 'debug', label: 'Debug', icon: Bug },
     ],
   },
 ];
@@ -86,46 +68,76 @@ export function SettingsLayout({ activeSection, onSectionChange, children }: Set
           Settings
         </h2>
 
-        {SETTINGS_SECTIONS.map((section) => (
-          <div key={section.id} className="mb-3">
-            {/* Group header */}
-            <button
-              onClick={() => onSectionChange(section.items[0].id)}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded transition-colors"
-              style={{ color: 'var(--color-gold-400, var(--color-muted-foreground))' }}
-            >
-              <section.icon className="h-3.5 w-3.5" />
-              {section.label}
-            </button>
+        {SETTINGS_SECTIONS.map((section) => {
+          const isSingleItem = section.items.length === 1;
 
-            {/* Sub-items */}
-            <div className="mt-0.5 space-y-0.5">
-              {section.items.map((item) => {
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSectionChange(item.id)}
-                    className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs rounded transition-all ${
-                      isActive
-                        ? 'font-medium'
-                        : 'hover:bg-muted/50'
-                    }`}
-                    style={isActive ? {
-                      backgroundColor: 'color-mix(in oklch, var(--color-purple-500, #8b5cf6) 15%, transparent)',
-                      color: 'var(--color-purple-400, #a78bfa)',
-                    } : {
-                      color: 'var(--color-text-secondary, var(--color-muted-foreground))',
-                    }}
-                  >
-                    <item.icon className="h-3.5 w-3.5" />
-                    {item.label}
-                  </button>
-                );
-              })}
+          if (isSingleItem) {
+            // Single-item group: render as a direct clickable link
+            const item = section.items[0];
+            const isActive = activeSection === item.id;
+            return (
+              <div key={section.id} className="mb-3">
+                <button
+                  onClick={() => onSectionChange(item.id)}
+                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs rounded transition-all ${
+                    isActive ? 'font-medium' : 'hover:bg-muted/50'
+                  }`}
+                  style={isActive ? {
+                    backgroundColor: 'color-mix(in oklch, var(--color-purple-500, #8b5cf6) 15%, transparent)',
+                    color: 'var(--color-purple-400, #a78bfa)',
+                  } : {
+                    color: 'var(--color-text-secondary, var(--color-muted-foreground))',
+                  }}
+                >
+                  <section.icon className="h-3.5 w-3.5" />
+                  {section.label}
+                </button>
+              </div>
+            );
+          }
+
+          // Multi-item group: render group header + indented sub-items
+          return (
+            <div key={section.id} className="mb-3">
+              {/* Group header */}
+              <button
+                onClick={() => onSectionChange(section.items[0].id)}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded transition-colors"
+                style={{ color: 'var(--color-gold-400, var(--color-muted-foreground))' }}
+              >
+                <section.icon className="h-3.5 w-3.5" />
+                {section.label}
+              </button>
+
+              {/* Sub-items */}
+              <div className="mt-0.5 space-y-0.5">
+                {section.items.map((item) => {
+                  const isActive = activeSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onSectionChange(item.id)}
+                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs rounded transition-all ${
+                        isActive
+                          ? 'font-medium'
+                          : 'hover:bg-muted/50'
+                      }`}
+                      style={isActive ? {
+                        backgroundColor: 'color-mix(in oklch, var(--color-purple-500, #8b5cf6) 15%, transparent)',
+                        color: 'var(--color-purple-400, #a78bfa)',
+                      } : {
+                        color: 'var(--color-text-secondary, var(--color-muted-foreground))',
+                      }}
+                    >
+                      <item.icon className="h-3.5 w-3.5" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Content area */}

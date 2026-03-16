@@ -19,7 +19,6 @@ import { SessionSettings } from "./settings/SessionSettings";
 import { PermissionsSettings, type PermissionRule } from "./settings/PermissionsSettings";
 import { EnvironmentSettings, type EnvironmentVariable } from "./settings/EnvironmentSettings";
 import { BinarySettings } from "./settings/BinarySettings";
-import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { IntegrationsSettings } from "./settings/IntegrationsSettings";
 
 interface SettingsProps {
@@ -36,7 +35,7 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState("session");
+  const [activeSection, setActiveSection] = useState("appearance");
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Binary path state
@@ -191,10 +190,8 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
 
   const renderSection = () => {
     switch (activeSection) {
-      // Appearance group
-      case 'theme':
-      case 'density':
-      case 'colors':
+      // Appearance group (single item)
+      case 'appearance':
         return <AppearanceSettings />;
 
       // General group
@@ -213,35 +210,32 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
         return <EnvironmentSettings envVars={envVars} onEnvVarsChange={setEnvVars} />;
 
       // Claude Code group
-      case 'binary':
+      case 'installation':
         return (
           <BinarySettings
             selectedPath={currentBinaryPath}
             onSelect={handleClaudeInstallationSelect}
           />
         );
-      case 'commands':
-        return <SlashCommandsManager />;
-      case 'hooks':
+      case 'commands-hooks':
         return (
-          <HooksEditor
-            scope="user"
-            hideActions={true}
-            onChange={(hasChanges, getHooks) => {
-              setUserHooksChanged(hasChanges);
-              getUserHooks.current = getHooks;
-            }}
-          />
+          <>
+            <SlashCommandsManager />
+            <HooksEditor
+              scope="user"
+              hideActions={true}
+              onChange={(hasChanges, getHooks) => {
+                setUserHooksChanged(hasChanges);
+                getUserHooks.current = getHooks;
+              }}
+            />
+          </>
         );
-      case 'models':
-      case 'gateway':
-      case 'compute':
-      case 'security':
-      case 'observability':
-        return <IntegrationsSettings />;
 
-      // Advanced group
-      case 'proxy':
+      // Integrations group
+      case 'partner-stack':
+        return <IntegrationsSettings />;
+      case 'network':
         return (
           <ProxySettings
             setToast={setToast}
@@ -253,12 +247,9 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
         );
       case 'storage':
         return <StorageTab />;
-      case 'api-keys':
-      case 'debug':
-        return <AdvancedSettings settings={settings} onSettingsChange={updateSetting} />;
 
       default:
-        return <SessionSettings settings={settings} onSettingsChange={updateSetting} />;
+        return <AppearanceSettings />;
     }
   };
 
