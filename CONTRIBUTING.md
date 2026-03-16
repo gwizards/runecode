@@ -1,67 +1,111 @@
-# Welcome Contributors
+# Contributing to RuneCode
 
-We welcome contributions to enhance RuneCode's capabilities and improve its performance. To report bugs, create a [GitHub issue](https://github.com/getAsterisk/runecode/issues).
+Thanks for your interest in contributing to [RuneCode](https://runecode.sh) — the glassmorphic desktop engine for Claude Code, created by [Mr Polti](https://www.youtube.com/@MrPoltiOfficial) from [Wizards](https://www.wizards.us).
 
-> Before contributing, read through the existing issues and pull requests to see if someone else is already working on something similar. That way you can avoid duplicating efforts.
+Before contributing, check existing [issues](https://github.com/gwizards/runecode/issues) and pull requests to avoid duplicate work.
 
-To contribute, please follow these steps:
+## Getting Started
 
-1. Fork the RuneCode repository on GitHub.
-2. Create a new branch for your feature or bug fix.
-3. Make your changes and ensure that the code passes all tests.
-4. Submit a pull request describing your changes and their benefits.
+```bash
+git clone https://github.com/gwizards/runecode.git
+cd runecode
+bun install
+bun run tauri dev     # Desktop with hot reload
+bun run dev           # Frontend only
+```
+
+### Prerequisites
+
+- **Rust** 1.70+
+- **Bun**
+- **Git**
+- Platform-specific dependencies (see [README](README.md#build-from-source))
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 19, TypeScript, Vite 8 (Rolldown) |
+| **Styling** | Tailwind CSS v4, glassmorphic design tokens |
+| **Desktop** | Tauri 2 (Rust backend) |
+| **Server** | Axum (headless mode) |
+
+RuneCode uses a **glassmorphic design language** with rune-themed accents and a dark-first aesthetic. All UI contributions should follow this visual direction.
+
+## Project Structure
+
+```
+runecode/
+├── src/                        # React frontend
+│   ├── components/             # UI components (widgets, sidebar, shadcn/ui)
+│   ├── integrations/           # Partner integration framework
+│   │   ├── compute/            # Resource monitor, cloud eject
+│   │   ├── security/           # .env scanner, warnings
+│   │   ├── intelligence/       # LLM gateway recommendation
+│   │   └── observability/      # Helicone cost guard
+│   ├── stores/                 # Zustand state
+│   ├── hooks/                  # Custom React hooks
+│   └── lib/                    # API client, utilities
+├── src-tauri/                  # Rust backend
+│   └── src/
+│       ├── commands/           # Tauri commands
+│       ├── web_server.rs       # Axum server for headless mode
+│       └── main.rs             # Desktop entry point
+└── public/                     # Static assets
+```
+
+### Partner Integrations (`src/integrations/`)
+
+The integrations framework provides opinionated stack defaults for compute, security, intelligence, and observability. When adding a new integration, follow the existing pattern in `src/integrations/` and register it with the sidebar skills catalog.
 
 ## Pull Request Guidelines
 
-When submitting a pull request, please follow these guidelines:
+Use these title prefixes:
 
-1. **Title**: Please include following prefixes:
-   - `Feature:` for new features
-   - `Fix:` for bug fixes
-   - `Docs:` for documentation changes
-   - `Refactor:` for code refactoring
-   - `Improve:` for performance improvements
-   - `Other:` for other changes
+- `Feature:` new features
+- `Fix:` bug fixes
+- `Docs:` documentation changes
+- `Refactor:` code refactoring
+- `Improve:` performance improvements
 
-   For example:
-   - `Feature: added custom agent timeout configuration`
-   - `Fix: resolved session list scrolling issue`
-
-2. **Description**: Provide a clear and detailed description of your changes in the pull request. Explain the problem you are solving, the approach you took, and any potential side effects or limitations of your changes.
-
-3. **Documentation**: Update the relevant documentation to reflect your changes. This includes the README file, code comments, and any other relevant documentation.
-
-4. **Dependencies**: If your changes require new dependencies, ensure that they are properly documented and added to the `package.json` or `Cargo.toml` files.
-
-5. If the pull request does not meet the above guidelines, it may be closed without merging.
-
-**Note**: Please ensure that you have the latest version of the code before creating a pull request. If you have an existing fork, just sync your fork with the latest version of the RuneCode repository.
+Include a clear description of the problem, your approach, and any limitations. Sync your fork with the latest `main` before opening a PR.
 
 ## Coding Standards
 
-### Frontend (React/TypeScript)
-- Use TypeScript for all new code
-- Follow functional components with hooks
-- Use Tailwind CSS for styling
-- Add JSDoc comments for exported functions and components
+### Frontend (React / TypeScript)
+
+- TypeScript for all new code
+- Functional components with hooks
+- Tailwind CSS v4 for styling — use existing glassmorphic design tokens
+- JSDoc comments for exported functions and components
 
 ### Backend (Rust)
-- Follow Rust standard conventions
-- Use `cargo fmt` for formatting
-- Use `cargo clippy` for linting
-- Handle all `Result` types explicitly
-- Add comprehensive documentation with `///` comments
 
-### Security Requirements
+- `cargo fmt` before committing
+- `cargo clippy` with no warnings
+- Handle all `Result` types explicitly
+- Document public APIs with `///` comments
+
+### Security
+
 - Validate all inputs from the frontend
 - Use prepared statements for database operations
 - Never log sensitive data (tokens, passwords, etc.)
 - Use secure defaults for all configurations
 
 ## Testing
+
 - Add tests for new functionality
-- Ensure all existing tests pass
 - Run `cargo test` for Rust code
 - Test the application manually before submitting
+- Ensure all existing tests pass
 
-Please adhere to the coding conventions, maintain clear documentation, and provide thorough testing for your contributions.
+## License
+
+By contributing, you agree that your contributions will be licensed under [AGPL-3.0](LICENSE).
+
+---
+
+<div align="center">
+  <a href="https://runecode.sh">runecode.sh</a> · <a href="https://github.com/gwizards/runecode/issues">Report Bug</a> · <a href="https://github.com/gwizards/runecode/issues">Request Feature</a>
+</div>
