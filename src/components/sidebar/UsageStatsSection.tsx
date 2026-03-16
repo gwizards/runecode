@@ -171,7 +171,7 @@ function StatCard({
   );
 }
 
-function PlanBadge({ type }: { type: string }) {
+function PlanBadge({ type, compact = false }: { type: string; compact?: boolean }) {
   const planConfig: Record<string, { label: string; color: string; included: boolean }> = {
     max: { label: 'Max', color: 'bg-purple-500/10 text-purple-400', included: true },
     pro: { label: 'Pro', color: 'bg-blue-500/10 text-blue-400', included: true },
@@ -187,7 +187,7 @@ function PlanBadge({ type }: { type: string }) {
       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${plan.color}`}>
         {plan.label}
       </span>
-      {plan.included && (
+      {plan.included && !compact && (
         <span className="text-[10px] text-green-400">Included</span>
       )}
     </div>
@@ -334,7 +334,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
         {/* Rich collapsed summary */}
         {collapsed && hasData ? (
           <div className="ml-auto flex items-center gap-1.5 text-[10px]">
-            {isIncludedPlan && <PlanBadge type={authStatus?.subscriptionType} />}
+            {isIncludedPlan && <PlanBadge type={authStatus?.subscriptionType} compact />}
             <span className="font-mono text-primary">{formatCost(combinedCost)}</span>
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground">{formatTokens(combinedTokens)} tok</span>
