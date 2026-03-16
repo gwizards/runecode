@@ -468,14 +468,15 @@ export const api = {
    */
   async listProjects(): Promise<Project[]> {
     try {
-      return await apiCall<Project[]>("list_projects");
+      const result = await apiCall<Project[]>("list_projects");
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to list projects:", error);
       if (isDevMode()) {
         console.info("[DevFallback] Returning placeholder projects");
         return DEV_PROJECTS;
       }
-      throw error;
+      return [];
     }
   },
 
@@ -527,14 +528,15 @@ export const api = {
    */
   async getProjectSessions(projectId: string): Promise<Session[]> {
     try {
-      return await apiCall<Session[]>('get_project_sessions', { projectId });
+      const result = await apiCall<Session[]>('get_project_sessions', { projectId });
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to get project sessions:", error);
       if (isDevMode()) {
         console.info("[DevFallback] Returning placeholder sessions for", projectId);
         return DEV_SESSIONS.filter(s => s.project_id === projectId);
       }
-      throw error;
+      return [];
     }
   },
 
@@ -544,10 +546,11 @@ export const api = {
    */
   async fetchGitHubAgents(): Promise<GitHubAgentFile[]> {
     try {
-      return await apiCall<GitHubAgentFile[]>('fetch_github_agents');
+      const result = await apiCall<GitHubAgentFile[]>('fetch_github_agents');
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to fetch GitHub agents:", error);
-      throw error;
+      return [];
     }
   },
 
@@ -586,7 +589,6 @@ export const api = {
   async getClaudeSettings(): Promise<ClaudeSettings> {
     try {
       const result = await apiCall<{ data: ClaudeSettings }>("get_claude_settings");
-      console.log("Raw result from get_claude_settings:", result);
       
       // The Rust backend returns ClaudeSettings { data: ... }
       // We need to extract the data field
@@ -677,10 +679,11 @@ export const api = {
    */
   async findClaudeMdFiles(projectPath: string): Promise<ClaudeMdFile[]> {
     try {
-      return await apiCall<ClaudeMdFile[]>("find_claude_md_files", { projectPath });
+      const result = await apiCall<ClaudeMdFile[]>("find_claude_md_files", { projectPath });
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to find CLAUDE.md files:", error);
-      throw error;
+      return [];
     }
   },
 
@@ -721,10 +724,11 @@ export const api = {
    */
   async listAgents(): Promise<Agent[]> {
     try {
-      return await apiCall<Agent[]>('list_agents');
+      const result = await apiCall<Agent[]>('list_agents');
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to list agents:", error);
-      throw error;
+      return [];
     }
   },
 
@@ -892,10 +896,10 @@ export const api = {
    */
   async listAgentRuns(agentId?: number): Promise<AgentRunWithMetrics[]> {
     try {
-      return await apiCall<AgentRunWithMetrics[]>('list_agent_runs', { agentId });
+      const result = await apiCall<AgentRunWithMetrics[]>('list_agent_runs', { agentId });
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to list agent runs:", error);
-      // Return empty array instead of throwing to prevent UI crashes
       return [];
     }
   },
@@ -907,10 +911,10 @@ export const api = {
    */
   async listAgentRunsWithMetrics(agentId?: number): Promise<AgentRunWithMetrics[]> {
     try {
-      return await apiCall<AgentRunWithMetrics[]>('list_agent_runs_with_metrics', { agentId });
+      const result = await apiCall<AgentRunWithMetrics[]>('list_agent_runs_with_metrics', { agentId });
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to list agent runs with metrics:", error);
-      // Return empty array instead of throwing to prevent UI crashes
       return [];
     }
   },
@@ -1043,7 +1047,13 @@ export const api = {
    * Loads the JSONL history for a specific session
    */
   async loadSessionHistory(sessionId: string, projectId: string): Promise<any[]> {
-    return apiCall("load_session_history", { sessionId, projectId });
+    try {
+      const result = await apiCall<any[]>("load_session_history", { sessionId, projectId });
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.error("Failed to load session history:", error);
+      return [];
+    }
   },
 
   /**
@@ -1054,10 +1064,11 @@ export const api = {
    */
   async loadAgentSessionHistory(sessionId: string): Promise<any[]> {
     try {
-      return await apiCall<any[]>('load_agent_session_history', { sessionId });
+      const result = await apiCall<any[]>('load_agent_session_history', { sessionId });
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to load agent session history:", error);
-      throw error;
+      return [];
     }
   },
 
@@ -1095,7 +1106,12 @@ export const api = {
    * @returns Promise resolving to list of running Claude sessions
    */
   async listRunningClaudeSessions(): Promise<any[]> {
-    return apiCall("list_running_claude_sessions");
+    try {
+      const result = await apiCall<any[]>("list_running_claude_sessions");
+      return Array.isArray(result) ? result : [];
+    } catch {
+      return [];
+    }
   },
 
   /**
@@ -1111,14 +1127,24 @@ export const api = {
    * Lists files and directories in a given path
    */
   async listDirectoryContents(directoryPath: string): Promise<FileEntry[]> {
-    return apiCall("list_directory_contents", { directoryPath });
+    try {
+      const result = await apiCall<FileEntry[]>("list_directory_contents", { directoryPath });
+      return Array.isArray(result) ? result : [];
+    } catch {
+      return [];
+    }
   },
 
   /**
    * Searches for files and directories matching a pattern
    */
   async searchFiles(basePath: string, query: string): Promise<FileEntry[]> {
-    return apiCall("search_files", { basePath, query });
+    try {
+      const result = await apiCall<FileEntry[]>("search_files", { basePath, query });
+      return Array.isArray(result) ? result : [];
+    } catch {
+      return [];
+    }
   },
 
   /**
@@ -1462,13 +1488,11 @@ export const api = {
    */
   async mcpList(): Promise<MCPServer[]> {
     try {
-      console.log("API: Calling mcp_list...");
       const result = await apiCall<MCPServer[]>("mcp_list");
-      console.log("API: mcp_list returned:", result);
-      return result;
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("API: Failed to list MCP servers:", error);
-      throw error;
+      return [];
     }
   },
 
@@ -1625,10 +1649,11 @@ export const api = {
    */
   async listClaudeInstallations(): Promise<ClaudeInstallation[]> {
     try {
-      return await apiCall<ClaudeInstallation[]>("list_claude_installations");
+      const result = await apiCall<ClaudeInstallation[]>("list_claude_installations");
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to list Claude installations:", error);
-      throw error;
+      return [];
     }
   },
 
@@ -1640,10 +1665,11 @@ export const api = {
    */
   async storageListTables(): Promise<any[]> {
     try {
-      return await apiCall<any[]>("storage_list_tables");
+      const result = await apiCall<any[]>("storage_list_tables");
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to list tables:", error);
-      throw error;
+      return [];
     }
   },
 
@@ -1906,10 +1932,11 @@ export const api = {
    */
   async slashCommandsList(projectPath?: string): Promise<SlashCommand[]> {
     try {
-      return await apiCall<SlashCommand[]>("slash_commands_list", { projectPath });
+      const result = await apiCall<SlashCommand[]>("slash_commands_list", { projectPath });
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("Failed to list slash commands:", error);
-      throw error;
+      return [];
     }
   },
 
