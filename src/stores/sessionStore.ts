@@ -34,6 +34,19 @@ interface SessionState {
   // Real-time updates
   handleSessionUpdate: (session: Session) => void;
   handleOutputUpdate: (sessionId: string, output: string) => void;
+
+  // Live usage tracking for the current active session
+  liveUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    costUsd: number;
+    messageCount: number;
+    sessionStartTime: number;
+  };
+  updateLiveUsage: (tokens: { input: number; output: number; cacheCreation?: number; cacheRead?: number; cost: number }) => void;
+  resetLiveUsage: () => void;
 }
 
 const sessionStore: StateCreator<
@@ -205,7 +218,46 @@ const sessionStore: StateCreator<
           [sessionId]: output
         }
       }));
-    }
+    },
+
+    // Live usage tracking
+    liveUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      costUsd: 0,
+      messageCount: 0,
+      sessionStartTime: Date.now(),
+    },
+
+    updateLiveUsage: (tokens) => {
+      set({
+        liveUsage: {
+          inputTokens: tokens.input,
+          outputTokens: tokens.output,
+          cacheCreationTokens: tokens.cacheCreation ?? 0,
+          cacheReadTokens: tokens.cacheRead ?? 0,
+          costUsd: tokens.cost,
+          messageCount: (get().liveUsage.messageCount || 0) + 1,
+          sessionStartTime: get().liveUsage.sessionStartTime,
+        },
+      });
+    },
+
+    resetLiveUsage: () => {
+      set({
+        liveUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+          costUsd: 0,
+          messageCount: 0,
+          sessionStartTime: Date.now(),
+        },
+      });
+    },
   });
 
 export const useSessionStore = create<SessionState>()(

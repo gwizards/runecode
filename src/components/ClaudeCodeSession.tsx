@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Popover } from "@/components/ui/popover";
 import { api, type Session } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSessionStore } from "@/stores/sessionStore";
 
 // Conditional imports for Tauri APIs
 let tauriListen: any;
@@ -114,6 +115,14 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 }) => {
   const [projectPath] = useState(initialProjectPath || session?.project_path || "");
   const [messages, setMessages] = useState<ClaudeStreamMessage[]>([]);
+
+  // Reset live usage when session changes
+  useEffect(() => {
+    useSessionStore.getState().resetLiveUsage();
+    return () => {
+      useSessionStore.getState().resetLiveUsage();
+    };
+  }, [session?.id]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawJsonlOutput, setRawJsonlOutput] = useState<string[]>([]);
@@ -404,16 +413,33 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   useEffect(() => {
     let totalIn = 0;
     let totalOut = 0;
+    let msgCount = 0;
     for (const msg of messages) {
       const usage = msg.message?.usage ?? msg.usage;
       if (usage) {
         totalIn += usage.input_tokens;
         totalOut += usage.output_tokens;
+        msgCount++;
       }
     }
-    setTotalTokens(totalIn + totalOut);
+    const totalTok = totalIn + totalOut;
     // Default Claude Sonnet 4 pricing: $3/M input, $15/M output
-    setSessionCostUsd((totalIn * 3) / 1_000_000 + (totalOut * 15) / 1_000_000);
+    const cost = (totalIn * 3) / 1_000_000 + (totalOut * 15) / 1_000_000;
+    setTotalTokens(totalTok);
+    setSessionCostUsd(cost);
+
+    // Push to global store for sidebar usage display
+    if (msgCount > 0) {
+      useSessionStore.setState((state) => ({
+        liveUsage: {
+          ...state.liveUsage,
+          inputTokens: totalIn,
+          outputTokens: totalOut,
+          costUsd: cost,
+          messageCount: msgCount,
+        },
+      }));
+    }
   }, [messages]);
 
   const loadSessionHistory = async () => {

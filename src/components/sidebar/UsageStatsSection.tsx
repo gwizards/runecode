@@ -8,7 +8,9 @@ import {
   ChevronRight,
   Layers,
   FolderOpen,
+  Activity,
 } from "lucide-react";
+import { useSessionStore } from "../../stores/sessionStore";
 
 interface ModelUsage {
   model: string;
@@ -165,6 +167,15 @@ function StatCard({
   );
 }
 
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded bg-accent/20 px-1.5 py-1 text-center">
+      <div className="text-xs font-medium text-foreground truncate">{value}</div>
+      <div className="text-[9px] text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
 export function UsageStatsSection() {
   const [collapsed, setCollapsed] = useState(false); // OPEN by default
   const [isExpanded, setIsExpanded] = useState(false);
@@ -172,12 +183,20 @@ export function UsageStatsSection() {
   const { data: usage } = useQuery<UsageStats>({
     queryKey: ["usage-stats"],
     queryFn: fetchUsageStats,
-    staleTime: 60000,
+    staleTime: 30000,
+    refetchInterval: 30000,
   });
+
+  const liveUsage = useSessionStore(state => state.liveUsage);
 
   if (!usage) return null;
 
-  const hasData = usage.total_tokens > 0 || usage.total_cost > 0;
+  // Combine historical + live session data
+  const combinedCost = usage.total_cost + liveUsage.costUsd;
+  const combinedTokens = usage.total_tokens + liveUsage.inputTokens + liveUsage.outputTokens;
+  const combinedSessions = usage.total_sessions + (liveUsage.messageCount > 0 ? 1 : 0);
+
+  const hasData = combinedTokens > 0 || combinedCost > 0;
 
   // Get last 7 days for sparkline
   const last7Days = (usage.by_date || [])
@@ -231,7 +250,7 @@ export function UsageStatsSection() {
         </h3>
         {hasData && (
           <span className="ml-auto text-[10px] text-muted-foreground">
-            {formatCost(usage.total_cost)}
+            {formatCost(combinedCost)}
           </span>
         )}
       </button>
@@ -249,21 +268,36 @@ export function UsageStatsSection() {
               {/* Stat cards */}
               <div className="flex gap-1.5">
                 <StatCard
-                  value={formatCost(usage.total_cost)}
+                  value={formatCost(combinedCost)}
                   label="cost"
                   icon={<DollarSign className="h-3 w-3" />}
                 />
                 <StatCard
-                  value={formatTokens(usage.total_tokens)}
+                  value={formatTokens(combinedTokens)}
                   label="tokens"
                   icon={<Zap className="h-3 w-3" />}
                 />
                 <StatCard
-                  value={usage.total_sessions.toLocaleString()}
+                  value={combinedSessions.toLocaleString()}
                   label="sessions"
                   icon={<Layers className="h-3 w-3" />}
                 />
               </div>
+
+              {/* Live session stats */}
+              {liveUsage.messageCount > 0 && (
+                <div className="space-y-1 mt-2 pt-2 border-t border-border/20">
+                  <div className="flex items-center gap-1">
+                    <Activity className="h-2.5 w-2.5 text-emerald-400 animate-pulse" />
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">This Session</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <MiniStat label="Cost" value={`$${liveUsage.costUsd.toFixed(3)}`} />
+                    <MiniStat label="In" value={formatTokens(liveUsage.inputTokens)} />
+                    <MiniStat label="Out" value={formatTokens(liveUsage.outputTokens)} />
+                  </div>
+                </div>
+              )}
 
               {hasData && (
                 <button
