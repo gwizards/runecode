@@ -298,10 +298,12 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
                 });
               }}
               onProjectPathChange={(path: string) => {
-                // Update tab title with directory name
+                // Update tab title and project path so sidebar updates on tab switch
                 const dirName = path.split('/').pop() || path.split('\\').pop() || 'Session';
                 updateTab(tab.id, {
-                  title: dirName
+                  title: dirName,
+                  projectPath: path,
+                  initialProjectPath: path,
                 });
               }}
             />

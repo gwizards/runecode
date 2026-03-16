@@ -387,7 +387,7 @@ function AppContent() {
               <div className="flex-1 overflow-hidden">
                 <TabContent />
               </div>
-              <ProjectSidebar projectPath={projectPath} />
+              <ProjectSidebar projectPath={projectPath} key={projectPath} />
             </div>
           </div>
         );
