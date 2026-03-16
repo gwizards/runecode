@@ -375,6 +375,15 @@ async fn get_usage_window() -> impl IntoResponse {
         }
     }
 
+    // Calculate effective tokens weighted by rate limit impact
+    // Output tokens count at full rate (1x)
+    // Input tokens count at ~0.2x of output rate
+    // Cache creation tokens count at ~0.25x of output rate
+    // Cache read tokens are essentially free (0x)
+    let effective_tokens = (total_input as f64 * 0.2) + (total_output as f64) + (total_cache_creation as f64 * 0.25);
+    let estimated_limit: f64 = 5_000_000.0;
+    let usage_percent = (effective_tokens / estimated_limit * 100.0).min(100.0);
+
     axum::Json(serde_json::json!({
         "windowHours": 5,
         "inputTokens": total_input,
@@ -382,6 +391,10 @@ async fn get_usage_window() -> impl IntoResponse {
         "cacheCreationTokens": total_cache_creation,
         "cacheReadTokens": total_cache_read,
         "totalTokens": total_input + total_output + total_cache_creation + total_cache_read,
+        "effectiveTokens": effective_tokens as u64,
+        "estimatedLimitTokens": estimated_limit as u64,
+        "usagePercent": usage_percent,
+        "rateRelevantTokens": total_input + total_output + total_cache_creation,
         "messageCount": message_count,
         "windowStart": five_hours_ago.to_rfc3339(),
         "windowEnd": chrono::Utc::now().to_rfc3339()

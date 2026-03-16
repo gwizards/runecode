@@ -277,9 +277,11 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   const hasData = combinedTokens > 0 || combinedCost > 0;
 
   // 5-hour rolling window for Max/Pro plans
-  const ESTIMATED_WINDOW_LIMIT = 45_000_000;
-  const windowUsed = windowData?.totalTokens || 0;
-  const windowPercent = Math.min(100, (windowUsed / ESTIMATED_WINDOW_LIMIT) * 100);
+  // Use server-calculated effective tokens (weighted by rate limit impact)
+  // Cache reads are free, input at 0.2x, cache creation at 0.25x, output at 1x
+  const windowPercent = windowData?.usagePercent ?? 0;
+  const effectiveTokens = windowData?.effectiveTokens ?? 0;
+  const estimatedLimit = windowData?.estimatedLimitTokens ?? 5_000_000;
   const barColor = windowPercent > 80 ? 'bg-red-500' : windowPercent > 50 ? 'bg-yellow-500' : 'bg-green-500';
   const barGradient = windowPercent > 80
     ? 'bg-gradient-to-r from-red-500 to-red-400'
@@ -448,22 +450,50 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider">5-Hour Window</span>
                     <span className="text-[10px] text-muted-foreground">
-                      {Math.round(windowPercent)}% used
+                      {Math.round(windowPercent)}% of limit
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+
+                  {/* Main usage bar */}
+                  <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${barGradient}`}
-                      style={{ width: `${windowPercent}%` }}
+                      style={{ width: `${Math.min(100, windowPercent)}%` }}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-                    <span>Input: {formatTokens(windowData.inputTokens)}</span>
-                    <span>Output: {formatTokens(windowData.outputTokens)}</span>
-                    <span>Cache write: {formatTokens(windowData.cacheCreationTokens)}</span>
-                    <span>Cache read: {formatTokens(windowData.cacheReadTokens)}</span>
-                    <span>Messages: {windowData.messageCount}</span>
-                    <span>Resets: {new Date(windowData.windowEnd).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+
+                  {/* Token breakdown - show what matters */}
+                  <div className="space-y-1 text-[10px]">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Output tokens</span>
+                      <span className="font-mono">{formatTokens(windowData.outputTokens)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Input tokens</span>
+                      <span className="font-mono">{formatTokens(windowData.inputTokens)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Cache writes</span>
+                      <span className="font-mono">{formatTokens(windowData.cacheCreationTokens)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-muted-foreground/40">
+                      <span>Cache reads (free)</span>
+                      <span className="font-mono">{formatTokens(windowData.cacheReadTokens)}</span>
+                    </div>
+                  </div>
+
+                  {/* Effective usage summary */}
+                  <div className="flex items-center justify-between pt-1 border-t border-border/10 text-[10px]">
+                    <span className="text-muted-foreground">Effective usage</span>
+                    <span className="font-mono text-foreground/80">
+                      {formatTokens(effectiveTokens)} / {formatTokens(estimatedLimit)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <span>{windowData.messageCount} messages</span>
+                    <span>&middot;</span>
+                    <span>Resets rolling</span>
                   </div>
                 </div>
               )}
