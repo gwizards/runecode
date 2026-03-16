@@ -10,9 +10,6 @@ import {
 import { cn } from "@/lib/utils";
 import { Toast, ToastContainer } from "@/components/ui/toast";
 import { StorageTab } from "./StorageTab";
-import { HooksEditor } from "./HooksEditor";
-import { SlashCommandsManager } from "./SlashCommandsManager";
-import { ProxySettings } from "./ProxySettings";
 import { SettingsLayout } from "./settings/SettingsLayout";
 import { AppearanceSettings } from "./settings/AppearanceSettings";
 import { SessionSettings } from "./settings/SessionSettings";
@@ -20,6 +17,8 @@ import { PermissionsSettings, type PermissionRule } from "./settings/Permissions
 import { EnvironmentSettings, type EnvironmentVariable } from "./settings/EnvironmentSettings";
 import { BinarySettings } from "./settings/BinarySettings";
 import { IntegrationsSettings } from "./settings/IntegrationsSettings";
+import { CommandsHooksSettings } from "./settings/CommandsHooksSettings";
+import { NetworkSettings } from "./settings/NetworkSettings";
 
 interface SettingsProps {
   onBack: () => void;
@@ -219,17 +218,12 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
         );
       case 'commands-hooks':
         return (
-          <>
-            <SlashCommandsManager />
-            <HooksEditor
-              scope="user"
-              hideActions={true}
-              onChange={(hasChanges, getHooks) => {
-                setUserHooksChanged(hasChanges);
-                getUserHooks.current = getHooks;
-              }}
-            />
-          </>
+          <CommandsHooksSettings
+            onHooksChange={(hasChanges, getHooks) => {
+              setUserHooksChanged(hasChanges);
+              getUserHooks.current = getHooks;
+            }}
+          />
         );
 
       // Integrations group
@@ -237,9 +231,11 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
         return <IntegrationsSettings />;
       case 'network':
         return (
-          <ProxySettings
+          <NetworkSettings
+            settings={settings}
+            onSettingsChange={updateSetting}
             setToast={setToast}
-            onChange={(hasChanges, _getSettings, save) => {
+            onProxyChange={(hasChanges, _getSettings, save) => {
               setProxySettingsChanged(hasChanges);
               saveProxySettings.current = save;
             }}
