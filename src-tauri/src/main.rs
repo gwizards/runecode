@@ -37,7 +37,7 @@ use commands::mcp::{
 };
 
 use commands::helicone::post_to_helicone;
-use commands::project_info::get_project_info;
+use commands::project_info::{get_project_info, initialize_project};
 use commands::proxy::{apply_proxy_settings, get_proxy_settings, save_proxy_settings};
 use commands::resources::get_system_resources;
 use commands::skills::get_skills_catalog;
@@ -298,6 +298,7 @@ fn main() {
             get_skills_catalog,
             // Project Info
             get_project_info,
+            initialize_project,
             // Helicone
             post_to_helicone,
         ])

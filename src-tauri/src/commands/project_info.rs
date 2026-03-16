@@ -251,6 +251,31 @@ pub async fn get_project_info(path: String) -> Result<ProjectInfo, String> {
     Ok(collect_project_info(&path))
 }
 
+/// Initialize a new project by creating .runecode/project.json
+#[tauri::command]
+pub fn initialize_project(project_path: String, project_name: String) -> Result<(), String> {
+    let runecode_dir = format!("{}/.runecode", project_path);
+    std::fs::create_dir_all(&runecode_dir)
+        .map_err(|e| format!("Failed to create .runecode directory: {}", e))?;
+
+    let config = serde_json::json!({
+        "name": project_name,
+        "description": "",
+        "techStack": [],
+        "repoUrl": "",
+        "entryPoints": [],
+        "notes": ""
+    });
+
+    let config_path = format!("{}/project.json", runecode_dir);
+    let content = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+    std::fs::write(&config_path, content)
+        .map_err(|e| format!("Failed to write project.json: {}", e))?;
+
+    Ok(())
+}
+
 /// Extract a string value from a simple TOML key = "value" line
 fn extract_toml_string_value(line: &str) -> Option<String> {
     let after_eq = line.split('=').nth(1)?.trim();

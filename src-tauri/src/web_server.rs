@@ -4,7 +4,7 @@ use axum::http::Method;
 use axum::{
     extract::{Path, State as AxumState, WebSocketUpgrade},
     response::{IntoResponse, Json, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use rust_embed::Embed;
@@ -187,9 +187,46 @@ async fn get_live_agents() -> impl IntoResponse {
     axum::Json(serde_json::json!([]))
 }
 
-/// Simple usage endpoint - return empty for now
-async fn get_usage() -> Json<ApiResponse<Vec<serde_json::Value>>> {
+/// Simple usage endpoint - return default empty stats
+async fn get_usage() -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(empty_usage_stats()))
+}
+
+/// Usage by date range - return default empty stats for web mode
+async fn get_usage_range(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::success(empty_usage_stats()))
+}
+
+/// Usage sessions - return empty array for web mode
+async fn get_usage_sessions(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(vec![]))
+}
+
+/// Usage details - return empty array for web mode
+async fn get_usage_details(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<Vec<serde_json::Value>>> {
+    Json(ApiResponse::success(vec![]))
+}
+
+/// Helper to build an empty UsageStats-shaped object
+fn empty_usage_stats() -> serde_json::Value {
+    serde_json::json!({
+        "total_cost": 0.0,
+        "total_sessions": 0,
+        "total_tokens": 0,
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_cache_creation_tokens": 0,
+        "total_cache_read_tokens": 0,
+        "by_model": [],
+        "by_project": [],
+        "by_date": []
+    })
 }
 
 /// Get Claude settings - return basic defaults for web mode
@@ -285,8 +322,37 @@ async fn save_integrations(
 }
 
 /// List slash commands - return empty for web mode
-async fn list_slash_commands() -> Json<ApiResponse<Vec<serde_json::Value>>> {
+async fn list_slash_commands(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(vec![]))
+}
+
+/// Get a single slash command by ID - stub for web mode
+async fn get_slash_command(
+    Path(_command_id): Path<String>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Slash command not found".to_string(),
+    ))
+}
+
+/// Save (create/update) a slash command - stub for web mode
+async fn save_slash_command(
+    Query(_params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Slash command management is not yet available in web mode".to_string(),
+    ))
+}
+
+/// Delete a slash command by ID - stub for web mode
+async fn delete_slash_command(
+    Path(_command_id): Path<String>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    Json(ApiResponse::error(
+        "Slash command management is not yet available in web mode".to_string(),
+    ))
 }
 
 /// Initialize a new project (create .runecode/project.json)
@@ -353,19 +419,19 @@ async fn list_running_claude_sessions() -> Json<ApiResponse<Vec<serde_json::Valu
     Json(ApiResponse::success(vec![]))
 }
 
-/// Execute Claude code - mock for web mode
+/// Execute Claude code - redirect to WebSocket in web mode
 async fn execute_claude_code() -> Json<ApiResponse<serde_json::Value>> {
-    Json(ApiResponse::error("Claude execution is not available in web mode. Please use the desktop app for running Claude commands.".to_string()))
+    Json(ApiResponse::error("Claude execution in web mode uses the WebSocket endpoint at /ws/claude. Connect via WebSocket to stream Claude sessions.".to_string()))
 }
 
-/// Continue Claude code - mock for web mode
+/// Continue Claude code - redirect to WebSocket in web mode
 async fn continue_claude_code() -> Json<ApiResponse<serde_json::Value>> {
-    Json(ApiResponse::error("Claude execution is not available in web mode. Please use the desktop app for running Claude commands.".to_string()))
+    Json(ApiResponse::error("Claude continuation in web mode uses the WebSocket endpoint at /ws/claude. Connect via WebSocket to stream Claude sessions.".to_string()))
 }
 
-/// Resume Claude code - mock for web mode  
+/// Resume Claude code - redirect to WebSocket in web mode
 async fn resume_claude_code() -> Json<ApiResponse<serde_json::Value>> {
-    Json(ApiResponse::error("Claude execution is not available in web mode. Please use the desktop app for running Claude commands.".to_string()))
+    Json(ApiResponse::error("Claude resume in web mode uses the WebSocket endpoint at /ws/claude. Connect via WebSocket to stream Claude sessions.".to_string()))
 }
 
 /// Cancel Claude execution
@@ -755,17 +821,22 @@ async fn continue_claude_command(
 
     // Create continue command
     let mut cmd = Command::new(&claude_path);
-    cmd.args([
+    let mut args: Vec<&str> = vec![
         "-c", // Continue flag
         "-p",
         &prompt,
-        "--model",
-        &model,
+    ];
+    if !model.is_empty() {
+        args.push("--model");
+        args.push(&model);
+    }
+    args.extend_from_slice(&[
         "--output-format",
         "stream-json",
         "--verbose",
         "--dangerously-skip-permissions",
     ]);
+    cmd.args(&args);
     cmd.current_dir(&project_path);
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
@@ -842,19 +913,23 @@ async fn resume_claude_command(
     // Create resume command
     println!("[resume_claude_command] Creating command...");
     let mut cmd = Command::new(&claude_path);
-    let args = [
+    let mut args: Vec<&str> = vec![
         "--resume",
         &claude_session_id,
         "-p",
         &prompt,
-        "--model",
-        &model,
+    ];
+    if !model.is_empty() {
+        args.push("--model");
+        args.push(&model);
+    }
+    args.extend_from_slice(&[
         "--output-format",
         "stream-json",
         "--verbose",
         "--dangerously-skip-permissions",
-    ];
-    cmd.args(args);
+    ]);
+    cmd.args(&args);
     cmd.current_dir(&project_path);
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
@@ -948,6 +1023,9 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/agents", get(get_agents))
         .route("/api/agents/live", get(get_live_agents))
         .route("/api/usage", get(get_usage))
+        .route("/api/usage/range", get(get_usage_range))
+        .route("/api/usage/sessions", get(get_usage_sessions))
+        .route("/api/usage/details", get(get_usage_details))
         .route("/api/resources", get(get_resources))
         .route("/api/integrations", get(get_integrations).post(save_integrations))
         // Settings and configuration
@@ -963,7 +1041,8 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         // Skills
         .route("/api/skills", get(get_skills_catalog_web))
         // Slash commands
-        .route("/api/slash-commands", get(list_slash_commands))
+        .route("/api/slash-commands", get(list_slash_commands).post(save_slash_command))
+        .route("/api/slash-commands/{commandId}", get(get_slash_command).delete(delete_slash_command))
         // MCP
         .route("/api/mcp/servers", get(mcp_list))
         // Session history
