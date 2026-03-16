@@ -87,8 +87,8 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: 8 }}
       transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-      className="absolute bottom-full mb-2 left-0 z-50 glass-elevated rounded-xl overflow-hidden"
-      style={{ width: '440px' }}
+      className="absolute bottom-full mb-2 right-0 z-50 rounded-xl overflow-hidden"
+      style={{ width: '440px', backgroundColor: 'var(--color-void-elevated)', border: '1px solid var(--color-border-subtle)' }}
       onClick={(e) => e.stopPropagation()}
     >
       {/* MODEL SECTION */}
@@ -110,8 +110,8 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                 style={{
                   border: `1px solid ${isSelected ? 'var(--color-purple-500)' : 'var(--color-border-subtle)'}`,
                   backgroundColor: isSelected
-                    ? 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)'
-                    : 'color-mix(in oklch, var(--color-void-raised) 50%, transparent)',
+                    ? 'color-mix(in oklch, var(--color-purple-500) 8%, var(--color-void-elevated))'
+                    : 'var(--color-void-raised)',
                   boxShadow: isSelected ? '0 0 20px var(--color-purple-glow)' : 'none',
                 }}
               >
@@ -120,9 +120,9 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                     className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all"
                     style={{
                       backgroundColor: isSelected
-                        ? 'color-mix(in oklch, var(--color-purple-500) 15%, transparent)'
-                        : 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
-                      border: `1px solid ${isSelected ? 'color-mix(in oklch, var(--color-purple-500) 20%, transparent)' : 'transparent'}`,
+                        ? 'color-mix(in oklch, var(--color-purple-500) 15%, var(--color-void-elevated))'
+                        : 'var(--color-void-overlay)',
+                      border: `1px solid ${isSelected ? 'color-mix(in oklch, var(--color-purple-500) 20%, var(--color-void-elevated))' : 'transparent'}`,
                     }}
                   >
                     <Zap className="h-4 w-4" style={{ color: m.iconColor }} />
@@ -142,7 +142,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                         <span
                           className="text-[9px] font-bold px-1.5 py-0.5 rounded"
                           style={{
-                            backgroundColor: 'color-mix(in oklch, var(--color-gold-400) 15%, transparent)',
+                            backgroundColor: 'color-mix(in oklch, var(--color-gold-400) 15%, var(--color-void-elevated))',
                             color: 'var(--color-gold-400)',
                             letterSpacing: '0.05em',
                           }}
@@ -156,7 +156,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                     </p>
                     <p
                       className="text-[10px] mt-1.5 font-mono"
-                      style={{ color: 'color-mix(in oklch, var(--color-text-muted) 60%, transparent)' }}
+                      style={{ color: 'var(--color-text-muted)' }}
                     >
                       {m.specs}
                     </p>
@@ -204,7 +204,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                 className="flex items-center gap-3 rounded-lg px-3 py-2 transition-all cursor-pointer text-left"
                 style={{
                   backgroundColor: isSelected
-                    ? `color-mix(in oklch, ${activeColor} 10%, transparent)`
+                    ? `color-mix(in oklch, ${activeColor} 10%, var(--color-void-elevated))`
                     : 'transparent',
                   border: `1px solid ${isSelected ? activeColor : 'transparent'}`,
                   boxShadow: isSelected ? `0 0 12px ${activeGlow}` : 'none',
@@ -214,8 +214,8 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                   className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
                   style={{
                     backgroundColor: isSelected
-                      ? `color-mix(in oklch, ${activeColor} 15%, transparent)`
-                      : 'color-mix(in oklch, var(--color-void-overlay) 40%, transparent)',
+                      ? `color-mix(in oklch, ${activeColor} 15%, var(--color-void-elevated))`
+                      : 'var(--color-void-overlay)',
                     color: isSelected ? level.iconColor : 'var(--color-text-muted)',
                   }}
                 >
@@ -252,7 +252,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                             ? isSelected
                               ? isUltra ? 'var(--color-gold-400)' : 'var(--color-purple-500)'
                               : 'var(--color-text-muted)'
-                            : 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+                            : 'var(--color-void-overlay)',
                         }}
                       />
                     );
@@ -282,8 +282,8 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
             className="text-[10px] font-medium rounded-full px-2.5 py-1 transition-all cursor-not-allowed"
             style={{
               color: 'var(--color-purple-400)',
-              backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
-              border: '1px solid color-mix(in oklch, var(--color-purple-500) 15%, transparent)',
+              backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, var(--color-void-elevated))',
+              border: '1px solid color-mix(in oklch, var(--color-purple-500) 15%, var(--color-void-elevated))',
               opacity: 0.5,
             }}
             disabled
@@ -296,8 +296,8 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
         <div
           className="rounded-lg p-4 flex flex-col items-center justify-center gap-2"
           style={{
-            backgroundColor: 'color-mix(in oklch, var(--color-void-raised) 50%, transparent)',
-            border: '1px dashed color-mix(in oklch, var(--color-border-subtle) 50%, transparent)',
+            backgroundColor: 'var(--color-void-raised)',
+            border: '1px dashed var(--color-border-subtle)',
           }}
         >
           <div className="flex items-center gap-1">
@@ -308,7 +308,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
                   style={{
                     backgroundColor: i === 1
                       ? 'var(--color-purple-500)'
-                      : 'color-mix(in oklch, var(--color-text-muted) 30%, transparent)',
+                      : 'var(--color-void-overlay)',
                   }}
                 />
               </div>
@@ -327,13 +327,13 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
       <div
         className="px-4 py-2.5 flex items-center justify-center gap-4"
         style={{
-          backgroundColor: 'color-mix(in oklch, var(--color-void-deep) 80%, transparent)',
-          borderTop: '1px solid color-mix(in oklch, var(--color-border-subtle) 30%, transparent)',
+          backgroundColor: 'var(--color-void-deep)',
+          borderTop: '1px solid var(--color-border-subtle)',
         }}
       >
         <span className="text-[9px] font-mono flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
           <kbd className="px-1 py-0.5 rounded" style={{
-            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+            backgroundColor: 'var(--color-void-overlay)',
             border: '1px solid var(--color-border-subtle)',
             fontSize: '9px',
           }}>⌘M</kbd>
@@ -341,7 +341,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
         </span>
         <span className="text-[9px] font-mono flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
           <kbd className="px-1 py-0.5 rounded" style={{
-            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+            backgroundColor: 'var(--color-void-overlay)',
             border: '1px solid var(--color-border-subtle)',
             fontSize: '9px',
           }}>⌘T</kbd>
@@ -349,7 +349,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
         </span>
         <span className="text-[9px] font-mono flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
           <kbd className="px-1 py-0.5 rounded" style={{
-            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+            backgroundColor: 'var(--color-void-overlay)',
             border: '1px solid var(--color-border-subtle)',
             fontSize: '9px',
           }}>Esc</kbd>

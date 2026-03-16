@@ -875,21 +875,7 @@ const FloatingPromptInputInner = (
 
           <div className="p-3">
             <div className="flex items-end gap-2">
-              {/* Config Pill - Left side, fixed at bottom */}
-              <div className="relative shrink-0 mb-1 config-panel-container">
-                <ConfigPill
-                  onClick={() => setConfigPanelOpen(!configPanelOpen)}
-                  isOpen={configPanelOpen}
-                  checkpointCount={0}
-                />
-                <AnimatePresence>
-                  {configPanelOpen && (
-                    <ConfigPanel onClose={() => setConfigPanelOpen(false)} />
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Prompt Input - Center */}
+              {/* Prompt Input */}
               <div className="flex-1 relative">
                 <Textarea
                   ref={textareaRef}
@@ -906,7 +892,7 @@ const FloatingPromptInputInner = (
                   }
                   disabled={disabled}
                   className={cn(
-                    "resize-none pr-28 pl-3 py-2.5 transition-all duration-150",
+                    "resize-none pr-56 pl-3 py-2.5 transition-all duration-150",
                     dragActive && "border-primary",
                     textareaHeight >= 240 && "overflow-y-auto scrollbar-thin"
                   )}
@@ -918,6 +904,20 @@ const FloatingPromptInputInner = (
 
                 {/* Action buttons inside input - fixed at bottom right */}
                 <div className="absolute right-1.5 bottom-1.5 flex items-center gap-0.5">
+                  {/* Config Pill */}
+                  <div className="relative config-panel-container">
+                    <ConfigPill
+                      onClick={() => setConfigPanelOpen(!configPanelOpen)}
+                      isOpen={configPanelOpen}
+                      checkpointCount={0}
+                    />
+                    <AnimatePresence>
+                      {configPanelOpen && (
+                        <ConfigPanel onClose={() => setConfigPanelOpen(false)} />
+                      )}
+                    </AnimatePresence>
+                  </div>
+
                   {(onCopyMarkdown || onCopyJsonl) && (
                     <Popover
                       trigger={
@@ -940,7 +940,7 @@ const FloatingPromptInputInner = (
                             <button
                               className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
                               style={{ color: 'var(--color-text-secondary)' }}
-                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'color-mix(in oklch, var(--color-void-overlay) 80%, transparent)')}
+                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
                               onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                               onClick={onCopyMarkdown}
                             >
@@ -951,7 +951,7 @@ const FloatingPromptInputInner = (
                             <button
                               className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
                               style={{ color: 'var(--color-text-secondary)' }}
-                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'color-mix(in oklch, var(--color-void-overlay) 80%, transparent)')}
+                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-void-overlay)')}
                               onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                               onClick={onCopyJsonl}
                             >

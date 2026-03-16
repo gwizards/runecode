@@ -40,8 +40,8 @@ export function ConfigPill({ onClick, isOpen, checkpointCount = 0 }: ConfigPillP
       className="flex items-center gap-2 rounded-full px-3.5 h-9 shrink-0 transition-all cursor-pointer group"
       style={{
         backgroundColor: isOpen
-          ? 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)'
-          : 'color-mix(in oklch, var(--color-void-overlay) 50%, transparent)',
+          ? 'var(--color-void-elevated)'
+          : 'var(--color-void-raised)',
         border: `1px solid ${isOpen ? 'var(--color-border-purple)' : 'var(--color-border-subtle)'}`,
         boxShadow: isOpen ? '0 0 15px var(--color-purple-glow)' : 'none',
       }}
@@ -51,7 +51,7 @@ export function ConfigPill({ onClick, isOpen, checkpointCount = 0 }: ConfigPillP
         <div
           className="w-5 h-5 rounded flex items-center justify-center"
           style={{
-            backgroundColor: 'color-mix(in oklch, var(--color-void-overlay) 60%, transparent)',
+            backgroundColor: 'var(--color-void-overlay)',
           }}
         >
           <Zap className="h-3 w-3" style={{ color: modelInfo.iconColor }} />
