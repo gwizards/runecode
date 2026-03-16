@@ -225,6 +225,16 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
     staleTime: 300000, // 5 min cache - plan doesn't change often
   });
 
+  const { data: windowData } = useQuery({
+    queryKey: ['usage-window'],
+    queryFn: async () => {
+      const res = await fetch('/api/usage/window');
+      if (!res.ok) return null;
+      return await res.json();
+    },
+    refetchInterval: 60000, // refresh every minute
+  });
+
   const liveUsage = useSessionStore(state => state.liveUsage);
 
   if (!usage) return null;
@@ -251,8 +261,20 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   // All-projects totals for comparison
   const allCost = usage.total_cost + liveUsage.costUsd;
 
-  const isIncluded = authStatus?.subscriptionType === 'max' || authStatus?.subscriptionType === 'pro';
+  const isIncludedPlan = authStatus?.subscriptionType === 'max' || authStatus?.subscriptionType === 'pro';
+  const isIncluded = isIncludedPlan;
   const hasData = combinedTokens > 0 || combinedCost > 0;
+
+  // 5-hour rolling window for Max/Pro plans
+  const ESTIMATED_WINDOW_LIMIT = 45_000_000;
+  const windowUsed = windowData?.totalTokens || 0;
+  const windowPercent = Math.min(100, (windowUsed / ESTIMATED_WINDOW_LIMIT) * 100);
+  const barColor = windowPercent > 80 ? 'bg-red-500' : windowPercent > 50 ? 'bg-yellow-500' : 'bg-green-500';
+  const barGradient = windowPercent > 80
+    ? 'bg-gradient-to-r from-red-500 to-red-400'
+    : windowPercent > 50
+      ? 'bg-gradient-to-r from-yellow-500 to-yellow-400'
+      : 'bg-gradient-to-r from-green-500 to-emerald-400';
 
   // Get last 7 days for sparkline
   const last7Days = (usage.by_date || [])
@@ -307,11 +329,22 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
         {/* Rich collapsed summary */}
         {collapsed && hasData ? (
           <div className="ml-auto flex items-center gap-1.5 text-[10px]">
-            <span className="font-mono text-primary">{formatCost(combinedCost)}</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">{formatTokens(combinedTokens)} tok</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">{combinedSessions} sess</span>
+            {isIncludedPlan && windowData ? (
+              <>
+                <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${windowPercent}%` }} />
+                </div>
+                <span className="text-muted-foreground">{Math.round(windowPercent)}%</span>
+              </>
+            ) : (
+              <>
+                <span className="font-mono text-primary">{formatCost(combinedCost)}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground">{formatTokens(combinedTokens)} tok</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground">{combinedSessions} sess</span>
+              </>
+            )}
           </div>
         ) : hasData ? (
           <span className="ml-auto text-[10px] text-muted-foreground">
@@ -381,6 +414,32 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                 <p className="text-[10px] text-muted-foreground/60 italic">
                   Usage included in your {authStatus?.subscriptionType} plan — no extra charges
                 </p>
+              )}
+
+              {/* 5-hour rolling usage window */}
+              {windowData && isIncludedPlan && (
+                <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">5-Hour Window</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {Math.round(windowPercent)}% used
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${barGradient}`}
+                      style={{ width: `${windowPercent}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                    <span>Input: {formatTokens(windowData.inputTokens)}</span>
+                    <span>Output: {formatTokens(windowData.outputTokens)}</span>
+                    <span>Cache write: {formatTokens(windowData.cacheCreationTokens)}</span>
+                    <span>Cache read: {formatTokens(windowData.cacheReadTokens)}</span>
+                    <span>Messages: {windowData.messageCount}</span>
+                    <span>Resets: {new Date(windowData.windowEnd).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+                  </div>
+                </div>
               )}
 
               {/* Live session stats */}

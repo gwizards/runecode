@@ -281,6 +281,113 @@ async fn get_usage_details(
     }
 }
 
+/// Get 5-hour rolling usage window for Max/Pro plan users
+async fn get_usage_window() -> impl IntoResponse {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let claude_dir = format!("{}/.claude/projects", home);
+
+    let five_hours_ago = chrono::Utc::now() - chrono::Duration::hours(5);
+    let five_hours_ago_ms = five_hours_ago.timestamp_millis();
+
+    let mut total_input = 0u64;
+    let mut total_output = 0u64;
+    let mut total_cache_creation = 0u64;
+    let mut total_cache_read = 0u64;
+    let mut message_count = 0u64;
+
+    // Walk all JSONL files, only process recent ones (modified in last 5 hours)
+    if let Ok(projects) = std::fs::read_dir(&claude_dir) {
+        for project in projects.flatten() {
+            if project.file_type().map_or(false, |t| t.is_dir()) {
+                for entry in walkdir::WalkDir::new(project.path())
+                    .into_iter()
+                    .filter_map(Result::ok)
+                    .filter(|e| e.path().extension().map_or(false, |ext| ext == "jsonl"))
+                {
+                    let path = entry.path();
+                    // Only process files modified recently
+                    if let Ok(metadata) = path.metadata() {
+                        if let Ok(modified) = metadata.modified() {
+                            let mod_time = modified
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis() as i64;
+                            if mod_time < five_hours_ago_ms {
+                                continue; // Skip old files
+                            }
+                        }
+                    }
+
+                    if let Ok(content) = std::fs::read_to_string(path) {
+                        for line in content.lines() {
+                            if let Ok(json) =
+                                serde_json::from_str::<serde_json::Value>(line)
+                            {
+                                // Check timestamp
+                                let timestamp = json
+                                    .get("timestamp")
+                                    .and_then(|t| t.as_str())
+                                    .and_then(|t| {
+                                        chrono::DateTime::parse_from_rfc3339(t).ok()
+                                    })
+                                    .map(|t| t.timestamp_millis())
+                                    .unwrap_or(0);
+
+                                if timestamp < five_hours_ago_ms {
+                                    continue;
+                                }
+
+                                // Extract usage from nested message structure
+                                let usage = json
+                                    .get("message")
+                                    .and_then(|m| m.get("usage"))
+                                    .or_else(|| {
+                                        json.get("data")
+                                            .and_then(|d| d.get("message"))
+                                            .and_then(|m| m.get("message"))
+                                            .and_then(|m| m.get("usage"))
+                                    });
+
+                                if let Some(usage) = usage {
+                                    total_input += usage
+                                        .get("input_tokens")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(0);
+                                    total_output += usage
+                                        .get("output_tokens")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(0);
+                                    total_cache_creation += usage
+                                        .get("cache_creation_input_tokens")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(0);
+                                    total_cache_read += usage
+                                        .get("cache_read_input_tokens")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(0);
+                                    message_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    axum::Json(serde_json::json!({
+        "windowHours": 5,
+        "inputTokens": total_input,
+        "outputTokens": total_output,
+        "cacheCreationTokens": total_cache_creation,
+        "cacheReadTokens": total_cache_read,
+        "totalTokens": total_input + total_output + total_cache_creation + total_cache_read,
+        "messageCount": message_count,
+        "windowStart": five_hours_ago.to_rfc3339(),
+        "windowEnd": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
 /// Get Claude settings - return basic defaults for web mode
 async fn get_claude_settings() -> Json<ApiResponse<serde_json::Value>> {
     let default_settings = serde_json::json!({
@@ -1306,6 +1413,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/usage/range", get(get_usage_range))
         .route("/api/usage/sessions", get(get_usage_sessions))
         .route("/api/usage/details", get(get_usage_details))
+        .route("/api/usage/window", get(get_usage_window))
         .route("/api/resources", get(get_resources))
         .route(
             "/api/integrations",
