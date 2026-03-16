@@ -31,18 +31,24 @@ export function useAgentLifecycle() {
   }, [createAgentTab]);
 
   useEffect(() => {
+    let isCancelled = false;
+    let unlisten: (() => void) | null = null;
+
     // Listen on DOM events (web mode fallback)
     window.addEventListener('agent-lifecycle', handleEvent);
 
     // Try Tauri listen
-    let unlisten: (() => void) | null = null;
-    if ((window as any).__TAURI__) {
+    if ((window as any).__TAURI_INTERNALS__ && !(window as any).__TAURI_INTERNALS__.__WEB_MODE_MOCK__) {
       import('@tauri-apps/api/event').then(({ listen }) => {
-        listen('agent-lifecycle', handleEvent).then(fn => { unlisten = fn; });
+        listen('agent-lifecycle', handleEvent).then(fn => {
+          if (isCancelled) fn(); // cleanup immediately if already unmounted
+          else unlisten = fn;
+        });
       });
     }
 
     return () => {
+      isCancelled = true;
       window.removeEventListener('agent-lifecycle', handleEvent);
       if (unlisten) unlisten();
     };

@@ -45,19 +45,8 @@ function detectEnvironment(): boolean {
     navigator.userAgent.includes('Tauri')
   );
 
-  console.log('[detectEnvironment] isTauri:', isTauri, 'userAgent:', navigator.userAgent);
-  
   isTauriEnvironment = isTauri;
   return isTauri;
-}
-
-/**
- * Response wrapper for REST API calls
- */
-interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
 }
 
 /**
@@ -66,8 +55,6 @@ interface ApiResponse<T> {
 async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
   // First handle path parameters in the endpoint string
   let processedEndpoint = endpoint;
-  console.log(`[REST API] Original endpoint: ${endpoint}, params:`, params);
-  
   if (params) {
     Object.keys(params).forEach(key => {
       // Try different case variations for the placeholder
@@ -79,14 +66,11 @@ async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
       
       placeholders.forEach(placeholder => {
         if (processedEndpoint.includes(placeholder)) {
-          console.log(`[REST API] Replacing ${placeholder} with ${params[key]}`);
           processedEndpoint = processedEndpoint.replace(placeholder, encodeURIComponent(String(params[key])));
         }
       });
     });
   }
-  
-  console.log(`[REST API] Processed endpoint: ${processedEndpoint}`);
   
   const url = new URL(processedEndpoint, window.location.origin);
   
@@ -116,13 +100,24 @@ async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result: ApiResponse<T> = await response.json();
-    
-    if (!result.success) {
-      throw new Error(result.error || 'API call failed');
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('json')) {
+      console.debug('[API] Non-JSON response for', endpoint);
+      return null as T;
     }
 
-    return result.data as T;
+    const json = await response.json();
+
+    // Handle both { success, data, error } and direct data formats
+    if (json && typeof json === 'object' && 'success' in json) {
+      if (!json.success) {
+        throw new Error(json.error || 'API call failed');
+      }
+      return (json.data ?? json) as T;
+    }
+
+    // Direct data format (no wrapper)
+    return (json?.data ?? json) as T;
   } catch (error) {
     console.error(`REST API call failed for ${endpoint}:`, error);
     throw error;
@@ -302,15 +297,10 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
     // Use wss:// for HTTPS connections (e.g., ngrok), ws:// for HTTP (localhost)
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws/claude`;
-    console.log(`[TRACE] handleStreamingCommand called:`);
-    console.log(`[TRACE]   command: ${command}`);
-    console.log(`[TRACE]   params:`, params);
-    console.log(`[TRACE]   WebSocket URL: ${wsUrl}`);
     
     const ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
-      console.log(`[TRACE] WebSocket opened successfully`);
       
       // Send execution request
       const request = {
@@ -321,24 +311,16 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
         session_id: params?.sessionId,
       };
       
-      console.log(`[TRACE] Sending WebSocket request:`, request);
-      console.log(`[TRACE] Request JSON:`, JSON.stringify(request));
       
       ws.send(JSON.stringify(request));
-      console.log(`[TRACE] WebSocket request sent`);
     };
     
     ws.onmessage = (event) => {
-      console.log(`[TRACE] WebSocket message received:`, event.data);
       try {
         const message = JSON.parse(event.data);
-        console.log(`[TRACE] Parsed WebSocket message:`, message);
         
         if (message.type === 'start') {
-          console.log(`[TRACE] Start message: ${message.message}`);
         } else if (message.type === 'output') {
-          console.log(`[TRACE] Output message, content length: ${message.content?.length || 0}`);
-          console.log(`[TRACE] Raw content:`, message.content);
           
           // The backend sends Claude output as a JSON string in the content field
           // We need to parse this to get the actual Claude message
@@ -346,79 +328,65 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
             const claudeMessage = typeof message.content === 'string' 
               ? JSON.parse(message.content) 
               : message.content;
-            console.log(`[TRACE] Parsed Claude message:`, claudeMessage);
             
             // Simulate Tauri event for compatibility with existing UI
             const customEvent = new CustomEvent('claude-output', {
               detail: claudeMessage
             });
-            console.log(`[TRACE] Dispatching claude-output event:`, customEvent.detail);
-            console.log(`[TRACE] Event type:`, customEvent.type);
             window.dispatchEvent(customEvent);
           } catch (e) {
-            console.error(`[TRACE] Failed to parse Claude output content:`, e);
-            console.error(`[TRACE] Content that failed to parse:`, message.content);
           }
         } else if (message.type === 'completion') {
-          console.log(`[TRACE] Completion message:`, message);
           
           // Dispatch claude-complete event for UI state management
           const completeEvent = new CustomEvent('claude-complete', {
             detail: message.status === 'success'
           });
-          console.log(`[TRACE] Dispatching claude-complete event:`, completeEvent.detail);
           window.dispatchEvent(completeEvent);
           
           ws.close();
           if (message.status === 'success') {
-            console.log(`[TRACE] Resolving promise with success`);
             resolve({} as T); // Return empty object for now
           } else {
-            console.log(`[TRACE] Rejecting promise with error: ${message.error}`);
             reject(new Error(message.error || 'Execution failed'));
           }
         } else if (message.type === 'error') {
-          console.log(`[TRACE] Error message:`, message);
           
           // Dispatch claude-error event for UI error handling
           const errorEvent = new CustomEvent('claude-error', {
             detail: message.message || 'Unknown error'
           });
-          console.log(`[TRACE] Dispatching claude-error event:`, errorEvent.detail);
           window.dispatchEvent(errorEvent);
           
           reject(new Error(message.message || 'Unknown error'));
         } else {
-          console.log(`[TRACE] Unknown message type: ${message.type}`);
         }
       } catch (e) {
-        console.error('[TRACE] Failed to parse WebSocket message:', e);
-        console.error('[TRACE] Raw message:', event.data);
       }
     };
     
+    let settled = false;
+
     ws.onerror = (error) => {
-      console.error('[TRACE] WebSocket error:', error);
-      
+
       // Dispatch claude-error event for connection errors
       const errorEvent = new CustomEvent('claude-error', {
         detail: 'WebSocket connection failed'
       });
-      console.log(`[TRACE] Dispatching claude-error event for WebSocket error`);
       window.dispatchEvent(errorEvent);
-      
-      reject(new Error('WebSocket connection failed'));
+
+      if (!settled) { settled = true; reject(new Error('WebSocket connection failed')); }
     };
-    
+
     ws.onclose = (event) => {
-      console.log(`[TRACE] WebSocket closed - code: ${event.code}, reason: ${event.reason}`);
-      
+      if (settled) return; // don't dispatch if already handled by onerror
+      settled = true;
+
       // If connection closed unexpectedly (not a normal close), dispatch cancelled event
       if (event.code !== 1000 && event.code !== 1001) {
         const cancelEvent = new CustomEvent('claude-complete', {
           detail: false // false indicates cancellation/failure
         });
-        console.log(`[TRACE] Dispatching claude-complete event for unexpected close`);
         window.dispatchEvent(cancelEvent);
       }
     };
