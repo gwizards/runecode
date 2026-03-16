@@ -10,10 +10,15 @@ import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AnalyticsErrorBoundary } from "./components/AnalyticsErrorBoundary";
 import { analytics, resourceMonitor } from "./lib/analytics";
+import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import "./assets/shimmer.css";
 import "./styles.css";
 import AppIcon from "./assets/nfo/asterisk-logo.png";
+
+// Detect web mode: either no Tauri internals or mocked internals from apiAdapter
+const tauriInternals = (window as any).__TAURI_INTERNALS__;
+const isWebMode = !tauriInternals || tauriInternals.__WEB_MODE_MOCK__;
 
 // Initialize analytics before rendering
 analytics.initialize();
@@ -48,23 +53,25 @@ resourceMonitor.startMonitoring(120000);
   }
 })();
 
+// Only use PostHogProvider when PostHog is properly initialized (not in web mode)
+const posthogReady = !isWebMode && posthog.__loaded && posthog.config?.token;
+
+const AppTree = (
+  <ErrorBoundary>
+    <AnalyticsErrorBoundary>
+      <App />
+    </AnalyticsErrorBoundary>
+  </ErrorBoundary>
+);
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <PostHogProvider
-      apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY || 'phk_disabled'}
-      options={{
-        api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
-        defaults: '2025-05-24',
-        capture_exceptions: true,
-        debug: import.meta.env.MODE === "development",
-        opt_out_capturing_by_default: !import.meta.env.VITE_PUBLIC_POSTHOG_KEY,
-      }}
-    >
-      <ErrorBoundary>
-        <AnalyticsErrorBoundary>
-          <App />
-        </AnalyticsErrorBoundary>
-      </ErrorBoundary>
-    </PostHogProvider>
+    {posthogReady ? (
+      <PostHogProvider client={posthog}>
+        {AppTree}
+      </PostHogProvider>
+    ) : (
+      AppTree
+    )}
   </React.StrictMode>,
 );

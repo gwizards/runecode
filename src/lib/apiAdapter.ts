@@ -428,8 +428,12 @@ export function initializeWebMode() {
           };
           return id;
         },
-        invoke: () => Promise.reject(new Error('Tauri invoke not available in web mode')),
+        invoke: (...args: any[]) => {
+          console.debug('[Web] Tauri invoke called in web mode:', args[0]);
+          return Promise.reject(new Error('Not available in web mode'));
+        },
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
+        __WEB_MODE_MOCK__: true,
       };
     }
 
@@ -447,10 +451,16 @@ export function initializeWebMode() {
           },
           emit: () => Promise.resolve(),
         },
-        invoke: () => Promise.reject(new Error('Tauri invoke not available in web mode')),
+        invoke: (...args: any[]) => {
+          console.debug('[Web] Tauri invoke called in web mode:', args[0]);
+          return Promise.reject(new Error('Not available in web mode'));
+        },
         // Mock the core module that includes transformCallback
         core: {
-          invoke: () => Promise.reject(new Error('Tauri invoke not available in web mode')),
+          invoke: (...args: any[]) => {
+            console.debug('[Web] Tauri core.invoke called in web mode:', args[0]);
+            return Promise.reject(new Error('Not available in web mode'));
+          },
           transformCallback: (window as any).__TAURI_INTERNALS__.transformCallback,
         }
       };

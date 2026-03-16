@@ -73,8 +73,11 @@ class AnalyticsService {
         return;
       }
 
-      // Skip PostHog in web server mode (no Tauri runtime)
-      if (typeof window !== 'undefined' && !(window as any).__TAURI_INTERNALS__) {
+      // Skip PostHog in web server mode (no real Tauri runtime)
+      // Check for __WEB_MODE_MOCK__ flag set by apiAdapter's initializeWebMode()
+      const tauriInternals = (window as any).__TAURI_INTERNALS__;
+      const isWebMode = typeof window !== 'undefined' && (!tauriInternals || tauriInternals.__WEB_MODE_MOCK__);
+      if (isWebMode) {
         console.log('[Analytics] Skipping PostHog init: running in web mode');
         return;
       }
