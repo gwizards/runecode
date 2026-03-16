@@ -29,8 +29,21 @@ pub fn get_skills_catalog() -> Vec<PluginGroup> {
         Err(_) => return catalog,
     };
 
-    if let Some(plugins_arr) = plugins.as_array() {
-        for plugin in plugins_arr {
+    // Handle both v1 (flat array) and v2 (object with "plugins" map) formats
+    let plugin_entries: Vec<serde_json::Value> = if let Some(plugins_obj) = plugins.get("plugins").and_then(|p| p.as_object()) {
+        // v2 format: { "version": 2, "plugins": { "name@marketplace": [{ "installPath": ... }] } }
+        plugins_obj.values()
+            .filter_map(|entries| entries.as_array())
+            .flat_map(|arr| arr.iter().cloned())
+            .collect()
+    } else if let Some(arr) = plugins.as_array() {
+        // v1 format: flat array of { "installPath": ... }
+        arr.clone()
+    } else {
+        return catalog;
+    };
+
+    for plugin in &plugin_entries {
             let install_path = plugin
                 .get("installPath")
                 .and_then(|p| p.as_str())
@@ -72,12 +85,11 @@ pub fn get_skills_catalog() -> Vec<PluginGroup> {
                 }
             }
 
-            if !skills.is_empty() {
-                catalog.push(PluginGroup {
-                    plugin: plugin_name,
-                    skills,
-                });
-            }
+        if !skills.is_empty() {
+            catalog.push(PluginGroup {
+                plugin: plugin_name,
+                skills,
+            });
         }
     }
 
