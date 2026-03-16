@@ -51,7 +51,7 @@ export const Agents: React.FC = () => {
     try {
       setLoading(true);
       const agents = await api.listAgents();
-      setAgents(agents);
+      setAgents(agents || []);
     } catch (error) {
       console.error('Failed to load agents:', error);
       setToast({ message: 'Failed to load agents', type: 'error' });
@@ -63,7 +63,7 @@ export const Agents: React.FC = () => {
   const loadRunningAgents = async () => {
     try {
       const runs = await api.listAgentRunsWithMetrics();
-      setRunningAgents(runs);
+      setRunningAgents(runs || []);
     } catch (error) {
       console.error('Failed to load running agents:', error);
     }

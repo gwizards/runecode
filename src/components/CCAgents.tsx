@@ -91,7 +91,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
       setLoading(true);
       setError(null);
       const agentsList = await api.listAgents();
-      setAgents(agentsList);
+      setAgents(agentsList || []);
     } catch (err) {
       console.error("Failed to load agents:", err);
       setError("Failed to load agents");
