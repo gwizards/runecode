@@ -124,7 +124,7 @@ async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
     return (json?.data ?? json) as T;
   } catch (error) {
     // Suppress errors for endpoints expected to be unavailable in web mode
-    const knownUnavailable = ['/api/storage/', '/api/hooks/', '/api/noop/', '/api/checkpoints/', '/api/settings/proxy'];
+    const knownUnavailable = ['/api/storage/', '/api/hooks/', '/api/noop/', '/api/settings/proxy'];
     const isKnown = knownUnavailable.some((p) => endpoint.includes(p));
     if (isKnown) {
       console.debug(`[API] Expected unavailable: ${endpoint}`);
