@@ -258,12 +258,26 @@ function mapCommandToEndpoint(command: string, _params?: any): string {
     'slash_command_get': '/api/slash-commands/{commandId}',
     'slash_command_save': '/api/slash-commands',
     'slash_command_delete': '/api/slash-commands/{commandId}',
+
+    // Checkpoint management
+    'clear_checkpoint_manager': '/api/checkpoints/clear',
+    'create_checkpoint': '/api/checkpoints/create',
+    'restore_checkpoint': '/api/checkpoints/restore',
+    'list_checkpoints': '/api/checkpoints',
+    'delete_checkpoint': '/api/checkpoints/{checkpointId}',
+    'get_checkpoint_diff': '/api/checkpoints/{checkpointId}/diff',
+
+    // Proxy settings
+    'get_proxy_settings': '/api/settings/proxy',
+    'save_proxy_settings': '/api/settings/proxy',
+
   };
 
   const endpoint = commandToEndpoint[command];
   if (!endpoint) {
-    console.warn(`Unknown command: ${command}, falling back to generic endpoint`);
-    return `/api/unknown/${command}`;
+    // Silently return a no-op endpoint — don't spam console
+    console.debug(`[Web] No endpoint mapped for command: ${command}`);
+    return `/api/noop/${command}`;
   }
 
   return endpoint;

@@ -4,7 +4,7 @@ interface RuneCodeLogoProps {
 }
 
 /**
- * Static RuneCode logo — stylized R with lightning rune mark.
+ * RuneCode logo — layered diamond with terminal rune (>_) at center.
  */
 export function RuneCodeLogo({ size = 32, className = '' }: RuneCodeLogoProps) {
   return (
@@ -16,17 +16,28 @@ export function RuneCodeLogo({ size = 32, className = '' }: RuneCodeLogoProps) {
       height={size}
       className={className}
     >
-      <rect width="128" height="128" rx="28" fill="#1a1625"/>
-      <circle cx="64" cy="64" r="48" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.3"/>
-      <circle cx="64" cy="64" r="38" stroke="#a78bfa" strokeWidth="0.75" opacity="0.15"/>
-      <path d="M48 30 L48 98" stroke="#8b5cf6" strokeWidth="5" strokeLinecap="round"/>
-      <path d="M48 30 Q48 30 50 28 Q58 22 72 26 Q82 30 82 42 Q82 54 72 58 Q64 61 48 58"
-            stroke="#8b5cf6" strokeWidth="5" strokeLinecap="round" fill="none"/>
-      <path d="M60 58 L72 74 L64 74 L80 98"
-            stroke="#a78bfa" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <circle cx="88" cy="36" r="2.5" fill="#c4b5fd" opacity="0.6"/>
-      <circle cx="42" cy="20" r="2" fill="#c4b5fd" opacity="0.4"/>
-      <circle cx="86" cy="92" r="2" fill="#c4b5fd" opacity="0.5"/>
+      {/* Outer diamond */}
+      <path d="M64 6 L122 64 L64 122 L6 64 Z" stroke="#8b5cf6" strokeWidth="1.5" fill="none" opacity="0.2"/>
+      {/* Middle diamond */}
+      <path d="M64 20 L108 64 L64 108 L20 64 Z" stroke="#a78bfa" strokeWidth="1" fill="#1a1625" opacity="0.5"/>
+      {/* Inner diamond */}
+      <path d="M64 36 L92 64 L64 92 L36 64 Z" stroke="#8b5cf6" strokeWidth="1.5" fill="none" opacity="0.35"/>
+      {/* Terminal cursor > */}
+      <path d="M42 44 L62 64 L42 84" stroke="#8b5cf6" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      {/* Underscore _ */}
+      <path d="M68 78 L88 78" stroke="#a78bfa" strokeWidth="4" strokeLinecap="round"/>
+      {/* Energy line above */}
+      <path d="M64 36 L64 42" stroke="#c4b5fd" strokeWidth="2" opacity="0.5" strokeLinecap="round"/>
+      {/* Energy rays */}
+      <path d="M64 6 L64 20" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
+      <path d="M122 64 L108 64" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
+      <path d="M64 108 L64 122" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
+      <path d="M20 64 L6 64" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
+      {/* Corner dots */}
+      <circle cx="64" cy="6" r="2" fill="#c4b5fd" opacity="0.5"/>
+      <circle cx="122" cy="64" r="2" fill="#c4b5fd" opacity="0.5"/>
+      <circle cx="64" cy="122" r="2" fill="#c4b5fd" opacity="0.5"/>
+      <circle cx="6" cy="64" r="2" fill="#c4b5fd" opacity="0.5"/>
     </svg>
   );
 }
@@ -38,8 +49,8 @@ interface RuneSpinnerProps {
 }
 
 /**
- * Animated RuneCode loading spinner — glowing rune circle with orbiting accent.
- * Use this instead of generic Loader2 spinners throughout the app.
+ * Animated RuneCode loading spinner — rotating diamond with pulsing terminal rune.
+ * Replaces all generic Loader2 and rotating-symbol spinners.
  */
 export function RuneSpinner({ size = 24, className = '', label }: RuneSpinnerProps) {
   return (
@@ -49,55 +60,96 @@ export function RuneSpinner({ size = 24, className = '', label }: RuneSpinnerPro
         viewBox="0 0 48 48"
         width={size}
         height={size}
-        className="rune-spinner"
       >
-        {/* Outer rotating ring */}
-        <circle
-          cx="24" cy="24" r="20"
+        {/* Rotating outer diamond */}
+        <path
+          d="M24 2 L46 24 L24 46 L2 24 Z"
           stroke="#8b5cf6"
-          strokeWidth="2"
+          strokeWidth="1.5"
+          fill="none"
+          opacity="0.3"
+          className="rune-spinner-ring"
+        />
+        {/* Static inner diamond */}
+        <path
+          d="M24 10 L38 24 L24 38 L10 24 Z"
+          stroke="#a78bfa"
+          strokeWidth="0.75"
           fill="none"
           opacity="0.2"
         />
-        <circle
-          cx="24" cy="24" r="20"
-          stroke="url(#runeGrad)"
-          strokeWidth="2.5"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray="31.4 94.2"
-          className="rune-spinner-ring"
-        />
-
-        {/* Inner rune mark (static lightning bolt) */}
+        {/* Terminal > symbol */}
         <path
-          d="M24 10 L19 24 h4 L18 38"
-          stroke="#a78bfa"
+          d="M16 16 L24 24 L16 32"
+          stroke="#8b5cf6"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
           className="rune-spinner-bolt"
         />
-
-        {/* Orbiting accent dot */}
-        <circle r="2" fill="#c4b5fd" className="rune-spinner-dot">
+        {/* Underscore _ */}
+        <path
+          d="M26 30 L34 30"
+          stroke="#a78bfa"
+          strokeWidth="2"
+          strokeLinecap="round"
+          className="rune-spinner-bolt"
+        />
+        {/* Orbiting corner dot */}
+        <circle r="1.5" fill="#c4b5fd">
           <animateMotion
-            dur="1.5s"
+            dur="2s"
             repeatCount="indefinite"
-            path="M24,4 A20,20 0 1,1 23.99,4"
+            path="M24,2 L46,24 L24,46 L2,24 Z"
           />
         </circle>
-
-        <defs>
-          <linearGradient id="runeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#8b5cf6"/>
-            <stop offset="50%" stopColor="#a78bfa"/>
-            <stop offset="100%" stopColor="#7c3aed"/>
-          </linearGradient>
-        </defs>
       </svg>
       {label && <span className="text-sm text-muted-foreground">{label}</span>}
     </div>
+  );
+}
+
+/**
+ * Inline rotating rune symbol — replaces the CSS .rotating-symbol class.
+ * Use as a drop-in replacement for <div className="rotating-symbol" />.
+ */
+export function RotatingRune({ size = 20, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 32 32"
+      width={size}
+      height={size}
+      className={`inline-block align-middle ${className}`}
+    >
+      {/* Rotating diamond outline */}
+      <path
+        d="M16 2 L30 16 L16 30 L2 16 Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        fill="none"
+        opacity="0.3"
+        className="rune-spinner-ring"
+      />
+      {/* Terminal > */}
+      <path
+        d="M10 10 L16 16 L10 22"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        className="rune-spinner-bolt"
+      />
+      {/* _ */}
+      <path
+        d="M18 20 L24 20"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+    </svg>
   );
 }

@@ -511,6 +511,35 @@ html.is-macos body {
   animation: none;
 }
 
+/* RuneCode spinner animations */
+.rune-spinner-ring {
+  animation: rune-spin 1.4s linear infinite;
+  transform-origin: center;
+}
+
+.rune-spinner-bolt {
+  animation: rune-bolt-glow 2s ease-in-out infinite;
+}
+
+@keyframes rune-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rune-bolt-glow {
+  0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 2px #a78bfa); }
+  50% { opacity: 1; filter: drop-shadow(0 0 6px #8b5cf6); }
+}
+
+.reduced-effects .rune-spinner-ring {
+  animation: rune-spin 1.4s linear infinite;
+}
+
+.reduced-effects .rune-spinner-bolt {
+  animation: none;
+  opacity: 0.8;
+}
+
 @keyframes enter {
   from {
     opacity: var(--tw-enter-opacity, 1);

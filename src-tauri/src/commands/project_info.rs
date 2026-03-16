@@ -104,7 +104,13 @@ pub fn collect_project_info(project_path: &str) -> ProjectInfo {
             // Simple TOML parsing for name/description without adding toml crate dependency
             for line in content.lines() {
                 let trimmed = line.trim();
-                if trimmed.starts_with("name") && name == path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown") {
+                if trimmed.starts_with("name")
+                    && name
+                        == path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("unknown")
+                {
                     if let Some(val) = extract_toml_string_value(trimmed) {
                         name = val;
                     }
@@ -168,7 +174,13 @@ pub fn collect_project_info(project_path: &str) -> ProjectInfo {
     }
 
     // --- Check for env files ---
-    let env_candidates = [".env", ".env.local", ".env.development", ".env.production", ".env.test"];
+    let env_candidates = [
+        ".env",
+        ".env.local",
+        ".env.development",
+        ".env.production",
+        ".env.test",
+    ];
     for env_file in &env_candidates {
         if path.join(env_file).exists() {
             env_files.push(env_file.to_string());
@@ -196,11 +208,9 @@ pub fn collect_project_info(project_path: &str) -> ProjectInfo {
         .ok()
         .and_then(|output| {
             if output.status.success() {
-                String::from_utf8(output.stdout).ok().map(|s| {
-                    s.lines()
-                        .filter(|line| !line.trim().is_empty())
-                        .count()
-                })
+                String::from_utf8(output.stdout)
+                    .ok()
+                    .map(|s| s.lines().filter(|line| !line.trim().is_empty()).count())
             } else {
                 None
             }

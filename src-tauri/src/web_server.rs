@@ -1236,6 +1236,24 @@ async fn get_storage_table(
     }))
 }
 
+/// No-op handler returning success JSON — for commands not available in web mode
+async fn noop_ok() -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": null,
+        "error": null
+    }))
+}
+
+/// No-op handler returning empty array — for list commands not available in web mode
+async fn noop_empty_array() -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": [],
+        "error": null
+    }))
+}
+
 /// Create the web server
 pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
@@ -1317,6 +1335,13 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
             "/api/sessions/{sessionId}/output",
             get(get_claude_session_output),
         )
+        // Checkpoint management (stubs for web mode)
+        .route("/api/checkpoints/clear", get(noop_ok))
+        .route("/api/checkpoints/create", post(noop_ok))
+        .route("/api/checkpoints", get(noop_empty_array))
+        .route("/api/checkpoints/{id}/diff", get(noop_ok))
+        // Catch-all for unmapped commands (prevents HTML fallback errors)
+        .route("/api/noop/{command}", get(noop_ok))
         // WebSocket endpoint for real-time Claude execution
         .route("/ws/claude", get(claude_websocket))
         // Serve embedded frontend assets with SPA fallback
