@@ -306,7 +306,7 @@ Moves to Settings > Appearance tab or the session header as a small status indic
 | `Escape` | Close config panel / pickers / modal |
 | `Ctrl+M` | Toggle model (Sonnet ↔ Opus) |
 | `Ctrl+T` | Cycle reasoning level |
-| `Ctrl+Z` | Open checkpoint rewind |
+| `Ctrl+Shift+Z` | Open checkpoint rewind |
 | `Ctrl+Shift+T` | Toggle Timeline panel |
 
 ---
@@ -326,7 +326,7 @@ Moves to Settings > Appearance tab or the session header as a small status indic
 
 ### 6.2 Panel Open/Close
 
-- **Open:** Click pill, or `Ctrl+M`/`Ctrl+T`/`Ctrl+Z` (opens panel scrolled to relevant section)
+- **Open:** Click pill, or `Ctrl+M`/`Ctrl+T`/`Ctrl+Shift+Z` (opens panel scrolled to relevant section)
 - **Close:** Click pill again, click outside, press Escape
 - **Animation:** Scale 0.95→1, opacity 0→1, duration 150ms
 - **No interference:** Panel, slash command picker, and file picker are mutually exclusive — opening one closes the others
@@ -343,37 +343,104 @@ Moves to Settings > Appearance tab or the session header as a small status indic
 
 ## 7. Migration Plan
 
-### 7.1 Components to Create
-
-- `ConfigPill.tsx` — the pill component showing model/reasoning/checkpoints
-- `ConfigPanel.tsx` — the floating panel with Model/Reasoning/Checkpoints sections
-- `CheckpointTimeline.tsx` — the horizontal dot timeline visualization
-- `ReasoningSelector.tsx` — the 5-button segmented control
-
-### 7.2 Components to Modify
-
-- `FloatingPromptInput.tsx` — remove model/thinking buttons, add ConfigPill, remove extra menu items
-- `ClaudeCodeSession.tsx` — move Timeline toggle to session header, remove from extra menu items
-- `SessionHeader.tsx` or `Topbar.tsx` — add Timeline toggle, Settings button
-- `Settings.tsx` — add Helicone toggle to Appearance tab (if not already)
-
-### 7.3 Components to Remove
-
-- Model picker popover (functionality moves to ConfigPanel)
-- Thinking mode picker popover (functionality moves to ConfigPanel)
-- HeliconeToggle from input bar (moves to settings/header)
-
-### 7.4 State Management
-
-The config panel reads from and writes to existing state:
-- Model: `selectedModel` / `setSelectedModel` (existing in FloatingPromptInput)
-- Reasoning: `selectedThinkingMode` / `setSelectedThinkingMode` (existing)
-- Checkpoints: new state, reads from git log, writes via git operations
-
-Consider lifting model/thinking state to a shared context or the session store so the ConfigPill and ConfigPanel can access it without prop drilling.
+See Section 10 for the detailed migration plan.
 
 ---
 
-## 8. Visual References
+## 8. Edge Cases
+
+### 8.1 Responsive Behavior
+
+- **Config Panel on narrow viewports (<768px):** Panel switches to full-width, anchored `left-0 right-0` with `mx-4` margin instead of fixed `w-[420px]`
+- **Sidebar/Timeline offset:** When the Timeline panel is open, the Smart Bar applies `sm:right-96` to shift left (preserving current behavior from ClaudeCodeSession.tsx)
+
+### 8.2 Image Previews
+
+Image previews (from drag-drop, paste, or `@`-mention) render as a strip **above the textarea** inside the bar container, separated by `border-b border-border`. Same position as current implementation. The config pill sits below the image strip.
+
+### 8.3 Drag-and-Drop
+
+When `dragActive` is true:
+- Textarea border: `--color-border-purple` with ring highlight
+- Placeholder changes to: "Drop images here..."
+- Bar container: subtle purple ring `ring-2 ring-primary ring-offset-2`
+
+### 8.4 Copy Button Empty State
+
+Copy button is always rendered but **disabled** when `messages.length === 0`. Disabled state: `opacity-50 pointer-events-none`.
+
+### 8.5 Checkpoint Scope
+
+The git-based checkpoint system (section 2.5) is a **future enhancement**. For the initial Smart Bar implementation:
+- Checkpoint count shows `✓0` in muted color
+- Checkpoint section in config panel shows empty state text: "Checkpoints coming soon"
+- The "Rewind" button is disabled
+- The checkpoint UI skeleton is rendered but non-functional until the git hook system is built
+
+### 8.6 Reasoning Level Labels
+
+The config panel uses shortened labels for the segmented buttons:
+
+| Internal ID | Full Name | Panel Label |
+|-------------|-----------|-------------|
+| `auto` | Auto | Auto |
+| `think` | Think | Think |
+| `think_hard` | Think Hard | Deep |
+| `think_harder` | Think Harder | Hard |
+| `ultrathink` | Ultrathink | Ultra |
+
+These shortened labels are intentional for the pill-sized buttons.
+
+---
+
+## 9. Token Reference
+
+This spec uses `--color-` prefixed CSS custom property names as they appear in the actual `src/styles.css` implementation (e.g., `--color-void-base`, `--color-purple-500`). The Void Protocol design spec uses shorter names without the prefix — both refer to the same tokens. Use the `--color-` prefixed form in code.
+
+---
+
+## 10. Migration Plan (Detailed)
+
+### 10.1 Components to Create
+
+- `src/components/ConfigPill.tsx` — pill showing model/reasoning/checkpoints state
+- `src/components/ConfigPanel.tsx` — floating panel with Model/Reasoning/Checkpoints sections
+- `src/components/CheckpointTimeline.tsx` — horizontal dot timeline (initially shows empty state)
+- `src/components/ReasoningSelector.tsx` — 5-button segmented control
+
+### 10.2 Components to Modify
+
+- `FloatingPromptInput.tsx`:
+  - Remove model picker button and popover
+  - Remove thinking mode button and popover
+  - Remove `extraMenuItems` rendering section
+  - Remove Helicone toggle section
+  - Add ConfigPill component (left of textarea)
+  - Add Copy button (right of textarea, extracted from ClaudeCodeSession's extraMenuItems)
+  - Deprecate the `extraMenuItems` prop (remove from interface)
+- `ClaudeCodeSession.tsx`:
+  - Remove the `extraMenuItems` prop passed to FloatingPromptInput (Timeline toggle, Copy, Settings wrench)
+  - Move Timeline toggle to SessionHeader
+  - Extract copy conversation logic into a standalone hook or utility
+- `SessionHeader.tsx`:
+  - Add Timeline toggle button (GitBranch icon)
+  - Add Settings button (if not in topbar)
+- `Settings.tsx`:
+  - Add Helicone toggle to Appearance tab
+
+### 10.3 Components to Remove
+
+- Model picker popover content (from FloatingPromptInput) → replaced by ConfigPanel
+- Thinking mode picker popover content (from FloatingPromptInput) → replaced by ConfigPanel
+- HeliconeToggle from input bar → moves to settings
+
+### 10.4 State Management
+
+- `onSend` callback: continues to pass `(prompt, model)`. Thinking mode is read from the shared state by the session handler — no interface change needed.
+- Model and thinking mode state: lift to a `useSessionConfig` hook or the existing session store so ConfigPill and ConfigPanel can read/write without prop drilling through FloatingPromptInput.
+
+---
+
+## 11. Visual References
 
 The brainstorming HTML mockups are in `.superpowers/brainstorm/` for reference. The Void Protocol design system spec at `docs/superpowers/specs/2026-03-15-void-protocol-design-system.md` defines all color tokens, typography, and glass effects used in this spec.
