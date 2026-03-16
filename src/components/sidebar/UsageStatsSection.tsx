@@ -235,6 +235,17 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
     refetchInterval: 60000, // refresh every minute
   });
 
+  const { data: costData } = useQuery({
+    queryKey: ['usage-cost'],
+    queryFn: async () => {
+      const res = await fetch('/api/usage/cost');
+      if (!res.ok) return null;
+      return await res.json();
+    },
+    staleTime: 120000, // 2 min cache - this runs a Claude subprocess
+    refetchInterval: 300000, // refresh every 5 min
+  });
+
   const liveUsage = useSessionStore(state => state.liveUsage);
 
   if (!usage) return null;
@@ -331,10 +342,11 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
           <div className="ml-auto flex items-center gap-1.5 text-[10px]">
             {isIncludedPlan && windowData ? (
               <>
-                <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                <PlanBadge type={authStatus?.subscriptionType} />
+                <div className="flex-1 w-20 h-2 rounded-full bg-muted overflow-hidden">
                   <div className={`h-full rounded-full ${barColor}`} style={{ width: `${windowPercent}%` }} />
                 </div>
-                <span className="text-muted-foreground">{Math.round(windowPercent)}%</span>
+                <span className="text-muted-foreground font-mono">{Math.round(windowPercent)}%</span>
               </>
             ) : (
               <>
@@ -387,6 +399,20 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                       {authStatus.email}
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Cost endpoint data: subscription status + service tier */}
+              {costData?.result && (
+                <p className="text-[10px] text-muted-foreground/60 italic">
+                  {costData.result}
+                </p>
+              )}
+              {costData?.usage?.service_tier && (
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span>Tier: {costData.usage.service_tier}</span>
+                  <span>·</span>
+                  <span>Speed: {costData.usage.speed || 'standard'}</span>
                 </div>
               )}
 

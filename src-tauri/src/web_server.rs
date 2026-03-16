@@ -388,6 +388,34 @@ async fn get_usage_window() -> impl IntoResponse {
     }))
 }
 
+/// Get usage cost info by running `claude -p "/cost" --output-format json`
+async fn get_usage_cost() -> impl IntoResponse {
+    let claude_bin = find_claude_binary_web().unwrap_or_else(|_| "claude".to_string());
+
+    let output = std::process::Command::new(&claude_bin)
+        .args(["-p", "/cost", "--output-format", "json"])
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            match serde_json::from_str::<serde_json::Value>(&stdout) {
+                Ok(json) => axum::Json(json).into_response(),
+                Err(_) => axum::Json(serde_json::json!({
+                    "total_cost_usd": 0,
+                    "result": "Unable to parse cost info"
+                }))
+                .into_response(),
+            }
+        }
+        Err(_) => axum::Json(serde_json::json!({
+            "total_cost_usd": 0,
+            "result": "Claude binary not available"
+        }))
+        .into_response(),
+    }
+}
+
 /// Get Claude settings - return basic defaults for web mode
 async fn get_claude_settings() -> Json<ApiResponse<serde_json::Value>> {
     let default_settings = serde_json::json!({
@@ -1414,6 +1442,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/usage/sessions", get(get_usage_sessions))
         .route("/api/usage/details", get(get_usage_details))
         .route("/api/usage/window", get(get_usage_window))
+        .route("/api/usage/cost", get(get_usage_cost))
         .route("/api/resources", get(get_resources))
         .route(
             "/api/integrations",
