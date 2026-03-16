@@ -342,23 +342,12 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
         {/* Rich collapsed summary */}
         {collapsed && hasData ? (
           <div className="ml-auto flex items-center gap-1.5 text-[10px]">
-            {isIncludedPlan && windowData ? (
-              <>
-                <PlanBadge type={authStatus?.subscriptionType} />
-                <div className="flex-1 w-20 h-2 rounded-full bg-muted overflow-hidden">
-                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${windowPercent}%` }} />
-                </div>
-                <span className="text-muted-foreground font-mono">{Math.round(windowPercent)}%</span>
-              </>
-            ) : (
-              <>
-                <span className="font-mono text-primary">{formatCost(combinedCost)}</span>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">{formatTokens(combinedTokens)} tok</span>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">{combinedSessions} sess</span>
-              </>
-            )}
+            {isIncludedPlan && <PlanBadge type={authStatus?.subscriptionType} />}
+            <span className="font-mono text-primary">{formatCost(combinedCost)}</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{formatTokens(combinedTokens)} tok</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{combinedSessions} sess</span>
           </div>
         ) : hasData ? (
           <span className="ml-auto text-[10px] text-muted-foreground">
@@ -444,25 +433,11 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                 </p>
               )}
 
-              {/* 5-hour rolling usage window */}
+              {/* 5-hour rolling window data */}
               {windowData && isIncludedPlan && (
                 <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">5-Hour Window</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {Math.round(windowPercent)}% of limit
-                    </span>
-                  </div>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last 5 Hours</span>
 
-                  {/* Main usage bar */}
-                  <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${barGradient}`}
-                      style={{ width: `${Math.min(100, windowPercent)}%` }}
-                    />
-                  </div>
-
-                  {/* Token breakdown - show what matters */}
                   <div className="space-y-1 text-[10px]">
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Output tokens</span>
@@ -482,18 +457,10 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                     </div>
                   </div>
 
-                  {/* Effective usage summary */}
-                  <div className="flex items-center justify-between pt-1 border-t border-border/10 text-[10px]">
-                    <span className="text-muted-foreground">Effective usage</span>
-                    <span className="font-mono text-foreground/80">
-                      {formatTokens(effectiveTokens)} / {formatTokens(estimatedLimit)}
-                    </span>
-                  </div>
-
                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                     <span>{windowData.messageCount} messages</span>
                     <span>&middot;</span>
-                    <span>Resets rolling</span>
+                    <span>Rolling window</span>
                   </div>
                 </div>
               )}
