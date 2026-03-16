@@ -4,7 +4,7 @@ use axum::http::Method;
 use axum::{
     extract::{Path, State as AxumState, WebSocketUpgrade},
     response::{IntoResponse, Json, Response},
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Router,
 };
 use chrono;
@@ -101,6 +101,7 @@ pub struct ClaudeExecutionRequest {
     pub command_type: String, // "execute", "continue", or "resume"
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct QueryParams {
     #[serde(default)]
@@ -940,9 +941,9 @@ async fn cancel_claude_execution(
 }
 
 /// Get Claude session output
-async fn get_claude_session_output(Path(sessionId): Path<String>) -> Json<ApiResponse<String>> {
+async fn get_claude_session_output(Path(session_id): Path<String>) -> Json<ApiResponse<String>> {
     // In web mode, output is streamed via WebSocket, not stored
-    println!("[TRACE] Output request for session: {}", sessionId);
+    println!("[TRACE] Output request for session: {}", session_id);
     Json(ApiResponse::success(
         "Output available via WebSocket only".to_string(),
     ))
