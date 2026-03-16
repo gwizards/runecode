@@ -28,7 +28,11 @@ import { HeliconeToggle } from "../integrations/observability/HeliconeToggle";
 // Conditional import for Tauri webview window
 let tauriGetCurrentWebviewWindow: any;
 try {
-  if (typeof window !== 'undefined' && window.__TAURI__) {
+  // Only use real Tauri APIs if we're in a genuine Tauri environment,
+  // not our web-mode mock (which sets __WEB_MODE_MOCK__ on __TAURI_INTERNALS__)
+  const isRealTauri = typeof window !== 'undefined' && window.__TAURI__ &&
+    !(window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
+  if (isRealTauri) {
     tauriGetCurrentWebviewWindow = require("@tauri-apps/api/webviewWindow").getCurrentWebviewWindow;
   }
 } catch (e) {

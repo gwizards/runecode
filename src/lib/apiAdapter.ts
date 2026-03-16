@@ -35,9 +35,10 @@ function detectEnvironment(): boolean {
     return false;
   }
 
-  // Check for Tauri-specific indicators
-  const isTauri = !!(
-    window.__TAURI__ || 
+  // Check for Tauri-specific indicators, but exclude our web-mode mock
+  const isWebModeMock = !!(window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
+  const isTauri = !isWebModeMock && !!(
+    window.__TAURI__ ||
     window.__TAURI_METADATA__ ||
     window.__TAURI_INTERNALS__ ||
     // Check user agent for Tauri

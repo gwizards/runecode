@@ -6,7 +6,11 @@ import type { ClaudeStreamMessage } from '../AgentExecution';
 // Conditional import for Tauri
 let tauriListen: any;
 try {
-  if (typeof window !== 'undefined' && window.__TAURI__) {
+  // Only use real Tauri listen if we're in a genuine Tauri environment,
+  // not our web-mode mock (which sets __WEB_MODE_MOCK__ on __TAURI_INTERNALS__)
+  const isRealTauri = typeof window !== 'undefined' && window.__TAURI__ &&
+    !(window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
+  if (isRealTauri) {
     tauriListen = require('@tauri-apps/api/event').listen;
   }
 } catch (e) {
