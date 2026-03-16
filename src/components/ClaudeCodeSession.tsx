@@ -1,19 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Copy,
+import {
   ChevronDown,
-  GitBranch,
   ChevronUp,
   X,
   Hash,
-  Wrench
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RotatingRune } from "./RuneCodeLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover } from "@/components/ui/popover";
 import { api, type Session } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -121,10 +117,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawJsonlOutput, setRawJsonlOutput] = useState<string[]>([]);
-  const [copyPopoverOpen, setCopyPopoverOpen] = useState(false);
   const [isFirstPrompt, setIsFirstPrompt] = useState(!session);
   const [totalTokens, setTotalTokens] = useState(0);
-  const [sessionCostUsd, setSessionCostUsd] = useState(0);
+  const [_sessionCostUsd, setSessionCostUsd] = useState(0);
   const [extractedSessionInfo, setExtractedSessionInfo] = useState<{ sessionId: string; projectId: string } | null>(null);
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -985,7 +980,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const handleCopyAsJsonl = async () => {
     const jsonl = rawJsonlOutput.join('\n');
     await navigator.clipboard.writeText(jsonl);
-    setCopyPopoverOpen(false);
   };
 
   const handleCopyAsMarkdown = async () => {
@@ -1057,7 +1051,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
 
     await navigator.clipboard.writeText(markdown);
-    setCopyPopoverOpen(false);
   };
 
   const handleCheckpointSelect = async () => {
@@ -1625,87 +1618,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               isLoading={isLoading}
               disabled={!projectPath}
               projectPath={projectPath}
-              sessionCostUsd={sessionCostUsd}
-              extraMenuItems={
-                <>
-                  {effectiveSession && (
-                    <TooltipSimple content="Session Timeline" side="top">
-                      <motion.div
-                        whileTap={{ scale: 0.97 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setShowTimeline(!showTimeline)}
-                          className="h-9 w-9 text-muted-foreground hover:text-foreground"
-                        >
-                          <GitBranch className={cn("h-3.5 w-3.5", showTimeline && "text-primary")} />
-                        </Button>
-                      </motion.div>
-                    </TooltipSimple>
-                  )}
-                  {messages.length > 0 && (
-                    <Popover
-                      trigger={
-                        <TooltipSimple content="Copy conversation" side="top">
-                          <motion.div
-                            whileTap={{ scale: 0.97 }}
-                            transition={{ duration: 0.15 }}
-                          >
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 text-muted-foreground hover:text-foreground"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
-                          </motion.div>
-                        </TooltipSimple>
-                      }
-                      content={
-                        <div className="w-44 p-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCopyAsMarkdown}
-                            className="w-full justify-start text-xs"
-                          >
-                            Copy as Markdown
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCopyAsJsonl}
-                            className="w-full justify-start text-xs"
-                          >
-                            Copy as JSONL
-                          </Button>
-                        </div>
-                      }
-                      open={copyPopoverOpen}
-                      onOpenChange={setCopyPopoverOpen}
-                      side="top"
-                      align="end"
-                    />
-                  )}
-                  <TooltipSimple content="Checkpoint Settings" side="top">
-                    <motion.div
-                      whileTap={{ scale: 0.97 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowSettings(!showSettings)}
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      >
-                        <Wrench className={cn("h-3.5 w-3.5", showSettings && "text-primary")} />
-                      </Button>
-                    </motion.div>
-                  </TooltipSimple>
-                </>
-              }
+              onCopyMarkdown={() => handleCopyAsMarkdown()}
+              onCopyJsonl={() => handleCopyAsJsonl()}
             />
           </div>
 
