@@ -416,6 +416,23 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
  */
 export function initializeWebMode() {
   if (!detectEnvironment()) {
+    // Mock Tauri internals FIRST - this is what Tauri v2 APIs actually check
+    // for transformCallback. Must exist before any @tauri-apps imports execute.
+    if (!window.__TAURI_INTERNALS__) {
+      window.__TAURI_INTERNALS__ = {
+        transformCallback: (callback?: (response: any) => void, once?: boolean) => {
+          const id = `_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+          (window as any)[id] = (response: any) => {
+            if (once) delete (window as any)[id];
+            if (callback) callback(response);
+          };
+          return id;
+        },
+        invoke: () => Promise.reject(new Error('Tauri invoke not available in web mode')),
+        metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
+      };
+    }
+
     // Mock Tauri event system for web mode
     if (!window.__TAURI__) {
       window.__TAURI__ = {
@@ -434,9 +451,7 @@ export function initializeWebMode() {
         // Mock the core module that includes transformCallback
         core: {
           invoke: () => Promise.reject(new Error('Tauri invoke not available in web mode')),
-          transformCallback: () => {
-            throw new Error('Tauri transformCallback not available in web mode');
-          }
+          transformCallback: (window as any).__TAURI_INTERNALS__.transformCallback,
         }
       };
     }

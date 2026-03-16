@@ -10,7 +10,14 @@ export function useIntegrationConfig() {
       try {
         const res = await fetch('/api/integrations');
         if (!res.ok) return DEFAULT_CONFIG;
-        return await res.json() as IntegrationConfig;
+        const data = await res.json();
+        // Deep merge with defaults so missing fields don't crash
+        return {
+          compute: { ...DEFAULT_CONFIG.compute, ...data.compute },
+          security: { ...DEFAULT_CONFIG.security, ...data.security },
+          intelligence: { ...DEFAULT_CONFIG.intelligence, ...data.intelligence },
+          observability: { ...DEFAULT_CONFIG.observability, ...data.observability },
+        } as IntegrationConfig;
       } catch {
         return DEFAULT_CONFIG;
       }

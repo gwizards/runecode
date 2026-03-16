@@ -66,6 +66,19 @@ class AnalyticsService {
   
   private initializePostHog(settings: AnalyticsSettings): void {
     try {
+      // Only initialize PostHog if we have a valid API key
+      const token = this.config.apiKey;
+      if (!token || token === '' || token === 'undefined') {
+        console.log('[Analytics] Skipping PostHog init: no valid API key');
+        return;
+      }
+
+      // Skip PostHog in web server mode (no Tauri runtime)
+      if (typeof window !== 'undefined' && !(window as any).__TAURI_INTERNALS__) {
+        console.log('[Analytics] Skipping PostHog init: running in web mode');
+        return;
+      }
+
       posthog.init(this.config.apiKey, {
         api_host: this.config.apiHost,
         capture_pageview: false, // Disable automatic pageview capture

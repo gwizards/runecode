@@ -1,3 +1,9 @@
+// Initialize web mode BEFORE any other imports that may load Tauri APIs.
+// ES module imports are hoisted, but side-effect imports run in order,
+// so we do the mock setup synchronously here.
+import { initializeWebMode } from "./lib/apiAdapter";
+initializeWebMode();
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
@@ -45,12 +51,13 @@ resourceMonitor.startMonitoring(120000);
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <PostHogProvider
-      apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY}
+      apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY || 'phk_disabled'}
       options={{
-        api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+        api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
         defaults: '2025-05-24',
         capture_exceptions: true,
         debug: import.meta.env.MODE === "development",
+        opt_out_capturing_by_default: !import.meta.env.VITE_PUBLIC_POSTHOG_KEY,
       }}
     >
       <ErrorBoundary>

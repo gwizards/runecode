@@ -986,6 +986,22 @@ async fn send_to_session(state: &AppState, session_id: &str, message: String) {
     }
 }
 
+/// Get storage table - return empty data in web mode (no local DB)
+async fn get_storage_table(
+    axum::extract::Path(_table_name): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    axum::Json(serde_json::json!({
+        "success": true,
+        "data": {
+            "rows": [],
+            "total": 0,
+            "page": 1,
+            "pageSize": 1000
+        },
+        "error": null
+    }))
+}
+
 /// Create the web server
 pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
@@ -1037,6 +1053,8 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
             "/api/slash-commands/{commandId}",
             get(get_slash_command).delete(delete_slash_command),
         )
+        // Storage
+        .route("/api/storage/tables/{tableName}", get(get_storage_table))
         // MCP
         .route("/api/mcp/servers", get(mcp_list))
         // Session history
