@@ -262,11 +262,11 @@ export const FilePicker: React.FC<FilePickerProps> = React.memo(({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className={cn("flex flex-col bg-background rounded-lg shadow-lg", className)}
+      className={cn("flex flex-col glass-elevated rounded-xl", className)}
       onKeyDown={handleKeyDown}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 p-4 border-b">
+      <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <Button
           variant="ghost"
           size="icon"
@@ -276,7 +276,7 @@ export const FilePicker: React.FC<FilePickerProps> = React.memo(({
             setSearchQuery("");
           }}
           disabled={currentPath === '/' || currentPath === basePath}
-          className="h-8 w-8"
+          className="h-8 w-8 hover:bg-accent/50 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -304,8 +304,8 @@ export const FilePicker: React.FC<FilePickerProps> = React.memo(({
       </div>
 
       {/* Current path */}
-      <div className="px-4 py-2 border-b">
-        <div className="text-xs text-muted-foreground truncate">
+      <div className="px-4 py-2 border-b" style={{ borderColor: 'var(--color-border-subtle)' }}>
+        <div className="text-xs text-muted-foreground truncate" style={{ fontFamily: 'var(--font-mono)' }}>
           {currentPath}
         </div>
       </div>
@@ -368,16 +368,19 @@ export const FilePicker: React.FC<FilePickerProps> = React.memo(({
                     onMouseEnter={() => setSelectedIndex(virtualRow.index)}
                     className={cn(
                       "w-full flex items-center gap-2 px-2 py-1.5",
-                      "hover:bg-accent transition-colors",
+                      "hover:bg-accent/50 transition-colors",
                       "text-left text-sm h-8",
-                      isSelected && "bg-accent"
+                      isSelected && "bg-accent/50"
                     )}
+                    style={isSelected ? {
+                      borderLeft: '2px solid var(--color-purple-500)',
+                      backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+                    } : undefined}
                     title={entry.is_directory ? "Click to select • Double-click to enter" : "Click to select"}
                   >
-                    <Icon className={cn(
-                      "h-4 w-4 flex-shrink-0",
-                      entry.is_directory ? "text-blue-500" : "text-muted-foreground"
-                    )} />
+                    <Icon className="h-4 w-4 flex-shrink-0" style={{
+                      color: entry.is_directory ? 'var(--color-gold-400)' : 'var(--color-text-muted)',
+                    }} />
                     
                     <span className="flex-1 truncate">
                       {entry.name}
@@ -401,13 +404,13 @@ export const FilePicker: React.FC<FilePickerProps> = React.memo(({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between p-4 border-t">
+      <div className="flex items-center justify-between p-4 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <div className="text-xs text-muted-foreground">
           {displayEntries.length} {displayEntries.length === 1 ? 'item' : 'items'}
         </div>
         {allowDirectorySelection && (
           <div className="text-xs text-muted-foreground">
-            Shift+Enter to select directory
+            <span style={{ fontFamily: 'var(--font-mono)' }}>Shift+Enter</span> to select directory
           </div>
         )}
       </div>

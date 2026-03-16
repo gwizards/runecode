@@ -400,17 +400,17 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
       className={cn(
         "absolute bottom-full mb-2 left-0 z-50",
         "w-[600px] h-[400px]",
-        "glass-elevated rounded-lg",
+        "glass-elevated rounded-xl",
         "flex flex-col overflow-hidden",
         className
       )}
     >
       {/* Header */}
-      <div className="border-b border-border p-3">
+      <div className="border-b p-3" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Command className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Slash Commands</span>
+            <span className="text-heading-4" style={{ fontFamily: 'var(--font-heading)' }}>Slash Commands</span>
             {searchQuery && (
               <span className="text-xs text-muted-foreground">
                 Searching: "{searchQuery}"
@@ -498,10 +498,14 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                             onMouseEnter={() => setSelectedIndex(index)}
                             className={cn(
                               "w-full flex items-start gap-3 px-3 py-2 rounded-md",
-                              "hover:bg-accent transition-colors",
+                              "hover:bg-accent/50 transition-colors",
                               "text-left",
-                              isSelected && "bg-accent"
+                              isSelected && "bg-accent/50"
                             )}
+                            style={isSelected ? {
+                              borderLeft: '2px solid var(--color-purple-500)',
+                              backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+                            } : undefined}
                           >
                             <Icon className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                             <div className="flex-1 overflow-hidden">
@@ -509,7 +513,10 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                                 <span className="font-medium">
                                   {command.full_command}
                                 </span>
-                                <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted rounded">
+                                <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                                  backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+                                  color: 'var(--color-purple-400)',
+                                }}>
                                   {command.scope}
                                 </span>
                               </div>
@@ -575,13 +582,17 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                           onMouseEnter={() => setSelectedIndex(index)}
                           className={cn(
                             "w-full flex items-center justify-between px-3 py-2 rounded-md",
-                            "hover:bg-accent transition-colors",
+                            "hover:bg-accent/50 transition-colors",
                             "text-left",
-                            index === selectedIndex && "bg-accent"
+                            index === selectedIndex && "bg-accent/50"
                           )}
+                          style={index === selectedIndex ? {
+                            borderLeft: '2px solid var(--color-purple-500)',
+                            backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+                          } : undefined}
                         >
                           <div className="flex items-center gap-3">
-                            <Bot className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <Bot className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--color-purple-400)' }} />
                             <div>
                               <div className="text-sm font-medium">{agent.name}</div>
                               <div className="text-xs text-muted-foreground">{agent.type} agent</div>
@@ -628,18 +639,19 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                           className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-accent/50 transition-colors"
                         >
                           <div className="flex items-center gap-3">
-                            <Server className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <Server className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--color-gold-400)' }} />
                             <div>
                               <div className="text-sm font-medium">{server.name}</div>
                               <div className="text-xs text-muted-foreground truncate max-w-[200px]">{server.command}</div>
                             </div>
                           </div>
-                          <span className={cn(
-                            "text-xs px-1.5 py-0.5 rounded",
-                            server.status === 'connected' && "bg-green-500/10 text-green-500",
-                            server.status === 'needs_auth' && "bg-yellow-500/10 text-yellow-500",
-                            server.status !== 'connected' && server.status !== 'needs_auth' && "bg-red-500/10 text-red-500"
-                          )}>
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={
+                            server.status === 'connected'
+                              ? { backgroundColor: 'color-mix(in oklch, var(--color-success) 10%, transparent)', color: 'var(--color-success)' }
+                              : server.status === 'needs_auth'
+                              ? { backgroundColor: 'color-mix(in oklch, var(--color-warning) 10%, transparent)', color: 'var(--color-warning)' }
+                              : { backgroundColor: 'color-mix(in oklch, var(--color-error) 10%, transparent)', color: 'var(--color-error)' }
+                          }>
                             {server.status === 'connected' ? 'Connected' : server.status === 'needs_auth' ? 'Auth needed' : 'Error'}
                           </span>
                         </div>
@@ -675,7 +687,7 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                         {filteredCommands.map((command, index) => {
                           const Icon = getCommandIcon(command);
                           const isSelected = index === selectedIndex;
-                          
+
                           return (
                             <button
                               key={command.id}
@@ -684,10 +696,14 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                               onMouseEnter={() => setSelectedIndex(index)}
                               className={cn(
                                 "w-full flex items-start gap-3 px-3 py-2 rounded-md",
-                                "hover:bg-accent transition-colors",
+                                "hover:bg-accent/50 transition-colors",
                                 "text-left",
-                                isSelected && "bg-accent"
+                                isSelected && "bg-accent/50"
                               )}
+                              style={isSelected ? {
+                                borderLeft: '2px solid var(--color-purple-500)',
+                                backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+                              } : undefined}
                             >
                               <Icon className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
                               
@@ -758,10 +774,14 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                                     onMouseEnter={() => setSelectedIndex(globalIndex)}
                                     className={cn(
                                       "w-full flex items-start gap-3 px-3 py-2 rounded-md",
-                                      "hover:bg-accent transition-colors",
+                                      "hover:bg-accent/50 transition-colors",
                                       "text-left",
-                                      isSelected && "bg-accent"
+                                      isSelected && "bg-accent/50"
                                     )}
+                                    style={isSelected ? {
+                                      borderLeft: '2px solid var(--color-purple-500)',
+                                      backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
+                                    } : undefined}
                                   >
                                     <Icon className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
                                     
@@ -820,9 +840,9 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-2">
+      <div className="border-t p-2" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <p className="text-xs text-muted-foreground text-center">
-          ↑↓ Navigate • Enter Select • Esc Close
+          <span style={{ fontFamily: 'var(--font-mono)' }}>↑↓</span> Navigate • <span style={{ fontFamily: 'var(--font-mono)' }}>Enter</span> Select • <span style={{ fontFamily: 'var(--font-mono)' }}>Esc</span> Close
         </p>
       </div>
     </motion.div>
