@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import {
+  PanelRightClose,
+  PanelRightOpen,
+  FolderGit2,
+  GitBranch,
+  BarChart3,
+  Cpu,
+  Sparkles,
+  ChevronsRight,
+  ChevronsLeft,
+} from "lucide-react";
 import { RuneCodeLogo } from "./RuneCodeLogo";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
@@ -13,10 +23,12 @@ import { useSessionStore } from "../stores/sessionStore";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
 const LS_KEY_OPEN = "runecode-sidebar-open";
+const LS_KEY_COMPACT = "runecode-sidebar-compact";
 
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
+const COMPACT_WIDTH = 48;
 const AUTO_COLLAPSE_BREAKPOINT = 1024;
 
 interface ProjectSidebarProps {
@@ -25,6 +37,24 @@ interface ProjectSidebarProps {
 
 function SectionDivider() {
   return <div className="border-t border-border/30 my-2 mx-3" />;
+}
+
+interface CompactIconProps {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}
+
+function CompactIcon({ icon, label, onClick }: CompactIconProps) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+    >
+      {icon}
+    </button>
+  );
 }
 
 export function ProjectSidebar({
@@ -40,6 +70,14 @@ export function ProjectSidebar({
     return window.innerWidth >= AUTO_COLLAPSE_BREAKPOINT;
   });
 
+  const [compactMode, setCompactMode] = useState(() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY_COMPACT);
+      if (stored !== null) return stored === "true";
+    } catch {}
+    return false;
+  });
+
   const [width, setWidth] = useState(() => {
     try {
       const stored = localStorage.getItem(LS_KEY_WIDTH);
@@ -53,7 +91,11 @@ export function ProjectSidebar({
     return DEFAULT_WIDTH;
   });
 
+  // Section refs for scrolling
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   const toggleSidebar = useCallback(() => setIsOpen((prev) => !prev), []);
+  const toggleCompact = useCallback(() => setCompactMode((prev) => !prev), []);
 
   const widthRef = useRef(width);
   const isResizingRef = useRef(false);
@@ -70,6 +112,13 @@ export function ProjectSidebar({
     } catch {}
   }, [isOpen]);
 
+  // Persist compact state
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEY_COMPACT, String(compactMode));
+    } catch {}
+  }, [compactMode]);
+
   // Persist width
   useEffect(() => {
     try {
@@ -78,16 +127,23 @@ export function ProjectSidebar({
   }, [width]);
 
   // Keyboard shortcut: Ctrl+B / Cmd+B to toggle sidebar
+  // Keyboard shortcut: Ctrl+Shift+B / Cmd+Shift+B to toggle compact mode
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b' && !e.shiftKey) {
         e.preventDefault();
         toggleSidebar();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'B' && e.shiftKey) {
+        e.preventDefault();
+        if (isOpen) {
+          toggleCompact();
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleSidebar]);
+  }, [toggleSidebar, toggleCompact, isOpen]);
 
   // Auto-collapse on narrow windows
   useEffect(() => {
@@ -137,6 +193,28 @@ export function ProjectSidebar({
     []
   );
 
+  // Handle compact icon click: expand to full mode and scroll to section
+  const handleCompactIconClick = useCallback((sectionKey: string) => {
+    setCompactMode(false);
+    // Scroll to section after expanding
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = sectionRefs.current[sectionKey];
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 250); // wait for expand animation
+    });
+  }, []);
+
+  const compactIcons = [
+    { key: "project", icon: <FolderGit2 className="h-5 w-5" />, label: "Project Info" },
+    { key: "context", icon: <GitBranch className="h-5 w-5" />, label: "Live Context" },
+    { key: "usage", icon: <BarChart3 className="h-5 w-5" />, label: "Usage Stats" },
+    { key: "resources", icon: <Cpu className="h-5 w-5" />, label: "Resources" },
+    { key: "skills", icon: <Sparkles className="h-5 w-5" />, label: "Skills" },
+  ];
+
   return (
     <div className="relative flex-shrink-0 flex">
       {/* Toggle button */}
@@ -159,58 +237,109 @@ export function ProjectSidebar({
         {isOpen && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width, opacity: 1 }}
+            animate={{ width: compactMode ? COMPACT_WIDTH : width, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="h-full border-l border-border/50 bg-background/80 backdrop-blur-sm overflow-hidden flex flex-col"
           >
-            {/* Resize handle */}
-            <div
-              onMouseDown={handleMouseDown}
-              className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors z-20"
-            />
+            {/* Compact icon-strip mode */}
+            {compactMode ? (
+              <div className="flex flex-col items-center h-full py-2">
+                {/* Logo */}
+                <div className="mb-3 pb-2 border-b border-border/30 w-full flex justify-center">
+                  <RuneCodeLogo size={20} />
+                </div>
 
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <RuneCodeLogo size={18} />
-                <span className="text-sm font-semibold tracking-tight text-foreground/90">
-                  RuneCode
-                </span>
+                {/* Section icons */}
+                <div className="flex-1 flex flex-col items-center gap-1">
+                  {compactIcons.map((item) => (
+                    <CompactIcon
+                      key={item.key}
+                      icon={item.icon}
+                      label={item.label}
+                      onClick={() => handleCompactIconClick(item.key)}
+                    />
+                  ))}
+                </div>
+
+                {/* Expand arrow at bottom */}
+                <button
+                  onClick={toggleCompact}
+                  title="Expand sidebar (Ctrl+Shift+B)"
+                  className="mt-auto p-1.5 rounded-md hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Resize handle */}
+                <div
+                  onMouseDown={handleMouseDown}
+                  className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors z-20"
+                />
 
-            {/* Sections */}
-            <div className="flex-1 overflow-y-auto scrollbar-thin">
-              {/* 1. Project Info — always visible, compact */}
-              <ProjectInfoSection projectPath={projectPath} />
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <RuneCodeLogo size={18} />
+                    <span className="text-sm font-semibold tracking-tight text-foreground/90">
+                      RuneCode
+                    </span>
+                  </div>
+                  {/* Compact mode toggle */}
+                  <button
+                    onClick={toggleCompact}
+                    title="Compact sidebar (Ctrl+Shift+B)"
+                    className="p-1 rounded-md hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ChevronsRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
 
-              <SectionDivider />
+                {/* Sections */}
+                <div className="flex-1 overflow-y-auto scrollbar-thin">
+                  {/* 1. Project Info -- always visible, compact */}
+                  <div ref={(el) => { sectionRefs.current["project"] = el; }}>
+                    <ProjectInfoSection projectPath={projectPath} />
+                  </div>
 
-              {/* 2. Live Context */}
-              <LiveContextSection
-                projectPath={projectPath}
-                envFilesDetected={envScan.envFiles}
-              />
+                  <SectionDivider />
 
-              <SectionDivider />
+                  {/* 2. Live Context */}
+                  <div ref={(el) => { sectionRefs.current["context"] = el; }}>
+                    <LiveContextSection
+                      projectPath={projectPath}
+                      envFilesDetected={envScan.envFiles}
+                    />
+                  </div>
 
-              {/* 3. Usage Stats — expanded by default */}
-              <UsageStatsSection />
+                  <SectionDivider />
 
-              <SectionDivider />
+                  {/* 3. Usage Stats -- expanded by default */}
+                  <div ref={(el) => { sectionRefs.current["usage"] = el; }}>
+                    <UsageStatsSection projectPath={projectPath} />
+                  </div>
 
-              {/* 4. Resources — compact */}
-              <ResourcesSection />
+                  <SectionDivider />
 
-              <SectionDivider />
+                  {/* 4. Resources -- compact */}
+                  <div ref={(el) => { sectionRefs.current["resources"] = el; }}>
+                    <ResourcesSection />
+                  </div>
 
-              {/* 5. Skills — collapsed by default */}
-              <SkillsCatalogSection activeSkills={activeSkills} />
-            </div>
+                  <SectionDivider />
 
-            {/* Security warning (side-effect only, renders nothing) */}
-            <SecurityWarning hasEnvFiles={envScan.hasEnvFiles} envFiles={envScan.envFiles} />
+                  {/* 5. Skills -- collapsed by default */}
+                  <div ref={(el) => { sectionRefs.current["skills"] = el; }}>
+                    <SkillsCatalogSection activeSkills={activeSkills} />
+                  </div>
+                </div>
+
+                {/* Security warning (side-effect only, renders nothing) */}
+                <SecurityWarning hasEnvFiles={envScan.hasEnvFiles} envFiles={envScan.envFiles} />
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -52,6 +52,10 @@ interface UsageStats {
   by_project: ProjectUsage[];
 }
 
+interface UsageStatsSectionProps {
+  projectPath?: string;
+}
+
 async function fetchUsageStats(): Promise<UsageStats> {
   try {
     if ((window as any).__TAURI__) {
@@ -176,12 +180,12 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function UsageStatsSection() {
+export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   const [collapsed, setCollapsed] = useState(false); // OPEN by default
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { data: usage } = useQuery<UsageStats>({
-    queryKey: ["usage-stats"],
+    queryKey: ["usage-stats", projectPath],
     queryFn: fetchUsageStats,
     staleTime: 30000,
     refetchInterval: 30000,
@@ -191,10 +195,27 @@ export function UsageStatsSection() {
 
   if (!usage) return null;
 
-  // Combine historical + live session data
-  const combinedCost = usage.total_cost + liveUsage.costUsd;
-  const combinedTokens = usage.total_tokens + liveUsage.inputTokens + liveUsage.outputTokens;
-  const combinedSessions = usage.total_sessions + (liveUsage.messageCount > 0 ? 1 : 0);
+  // Filter by_project to find the active project's usage
+  const projectUsage = projectPath
+    ? usage.by_project?.find(
+        (p) => p.project_path === projectPath || p.project_path.endsWith(`/${projectPath.split('/').pop()}`)
+      )
+    : undefined;
+  const projectCost = projectUsage?.total_cost || 0;
+  const projectTokens = projectUsage?.total_tokens || 0;
+  const projectSessions = projectUsage?.session_count || 0;
+
+  // Combine historical + live session data (use project-scoped if available)
+  const baseCost = projectPath ? projectCost : usage.total_cost;
+  const baseTokens = projectPath ? projectTokens : usage.total_tokens;
+  const baseSessions = projectPath ? projectSessions : usage.total_sessions;
+
+  const combinedCost = baseCost + liveUsage.costUsd;
+  const combinedTokens = baseTokens + liveUsage.inputTokens + liveUsage.outputTokens;
+  const combinedSessions = baseSessions + (liveUsage.messageCount > 0 ? 1 : 0);
+
+  // All-projects totals for comparison
+  const allCost = usage.total_cost + liveUsage.costUsd;
 
   const hasData = combinedTokens > 0 || combinedCost > 0;
 
@@ -248,11 +269,20 @@ export function UsageStatsSection() {
         <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           Usage
         </h3>
-        {hasData && (
+        {/* Rich collapsed summary */}
+        {collapsed && hasData ? (
+          <div className="ml-auto flex items-center gap-1.5 text-[10px]">
+            <span className="font-mono text-primary">{formatCost(combinedCost)}</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{formatTokens(combinedTokens)} tok</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{combinedSessions} sess</span>
+          </div>
+        ) : hasData ? (
           <span className="ml-auto text-[10px] text-muted-foreground">
             {formatCost(combinedCost)}
           </span>
-        )}
+        ) : null}
       </button>
 
       <AnimatePresence>
@@ -265,11 +295,23 @@ export function UsageStatsSection() {
             className="overflow-hidden"
           >
             <div className="py-1.5 space-y-2">
+              {/* Project vs All cost labels */}
+              {projectPath && projectUsage && (
+                <div className="flex items-center justify-between text-[10px] px-0.5">
+                  <span className="text-muted-foreground">
+                    Project: <span className="text-foreground font-medium">{formatCost(projectCost + liveUsage.costUsd)}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    All: <span className="text-foreground/70">{formatCost(allCost)}</span>
+                  </span>
+                </div>
+              )}
+
               {/* Stat cards */}
               <div className="flex gap-1.5">
                 <StatCard
                   value={formatCost(combinedCost)}
-                  label="cost"
+                  label={projectPath ? "project cost" : "cost"}
                   icon={<DollarSign className="h-3 w-3" />}
                 />
                 <StatCard
