@@ -4,6 +4,7 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { SkillsCatalogSection } from "./sidebar/SkillsCatalogSection";
+import { UsageStatsSection } from "./sidebar/UsageStatsSection";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
 import { SecurityWarning } from "../integrations/security/SecurityWarning";
 import { useEnvScanner } from "../integrations/security/useEnvScanner";
@@ -178,6 +179,7 @@ export function ProjectSidebar({
                 projectPath={projectPath}
                 envFilesDetected={envScan.envFiles}
               />
+              <UsageStatsSection />
               <ResourcesSection />
               <SkillsCatalogSection activeSkills={activeSkills} />
             </div>

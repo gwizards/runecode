@@ -187,46 +187,72 @@ async fn get_live_agents() -> impl IntoResponse {
     axum::Json(serde_json::json!([]))
 }
 
-/// Simple usage endpoint - return default empty stats
-async fn get_usage() -> Json<ApiResponse<serde_json::Value>> {
-    Json(ApiResponse::success(empty_usage_stats()))
-}
-
-/// Usage by date range - return default empty stats for web mode
-async fn get_usage_range(
-    Query(_params): Query<std::collections::HashMap<String, String>>,
+/// Usage endpoint - returns real usage stats from ~/.claude JSONL files
+async fn get_usage(
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<serde_json::Value>> {
-    Json(ApiResponse::success(empty_usage_stats()))
+    let days = params
+        .get("days")
+        .and_then(|d| d.parse::<u32>().ok());
+    match commands::usage::get_usage_stats(days) {
+        Ok(stats) => Json(ApiResponse::success(
+            serde_json::to_value(stats).unwrap_or_default(),
+        )),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
 }
 
-/// Usage sessions - return empty array for web mode
+/// Usage by date range - returns real filtered usage stats
+async fn get_usage_range(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    let start = params
+        .get("start")
+        .cloned()
+        .unwrap_or_else(|| {
+            (chrono::Local::now() - chrono::Duration::days(30))
+                .format("%Y-%m-%d")
+                .to_string()
+        });
+    let end = params
+        .get("end")
+        .cloned()
+        .unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
+    match commands::usage::get_usage_by_date_range(start, end) {
+        Ok(stats) => Json(ApiResponse::success(
+            serde_json::to_value(stats).unwrap_or_default(),
+        )),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
+}
+
+/// Usage sessions - returns real session-level stats
 async fn get_usage_sessions(
-    Query(_params): Query<std::collections::HashMap<String, String>>,
-) -> Json<ApiResponse<Vec<serde_json::Value>>> {
-    Json(ApiResponse::success(vec![]))
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    let since = params.get("since").cloned();
+    let until = params.get("until").cloned();
+    let order = params.get("order").cloned();
+    match commands::usage::get_session_stats(since, until, order) {
+        Ok(sessions) => Json(ApiResponse::success(
+            serde_json::to_value(sessions).unwrap_or_default(),
+        )),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
 }
 
-/// Usage details - return empty array for web mode
+/// Usage details - returns real per-entry usage data
 async fn get_usage_details(
-    Query(_params): Query<std::collections::HashMap<String, String>>,
-) -> Json<ApiResponse<Vec<serde_json::Value>>> {
-    Json(ApiResponse::success(vec![]))
-}
-
-/// Helper to build an empty UsageStats-shaped object
-fn empty_usage_stats() -> serde_json::Value {
-    serde_json::json!({
-        "total_cost": 0.0,
-        "total_sessions": 0,
-        "total_tokens": 0,
-        "total_input_tokens": 0,
-        "total_output_tokens": 0,
-        "total_cache_creation_tokens": 0,
-        "total_cache_read_tokens": 0,
-        "by_model": [],
-        "by_project": [],
-        "by_date": []
-    })
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    let project_path = params.get("project_path").cloned();
+    let date = params.get("date").cloned();
+    match commands::usage::get_usage_details(project_path, date) {
+        Ok(details) => Json(ApiResponse::success(
+            serde_json::to_value(details).unwrap_or_default(),
+        )),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
 }
 
 /// Get Claude settings - return basic defaults for web mode
