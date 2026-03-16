@@ -152,17 +152,19 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                 <>
                   <button
                     className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-                    onClick={() => setSelectedImageIndex((prev) => 
+                    onClick={() => setSelectedImageIndex((prev) =>
                       prev !== null ? (prev - 1 + displayImages.length) % displayImages.length : 0
                     )}
+                    aria-label="Previous image"
                   >
                     ←
                   </button>
                   <button
                     className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-                    onClick={() => setSelectedImageIndex((prev) => 
+                    onClick={() => setSelectedImageIndex((prev) =>
                       prev !== null ? (prev + 1) % displayImages.length : 0
                     )}
+                    aria-label="Next image"
                   >
                     →
                   </button>

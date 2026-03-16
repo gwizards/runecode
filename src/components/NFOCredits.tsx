@@ -199,6 +199,7 @@ export const NFOCredits: React.FC<NFOCreditsProps> = ({ onClose }) => {
                     e.stopPropagation();
                     await openUrl("https://asterisk.so");
                   }}
+                  aria-label="Visit Asterisk website"
                 >
                   <img 
                     src={asteriskLogo} 
