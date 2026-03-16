@@ -11,12 +11,8 @@ import { ProjectList } from "@/components/ProjectList";
 import { FilePicker } from "@/components/FilePicker";
 import { SessionList } from "@/components/SessionList";
 import { CustomTitlebar } from "@/components/CustomTitlebar";
-import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { ClaudeFileEditor } from "@/components/ClaudeFileEditor";
-import { Settings } from "@/components/Settings";
 import { CCAgents } from "@/components/CCAgents";
-import { UsageDashboard } from "@/components/UsageDashboard";
-import { MCPManager } from "@/components/MCPManager";
 import { NFOCredits } from "@/components/NFOCredits";
 import { ClaudeBinaryDialog } from "@/components/ClaudeBinaryDialog";
 import { Toast, ToastContainer } from "@/components/ui/toast";
@@ -332,14 +328,9 @@ function AppContent() {
         );
 
       case "editor":
-        return (
-          <div className="flex-1 overflow-hidden">
-            <MarkdownEditor onBack={() => handleViewChange("welcome")} />
-          </div>
-        );
-      
       case "settings":
-        return <Settings onBack={() => handleViewChange("welcome")} />;
+        // These views are now handled via the tab system in TabContent
+        return null;
       
       case "projects":
         if (selectedProject) {
@@ -382,14 +373,9 @@ function AppContent() {
         );
       
       case "usage-dashboard":
-        return (
-          <UsageDashboard onBack={() => handleViewChange("welcome")} />
-        );
-      
       case "mcp":
-        return (
-          <MCPManager onBack={() => handleViewChange("welcome")} />
-        );
+        // These views are now handled via the tab system in TabContent
+        return null;
       
       case "project-settings":
         if (projectForSettings) {
