@@ -35,6 +35,7 @@ import { analytics } from "@/lib/analytics";
 import { TabPersistenceService } from "@/services/tabPersistence";
 import { useIntegrationConfig } from "@/integrations/hooks/useIntegrationConfig";
 import { INTEGRATIONS } from "@/integrations/config";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 
 interface SettingsProps {
   /**
@@ -549,7 +550,8 @@ export const Settings: React.FC<SettingsProps> = ({
       ) : (
         <div className="flex-1 overflow-y-auto p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-10 w-full mb-6 h-auto p-1">
+            <TabsList className="grid grid-cols-11 w-full mb-6 h-auto p-1">
+              <TabsTrigger value="appearance" className="py-2.5 px-3">Appearance</TabsTrigger>
               <TabsTrigger value="general" className="py-2.5 px-3">General</TabsTrigger>
               <TabsTrigger value="models" className="py-2.5 px-3">Models</TabsTrigger>
               <TabsTrigger value="permissions" className="py-2.5 px-3">Permissions</TabsTrigger>
@@ -562,6 +564,11 @@ export const Settings: React.FC<SettingsProps> = ({
               <TabsTrigger value="integrations" className="py-2.5 px-3">Integrations</TabsTrigger>
             </TabsList>
             
+            {/* Appearance */}
+            <TabsContent value="appearance" className="space-y-6 mt-6">
+              <AppearanceSettings />
+            </TabsContent>
+
             {/* Models / Intelligence */}
             <TabsContent value="models" className="space-y-6 mt-6">
               <Card className="p-6 space-y-4">

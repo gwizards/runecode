@@ -9,7 +9,7 @@ interface ShikiCodeBlockProps {
 
 export function ShikiCodeBlock({ code, language = 'text', theme: themeProp }: ShikiCodeBlockProps) {
   const { theme: appTheme } = useThemeContext();
-  const theme = themeProp ?? (appTheme === 'light' ? 'github-light' : 'github-dark');
+  const theme = themeProp ?? (appTheme === 'daylight' ? 'github-light' : 'github-dark');
   const highlighter = useShiki();
 
   if (!highlighter) {
