@@ -45,32 +45,32 @@ export class HooksManager {
       }
       
       if (matchers.length > 0) {
-        (merged as any)[event] = matchers;
+        (merged as Record<string, HookMatcher[] | HookCommand[]>)[event] = matchers;
       }
     }
-    
+
     // Merge events without matchers
     for (const event of directEvents) {
       // Combine all hooks from all levels (local takes precedence)
       const hooks: HookCommand[] = [];
-      
+
       // Add user hooks
       if (user[event]) {
         hooks.push(...(user[event] as HookCommand[]));
       }
-      
+
       // Add project hooks
       if (project[event]) {
         hooks.push(...(project[event] as HookCommand[]));
       }
-      
+
       // Add local hooks (highest priority)
       if (local[event]) {
         hooks.push(...(local[event] as HookCommand[]));
       }
-      
+
       if (hooks.length > 0) {
-        (merged as any)[event] = hooks;
+        (merged as Record<string, HookMatcher[] | HookCommand[]>)[event] = hooks;
       }
     }
     

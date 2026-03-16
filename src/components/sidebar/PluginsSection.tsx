@@ -14,7 +14,7 @@ export function PluginsSection() {
     queryKey: ['plugins-list'],
     queryFn: async (): Promise<SafePluginGroup[]> => {
       let raw: unknown;
-      if ((window as any).__TAURI__) {
+      if (window.__TAURI__) {
         const { invoke } = await import('@tauri-apps/api/core');
         raw = await invoke('get_skills_catalog');
       } else {

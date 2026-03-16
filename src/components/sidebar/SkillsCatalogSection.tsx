@@ -32,7 +32,7 @@ export function SkillsCatalogSection({ activeSkills }: SkillsCatalogSectionProps
     async function loadSkills() {
       try {
         let raw: any;
-        if ((window as any).__TAURI__) {
+        if (window.__TAURI__) {
           const { invoke } = await import('@tauri-apps/api/core');
           raw = await invoke('get_skills_catalog');
         } else {

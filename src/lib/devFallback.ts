@@ -15,9 +15,9 @@ import type { Project, Session } from './api';
 export function isDevMode(): boolean {
   if (typeof window === 'undefined') return false;
   const noTauri = !(
-    (window as any).__TAURI__ ||
-    (window as any).__TAURI_METADATA__ ||
-    (window as any).__TAURI_INTERNALS__
+    window.__TAURI__ ||
+    window.__TAURI_METADATA__ ||
+    window.__TAURI_INTERNALS__
   );
   const isDevPort = window.location.port === '1420';
   return noTauri && isDevPort;

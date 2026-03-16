@@ -38,7 +38,7 @@ export function useAgentLifecycle() {
     window.addEventListener('agent-lifecycle', handleEvent);
 
     // Try Tauri listen
-    if ((window as any).__TAURI_INTERNALS__ && !(window as any).__TAURI_INTERNALS__.__WEB_MODE_MOCK__) {
+    if (window.__TAURI_INTERNALS__ && !window.__TAURI_INTERNALS__.__WEB_MODE_MOCK__) {
       import('@tauri-apps/api/event').then(({ listen }) => {
         listen('agent-lifecycle', handleEvent).then(fn => {
           if (isCancelled) fn(); // cleanup immediately if already unmounted

@@ -85,7 +85,7 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
 
   const handleOpenProject = async () => {
     try {
-      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       let selected: string | null = null;
 
       if (!isWebMode) {

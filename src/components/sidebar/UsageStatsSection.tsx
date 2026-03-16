@@ -58,7 +58,7 @@ interface UsageStatsSectionProps {
 
 async function fetchUsageStats(): Promise<UsageStats> {
   try {
-    if ((window as any).__TAURI__) {
+    if (window.__TAURI__) {
       const { invoke } = await import("@tauri-apps/api/core");
       return (await invoke("get_usage_stats", {})) as UsageStats;
     }

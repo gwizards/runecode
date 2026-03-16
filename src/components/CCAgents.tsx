@@ -188,7 +188,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
 
   const handleExportAgent = async (agent: Agent) => {
     try {
-      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       if (isWebMode) {
         setToast({ message: "Export is only available in desktop mode", type: "error" });
         return;
@@ -219,7 +219,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
 
   const handleImportAgent = async () => {
     try {
-      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       if (isWebMode) {
         setToast({ message: "Import is only available in desktop mode", type: "error" });
         return;

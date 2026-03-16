@@ -6,6 +6,12 @@ import { Label } from "@/components/ui/label";
 import { SelectComponent } from "@/components/ui/select";
 import { api } from "@/lib/api";
 
+interface MCPServerImportConfig {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
 interface MCPImportExportProps {
   /**
    * Callback when import is completed
@@ -94,13 +100,14 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
         let imported = 0;
         let failed = 0;
 
-        for (const [name, config] of Object.entries(jsonData.mcpServers)) {
+        for (const [name, rawConfig] of Object.entries(jsonData.mcpServers)) {
           try {
+            const config = rawConfig as MCPServerImportConfig;
             const serverConfig = {
               type: "stdio",
-              command: (config as any).command,
-              args: (config as any).args || [],
-              env: (config as any).env || {}
+              command: config.command,
+              args: config.args || [],
+              env: config.env || {}
             };
             
             const result = await api.mcpAddJson(name, JSON.stringify(serverConfig), importScope);

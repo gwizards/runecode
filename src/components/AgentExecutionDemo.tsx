@@ -20,7 +20,7 @@ export const AgentExecutionDemo: React.FC = () => {
     {
       leafUuid: "3c5ecb4f-c1f0-40c2-a357-ab7642ad28b8",
       summary: "JSONL Viewer Model Configuration and Setup",
-      type: "summary" as any
+      type: "summary"
     },
     
     // Assistant with Edit tool

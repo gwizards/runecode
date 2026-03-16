@@ -34,14 +34,14 @@ export function useClaudeMessages(options: UseClaudeMessagesOptions = {}) {
 
   const handleMessage = useCallback((message: ClaudeStreamMessage) => {
     
-    if ((message as any).type === "start") {
+    if (message.type === "start") {
       // Clear accumulated content for new stream
       accumulatedContentRef.current = {};
       setIsStreaming(true);
       options.onStreamingChange?.(true, currentSessionId);
-    } else if ((message as any).type === "partial") {
+    } else if (message.type === "partial") {
       if (message.tool_calls && message.tool_calls.length > 0) {
-        message.tool_calls.forEach((toolCall: any) => {
+        message.tool_calls.forEach((toolCall) => {
           if (toolCall.content && toolCall.partial_tool_call_index !== undefined) {
             const key = `tool-${toolCall.partial_tool_call_index}`;
             if (!accumulatedContentRef.current[key]) {
@@ -52,14 +52,14 @@ export function useClaudeMessages(options: UseClaudeMessagesOptions = {}) {
           }
         });
       }
-    } else if ((message as any).type === "response" && message.message?.usage) {
-      const totalTokens = (message.message.usage.input_tokens || 0) + 
+    } else if (message.type === "response" && message.message?.usage) {
+      const totalTokens = (message.message.usage.input_tokens || 0) +
                          (message.message.usage.output_tokens || 0);
       options.onTokenUpdate?.(totalTokens);
-    } else if ((message as any).type === "error" || (message as any).type === "response") {
+    } else if (message.type === "error" || message.type === "response") {
       setIsStreaming(false);
       options.onStreamingChange?.(false, currentSessionId);
-    } else if ((message as any).type === "output") {
+    } else if (message.type === "output") {
     } else {
     }
     setMessages(prev => {
@@ -69,12 +69,12 @@ export function useClaudeMessages(options: UseClaudeMessagesOptions = {}) {
     setRawJsonlOutput(prev => [...prev, JSON.stringify(message)]);
 
     // Extract session info
-    if ((message as any).type === "session_info" && (message as any).session_id && (message as any).project_id) {
+    if (message.type === "session_info" && message.session_id && message.project_id) {
       options.onSessionInfo?.({
-        sessionId: (message as any).session_id,
-        projectId: (message as any).project_id
+        sessionId: message.session_id,
+        projectId: message.project_id
       });
-      setCurrentSessionId((message as any).session_id);
+      setCurrentSessionId(message.session_id);
     }
   }, [currentSessionId, options]);
 

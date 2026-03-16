@@ -1695,7 +1695,8 @@ export const api = {
         searchQuery,
       });
     } catch (error) {
-      console.error("Failed to read table:", error);
+      // Demote to debug — storage tables may not exist in web mode
+      console.debug("Failed to read table:", error);
       throw error;
     }
   },
@@ -1814,7 +1815,8 @@ export const api = {
       const setting = result?.data?.find((row: any) => row.key === key);
       return setting?.value || null;
     } catch (error) {
-      console.error(`Failed to get setting ${key}:`, error);
+      // Expected to fail in web mode where storage tables may not exist
+      console.debug(`[API] getSetting('${key}') unavailable:`, error);
       return null;
     }
   },

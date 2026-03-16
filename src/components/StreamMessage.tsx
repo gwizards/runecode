@@ -147,7 +147,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
     }
 
     // Handle summary messages
-    if (message.leafUuid && message.summary && (message as any).type === "summary") {
+    if (message.leafUuid && message.summary && message.type === "summary") {
       return <SummaryWidget summary={message.summary} leafUuid={message.leafUuid} />;
     }
 

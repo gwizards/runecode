@@ -275,6 +275,30 @@ function mapCommandToEndpoint(command: string, _params?: any): string {
     'get_proxy_settings': '/api/settings/proxy',
     'save_proxy_settings': '/api/settings/proxy',
 
+    // Home directory
+    'get_home_directory': '/api/home-directory',
+
+    // File browsing
+    'list_directory_contents': '/api/files/list',
+    'search_files': '/api/files/search',
+
+    // Additional checkpoint commands
+    'fork_from_checkpoint': '/api/checkpoints/fork',
+    'get_session_timeline': '/api/checkpoints/timeline',
+    'update_checkpoint_settings': '/api/checkpoints/settings',
+    'get_checkpoint_settings': '/api/checkpoints/settings',
+    'track_checkpoint_message': '/api/checkpoints/track-message',
+    'check_auto_checkpoint': '/api/checkpoints/auto-check',
+    'cleanup_old_checkpoints': '/api/checkpoints/cleanup',
+    'track_session_messages': '/api/checkpoints/track-sessions',
+
+    // Project management
+    'create_project': '/api/project/init',
+    'initialize_project': '/api/project/init',
+
+    // Agent runs with metrics (alias)
+    'list_agent_runs_with_metrics': '/api/agents/runs',
+
   };
 
   const endpoint = commandToEndpoint[command];

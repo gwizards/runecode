@@ -17,7 +17,7 @@ import "./styles.css";
 import AppIcon from "./assets/nfo/asterisk-logo.png";
 
 // Detect web mode: either no Tauri internals or mocked internals from apiAdapter
-const tauriInternals = (window as any).__TAURI_INTERNALS__;
+const tauriInternals = window.__TAURI_INTERNALS__;
 const isWebMode = !tauriInternals || tauriInternals.__WEB_MODE_MOCK__;
 
 // Initialize analytics before rendering

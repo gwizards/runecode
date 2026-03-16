@@ -496,9 +496,10 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     if (session) {
       try {
         const activeSessions = await api.listRunningClaudeSessions();
-        const activeSession = activeSessions.find((s: any) => {
-          if ('process_type' in s && s.process_type && 'ClaudeSession' in s.process_type) {
-            return (s.process_type as any).ClaudeSession.session_id === session.id;
+        const activeSession = activeSessions.find((s: Record<string, unknown>) => {
+          if ('process_type' in s && s.process_type && typeof s.process_type === 'object' && 'ClaudeSession' in (s.process_type as Record<string, unknown>)) {
+            const claudeSession = (s.process_type as Record<string, Record<string, unknown>>).ClaudeSession;
+            return claudeSession?.session_id === session.id;
           }
           return false;
         });

@@ -3,8 +3,10 @@ import { api } from './api';
 
 // Use the same message interface as AgentExecution for consistency
 export interface ClaudeStreamMessage {
-  type: "system" | "assistant" | "user" | "result";
+  type: "system" | "assistant" | "user" | "result" | "summary" | "start" | "partial" | "response" | "error" | "output" | "session_info";
   subtype?: string;
+  session_id?: string;
+  project_id?: string;
   message?: {
     content?: any[];
     usage?: {
@@ -16,6 +18,12 @@ export interface ClaudeStreamMessage {
     input_tokens: number;
     output_tokens: number;
   };
+  tool_calls?: Array<{
+    content?: string;
+    partial_tool_call_index?: number;
+    accumulated_content?: string;
+    [key: string]: any;
+  }>;
   [key: string]: any;
 }
 
