@@ -31,17 +31,13 @@ try {
     tauriListen = require("@tauri-apps/api/event").listen;
   }
 } catch (e) {
-  console.log('[ClaudeCodeSession] Tauri APIs not available, using web mode');
+  // Tauri APIs not available, using web mode
 }
 
 // Web-compatible replacements
 const listen = tauriListen || ((eventName: string, callback: (event: any) => void) => {
-  console.log('[ClaudeCodeSession] Setting up DOM event listener for:', eventName);
-
   // In web mode, listen for DOM events
   const domEventHandler = (event: any) => {
-    console.log('[ClaudeCodeSession] DOM event received:', eventName, event.detail);
-    // Simulate Tauri event structure
     callback({ payload: event.detail });
   };
 
@@ -49,7 +45,6 @@ const listen = tauriListen || ((eventName: string, callback: (event: any) => voi
 
   // Return unlisten function
   return Promise.resolve(() => {
-    console.log('[ClaudeCodeSession] Removing DOM event listener for:', eventName);
     window.removeEventListener(eventName, domEventHandler);
   });
 });
@@ -346,14 +341,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // Debug logging
   useEffect(() => {
-    console.log('[ClaudeCodeSession] State update:', {
-      projectPath,
-      session,
-      extractedSessionInfo,
-      effectiveSession,
-      messagesCount: messages.length,
-      isLoading
-    });
+    // State tracking (debug only)
   }, [projectPath, session, extractedSessionInfo, effectiveSession, messages.length, isLoading]);
 
   // Load session history if resuming
@@ -555,7 +543,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     // Set up session-specific listeners
     const outputUnlisten = await listen(`claude-output:${sessionId}`, async (event: any) => {
       try {
-        console.log('[ClaudeCodeSession] Received claude-output on reconnect:', event.payload);
         
         if (!isMountedRef.current) return;
         
@@ -577,8 +564,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       }
     });
 
-    const completeUnlisten = await listen(`claude-complete:${sessionId}`, async (event: any) => {
-      console.log('[ClaudeCodeSession] Received claude-complete on reconnect:', event.payload);
+    const completeUnlisten = await listen(`claude-complete:${sessionId}`, async (_event: any) => {
       if (isMountedRef.current) {
         setIsLoading(false);
         hasActiveSessionRef.current = false;
@@ -597,7 +583,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // Project path selection handled by parent tab controls
 
   const handleSendPrompt = async (prompt: string, model: "sonnet" | "opus") => {
-    console.log('[ClaudeCodeSession] handleSendPrompt called with:', { prompt, model, projectPath, claudeSessionId, effectiveSession });
+
     
     if (!projectPath) {
       setError("Please select a project directory first");
@@ -647,13 +633,13 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         //     generic ones to prevent duplicate handling.
         // --------------------------------------------------------------------
 
-        console.log('[ClaudeCodeSession] Setting up generic event listeners first');
+
 
         let currentSessionId: string | null = claudeSessionId || effectiveSession?.id || null;
 
         // Helper to attach session-specific listeners **once we are sure**
         const attachSessionSpecificListeners = async (sid: string) => {
-          console.log('[ClaudeCodeSession] Attaching session-specific listeners for', sid);
+
 
           const specificOutputUnlisten = await listen(`claude-output:${sid}`, (evt: any) => {
             handleStreamMessage(evt.payload);
@@ -665,7 +651,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           });
 
           const specificCompleteUnlisten = await listen(`claude-complete:${sid}`, (evt: any) => {
-            console.log('[ClaudeCodeSession] Received claude-complete (scoped):', evt.payload);
             processComplete(evt.payload);
           });
 
@@ -729,8 +714,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               rawPayload = JSON.stringify(payload);
             }
             
-            console.log('[ClaudeCodeSession] handleStreamMessage - message type:', message.type);
-
             // Store raw JSONL
             setRawJsonlOutput((prev) => [...prev, rawPayload]);
 
@@ -912,7 +895,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         });
 
         const genericCompleteUnlisten = await listen('claude-complete', (evt: any) => {
-          console.log('[ClaudeCodeSession] Received claude-complete (generic):', evt.payload);
           processComplete(evt.payload);
         });
 
@@ -1262,7 +1244,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   };
 
   const handlePreviewUrlChange = (url: string) => {
-    console.log('[ClaudeCodeSession] Preview URL changed to:', url);
+
     setPreviewUrl(url);
   };
 
@@ -1279,7 +1261,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     isMountedRef.current = true;
     
     return () => {
-      console.log('[ClaudeCodeSession] Component unmounting, cleaning up listeners');
+
       isMountedRef.current = false;
       isListeningRef.current = false;
       

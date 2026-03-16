@@ -48,7 +48,7 @@ html {
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/src/assets/fonts/inter/Inter.ttf') format('truetype-variations');
+  src: url('./assets/fonts/inter/Inter.ttf') format('truetype');
 }
 
 /* Heading font — Instrument Sans */

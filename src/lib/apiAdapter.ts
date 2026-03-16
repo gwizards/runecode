@@ -132,7 +132,6 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
   
   if (!isWeb) {
     // Tauri environment - try invoke
-    console.log(`[Tauri] Calling: ${command}`, params);
     try {
       return await invoke<T>(command, params);
     } catch (error) {
@@ -142,7 +141,6 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
   }
   
   // Web environment - use REST API
-  console.log(`[Web] Calling: ${command}`, params);
   
   // Special handling for commands that use streaming/events
   const streamingCommands = ['execute_claude_code', 'continue_claude_code', 'resume_claude_code'];
@@ -367,7 +365,7 @@ async function handleStreamingCommand<T>(command: string, params?: any): Promise
     
     let settled = false;
 
-    ws.onerror = (error) => {
+    ws.onerror = (_error) => {
 
       // Dispatch claude-error event for connection errors
       const errorEvent = new CustomEvent('claude-error', {
