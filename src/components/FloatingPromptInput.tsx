@@ -7,6 +7,7 @@ import {
   Square,
   Copy,
 } from "lucide-react";
+import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
 import { RotatingRune } from "./RuneCodeLogo";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { TooltipProvider, TooltipSimple } from "@/components/ui/tooltip-modern";
 import { FilePicker } from "./FilePicker";
 import { SlashCommandPicker } from "./SlashCommandPicker";
 import { ImagePreview } from "./ImagePreview";
-import { type FileEntry, type SlashCommand } from "@/lib/api";
+import { api, type FileEntry, type SlashCommand } from "@/lib/api";
 import { ConfigPill } from '@/components/ConfigPill';
 import { ConfigPanel } from '@/components/ConfigPanel';
 import { useSessionConfig, type ThinkingMode } from '@/hooks/useSessionConfig';
@@ -59,6 +60,14 @@ interface FloatingPromptInputProps {
    * Project path for file picker
    */
   projectPath?: string;
+  /**
+   * Session ID for checkpoint queries
+   */
+  sessionId?: string;
+  /**
+   * Project ID for checkpoint queries
+   */
+  projectId?: string;
   /**
    * Optional className for styling
    */
@@ -110,6 +119,8 @@ const FloatingPromptInputInner = (
     disabled = false,
     defaultModel: _defaultModel = "sonnet",
     projectPath,
+    sessionId,
+    projectId,
     className,
     onCancel,
     onCopyMarkdown,
@@ -119,6 +130,18 @@ const FloatingPromptInputInner = (
 ) => {
   // Model and thinking mode are read from the store at send time
   // via useSessionConfig.getState()
+
+  // Fetch checkpoint count from session timeline
+  const { data: checkpointCount = 0 } = useQuery({
+    queryKey: ['checkpoint-count', sessionId, projectId],
+    queryFn: async () => {
+      const timeline = await api.getSessionTimeline(sessionId!, projectId!, projectPath || '');
+      return timeline?.totalCheckpoints || 0;
+    },
+    staleTime: 30000,
+    enabled: !!sessionId && !!projectId,
+  });
+
   const [prompt, setPrompt] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
@@ -909,11 +932,16 @@ const FloatingPromptInputInner = (
                     <ConfigPill
                       onClick={() => setConfigPanelOpen(!configPanelOpen)}
                       isOpen={configPanelOpen}
-                      checkpointCount={0}
+                      checkpointCount={checkpointCount}
                     />
                     <AnimatePresence>
                       {configPanelOpen && (
-                        <ConfigPanel onClose={() => setConfigPanelOpen(false)} />
+                        <ConfigPanel
+                          onClose={() => setConfigPanelOpen(false)}
+                          sessionId={sessionId}
+                          projectId={projectId}
+                          projectPath={projectPath}
+                        />
                       )}
                     </AnimatePresence>
                   </div>

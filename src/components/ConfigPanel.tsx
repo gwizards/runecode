@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Zap, Sparkles, Lightbulb, Brain, Cpu, Rocket, GitBranch } from 'lucide-react';
+import { Zap, Sparkles, Lightbulb, Brain, Cpu, Rocket, GitBranch, Save, Clock } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSessionConfig, type ModelId, type ThinkingMode } from '@/hooks/useSessionConfig';
+import { api } from '@/lib/api';
 
 const MODELS: {
   id: ModelId;
@@ -76,10 +79,38 @@ const THINKING_LEVELS: {
 
 interface ConfigPanelProps {
   onClose: () => void;
+  sessionId?: string;
+  projectId?: string;
+  projectPath?: string;
 }
 
-export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
+export function ConfigPanel({ onClose: _onClose, sessionId, projectId, projectPath }: ConfigPanelProps) {
   const { model, setModel, thinkingMode, setThinkingMode } = useSessionConfig();
+  const queryClient = useQueryClient();
+  const [isCreatingCheckpoint, setIsCreatingCheckpoint] = useState(false);
+
+  const { data: checkpointSettings } = useQuery({
+    queryKey: ['checkpoint-settings', sessionId, projectId],
+    queryFn: async () => {
+      return api.getCheckpointSettings(sessionId!, projectId!, projectPath || '');
+    },
+    staleTime: 30000,
+    enabled: !!sessionId && !!projectId,
+  });
+
+  const handleCreateCheckpoint = async () => {
+    if (!sessionId || !projectId) return;
+    setIsCreatingCheckpoint(true);
+    try {
+      await api.createCheckpoint(sessionId, projectId, projectPath || '', undefined, 'Manual checkpoint');
+      queryClient.invalidateQueries({ queryKey: ['checkpoint-count', sessionId, projectId] });
+      queryClient.invalidateQueries({ queryKey: ['checkpoint-settings', sessionId, projectId] });
+    } catch (err) {
+      console.error('Failed to create checkpoint:', err);
+    } finally {
+      setIsCreatingCheckpoint(false);
+    }
+  };
 
   return (
     <motion.div
@@ -278,48 +309,70 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
               Checkpoints
             </span>
           </div>
-          <button
-            className="text-[10px] font-medium rounded-full px-2.5 py-1 transition-all cursor-not-allowed"
-            style={{
-              color: 'var(--color-purple-400)',
-              backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, var(--color-void-elevated))',
-              border: '1px solid color-mix(in oklch, var(--color-purple-500) 15%, var(--color-void-elevated))',
-              opacity: 0.5,
-            }}
-            disabled
-          >
-            ↺ Rewind
-          </button>
+          {checkpointSettings && (
+            <span
+              className="text-[10px] font-mono"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              {checkpointSettings.total_checkpoints} saved
+            </span>
+          )}
         </div>
 
-        {/* Checkpoint timeline placeholder */}
-        <div
-          className="rounded-lg p-4 flex flex-col items-center justify-center gap-2"
-          style={{
-            backgroundColor: 'var(--color-void-raised)',
-            border: '1px dashed var(--color-border-subtle)',
-          }}
-        >
-          <div className="flex items-center gap-1">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex flex-col items-center gap-1">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    backgroundColor: i === 1
-                      ? 'var(--color-purple-500)'
-                      : 'var(--color-void-overlay)',
-                  }}
-                />
-              </div>
-            ))}
-            <div className="flex-1 h-px ml-1" style={{
-              background: 'linear-gradient(90deg, var(--color-border-subtle), transparent)',
-            }} />
-          </div>
-          <p className="text-[10px] italic" style={{ color: 'var(--color-text-muted)' }}>
-            Auto-checkpoints coming soon
-          </p>
+        <div className="space-y-1.5">
+          <button
+            onClick={handleCreateCheckpoint}
+            disabled={!sessionId || !projectId || isCreatingCheckpoint}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-all cursor-pointer text-left disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: 'var(--color-void-raised)',
+              border: '1px solid var(--color-border-subtle)',
+            }}
+          >
+            <div
+              className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+              style={{ backgroundColor: 'var(--color-void-overlay)' }}
+            >
+              <Save className="h-3.5 w-3.5" style={{ color: 'var(--color-purple-400)' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[12px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                {isCreatingCheckpoint ? 'Creating...' : 'Create Checkpoint'}
+              </span>
+              <span className="text-[10px] ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                Save current state
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => {
+              // Dispatch a custom event to open the timeline navigator
+              window.dispatchEvent(new CustomEvent('opcode:open-timeline'));
+              _onClose();
+            }}
+            disabled={!sessionId || !projectId}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-all cursor-pointer text-left disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: 'var(--color-void-raised)',
+              border: '1px solid var(--color-border-subtle)',
+            }}
+          >
+            <div
+              className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+              style={{ backgroundColor: 'var(--color-void-overlay)' }}
+            >
+              <Clock className="h-3.5 w-3.5" style={{ color: 'var(--color-purple-400)' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[12px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                View Timeline
+              </span>
+              <span className="text-[10px] ml-2" style={{ color: 'var(--color-text-muted)' }}>
+                Browse & restore
+              </span>
+            </div>
+          </button>
         </div>
       </div>
 

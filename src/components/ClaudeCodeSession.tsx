@@ -362,6 +362,13 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     onStreamingChange?.(isLoading, claudeSessionId);
   }, [isLoading, claudeSessionId, onStreamingChange]);
 
+  // Listen for timeline open requests from ConfigPanel
+  useEffect(() => {
+    const handler = () => setShowTimeline(true);
+    window.addEventListener('opcode:open-timeline', handler);
+    return () => window.removeEventListener('opcode:open-timeline', handler);
+  }, []);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (displayableMessages.length > 0) {
@@ -1608,6 +1615,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               isLoading={isLoading}
               disabled={!projectPath}
               projectPath={projectPath}
+              sessionId={effectiveSession?.id}
+              projectId={effectiveSession?.project_id}
               onCopyMarkdown={() => handleCopyAsMarkdown()}
               onCopyJsonl={() => handleCopyAsJsonl()}
             />

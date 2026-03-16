@@ -322,6 +322,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             onSend={handleSendPrompt}
             disabled={!projectPath}
             isLoading={isStreaming}
+            projectPath={projectPath}
+            sessionId={claudeSessionId || session?.id}
+            projectId={session?.project_id}
             onCancel={async () => {
               if (claudeSessionId && isStreaming) {
                 await api.cancelClaudeExecution(claudeSessionId);
