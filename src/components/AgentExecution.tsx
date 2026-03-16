@@ -805,7 +805,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
 
       {/* Fullscreen Modal */}
       {isFullscreenModalOpen && (
-        <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        <div className="fixed inset-0 z-[60] bg-background flex flex-col">
           {/* Modal Header */}
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">

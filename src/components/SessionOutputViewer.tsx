@@ -378,7 +378,7 @@ export function SessionOutputViewer({ session, onClose, className }: SessionOutp
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.2 }}
-        className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''} ${className}`}
+        className={`${isFullscreen ? 'fixed inset-0 z-[60] bg-background' : ''} ${className}`}
       >
         <Card className={`h-full ${isFullscreen ? 'rounded-none border-0' : ''}`}>
           <CardHeader className="pb-3">
@@ -544,7 +544,7 @@ export function SessionOutputViewer({ session, onClose, className }: SessionOutp
 
       {/* Fullscreen Modal */}
       {isFullscreen && (
-        <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        <div className="fixed inset-0 z-[60] bg-background flex flex-col">
           {/* Modal Header */}
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">

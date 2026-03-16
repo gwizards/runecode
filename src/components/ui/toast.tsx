@@ -100,7 +100,7 @@ interface ToastContainerProps {
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ children }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center p-4 pointer-events-none">
+    <div className="fixed bottom-0 left-0 right-0 z-[55] flex justify-center p-4 pointer-events-none">
       <div className="pointer-events-auto">
         <AnimatePresence mode="wait">
           {children}

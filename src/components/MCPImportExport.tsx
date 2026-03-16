@@ -174,7 +174,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
         <Card className="p-4">
           <div className="space-y-3">
             <div className="flex items-center gap-2 mb-2">
-              <Settings2 className="h-4 w-4 text-slate-500" />
+              <Settings2 className="h-4 w-4 text-muted-foreground" />
               <Label className="text-sm font-medium">Import Scope</Label>
             </div>
             <SelectComponent

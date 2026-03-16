@@ -31,8 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, type Agent, type AgentRunWithMetrics } from "@/lib/api";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
+// Dialog and invoke imports are done dynamically to support web mode
 import { cn } from "@/lib/utils";
 import { Toast, ToastContainer } from "@/components/ui/toast";
 import { CreateAgent } from "./CreateAgent";
@@ -189,7 +188,13 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
 
   const handleExportAgent = async (agent: Agent) => {
     try {
-      // Show native save dialog
+      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      if (isWebMode) {
+        setToast({ message: "Export is only available in desktop mode", type: "error" });
+        return;
+      }
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { invoke } = await import('@tauri-apps/api/core');
       const filePath = await save({
         defaultPath: `${agent.name.toLowerCase().replace(/\s+/g, '-')}.runecode.json`,
         filters: [{
@@ -197,16 +202,12 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
           extensions: ['runecode.json']
         }]
       });
-      
-      if (!filePath) {
-        // User cancelled the dialog
-        return;
-      }
-      
-      // Export the agent to the selected file
-      await invoke('export_agent_to_file', { 
+
+      if (!filePath) return;
+
+      await invoke('export_agent_to_file', {
         id: agent.id!,
-        filePath 
+        filePath
       });
       
       setToast({ message: `Agent "${agent.name}" exported successfully`, type: "success" });
@@ -218,7 +219,12 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
 
   const handleImportAgent = async () => {
     try {
-      // Show native open dialog
+      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      if (isWebMode) {
+        setToast({ message: "Import is only available in desktop mode", type: "error" });
+        return;
+      }
+      const { open } = await import('@tauri-apps/plugin-dialog');
       const filePath = await open({
         multiple: false,
         filters: [{

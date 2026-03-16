@@ -1536,7 +1536,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ delay: 0.5 }}
-              className="fixed bottom-32 right-6 z-50"
+              className="fixed bottom-32 right-6 z-40"
             >
               <div className="flex items-center bg-background/95 backdrop-blur-md border rounded-full shadow-lg overflow-hidden">
                 <TooltipSimple content="Scroll to top" side="top">
@@ -1614,7 +1614,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           )}
 
           <div className={cn(
-            "fixed bottom-0 left-0 right-0 transition-all duration-300 z-50",
+            "fixed bottom-0 left-0 right-0 transition-all duration-300 z-40",
             showTimeline && "sm:right-96"
           )}>
             <FloatingPromptInput

@@ -21,11 +21,11 @@ const statusDotClass = (status: string) => {
     case 'thinking':
       return 'bg-blue-500';
     case 'completed':
-      return 'bg-gray-400';
+      return 'bg-muted-foreground';
     case 'failed':
       return 'bg-red-500';
     default:
-      return 'bg-gray-400';
+      return 'bg-muted-foreground';
   }
 };
 

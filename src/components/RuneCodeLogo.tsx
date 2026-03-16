@@ -17,27 +17,27 @@ export function RuneCodeLogo({ size = 32, className = '' }: RuneCodeLogoProps) {
       className={className}
     >
       {/* Outer diamond */}
-      <path d="M64 6 L122 64 L64 122 L6 64 Z" stroke="#8b5cf6" strokeWidth="1.5" fill="none" opacity="0.2"/>
+      <path d="M64 6 L122 64 L64 122 L6 64 Z" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.2"/>
       {/* Middle diamond */}
-      <path d="M64 20 L108 64 L64 108 L20 64 Z" stroke="#a78bfa" strokeWidth="1" fill="#1a1625" opacity="0.5"/>
+      <path d="M64 20 L108 64 L64 108 L20 64 Z" stroke="currentColor" strokeWidth="1" fill="var(--color-void-base, transparent)" opacity="0.5"/>
       {/* Inner diamond */}
-      <path d="M64 36 L92 64 L64 92 L36 64 Z" stroke="#8b5cf6" strokeWidth="1.5" fill="none" opacity="0.35"/>
+      <path d="M64 36 L92 64 L64 92 L36 64 Z" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.35"/>
       {/* Terminal cursor > */}
-      <path d="M42 44 L62 64 L42 84" stroke="#8b5cf6" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <path d="M42 44 L62 64 L42 84" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
       {/* Underscore _ */}
-      <path d="M68 78 L88 78" stroke="#a78bfa" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M68 78 L88 78" stroke="currentColor" strokeWidth="4" strokeLinecap="round"/>
       {/* Energy line above */}
-      <path d="M64 36 L64 42" stroke="#c4b5fd" strokeWidth="2" opacity="0.5" strokeLinecap="round"/>
+      <path d="M64 36 L64 42" stroke="currentColor" strokeWidth="2" opacity="0.5" strokeLinecap="round"/>
       {/* Energy rays */}
-      <path d="M64 6 L64 20" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
-      <path d="M122 64 L108 64" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
-      <path d="M64 108 L64 122" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
-      <path d="M20 64 L6 64" stroke="#c4b5fd" strokeWidth="1" opacity="0.4"/>
+      <path d="M64 6 L64 20" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
+      <path d="M122 64 L108 64" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
+      <path d="M64 108 L64 122" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
+      <path d="M20 64 L6 64" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
       {/* Corner dots */}
-      <circle cx="64" cy="6" r="2" fill="#c4b5fd" opacity="0.5"/>
-      <circle cx="122" cy="64" r="2" fill="#c4b5fd" opacity="0.5"/>
-      <circle cx="64" cy="122" r="2" fill="#c4b5fd" opacity="0.5"/>
-      <circle cx="6" cy="64" r="2" fill="#c4b5fd" opacity="0.5"/>
+      <circle cx="64" cy="6" r="2" fill="currentColor" opacity="0.5"/>
+      <circle cx="122" cy="64" r="2" fill="currentColor" opacity="0.5"/>
+      <circle cx="64" cy="122" r="2" fill="currentColor" opacity="0.5"/>
+      <circle cx="6" cy="64" r="2" fill="currentColor" opacity="0.5"/>
     </svg>
   );
 }
@@ -64,7 +64,7 @@ export function RuneSpinner({ size = 24, className = '', label }: RuneSpinnerPro
         {/* Rotating outer diamond */}
         <path
           d="M24 2 L46 24 L24 46 L2 24 Z"
-          stroke="#8b5cf6"
+          stroke="currentColor"
           strokeWidth="1.5"
           fill="none"
           opacity="0.3"
@@ -73,7 +73,7 @@ export function RuneSpinner({ size = 24, className = '', label }: RuneSpinnerPro
         {/* Static inner diamond */}
         <path
           d="M24 10 L38 24 L24 38 L10 24 Z"
-          stroke="#a78bfa"
+          stroke="currentColor"
           strokeWidth="0.75"
           fill="none"
           opacity="0.2"
@@ -81,7 +81,7 @@ export function RuneSpinner({ size = 24, className = '', label }: RuneSpinnerPro
         {/* Terminal > symbol */}
         <path
           d="M16 16 L24 24 L16 32"
-          stroke="#8b5cf6"
+          stroke="currentColor"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -91,13 +91,13 @@ export function RuneSpinner({ size = 24, className = '', label }: RuneSpinnerPro
         {/* Underscore _ */}
         <path
           d="M26 30 L34 30"
-          stroke="#a78bfa"
+          stroke="currentColor"
           strokeWidth="2"
           strokeLinecap="round"
           className="rune-spinner-bolt"
         />
         {/* Orbiting corner dot */}
-        <circle r="1.5" fill="#c4b5fd">
+        <circle r="1.5" fill="currentColor">
           <animateMotion
             dur="2s"
             repeatCount="indefinite"

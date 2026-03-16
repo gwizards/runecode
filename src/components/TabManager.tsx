@@ -20,13 +20,13 @@ type AgentStatus = 'running' | 'thinking' | 'completed' | 'failed';
 const agentStatusDotClass = (status: AgentStatus) => {
   switch (status) {
     case 'running':
-      return 'bg-green-500 animate-pulse';
+      return 'bg-success animate-pulse';
     case 'thinking':
-      return 'bg-blue-500';
+      return 'bg-info';
     case 'completed':
-      return 'bg-gray-400';
+      return 'bg-muted-foreground';
     case 'failed':
-      return 'bg-red-500';
+      return 'bg-error';
   }
 };
 

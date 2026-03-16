@@ -177,7 +177,7 @@ export const GrepWidget: React.FC<{
                                 </span>
                               )}
                             </div>
-                            <code className="text-xs font-mono text-zinc-300 block whitespace-pre-wrap break-all">
+                            <code className="text-xs font-mono text-foreground/80 block whitespace-pre-wrap break-all">
                               {match.content.trim()}
                             </code>
                           </div>

@@ -13,8 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Toast } from '@/components/ui/toast';
 import { api, type Agent, type AgentRunWithMetrics } from '@/lib/api';
-import { open as openDialog, save } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
+// Dialog imports are done dynamically to support web mode
 import { GitHubAgentBrowser } from '@/components/GitHubAgentBrowser';
 import { CreateAgent } from '@/components/CreateAgent';
 import { useTabState } from '@/hooks/useTabState';
@@ -75,19 +74,22 @@ export const Agents: React.FC = () => {
       return;
     }
     
-    // Import the dialog function
-    const { open } = await import('@tauri-apps/plugin-dialog');
-    
     try {
-      // Prompt user to select a project directory
-      const projectPath = await open({
-        directory: true,
-        multiple: false,
-        title: `Select project directory for ${agent.name}`
-      });
-      
+      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      let projectPath: string | null = null;
+
+      if (!isWebMode) {
+        const { open } = await import('@tauri-apps/plugin-dialog');
+        projectPath = await open({
+          directory: true,
+          multiple: false,
+          title: `Select project directory for ${agent.name}`
+        }) as string | null;
+      } else {
+        projectPath = window.prompt(`Enter project directory for ${agent.name}:`, '/home');
+      }
+
       if (!projectPath) {
-        // User cancelled
         return;
       }
       
@@ -121,6 +123,12 @@ export const Agents: React.FC = () => {
 
   const handleImportFromFile = async () => {
     try {
+      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      if (isWebMode) {
+        setToast({ message: 'Import is only available in desktop mode', type: 'error' });
+        return;
+      }
+      const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
       const selected = await openDialog({
         filters: [
           { name: 'RuneCode Agent', extensions: ['runecode.json', 'json'] },
@@ -142,6 +150,13 @@ export const Agents: React.FC = () => {
 
   const handleExportAgent = async (agent: Agent) => {
     try {
+      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      if (isWebMode) {
+        setToast({ message: 'Export is only available in desktop mode', type: 'error' });
+        return;
+      }
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { invoke } = await import('@tauri-apps/api/core');
       const path = await save({
         defaultPath: `${agent.name.toLowerCase().replace(/\s+/g, '-')}.runecode.json`,
         filters: [
