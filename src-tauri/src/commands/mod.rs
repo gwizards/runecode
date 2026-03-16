@@ -2,6 +2,7 @@ pub mod agents;
 pub mod claude;
 pub mod helicone;
 pub mod mcp;
+pub mod project_info;
 pub mod proxy;
 pub mod resources;
 pub mod skills;

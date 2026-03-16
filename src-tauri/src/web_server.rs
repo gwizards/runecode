@@ -1,4 +1,5 @@
 use axum::extract::ws::{Message, WebSocket};
+use axum::extract::Query;
 use axum::http::Method;
 use axum::{
     extract::{Path, State as AxumState, WebSocketUpgrade},
@@ -271,6 +272,24 @@ async fn save_integrations(
 /// List slash commands - return empty for web mode
 async fn list_slash_commands() -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(vec![]))
+}
+
+/// Get project info by scanning project directory
+async fn get_project_info(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let project_path = match params.get("path") {
+        Some(p) => p.clone(),
+        None => {
+            return axum::Json(serde_json::json!({
+                "error": "Missing 'path' query parameter"
+            }))
+            .into_response();
+        }
+    };
+
+    let info = crate::commands::project_info::collect_project_info(&project_path);
+    axum::Json(info).into_response()
 }
 
 /// MCP list servers - return empty for web mode
@@ -860,6 +879,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         // API routes (REST API equivalent of Tauri commands)
         .route("/api/projects", get(get_projects))
         .route("/api/projects/{project_id}/sessions", get(get_sessions))
+        .route("/api/project-info", get(get_project_info))
         .route("/api/agents", get(get_agents))
         .route("/api/agents/live", get(get_live_agents))
         .route("/api/usage", get(get_usage))

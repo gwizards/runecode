@@ -1,23 +1,34 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { INTEGRATIONS } from '../config';
-import { useIntegrationConfig } from '../hooks/useIntegrationConfig';
+
+const DISMISS_KEY = 'opcode-env-warning-dismissed';
 
 interface SecurityWarningProps {
   hasEnvFiles: boolean;
   envFiles: string[];
 }
 
-export function SecurityWarning({ hasEnvFiles }: SecurityWarningProps) {
-  const { config, updateConfig } = useIntegrationConfig();
+export function SecurityWarning({ hasEnvFiles, envFiles }: SecurityWarningProps) {
   const shownRef = useRef(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(DISMISS_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
-    if (!hasEnvFiles || config.security.dismissed || shownRef.current) return;
+    if (!hasEnvFiles || envFiles.length === 0 || dismissed || shownRef.current) return;
     shownRef.current = true;
 
+    const fileList = envFiles.length <= 3
+      ? envFiles.join(', ')
+      : `${envFiles.slice(0, 3).join(', ')} +${envFiles.length - 3} more`;
+
     toast.warning('Plaintext .env detected', {
-      description: `For agentic safety, inject secrets securely via ${INTEGRATIONS.security.infisical.name}.`,
+      description: `Found ${fileList}. For agentic safety, inject secrets securely via ${INTEGRATIONS.security.infisical.name}.`,
       duration: 15000,
       action: {
         label: 'Set up Infisical',
@@ -28,11 +39,16 @@ export function SecurityWarning({ hasEnvFiles }: SecurityWarningProps) {
       cancel: {
         label: "Don't show again",
         onClick: () => {
-          updateConfig({ security: { ...config.security, dismissed: true } });
+          setDismissed(true);
+          try {
+            localStorage.setItem(DISMISS_KEY, 'true');
+          } catch {
+            // ignore
+          }
         },
       },
     });
-  }, [hasEnvFiles, config.security.dismissed]);
+  }, [hasEnvFiles, envFiles, dismissed]);
 
   return null; // This is a side-effect component, renders nothing
 }
