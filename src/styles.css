@@ -686,7 +686,7 @@ html.is-macos body {
 @layer utilities {
   /* --- Glass panels --- */
   .glass {
-    background: color-mix(in oklch, var(--color-void-base) 80%, transparent);
+    background: color-mix(in oklch, var(--color-void-base) 95%, transparent);
     backdrop-filter: blur(var(--atm-blur));
     -webkit-backdrop-filter: blur(var(--atm-blur));
     border: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
@@ -695,7 +695,7 @@ html.is-macos body {
   }
 
   .glass-elevated {
-    background: color-mix(in oklch, var(--color-void-elevated) 70%, transparent);
+    background: color-mix(in oklch, var(--color-void-elevated) 96%, transparent);
     backdrop-filter: blur(var(--atm-blur-elevated));
     -webkit-backdrop-filter: blur(var(--atm-blur-elevated));
     border: 1px solid color-mix(in oklch, var(--color-text-primary) 12%, transparent);
