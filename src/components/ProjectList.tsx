@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { 
+import {
   FolderOpen,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,6 +24,10 @@ interface ProjectListProps {
    * Callback when open project is clicked
    */
   onOpenProject?: () => void | Promise<void>;
+  /**
+   * Callback when "New Project" is clicked (opens the create dialog)
+   */
+  onNewProject?: () => void;
   /**
    * Whether the list is currently loading
    */
@@ -87,6 +92,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   projects,
   onProjectClick,
   onOpenProject,
+  onNewProject,
   className,
 }) => {
   const [showAll, setShowAll] = useState(false);
@@ -123,19 +129,37 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                 Select a project to start working with Claude Code
               </p>
             </div>
-            <motion.div
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.15 }}
-            >
-              <Button
-                onClick={onOpenProject}
-                size="default"
-                className="flex items-center gap-2"
+            <div className="flex items-center gap-2">
+              {onNewProject && (
+                <motion.div
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Button
+                    onClick={onNewProject}
+                    variant="outline"
+                    size="default"
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Project
+                  </Button>
+                </motion.div>
+              )}
+              <motion.div
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.15 }}
               >
-                <FolderOpen className="h-4 w-4" />
-                Open Project
-              </Button>
-            </motion.div>
+                <Button
+                  onClick={onOpenProject}
+                  size="default"
+                  className="flex items-center gap-2"
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  Open Project
+                </Button>
+              </motion.div>
+            </div>
           </div>
         </div>
 

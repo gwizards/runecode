@@ -6,6 +6,7 @@ import { Tab } from '@/contexts/TabContext';
 import { Loader2, Plus, ArrowLeft } from 'lucide-react';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
 import { ProjectList } from '@/components/ProjectList';
+import { CreateProjectDialog } from '@/components/CreateProjectDialog';
 import { SessionList } from '@/components/SessionList';
 import { Button } from '@/components/ui/button';
 
@@ -38,6 +39,7 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
   // Track screen when tab becomes active
   useScreenTracking(isActive ? tab.type : undefined, isActive ? tab.id : undefined);
   const [error, setError] = React.useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   
   // Load projects when tab becomes active and is of type 'projects'
   useEffect(() => {
@@ -107,6 +109,35 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
     }
   };
   
+  const handleNewProjectCreated = async (projectPath: string, projectName: string) => {
+    try {
+      // Create the project in the backend
+      const project = await api.createProject(projectPath);
+      await loadProjects();
+
+      // Open a new chat tab for this project
+      const dirName = projectName || projectPath.split('/').pop() || projectPath.split('\\').pop() || 'New Project';
+      updateTab(tab.id, {
+        type: 'chat',
+        title: dirName,
+        sessionId: undefined,
+        sessionData: undefined,
+        initialProjectPath: project.path
+      });
+    } catch (err) {
+      console.error('Failed to create project:', err);
+      // Even if backend project creation fails, open a chat tab with the path
+      const dirName = projectName || projectPath.split('/').pop() || projectPath.split('\\').pop() || 'New Project';
+      updateTab(tab.id, {
+        type: 'chat',
+        title: dirName,
+        sessionId: undefined,
+        sessionData: undefined,
+        initialProjectPath: projectPath
+      });
+    }
+  };
+
   const handleNewSession = () => {
     // Update current tab to show new chat session instead of creating a new tab
     if (selectedProject) {
@@ -235,12 +266,20 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
                 </div>
               ) : (
                 /* Projects List View */
-                <ProjectList
-                  projects={projects}
-                  onProjectClick={handleProjectClick}
-                  onOpenProject={handleOpenProject}
-                  loading={loading}
-                />
+                <>
+                  <ProjectList
+                    projects={projects}
+                    onProjectClick={handleProjectClick}
+                    onOpenProject={handleOpenProject}
+                    onNewProject={() => setShowCreateDialog(true)}
+                    loading={loading}
+                  />
+                  <CreateProjectDialog
+                    open={showCreateDialog}
+                    onClose={() => setShowCreateDialog(false)}
+                    onProjectCreated={handleNewProjectCreated}
+                  />
+                </>
               )}
           </div>
         );

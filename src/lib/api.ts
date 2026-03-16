@@ -1,5 +1,6 @@
 import { apiCall } from './apiAdapter';
 import type { HooksConfiguration } from '@/types/hooks';
+import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from './devFallback';
 
 /** Process type for tracking in ProcessRegistry */
 export type ProcessType = 
@@ -470,6 +471,10 @@ export const api = {
       return await apiCall<Project[]>("list_projects");
     } catch (error) {
       console.error("Failed to list projects:", error);
+      if (isDevMode()) {
+        console.info("[DevFallback] Returning placeholder projects");
+        return DEV_PROJECTS;
+      }
       throw error;
     }
   },
@@ -489,6 +494,33 @@ export const api = {
   },
 
   /**
+   * Initializes a new project by creating .runecode/project.json in the given directory.
+   * Falls back gracefully if the backend is unavailable.
+   * @param projectPath - Absolute path to the project directory
+   * @param projectName - Display name for the project
+   */
+  async initializeProject(projectPath: string, projectName: string): Promise<void> {
+    try {
+      await apiCall<void>('initialize_project', { projectPath, projectName });
+    } catch {
+      // If backend doesn't support this command yet, try the web endpoint
+      try {
+        const response = await fetch('/api/project/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: projectPath, name: projectName }),
+        });
+        if (!response.ok) {
+          console.warn('Project init endpoint returned non-OK status');
+        }
+      } catch {
+        // If backend unavailable, that's OK — project will work without .runecode/
+        console.warn('Could not initialize project directory — backend unavailable');
+      }
+    }
+  },
+
+  /**
    * Retrieves sessions for a specific project
    * @param projectId - The ID of the project to retrieve sessions for
    * @returns Promise resolving to an array of sessions
@@ -498,6 +530,10 @@ export const api = {
       return await apiCall<Session[]>('get_project_sessions', { projectId });
     } catch (error) {
       console.error("Failed to get project sessions:", error);
+      if (isDevMode()) {
+        console.info("[DevFallback] Returning placeholder sessions for", projectId);
+        return DEV_SESSIONS.filter(s => s.project_id === projectId);
+      }
       throw error;
     }
   },
