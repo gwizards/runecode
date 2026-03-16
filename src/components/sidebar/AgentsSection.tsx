@@ -54,24 +54,6 @@ export function AgentsSection() {
     refetchInterval: 60000,
   });
 
-  // Don't group — show all agents in a flat list sorted: live first, then alphabetical
-  const sortedAgents = [...agents].sort((a, b) => {
-    const aLive = isLive(a.name) ? 0 : 1;
-    const bLive = isLive(b.name) ? 0 : 1;
-    if (aLive !== bLive) return aLive - bLive;
-    return a.name.localeCompare(b.name);
-  });
-
-  const handleCopy = useCallback(
-    (agentName: string) => {
-      navigator.clipboard.writeText(`@${agentName}`).then(() => {
-        setCopiedAgent(agentName);
-        setTimeout(() => setCopiedAgent(null), 1500);
-      });
-    },
-    []
-  );
-
   const isLive = useCallback(
     (agentName: string) => {
       for (const [, agent] of liveAgents) {
@@ -86,6 +68,24 @@ export function AgentsSection() {
     },
     [liveAgents]
   );
+
+  const handleCopy = useCallback(
+    (agentName: string) => {
+      navigator.clipboard.writeText(`@${agentName}`).then(() => {
+        setCopiedAgent(agentName);
+        setTimeout(() => setCopiedAgent(null), 1500);
+      });
+    },
+    []
+  );
+
+  // Flat list sorted: live first, then alphabetical
+  const sortedAgents = [...agents].sort((a, b) => {
+    const aLive = isLive(a.name) ? 0 : 1;
+    const bLive = isLive(b.name) ? 0 : 1;
+    if (aLive !== bLive) return aLive - bLive;
+    return a.name.localeCompare(b.name);
+  });
 
   const renderAgentRow = (agent: Agent) => {
     const live = isLive(agent.name);
