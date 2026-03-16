@@ -187,6 +187,32 @@ async fn get_live_agents() -> impl IntoResponse {
     axum::Json(serde_json::json!([]))
 }
 
+/// Auth status endpoint - returns Claude auth/plan info
+async fn get_auth_status() -> impl IntoResponse {
+    let output = std::process::Command::new("claude")
+        .args(["auth", "status"])
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            match serde_json::from_str::<serde_json::Value>(&stdout) {
+                Ok(json) => axum::Json(ApiResponse::success(json)).into_response(),
+                Err(_) => axum::Json(ApiResponse::success(serde_json::json!({
+                    "loggedIn": false,
+                    "subscriptionType": "unknown"
+                })))
+                .into_response(),
+            }
+        }
+        Err(_) => axum::Json(ApiResponse::success(serde_json::json!({
+            "loggedIn": false,
+            "subscriptionType": "unknown"
+        })))
+        .into_response(),
+    }
+}
+
 /// Usage endpoint - returns real usage stats from ~/.claude JSONL files
 async fn get_usage(
     Query(params): Query<std::collections::HashMap<String, String>>,
@@ -1275,6 +1301,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/project/init", post(init_project))
         .route("/api/agents", get(get_agents))
         .route("/api/agents/live", get(get_live_agents))
+        .route("/api/auth/status", get(get_auth_status))
         .route("/api/usage", get(get_usage))
         .route("/api/usage/range", get(get_usage_range))
         .route("/api/usage/sessions", get(get_usage_sessions))

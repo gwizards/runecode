@@ -171,6 +171,29 @@ function StatCard({
   );
 }
 
+function PlanBadge({ type }: { type: string }) {
+  const planConfig: Record<string, { label: string; color: string; included: boolean }> = {
+    max: { label: 'Max', color: 'bg-purple-500/10 text-purple-400', included: true },
+    pro: { label: 'Pro', color: 'bg-blue-500/10 text-blue-400', included: true },
+    free: { label: 'Free', color: 'bg-gray-500/10 text-gray-400', included: false },
+    api: { label: 'API Key', color: 'bg-orange-500/10 text-orange-400', included: false },
+    unknown: { label: 'Unknown', color: 'bg-muted text-muted-foreground', included: false },
+  };
+
+  const plan = planConfig[type] || planConfig.unknown;
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${plan.color}`}>
+        {plan.label}
+      </span>
+      {plan.included && (
+        <span className="text-[10px] text-green-400">Included</span>
+      )}
+    </div>
+  );
+}
+
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded bg-accent/20 px-1.5 py-1 text-center">
@@ -189,6 +212,17 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
     queryFn: fetchUsageStats,
     staleTime: 30000,
     refetchInterval: 30000,
+  });
+
+  const { data: authStatus } = useQuery({
+    queryKey: ['auth-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth/status');
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data || null;
+    },
+    staleTime: 300000, // 5 min cache - plan doesn't change often
   });
 
   const liveUsage = useSessionStore(state => state.liveUsage);
@@ -217,6 +251,7 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   // All-projects totals for comparison
   const allCost = usage.total_cost + liveUsage.costUsd;
 
+  const isIncluded = authStatus?.subscriptionType === 'max' || authStatus?.subscriptionType === 'pro';
   const hasData = combinedTokens > 0 || combinedCost > 0;
 
   // Get last 7 days for sparkline
@@ -307,11 +342,26 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                 </div>
               )}
 
+              {/* Plan badge */}
+              {authStatus && (
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground">Plan:</span>
+                    <PlanBadge type={authStatus.subscriptionType} />
+                  </div>
+                  {authStatus.email && (
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[120px]" title={authStatus.email}>
+                      {authStatus.email}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Stat cards */}
               <div className="flex gap-1.5">
                 <StatCard
                   value={formatCost(combinedCost)}
-                  label={projectPath ? "project cost" : "cost"}
+                  label={isIncluded ? "value (included)" : projectPath ? "project cost" : "cost"}
                   icon={<DollarSign className="h-3 w-3" />}
                 />
                 <StatCard
@@ -325,6 +375,13 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
                   icon={<Layers className="h-3 w-3" />}
                 />
               </div>
+
+              {/* Included plan note */}
+              {isIncluded && (
+                <p className="text-[10px] text-muted-foreground/60 italic">
+                  Usage included in your {authStatus?.subscriptionType} plan — no extra charges
+                </p>
+              )}
 
               {/* Live session stats */}
               {liveUsage.messageCount > 0 && (
