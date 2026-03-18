@@ -1910,6 +1910,12 @@ export function devApiPlugin(): Plugin {
         effort?: string;
         resume_at?: string;
         teams_enabled?: boolean;
+        subagent_default_model?: string;
+        subagent_default_permission_mode?: string;
+        subagent_progress_summaries?: boolean;
+        subagent_max_turns?: number;
+        team_max_concurrent?: number;
+        team_default_model?: string;
       }, abortController: AbortController): Parameters<SdkModule["query"]>[0]["options"] {
         const cwd = req.project_path && fs.existsSync(req.project_path)
           ? req.project_path
@@ -1934,7 +1940,7 @@ export function devApiPlugin(): Plugin {
           enableFileCheckpointing: true,
 
           // Enable sub-agent progress summaries for the UI
-          agentProgressSummaries: true,
+          agentProgressSummaries: req.subagent_progress_summaries !== false,
 
           // Identify RuneCode as the client app in User-Agent
           env: {
@@ -1970,6 +1976,14 @@ export function devApiPlugin(): Plugin {
         if (req.max_budget_usd) options.maxBudgetUsd = req.max_budget_usd;
         if (req.session_id) options.resume = req.session_id;
         if (req.resume_at) options.resumeSessionAt = req.resume_at;
+
+        // Sub-agent defaults — passed as SDK subagentOptions when available
+        if (req.subagent_max_turns && req.subagent_max_turns > 0) {
+          (options as any).subagentMaxTurns = req.subagent_max_turns;
+        }
+        if (req.team_max_concurrent && req.team_max_concurrent > 0) {
+          (options as any).maxConcurrentAgents = req.team_max_concurrent;
+        }
 
         return options;
       }
@@ -2164,6 +2178,12 @@ export function devApiPlugin(): Plugin {
                 effort: msg.effort,
                 resume_at: msg.resume_at,
                 teams_enabled: msg.teams_enabled,
+                subagent_default_model: msg.subagent_default_model,
+                subagent_default_permission_mode: msg.subagent_default_permission_mode,
+                subagent_progress_summaries: msg.subagent_progress_summaries,
+                subagent_max_turns: msg.subagent_max_turns,
+                team_max_concurrent: msg.team_max_concurrent,
+                team_default_model: msg.team_default_model,
               }, abortController);
 
               console.log("[dev-api] Init session:", {
@@ -2223,6 +2243,12 @@ export function devApiPlugin(): Plugin {
                 permission_mode: msg.permission_mode,
                 effort: msg.effort,
                 teams_enabled: msg.teams_enabled,
+                subagent_default_model: msg.subagent_default_model,
+                subagent_default_permission_mode: msg.subagent_default_permission_mode,
+                subagent_progress_summaries: msg.subagent_progress_summaries,
+                subagent_max_turns: msg.subagent_max_turns,
+                team_max_concurrent: msg.team_max_concurrent,
+                team_default_model: msg.team_default_model,
               }, abortController);
 
               // Set the agent option — SDK will load the .md file's prompt, tools, model

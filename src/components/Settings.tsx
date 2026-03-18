@@ -21,7 +21,8 @@ import { CommandsHooksSettings } from "./settings/CommandsHooksSettings";
 import { NetworkSettings } from "./settings/NetworkSettings";
 import { AiAutocompleteSettings } from "./settings/AiAutocompleteSettings";
 import { AccountsSettings } from "./settings/AccountsSettings";
-import { TeamsSettings } from "./settings/TeamsSettings";
+import { SubAgentSettings } from "./settings/SubAgentSettings";
+import { TeamSettings } from "./settings/TeamSettings";
 
 interface SettingsProps {
   onBack: () => void;
@@ -226,8 +227,10 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
         return <EnvironmentSettings envVars={envVars} onEnvVarsChange={setEnvVars} />;
 
       // Agents & Teams group
-      case 'teams-agents':
-        return <TeamsSettings />;
+      case 'subagent-defaults':
+        return <SubAgentSettings />;
+      case 'team-settings':
+        return <TeamSettings />;
 
       // Claude Code group
       case 'installation':

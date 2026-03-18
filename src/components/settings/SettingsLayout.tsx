@@ -2,7 +2,7 @@ import {
   Palette, Settings2, Code2, Puzzle,
   Timer, Shield, Variable,
   Binary, Terminal,
-  Sparkles, Globe, Database, Wand2, Users, Bot
+  Sparkles, Globe, Database, Wand2, Users, Bot, Cpu
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -38,7 +38,8 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Agents & Teams',
     icon: Bot,
     items: [
-      { id: 'teams-agents', label: 'Teams & Agents', icon: Bot },
+      { id: 'subagent-defaults', label: 'Sub-Agents', icon: Cpu },
+      { id: 'team-settings', label: 'Agent Teams', icon: Users },
     ],
   },
   {
