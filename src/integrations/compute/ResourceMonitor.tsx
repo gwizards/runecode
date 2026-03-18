@@ -1,19 +1,43 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
-import { toast } from 'sonner';
-import { INTEGRATIONS } from '../config';
-import { useIntegrationConfig } from '../hooks/useIntegrationConfig';
 
 export interface SystemResources {
   cpuPercent: number;
   ramPercent: number;
   ramUsedGb: number;
   ramTotalGb: number;
+  diskPercent: number;
+  diskUsedGb: number;
+  diskTotalGb: number;
+}
+
+export interface DockerContainer {
+  id: string;
+  name: string;
+  image: string;
+  status: string;
+  ports: string;
+  cpu: number;
+  mem: number;
+  memMb: number;
+  memLimitMb: number;
+  netIO: string;
+  blockIO: string;
+  pids: number;
+}
+
+export interface DockerStats {
+  available: boolean;
+  running: number;
+  total: number;
+  totalCpu: number;
+  totalMemMb: number;
+  containers: DockerContainer[];
 }
 
 async function fetchResources(): Promise<SystemResources> {
   try {
-    if (window.__TAURI__) {
+    const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+    if (isRealTauri) {
       const { invoke } = await import('@tauri-apps/api/core');
       return await invoke('get_system_resources') as SystemResources;
     }
@@ -22,48 +46,39 @@ async function fetchResources(): Promise<SystemResources> {
     return await res.json();
   } catch {
     // Return zeros if monitoring unavailable
-    return { cpuPercent: 0, ramPercent: 0, ramUsedGb: 0, ramTotalGb: 0 };
+    return { cpuPercent: 0, ramPercent: 0, ramUsedGb: 0, ramTotalGb: 0, diskPercent: 0, diskUsedGb: 0, diskTotalGb: 0 };
   }
 }
 
 export function useResourceMonitor() {
-  const { config, updateConfig } = useIntegrationConfig();
-  const alertCooldownRef = useRef<number>(0);
-
-  const { data: resources = { cpuPercent: 0, ramPercent: 0, ramUsedGb: 0, ramTotalGb: 0 } } = useQuery({
+  const { data: resources = { cpuPercent: 0, ramPercent: 0, ramUsedGb: 0, ramTotalGb: 0, diskPercent: 0, diskUsedGb: 0, diskTotalGb: 0 } } = useQuery({
     queryKey: ['system-resources'],
     queryFn: fetchResources,
     refetchInterval: 5000,
   });
 
-  // Threshold alert
-  useEffect(() => {
-    if (config.compute.dismissed) return;
-    const now = Date.now();
-    if (now - alertCooldownRef.current < config.compute.cooldownMinutes * 60 * 1000) return;
-
-    const cpuHigh = resources.cpuPercent > config.compute.thresholdCpu;
-    const ramHigh = resources.ramPercent > config.compute.thresholdRam;
-
-    if (cpuHigh || ramHigh) {
-      alertCooldownRef.current = now;
-      const provider = config.compute.provider;
-      const link = INTEGRATIONS.compute[provider];
-
-      toast.warning('Heavy workload detected', {
-        description: `Eject to ${link.name} for faster execution.`,
-        duration: 15000,
-        action: {
-          label: `Eject to ${link.name}`,
-          onClick: () => window.open(link.url, '_blank'),
-        },
-        cancel: {
-          label: "Don't show again",
-          onClick: () => updateConfig({ compute: { ...config.compute, dismissed: true } }),
-        },
-      });
-    }
-  }, [resources, config.compute]);
-
   return resources;
+}
+
+const emptyDocker: DockerStats = { available: false, running: 0, total: 0, totalCpu: 0, totalMemMb: 0, containers: [] };
+
+async function fetchDocker(): Promise<DockerStats> {
+  try {
+    const res = await fetch('/api/resources/docker');
+    if (!res.ok) return emptyDocker;
+    return await res.json();
+  } catch {
+    return emptyDocker;
+  }
+}
+
+export function useDockerMonitor() {
+  const { data: docker = emptyDocker } = useQuery({
+    queryKey: ['docker-stats'],
+    queryFn: fetchDocker,
+    refetchInterval: 8000,
+    staleTime: 5000,
+  });
+
+  return docker;
 }
