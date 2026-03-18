@@ -395,7 +395,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // isAtBottomRef is a layout-level cache updated by the scroll handler.
   // It is NOT the source of truth for "should we auto-scroll" — scrollLocked is.
   const isAtBottomRef = useRef(true);
-  const prevRawMsgCount = useRef(0);
   // Session metrics state for enhanced analytics
   const sessionMetrics = useRef({
     firstMessageTime: null as number | null,
@@ -613,25 +612,28 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // (timeline open handled by toggle effect above)
 
-  // Auto-scroll to bottom when new messages arrive or tab becomes active
+  // Auto-scroll to bottom when new messages arrive
+  const prevScrollMsgCount = useRef(0);
   useEffect(() => {
-    if (displayableMessages.length === 0) return;
+    if (messages.length === 0) return;
+    // Only act on actual new messages
+    if (messages.length === prevScrollMsgCount.current) return;
+    const newCount = messages.length - prevScrollMsgCount.current;
+    prevScrollMsgCount.current = messages.length;
+
     if (!scrollLocked) {
-      // Only increment badge on actual new messages, not visibility changes
-      if (messages.length > prevRawMsgCount.current) {
-        setNewMessageCount(prev => prev + (messages.length - prevRawMsgCount.current));
-      }
-      prevRawMsgCount.current = messages.length;
+      if (newCount > 0) setNewMessageCount(prev => prev + newCount);
       return;
     }
-    prevRawMsgCount.current = messages.length;
-    // Clear any stuck isRestoringScroll from a previous interrupted rAF chain
+    // Scroll to bottom
     isRestoringScroll.current = true;
     let attempts = 0;
     const doScroll = () => {
       const scrollElement = parentRef.current;
       if (!scrollElement) { isRestoringScroll.current = false; return; }
-      rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
+      if (displayableMessages.length > 0) {
+        rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
+      }
       scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: 'auto' });
       if (attempts < 3) {
         attempts++;
@@ -641,7 +643,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       }
     };
     requestAnimationFrame(doScroll);
-  }, [displayableMessages.length, messages.length, rowVirtualizer, scrollLocked]);
+  }, [messages.length, scrollLocked]);
 
   // Calculate total tokens and estimated cost from messages
   useEffect(() => {
