@@ -5,7 +5,6 @@ import { useScreenTracking } from '@/hooks/useAnalytics';
 import { Tab } from '@/contexts/TabContext';
 import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical } from 'lucide-react';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { ProjectList } from '@/components/ProjectList';
 import { CreateProjectDialog } from '@/components/CreateProjectDialog';
 import { SessionList } from '@/components/SessionList';
@@ -609,36 +608,32 @@ export const TabContent: React.FC = () => {
     };
   }, [createChatTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab]);
   
-  // Grid mode state
-  // Grid tabs = only tabs explicitly in gridConfig.order
-  // Non-grid tabs = everything else (shown as single/focused windows)
-  const gridOrderSet = React.useMemo(() => new Set(gridConfig.order), [gridConfig.order]);
-
+  // Grid mode — all tabs go into the grid
   const gridTabs = React.useMemo(() =>
-    layoutMode === 'grid' ? tabs.filter(t => gridOrderSet.has(t.id)) : [],
-    [tabs, layoutMode, gridOrderSet]
-  );
-  const nonGridTabs = React.useMemo(() =>
-    layoutMode === 'grid' ? tabs.filter(t => !gridOrderSet.has(t.id)) : [],
-    [tabs, layoutMode, gridOrderSet]
+    layoutMode === 'grid' ? tabs : [],
+    [tabs, layoutMode]
   );
 
-  // Ordered grid tabs — respects saved order, removes tabs no longer present
+  // Ordered grid tabs — respects user drag order, syncs new/removed tabs
   const orderedGridTabs = React.useMemo(() => {
     if (gridTabs.length === 0) return [];
     const tabMap = new Map(gridTabs.map(t => [t.id, t]));
-    return gridConfig.order.filter(id => tabMap.has(id)).map(id => tabMap.get(id)!);
+    const ordered = gridConfig.order.filter(id => tabMap.has(id)).map(id => tabMap.get(id)!);
+    const inOrder = new Set(gridConfig.order);
+    for (const t of gridTabs) {
+      if (!inOrder.has(t.id)) ordered.push(t);
+    }
+    return ordered;
   }, [gridTabs, gridConfig.order]);
 
-  // Clean stale IDs from grid order
+  // Sync grid order when tabs change
   React.useEffect(() => {
-    if (layoutMode !== 'grid') return;
-    const tabIds = new Set(tabs.map(t => t.id));
-    const cleaned = gridConfig.order.filter(id => tabIds.has(id));
-    if (cleaned.length !== gridConfig.order.length) {
-      setGridOrder(cleaned);
+    if (layoutMode !== 'grid' || gridTabs.length === 0) return;
+    const currentIds = orderedGridTabs.map(t => t.id);
+    if (JSON.stringify(currentIds) !== JSON.stringify(gridConfig.order)) {
+      setGridOrder(currentIds);
     }
-  }, [tabs, gridConfig.order, layoutMode, setGridOrder]);
+  }, [orderedGridTabs, gridConfig.order, layoutMode, gridTabs.length, setGridOrder]);
 
   // Span picker popover state — close on outside click
   const [spanPickerTabId, setSpanPickerTabId] = React.useState<string | null>(null);
@@ -653,7 +648,6 @@ export const TabContent: React.FC = () => {
   // Drag state for grid cells
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [dragOverId, setDragOverId] = React.useState<string | null>(null);
-  const [gridAreaDragOver, setGridAreaDragOver] = React.useState(false);
 
   const handleGridDragStart = React.useCallback((tabId: string) => setDragId(tabId), []);
   const handleGridDragOver = React.useCallback((e: React.DragEvent, tabId: string) => {
@@ -733,52 +727,24 @@ export const TabContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [layoutMode, tabs, switchToTab]);
 
-  // Empty grid fallback
-  // Helper: add a tab to the grid
-  const addToGrid = React.useCallback((tabId: string) => {
-    setGridOrder([...gridConfig.order, tabId]);
-    switchToTab(tabId);
-  }, [gridConfig.order, setGridOrder, switchToTab]);
-
-  // Helper: remove a tab from the grid (back to single window)
-  const removeFromGrid = React.useCallback((tabId: string) => {
-    setGridOrder(gridConfig.order.filter(id => id !== tabId));
-    switchToTab(tabId);
-  }, [gridConfig.order, setGridOrder, switchToTab]);
-
   if (layoutMode === 'grid' && orderedGridTabs.length === 0) {
     return (
       <div className="flex-1 h-full relative flex flex-col">
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <div className="text-center space-y-3">
-            <p className="text-lg mb-1">Grid is empty</p>
-            <p className="text-sm text-muted-foreground/50 mb-4">Add windows to the grid to view them side by side</p>
-            {nonGridTabs.length > 0 && (
-              <div className="flex flex-wrap gap-2 justify-center max-w-md">
-                {nonGridTabs.map(tab => (
-                  <Button key={tab.id} variant="outline" size="sm" onClick={() => addToGrid(tab.id)} className="text-xs">
-                    <Plus className="w-3 h-3 mr-1" /> {tab.title}
-                  </Button>
-                ))}
-              </div>
-            )}
-            <div className="pt-2">
-              <Button onClick={() => createProjectsTab()} size="default">
-                <Plus className="w-4 h-4 mr-2" /> New Project
-              </Button>
-            </div>
+          <div className="text-center">
+            <p className="text-lg mb-2">No windows open</p>
+            <p className="text-sm mb-4">Open a project to add it to the grid</p>
+            <Button onClick={() => createProjectsTab()} size="default">
+              <Plus className="w-4 h-4 mr-2" /> New Project
+            </Button>
           </div>
         </div>
-        {/* Non-grid tabs render as single panels */}
-        {nonGridTabs.map((tab) => (
-          <TabPanel key={tab.id} tab={tab} isActive={tab.id === activeTabId} />
-        ))}
       </div>
     );
   }
 
   if (layoutMode === 'grid' && orderedGridTabs.length > 0) {
-    const activeIsNonGrid = nonGridTabs.some(t => t.id === activeTabId);
+    const activeIsNonGrid = false; // All tabs are in the grid
     const cols = gridConfig.columns;
     const rows = gridConfig.rows; // 0 = auto
 
@@ -786,7 +752,7 @@ export const TabContent: React.FC = () => {
       <div className="flex-1 h-full relative flex flex-col">
         {/* Grid of tabs — drop target for adding tabs from tab bar */}
         <div
-          className={cn("flex-1 min-h-0 transition-colors", gridAreaDragOver && "ring-2 ring-primary/30 ring-inset")}
+          className="flex-1 min-h-0"
           style={{
             display: activeIsNonGrid ? 'none' : 'grid',
             gridTemplateColumns: `repeat(${cols}, 1fr)`,
@@ -794,25 +760,6 @@ export const TabContent: React.FC = () => {
             gridAutoRows: rows > 0 ? undefined : '1fr',
             gap: '1px',
             background: 'hsl(var(--border))',
-          }}
-          onDragOver={(e) => {
-            if (e.dataTransfer.types.includes('text/runecode-tab-id')) {
-              e.preventDefault();
-              setGridAreaDragOver(true);
-            }
-          }}
-          onDragLeave={(e) => {
-            // Only clear if leaving the grid container itself
-            if (e.currentTarget === e.target) setGridAreaDragOver(false);
-          }}
-          onDrop={(e) => {
-            setGridAreaDragOver(false);
-            const tabId = e.dataTransfer.getData('text/runecode-tab-id');
-            if (tabId && !gridOrderSet.has(tabId)) {
-              e.preventDefault();
-              e.stopPropagation();
-              addToGrid(tabId);
-            }
           }}
         >
           {orderedGridTabs.map((tab, gridIdx) => {
@@ -848,7 +795,7 @@ export const TabContent: React.FC = () => {
                     isFocused ? 'bg-primary/10 text-foreground' : 'bg-muted/20 text-muted-foreground'
                   }`}
                   draggable
-                  onDragStart={(e) => { handleGridDragStart(tab.id); e.dataTransfer.setData('text/runecode-tab-id', tab.id); }}
+                  onDragStart={() => handleGridDragStart(tab.id)}
                   onDragOver={(e) => handleGridDragOver(e, tab.id)}
                   onDragEnd={() => { setDragId(null); setDragOverId(null); }}
                   onDrop={() => handleGridDrop(tab.id)}
@@ -933,8 +880,8 @@ export const TabContent: React.FC = () => {
                     </div>
                     <button
                       className="text-muted-foreground hover:text-foreground p-0.5 relative z-20"
-                      onClick={(e) => { e.stopPropagation(); removeFromGrid(tab.id); }}
-                      title="Remove from grid (pop out to window)"
+                      onClick={(e) => { e.stopPropagation(); setLayoutMode('single'); switchToTab(tab.id); }}
+                      title="Pop out to single view"
                     >
                       <Minimize2 className="w-3 h-3" />
                     </button>
@@ -1000,23 +947,6 @@ export const TabContent: React.FC = () => {
               <span className="text-muted-foreground/30">jump</span>
             </div>
 
-            {/* Non-grid windows — click to add to grid */}
-            {nonGridTabs.length > 0 && (
-              <div className="flex items-center gap-0.5 flex-shrink-0 pl-2 border-l border-border/50">
-                <span className="text-[9px] text-muted-foreground/30 mr-1">Add:</span>
-                {nonGridTabs.map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => addToGrid(tab.id)}
-                    className="px-1.5 py-0.5 rounded text-[9px] text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 transition-colors truncate max-w-[80px]"
-                    title={`Add "${tab.title}" to grid`}
-                  >
-                    <Plus className="w-2.5 h-2.5 inline mr-0.5" />{tab.title}
-                  </button>
-                ))}
-              </div>
-            )}
-
             {/* Grid controls */}
             <div className="flex items-center gap-1.5 flex-shrink-0 pl-2 border-l border-border">
               {/* Column count */}
@@ -1054,14 +984,6 @@ export const TabContent: React.FC = () => {
           </div>
         )}
 
-        {/* Non-grid tabs (settings, agents, etc.) */}
-        {nonGridTabs.map((tab) => (
-          <TabPanel
-            key={tab.id}
-            tab={tab}
-            isActive={activeIsNonGrid && tab.id === activeTabId}
-          />
-        ))}
 
         {tabs.length === 0 && (
           <div className="flex items-center justify-center h-full text-muted-foreground">

@@ -105,14 +105,6 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
         agentStatus === 'completed' && "opacity-60",
         "min-w-[120px] max-w-[220px] h-8 px-3"
       )}
-      onPointerDown={(e: any) => {
-        // Set up HTML5 drag data on the underlying DOM element for cross-component drops
-        const el = e.currentTarget as HTMLElement;
-        const handleDragStart = (de: DragEvent) => {
-          if (de.dataTransfer) de.dataTransfer.setData('text/runecode-tab-id', tab.id);
-        };
-        el.addEventListener('dragstart', handleDragStart, { once: true });
-      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onClick(tab.id)}
@@ -189,8 +181,6 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     canAddTab,
     layoutMode,
     setLayoutMode,
-    gridConfig,
-    setGridOrder,
   } = useTabState();
 
   // Access reorderTabs from context
@@ -200,7 +190,6 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const [showLeftScroll, setShowLeftScroll] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(false);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
-  const [tabBarDragOver, setTabBarDragOver] = useState(false);
 
   // Track sidebar open state (broadcast by ProjectSidebar)
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -233,27 +222,21 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const MAX_AGENT_TABS = 6;
   const { visibleTabs, overflowAgentTabs } = useMemo(() => {
     if (layoutMode === 'grid') {
-      // In grid mode: Grid pseudo-tab for grid cells + individual tabs for non-grid windows
-      const gridOrderSet = new Set(
-        JSON.parse(localStorage.getItem('runecode-grid-config') || '{}').order || []
-      );
-      const gridCount = tabs.filter(t => gridOrderSet.has(t.id)).length;
-      const nonGridInBar = tabs.filter(t => !gridOrderSet.has(t.id));
-
+      // In grid mode: single "Grid (N)" pseudo-tab for all tabs
       const pseudoTabs: Tab[] = [];
-      if (gridCount > 0) {
+      if (tabs.length > 0) {
         pseudoTabs.push({
           id: '__grid__',
           type: 'chat',
-          title: `Grid (${gridCount})`,
-          status: tabs.some(t => gridOrderSet.has(t.id) && t.status === 'running') ? 'running' : 'idle',
+          title: `Grid (${tabs.length})`,
+          status: tabs.some(t => t.status === 'running') ? 'running' : 'idle',
           hasUnsavedChanges: false,
           order: -1,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
       }
-      return { visibleTabs: [...pseudoTabs, ...nonGridInBar], overflowAgentTabs: [] };
+      return { visibleTabs: pseudoTabs, overflowAgentTabs: [] };
     }
 
     const nonAgentTabs: Tab[] = [];
@@ -464,28 +447,11 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
         )}
       </AnimatePresence>
 
-      {/* Tabs container — also a drop target for removing from grid */}
+      {/* Tabs container */}
       <div
         ref={scrollContainerRef}
-        className={cn("flex-1 flex overflow-x-auto scrollbar-hide transition-colors", tabBarDragOver && "bg-primary/10 ring-2 ring-primary/30 ring-inset")}
+        className="flex-1 flex overflow-x-auto scrollbar-hide"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        onDragOver={(e) => {
-          if (e.dataTransfer.types.includes('text/runecode-tab-id')) {
-            e.preventDefault();
-            setTabBarDragOver(true);
-          }
-        }}
-        onDragLeave={() => setTabBarDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setTabBarDragOver(false);
-          const tabId = e.dataTransfer.getData('text/runecode-tab-id');
-          if (tabId) {
-            // Remove from grid by updating gridConfig.order
-            setGridOrder(gridConfig.order.filter(id => id !== tabId));
-            switchToTab(tabId);
-          }
-        }}
       >
         <div className="flex items-stretch h-8">
           <Reorder.Group
