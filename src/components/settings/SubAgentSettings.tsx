@@ -1,4 +1,4 @@
-import { Bot, Cpu, Shield, Gauge, Clock, GitBranch, ChevronDown, Eye, EyeOff, Zap, Layers } from 'lucide-react';
+import { Bot, Cpu, Shield, Gauge, Clock, GitBranch, Eye, Zap, Layers } from 'lucide-react';
 import { useSessionConfig } from '@/hooks/useSessionConfig';
 import { cn } from '@/lib/utils';
 

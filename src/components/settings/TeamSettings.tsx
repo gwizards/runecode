@@ -1,4 +1,4 @@
-import { Users, Crown, MessageSquare, Cpu, Shield, Zap, Layers, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Users, Crown, Cpu, Zap, Layers, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useSessionConfig } from '@/hooks/useSessionConfig';
 import { cn } from '@/lib/utils';
 

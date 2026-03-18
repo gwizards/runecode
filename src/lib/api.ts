@@ -937,8 +937,21 @@ export const api = {
    * If connectionId is provided, sends through an existing persistent WebSocket.
    * If sessionId is provided (without connectionId), resumes that session.
    */
-  async executeClaudeCode(projectPath: string, prompt: string, model: string, thinkingMode?: string, connectionId?: string, sessionId?: string, effort?: string, resumeAt?: string, permissionMode?: string): Promise<any> {
-    return apiCall("execute_claude_code", { projectPath, prompt, model, thinkingMode, connectionId, sessionId, effort, resumeAt, permissionMode });
+  async executeClaudeCode(
+    projectPath: string, prompt: string, model: string, thinkingMode?: string,
+    connectionId?: string, sessionId?: string, effort?: string, resumeAt?: string,
+    permissionMode?: string,
+    agentConfig?: {
+      teamsEnabled?: boolean;
+      subAgentDefaultModel?: string;
+      subAgentDefaultPermissionMode?: string;
+      subAgentProgressSummaries?: boolean;
+      subAgentMaxTurns?: number;
+      teamMaxConcurrent?: number;
+      teamDefaultModel?: string;
+    }
+  ): Promise<any> {
+    return apiCall("execute_claude_code", { projectPath, prompt, model, thinkingMode, connectionId, sessionId, effort, resumeAt, permissionMode, ...agentConfig });
   },
 
   /**

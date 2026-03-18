@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowDown,
   ChevronDown,
+  ChevronUp,
   Lock,
   X,
 } from "lucide-react";
@@ -52,7 +53,6 @@ import { SessionActivityBar } from "./SessionActivityBar";
 import { SubAgentTracker } from "./SubAgentTracker";
 import { TeamDashboard } from "./TeamDashboard";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { TimelineNavigator } from "./TimelineNavigator";
 import { CheckpointSettings } from "./CheckpointSettings";
 import { SlashCommandsManager } from "./SlashCommandsManager";
 import { RewindPanel } from './RewindPanel';
@@ -141,7 +141,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [_sessionCostUsd, setSessionCostUsd] = useState(0);
   const [extractedSessionInfo, setExtractedSessionInfo] = useState<{ sessionId: string; projectId: string } | null>(null);
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(null);
-  const [connectionId, _setConnectionId] = useState<string | null>(null);
+  const [, _setConnectionId] = useState<string | null>(null);
   const connectionIdRef = useRef<string | null>(null);
   const resumeAtRef = useRef<string | null>(null);
   const setConnectionId = useCallback((val: string | null | ((prev: string | null) => string | null)) => {
@@ -229,14 +229,12 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         // User scrolled to bottom → re-lock
         if (atBottom && !scrollLockedRef.current) {
           setScrollLocked(true);
-          setIsUserScrolledUp(false);
           setNewMessageCount(0);
           setIsScrolledUp(false);
         }
         // User scrolled away from bottom → unlock
         if (!atBottom && scrollLockedRef.current) {
           setScrollLocked(false);
-          setIsUserScrolledUp(true);
           setIsScrolledUp(true);
         }
 
@@ -397,8 +395,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // isAtBottomRef is a layout-level cache updated by the scroll handler.
   // It is NOT the source of truth for "should we auto-scroll" — scrollLocked is.
   const isAtBottomRef = useRef(true);
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-
   // Session metrics state for enhanced analytics
   const sessionMetrics = useRef({
     firstMessageTime: null as number | null,
@@ -590,26 +586,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     estimateSize: () => 150, // Estimate, will be dynamically measured
     overscan: 2, // minimal overscan to reduce measurement work
   });
-
-  // Scroll to bottom helper
-  const scrollToBottom = useCallback(() => {
-    if (displayableMessages.length > 0) {
-      rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'smooth' });
-      requestAnimationFrame(() => {
-        const scrollElement = parentRef.current;
-        if (scrollElement) {
-          scrollElement.scrollTo({
-            top: scrollElement.scrollHeight,
-            behavior: 'smooth',
-          });
-        }
-      });
-    }
-    setIsUserScrolledUp(false);
-    setNewMessageCount(0);
-    setScrollLocked(true);
-    isAtBottomRef.current = true;
-  }, [rowVirtualizer, displayableMessages.length]);
 
   // Debug logging
   useEffect(() => {
@@ -1277,12 +1253,24 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           session_age_ms: sessionAge
         });
 
+        // Extract sub-agent/team config from session config store
+        const sessionConfig = useSessionConfig.getState();
+        const agentConfig = {
+          teamsEnabled: sessionConfig.teamsEnabled,
+          subAgentDefaultModel: sessionConfig.subAgentDefaultModel,
+          subAgentDefaultPermissionMode: sessionConfig.subAgentDefaultPermissionMode,
+          subAgentProgressSummaries: sessionConfig.subAgentProgressSummaries,
+          subAgentMaxTurns: sessionConfig.subAgentMaxTurns,
+          teamMaxConcurrent: sessionConfig.teamMaxConcurrentAgents,
+          teamDefaultModel: sessionConfig.teamDefaultModel,
+        };
+
         // Execute the appropriate command
         if (connectionIdRef.current) {
           // Send follow-up through persistent connection
           console.log('[ClaudeCodeSession] Sending follow-up via persistent connection:', connectionIdRef.current);
           trackEvent.modelSelected(model);
-          await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, connectionIdRef.current, undefined, effort, undefined, permissionMode);
+          await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, connectionIdRef.current, undefined, effort, undefined, permissionMode, agentConfig);
         } else {
           // First message — initialize persistent session
           const sessionId = effectiveSession?.id;
@@ -1298,7 +1286,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           }
           const resumeAt = resumeAtRef.current;
           resumeAtRef.current = null; // clear after use
-          const result = await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, undefined, sessionId, effort, resumeAt || undefined, permissionMode);
+          const result = await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, undefined, sessionId, effort, resumeAt || undefined, permissionMode, agentConfig);
           // Store connectionId for subsequent messages
           if (result && typeof result === 'object' && 'connectionId' in result) {
             setConnectionId((result as any).connectionId);
@@ -1387,18 +1375,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
 
     await navigator.clipboard.writeText(markdown);
-  };
-
-  const handleCheckpointSelect = async () => {
-    // Reload messages from the checkpoint
-    await loadSessionHistory();
-    // Ensure timeline reloads to highlight current checkpoint
-    setTimelineVersion((v) => v + 1);
-  };
-  
-  const handleCheckpointCreated = () => {
-    // Update checkpoint count in session metrics
-    sessionMetrics.current.checkpointCount += 1;
   };
 
   const handleCancelExecution = async () => {
@@ -1509,12 +1485,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       isListeningRef.current = false;
       setError(null);
     }
-  };
-
-  const handleFork = (checkpointId: string) => {
-    setForkCheckpointId(checkpointId);
-    setForkSessionName(`Fork-${new Date().toISOString().slice(0, 10)}`);
-    setShowForkDialog(true);
   };
 
   const handleCompositionStart = () => {
@@ -1849,7 +1819,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                 <button
                   onClick={() => {
                     setScrollLocked(true);
-                    setIsUserScrolledUp(false);
                     setNewMessageCount(0);
                     setIsScrolledUp(false);
                     isAtBottomRef.current = true;
