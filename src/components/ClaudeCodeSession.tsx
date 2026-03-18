@@ -1541,6 +1541,26 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   };
 
   // Handle URL detection from terminal output
+  // Build compact conversation context for AI autocomplete (last 5 messages, max 800 chars)
+  const conversationContext = useMemo(() => {
+    const recent = displayableMessages.slice(-5);
+    const parts: string[] = [];
+    for (const msg of recent) {
+      if (msg.type === 'user' && msg.message?.content) {
+        const text = Array.isArray(msg.message.content)
+          ? msg.message.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ')
+          : String(msg.message.content);
+        if (text.trim()) parts.push(`User: ${text.trim().slice(0, 150)}`);
+      } else if (msg.type === 'assistant' && msg.message?.content) {
+        const text = Array.isArray(msg.message.content)
+          ? msg.message.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ')
+          : '';
+        if (text.trim()) parts.push(`Assistant: ${text.trim().slice(0, 150)}`);
+      }
+    }
+    return parts.join('\n').slice(-800) || undefined;
+  }, [displayableMessages]);
+
   const handleLinkDetected = useCallback((url: string) => {
     setPreviewUrl(prev => {
       if (!prev) { setShowPreviewPrompt(true); }
@@ -1940,6 +1960,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                   projectId={effectiveSession?.project_id}
                   onCopyMarkdown={() => handleCopyAsMarkdown()}
                   onCopyJsonl={() => handleCopyAsJsonl()}
+                  conversationContext={conversationContext}
                 />
               </div>,
               footerEl,

@@ -106,6 +106,10 @@ interface FloatingPromptInputProps {
    * Callback to copy conversation as JSONL
    */
   onCopyJsonl?: () => void;
+  /**
+   * Recent conversation context for AI autocomplete (last few messages)
+   */
+  conversationContext?: string;
 }
 
 export interface FloatingPromptInputRef {
@@ -136,6 +140,7 @@ const FloatingPromptInputInner = (
     onCancel,
     onCopyMarkdown: _onCopyMarkdown,
     onCopyJsonl: _onCopyJsonl,
+    conversationContext,
   }: FloatingPromptInputProps,
   ref: React.Ref<FloatingPromptInputRef>,
 ) => {
@@ -175,6 +180,7 @@ const FloatingPromptInputInner = (
     text: prompt,
     cursorPos: cursorPosition,
     projectPath,
+    conversationContext,
   });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
