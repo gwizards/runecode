@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft,
+  ArrowDown,
   Play,
   StopCircle,
   Terminal,
@@ -12,7 +13,6 @@ import {
   Maximize2,
   X,
   Lock,
-  Unlock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -645,38 +645,53 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
               </div>
             </div>
           </div>
-          {/* Auto-scroll lock/unlock */}
-          {displayableMessages.length > 0 && (
-            <div className="absolute bottom-3 right-3 z-20">
-              <button
-                onClick={() => {
-                  if (!scrollLocked) {
+          {/* Scroll control */}
+          <AnimatePresence mode="wait">
+            {displayableMessages.length > 0 && scrollLocked && (
+              <motion.div
+                key="locked"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.12 }}
+                className="absolute bottom-3 right-3 z-20"
+              >
+                <button
+                  onClick={() => setScrollLocked(false)}
+                  title="Auto-scroll on — click to unlock"
+                  className="p-1.5 rounded-full text-primary/40 hover:text-primary/70 hover:bg-primary/10 transition-colors"
+                >
+                  <Lock className="h-3 w-3" />
+                </button>
+              </motion.div>
+            )}
+            {displayableMessages.length > 0 && !scrollLocked && (
+              <motion.div
+                key="unlocked"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-3 right-3 z-20"
+              >
+                <button
+                  onClick={() => {
                     setScrollLocked(true);
                     rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
                     requestAnimationFrame(() => {
                       const el = scrollContainerRef.current;
                       if (el) el.scrollTop = el.scrollHeight;
                     });
-                  } else {
-                    setScrollLocked(false);
-                  }
-                }}
-                title={scrollLocked ? 'Auto-scroll on (click to unlock)' : 'Auto-scroll off (click to pin to bottom)'}
-                className={cn(
-                  'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
-                  scrollLocked
-                    ? 'bg-primary/15 text-primary border-primary/25 hover:bg-primary/25'
-                    : 'bg-background/90 text-muted-foreground/70 border-border/50 hover:bg-muted hover:text-foreground'
-                )}
-              >
-                {scrollLocked ? (
-                  <Lock className="h-3 w-3" />
-                ) : (
-                  <Unlock className="h-3 w-3" />
-                )}
-              </button>
-            </div>
-          )}
+                  }}
+                  title="Scroll to bottom"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm bg-primary/15 text-primary border-primary/25 hover:bg-primary/25 transition-all"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  <span>Bottom</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -759,38 +774,32 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
               </div>
               <div ref={fullscreenMessagesEndRef} />
             </div>
-            {/* Auto-scroll lock/unlock */}
-            {displayableMessages.length > 0 && (
-              <div className="absolute bottom-3 right-3 z-20">
-                <button
-                  onClick={() => {
-                    if (!scrollLocked) {
+            {/* Scroll control — fullscreen */}
+            <AnimatePresence mode="wait">
+              {displayableMessages.length > 0 && scrollLocked && (
+                <motion.div key="fs-locked" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.12 }} className="absolute bottom-3 right-3 z-20">
+                  <button onClick={() => setScrollLocked(false)} title="Auto-scroll on — click to unlock" className="p-1.5 rounded-full text-primary/40 hover:text-primary/70 hover:bg-primary/10 transition-colors">
+                    <Lock className="h-3 w-3" />
+                  </button>
+                </motion.div>
+              )}
+              {displayableMessages.length > 0 && !scrollLocked && (
+                <motion.div key="fs-unlocked" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.15 }} className="absolute bottom-3 right-3 z-20">
+                  <button
+                    onClick={() => {
                       setScrollLocked(true);
                       fullscreenRowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
-                      requestAnimationFrame(() => {
-                        const el = fullscreenScrollRef.current;
-                        if (el) el.scrollTop = el.scrollHeight;
-                      });
-                    } else {
-                      setScrollLocked(false);
-                    }
-                  }}
-                  title={scrollLocked ? 'Auto-scroll on (click to unlock)' : 'Auto-scroll off (click to pin to bottom)'}
-                  className={cn(
-                    'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
-                    scrollLocked
-                      ? 'bg-primary/15 text-primary border-primary/25 hover:bg-primary/25'
-                      : 'bg-background/90 text-muted-foreground/70 border-border/50 hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  {scrollLocked ? (
-                    <Lock className="h-3 w-3" />
-                  ) : (
-                    <Unlock className="h-3 w-3" />
-                  )}
-                </button>
-              </div>
-            )}
+                      requestAnimationFrame(() => { const el = fullscreenScrollRef.current; if (el) el.scrollTop = el.scrollHeight; });
+                    }}
+                    title="Scroll to bottom"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm bg-primary/15 text-primary border-primary/25 hover:bg-primary/25 transition-all"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                    <span>Bottom</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}

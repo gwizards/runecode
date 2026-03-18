@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, startTransiti
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
+  ArrowDown,
   ChevronDown,
   Lock,
-  Unlock,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -1812,22 +1812,42 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             </div>
           )}
 
-          {/* Auto-scroll lock/unlock button — always visible */}
-          {displayableMessages.length > 0 && (
-            <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5">
-              {!scrollLocked && newMessageCount > 0 && (
-                <motion.span
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-primary/15 text-primary border border-primary/20"
+          {/* Scroll control — locked: small lock indicator; unlocked: arrow-down to jump back */}
+          <AnimatePresence mode="wait">
+            {displayableMessages.length > 0 && scrollLocked && (
+              <motion.div
+                key="locked"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.12 }}
+                className="absolute bottom-3 right-3 z-30"
+              >
+                <button
+                  onClick={() => { setScrollLocked(false); isAtBottomRef.current = false; }}
+                  title="Auto-scroll on — click to unlock"
+                  className="flex items-center gap-1 p-1.5 rounded-full text-primary/40 hover:text-primary/70 hover:bg-primary/10 transition-colors"
                 >
-                  {newMessageCount} new
-                </motion.span>
-              )}
-              <button
-                onClick={() => {
-                  if (!scrollLocked) {
-                    // Lock and scroll to bottom
+                  <Lock className="h-3 w-3" />
+                </button>
+              </motion.div>
+            )}
+            {displayableMessages.length > 0 && !scrollLocked && (
+              <motion.div
+                key="unlocked"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5"
+              >
+                {newMessageCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-primary/15 text-primary border border-primary/20">
+                    {newMessageCount} new
+                  </span>
+                )}
+                <button
+                  onClick={() => {
                     setScrollLocked(true);
                     setIsUserScrolledUp(false);
                     setNewMessageCount(0);
@@ -1838,28 +1858,16 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                       rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
                       requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }));
                     }
-                  } else {
-                    // Unlock — allow free scroll
-                    setScrollLocked(false);
-                    isAtBottomRef.current = false;
-                  }
-                }}
-                title={scrollLocked ? 'Auto-scroll on (click to unlock)' : 'Auto-scroll off (click to pin to bottom)'}
-                className={cn(
-                  'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
-                  scrollLocked
-                    ? 'bg-primary/15 text-primary border-primary/25 hover:bg-primary/25'
-                    : 'bg-background/90 text-muted-foreground/70 border-border/50 hover:bg-muted hover:text-foreground'
-                )}
-              >
-                {scrollLocked ? (
-                  <Lock className="h-3 w-3" />
-                ) : (
-                  <Unlock className="h-3 w-3" />
-                )}
-              </button>
-            </div>
-          )}
+                  }}
+                  title="Scroll to bottom"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all bg-primary/15 text-primary border-primary/25 hover:bg-primary/25"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  <span>Bottom</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Floating Prompt Input - Always visible */}
