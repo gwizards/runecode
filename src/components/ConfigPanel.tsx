@@ -81,7 +81,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
         {/* PERMISSIONS */}
         <Row label="Perms">
           {([
-            ['default', 'Ask'], ['acceptEdits', 'Auto-Edit'], ['plan', 'Plan'],
+            ['bypassPermissions', 'Auto'], ['acceptEdits', 'Edits'], ['default', 'Ask'], ['plan', 'Plan'],
           ] as [PermissionMode, string][]).map(([id, label]) => (
             <Pill key={id} active={permissionMode === id} onClick={() => setPermissionMode(id)}>
               {label}

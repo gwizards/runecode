@@ -131,6 +131,9 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
   const displayableMessages = React.useMemo(() => {
     return messages.filter((message, index) => {
       if (message.isMeta && !message.leafUuid && !message.summary) return false;
+      // Filter out SDK control messages (permission requests, keep-alive, etc.)
+      const controlTypes = ['control_request', 'control_response', 'control_cancel', 'keep_alive'];
+      if (controlTypes.includes(message.type)) return false;
       if (message.type === "user" && message.message) {
         if (message.isMeta) return false;
         const msg = message.message;

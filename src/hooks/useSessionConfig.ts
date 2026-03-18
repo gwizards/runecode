@@ -3,7 +3,7 @@ import { create } from 'zustand';
 export type ModelId = string;
 export type ThinkingMode = 'auto' | 'think' | 'think_hard' | 'think_harder' | 'ultrathink';
 export type EffortLevel = 'auto' | 'low' | 'medium' | 'high' | 'max';
-export type PermissionMode = 'default' | 'acceptEdits' | 'plan';
+export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
 
 interface SessionConfigState {
   model: ModelId;
@@ -89,7 +89,7 @@ export const useSessionConfig = create<SessionConfigState>((set) => ({
   model: (persisted.model as string) || 'default',
   thinkingMode: (persisted.thinkingMode as ThinkingMode) || 'auto',
   effort: (persisted.effort as EffortLevel) || 'auto',
-  permissionMode: (persisted.permissionMode as PermissionMode) || 'acceptEdits',
+  permissionMode: (persisted.permissionMode as PermissionMode) || 'bypassPermissions',
   teamsEnabled: (persisted.teamsEnabled as boolean) ?? true,
 
   // Sub-Agent Defaults

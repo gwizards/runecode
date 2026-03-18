@@ -501,7 +501,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         'rate_limit_event', 'system', 'start', 'partial', 'session_info',
         'content_block_start', 'content_block_delta', 'content_block_stop',
         'message_start', 'message_delta', 'message_stop', 'stream_event',
-        'result',
+        'result', 'control_request', 'control_response', 'control_cancel',
+        'keep_alive',
       ];
       if (nonDisplayableTypes.includes(message.type)) {
         return false;
@@ -839,7 +840,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // Project path selection handled by parent tab controls
 
-  const handleSendPrompt = async (prompt: string, model: string, thinkingMode: string = "auto", effort: string = "high", permissionMode: string = "acceptEdits") => {
+  const handleSendPrompt = async (prompt: string, model: string, thinkingMode: string = "auto", effort: string = "high", permissionMode: string = "bypassPermissions") => {
 
     // Intercept built-in Claude CLI commands that don't work in -p mode
     const trimmed = prompt.trim();
@@ -1172,7 +1173,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             
             // Small delay to ensure UI updates
             setTimeout(() => {
-              handleSendPrompt(nextPrompt.prompt, nextPrompt.model, nextPrompt.thinkingMode || "auto", nextPrompt.effort || "high", nextPrompt.permissionMode || "acceptEdits");
+              handleSendPrompt(nextPrompt.prompt, nextPrompt.model, nextPrompt.thinkingMode || "auto", nextPrompt.effort || "high", nextPrompt.permissionMode || "bypassPermissions");
             }, 100);
           }
         };

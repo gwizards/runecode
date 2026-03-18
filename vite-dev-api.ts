@@ -2166,8 +2166,10 @@ export function devApiPlugin(): Plugin {
             ...(req.teams_enabled !== false ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1" } : {}),
           },
 
-          // Permission mode — default to 'default' (user approves)
-          permissionMode: req.permission_mode || "default",
+          // Permission mode — default to 'bypassPermissions' (auto-approve everything)
+          permissionMode: req.permission_mode || "bypassPermissions",
+          // Required for bypassPermissions mode
+          ...((!req.permission_mode || req.permission_mode === 'bypassPermissions') ? { allowDangerouslySkipPermissions: true } : {}),
         };
 
         // Map thinking mode to SDK thinking config
