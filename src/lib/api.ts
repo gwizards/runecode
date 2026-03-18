@@ -112,29 +112,47 @@ export interface ClaudeInstallation {
   installation_type: "System" | "Custom";
 }
 
-// Agent API types
+// Agent API types — aligned with Claude Code native .md agent format
 export interface Agent {
-  id?: number;
+  /** Slug used as filename: ~/.claude/agents/{name}.md */
   name: string;
-  icon: string;
+  /** Human-readable description (from YAML frontmatter) */
+  description?: string;
+  /** Model override (e.g. "sonnet", "opus") */
+  model?: string;
+  /** Allowed tools list (from YAML frontmatter) */
+  tools?: string[];
+  /** Disallowed tools list (from YAML frontmatter) */
+  disallowedTools?: string[];
+  /** Skills list (from YAML frontmatter) */
+  skills?: string[];
+  /** Max turns limit (from YAML frontmatter) */
+  maxTurns?: number;
+  /** Permission mode override (from YAML frontmatter) */
+  permissionMode?: string;
+  /** Isolation mode — "worktree" for git worktree isolation */
+  isolation?: string;
+  /** Whether to run in background by default */
+  background?: boolean;
+  /** System prompt (markdown body after frontmatter) */
   system_prompt: string;
-  default_task?: string;
-  model: string;
-  hooks?: string; // JSON string of HooksConfiguration
-  created_at: string;
-  updated_at: string;
+  /** Scope: "user" (~/.claude/agents/) or "project" (.claude/agents/) */
+  scope?: 'user' | 'project';
+  /** Full file path on disk */
+  file_path?: string;
+  /** Source: "sdk" if discovered by SDK, "file" if read from disk */
+  source?: 'sdk' | 'file';
 }
 
+/** Legacy export format for GitHub agent browser compatibility */
 export interface AgentExport {
   version: number;
   exported_at: string;
   agent: {
     name: string;
-    icon: string;
     system_prompt: string;
-    default_task?: string;
+    description?: string;
     model: string;
-    hooks?: string;
   };
 }
 
@@ -146,22 +164,21 @@ export interface GitHubAgentFile {
   sha: string;
 }
 
+/** @deprecated Legacy type — agent runs are now WebSocket sessions */
 export interface AgentRun {
   id?: number;
   agent_id: number;
   agent_name: string;
-  agent_icon: string;
   task: string;
   model: string;
   project_path: string;
   session_id: string;
-  status: string; // 'pending', 'running', 'completed', 'failed', 'cancelled'
-  pid?: number;
-  process_started_at?: string;
+  status: string;
   created_at: string;
   completed_at?: string;
 }
 
+/** @deprecated Legacy type — agent run metrics are now streamed via WebSocket */
 export interface AgentRunMetrics {
   duration_ms?: number;
   total_tokens?: number;
@@ -169,24 +186,10 @@ export interface AgentRunMetrics {
   message_count?: number;
 }
 
-export interface AgentRunWithMetrics {
-  id?: number;
-  agent_id: number;
-  agent_name: string;
-  agent_icon: string;
-  task: string;
-  model: string;
-  project_path: string;
-  session_id: string;
-  status: string; // 'pending', 'running', 'completed', 'failed', 'cancelled'
-  pid?: number;
-  duration_ms?: number;
-  total_tokens?: number;
-  process_started_at?: string;
-  created_at: string;
-  completed_at?: string;
+/** @deprecated Legacy type — agent runs are now WebSocket sessions */
+export interface AgentRunWithMetrics extends AgentRun {
   metrics?: AgentRunMetrics;
-  output?: string; // Real-time JSONL content
+  output?: string;
 }
 
 // Usage Dashboard types
@@ -733,32 +736,23 @@ export const api = {
   },
 
   /**
-   * Creates a new agent
-   * @param name - The agent name
-   * @param icon - The icon identifier
-   * @param system_prompt - The system prompt for the agent
-   * @param default_task - Optional default task
-   * @param model - Optional model (defaults to 'sonnet')
-   * @param hooks - Optional hooks configuration as JSON string
+   * Creates or updates an agent by writing a .md file
+   * @param agent - The agent data (name becomes the filename)
    * @returns Promise resolving to the created agent
    */
-  async createAgent(
-    name: string, 
-    icon: string, 
-    system_prompt: string, 
-    default_task?: string, 
-    model?: string,
-    hooks?: string
-  ): Promise<Agent> {
+  async createAgent(agent: {
+    name: string;
+    description?: string;
+    model?: string;
+    tools?: string[];
+    disallowedTools?: string[];
+    skills?: string[];
+    maxTurns?: number;
+    system_prompt: string;
+    scope?: 'user' | 'project';
+  }): Promise<Agent> {
     try {
-      return await apiCall<Agent>('create_agent', { 
-        name, 
-        icon, 
-        systemPrompt: system_prompt,
-        defaultTask: default_task,
-        model,
-        hooks
-      });
+      return await apiCall<Agent>('create_agent', agent);
     } catch (error) {
       console.error("Failed to create agent:", error);
       throw error;
@@ -766,35 +760,36 @@ export const api = {
   },
 
   /**
-   * Updates an existing agent
-   * @param id - The agent ID
-   * @param name - The updated name
-   * @param icon - The updated icon
-   * @param system_prompt - The updated system prompt
-   * @param default_task - Optional default task
-   * @param model - Optional model
-   * @param hooks - Optional hooks configuration as JSON string
+   * Updates an existing agent by rewriting its .md file
+   * @param name - The agent name (filename slug)
+   * @param agent - The updated agent data
    * @returns Promise resolving to the updated agent
    */
-  async updateAgent(
-    id: number, 
-    name: string, 
-    icon: string, 
-    system_prompt: string, 
-    default_task?: string, 
-    model?: string,
-    hooks?: string
-  ): Promise<Agent> {
+  async updateAgent(originalName: string, agent: {
+    name: string;
+    description?: string;
+    model?: string;
+    tools?: string[];
+    disallowedTools?: string[];
+    skills?: string[];
+    maxTurns?: number;
+    system_prompt: string;
+    scope?: 'user' | 'project';
+  }): Promise<Agent> {
     try {
-      return await apiCall<Agent>('update_agent', { 
-        id, 
-        name, 
-        icon, 
-        systemPrompt: system_prompt,
-        defaultTask: default_task,
-        model,
-        hooks
-      });
+      // PUT requires direct fetch — apiCall's write path sends as POST body
+      // but the URL needs the original name for the {name} placeholder
+      const response = await fetch(
+        new URL(`/api/agents/${encodeURIComponent(originalName)}`, window.location.origin).toString(),
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(agent),
+        },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const json = await response.json();
+      return (json?.data ?? json) as Agent;
     } catch (error) {
       console.error("Failed to update agent:", error);
       throw error;
@@ -802,13 +797,19 @@ export const api = {
   },
 
   /**
-   * Deletes an agent
-   * @param id - The agent ID to delete
+   * Deletes an agent by removing its .md file
+   * @param name - The agent name (filename slug)
    * @returns Promise resolving when the agent is deleted
    */
-  async deleteAgent(id: number): Promise<void> {
+  async deleteAgent(name: string, scope?: 'user' | 'project'): Promise<void> {
     try {
-      return await apiCall('delete_agent', { id });
+      const params = scope ? `?scope=${scope}` : '';
+      // DELETE requires direct fetch (apiCall only supports GET/POST)
+      const response = await fetch(
+        new URL(`/api/agents/${encodeURIComponent(name)}${params}`, window.location.origin).toString(),
+        { method: 'DELETE' },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
     } catch (error) {
       console.error("Failed to delete agent:", error);
       throw error;
@@ -816,13 +817,14 @@ export const api = {
   },
 
   /**
-   * Gets a single agent by ID
-   * @param id - The agent ID
+   * Gets a single agent by name
+   * @param name - The agent name (filename slug)
    * @returns Promise resolving to the agent
    */
-  async getAgent(id: number): Promise<Agent> {
+  async getAgent(name: string): Promise<Agent> {
     try {
-      return await apiCall<Agent>('get_agent', { id });
+      const result = await apiCall<Agent>('get_agent', { id: name });
+      return result;
     } catch (error) {
       console.error("Failed to get agent:", error);
       throw error;
@@ -830,13 +832,14 @@ export const api = {
   },
 
   /**
-   * Exports a single agent to JSON format
-   * @param id - The agent ID to export
-   * @returns Promise resolving to the JSON string
+   * Exports an agent as its raw .md file content
+   * @param name - The agent name
+   * @returns Promise resolving to the .md file content
    */
-  async exportAgent(id: number): Promise<string> {
+  async exportAgent(name: string): Promise<string> {
     try {
-      return await apiCall<string>('export_agent', { id });
+      const result = await apiCall<{ content: string }>('export_agent', { name });
+      return result?.content || '';
     } catch (error) {
       console.error("Failed to export agent:", error);
       throw error;
@@ -844,160 +847,17 @@ export const api = {
   },
 
   /**
-   * Imports an agent from JSON data
-   * @param jsonData - The JSON string containing the agent export
+   * Imports an agent from .md file content
+   * @param content - The .md file content (frontmatter + body)
+   * @param scope - Where to save: "user" or "project"
    * @returns Promise resolving to the imported agent
    */
-  async importAgent(jsonData: string): Promise<Agent> {
+  async importAgent(content: string, scope: 'user' | 'project' = 'user'): Promise<Agent> {
     try {
-      return await apiCall<Agent>('import_agent', { jsonData });
+      return await apiCall<Agent>('import_agent', { content, scope });
     } catch (error) {
       console.error("Failed to import agent:", error);
       throw error;
-    }
-  },
-
-  /**
-   * Imports an agent from a file
-   * @param filePath - The path to the JSON file
-   * @returns Promise resolving to the imported agent
-   */
-  async importAgentFromFile(filePath: string): Promise<Agent> {
-    try {
-      return await apiCall<Agent>('import_agent_from_file', { filePath });
-    } catch (error) {
-      console.error("Failed to import agent from file:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Executes an agent
-   * @param agentId - The agent ID to execute
-   * @param projectPath - The project path to run the agent in
-   * @param task - The task description
-   * @param model - Optional model override
-   * @returns Promise resolving to the run ID when execution starts
-   */
-  async executeAgent(agentId: number, projectPath: string, task: string, model?: string): Promise<number> {
-    try {
-      return await apiCall<number>('execute_agent', { agentId, projectPath, task, model });
-    } catch (error) {
-      console.error("Failed to execute agent:", error);
-      // Return a sentinel value to indicate error
-      throw new Error(`Failed to execute agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
-
-  /**
-   * Lists agent runs without metrics (basic info only)
-   * @param agentId - Optional agent ID to filter runs
-   * @returns Promise resolving to an array of agent runs
-   */
-  async listAgentRuns(agentId?: number): Promise<AgentRunWithMetrics[]> {
-    try {
-      const result = await apiCall<AgentRunWithMetrics[]>('list_agent_runs', { agentId });
-      return Array.isArray(result) ? result : [];
-    } catch (error) {
-      console.error("Failed to list agent runs:", error);
-      return [];
-    }
-  },
-
-  /**
-   * Lists agent runs with metrics (includes token counts and duration)
-   * @param agentId - Optional agent ID to filter runs
-   * @returns Promise resolving to an array of agent runs with metrics
-   */
-  async listAgentRunsWithMetrics(agentId?: number): Promise<AgentRunWithMetrics[]> {
-    try {
-      const result = await apiCall<AgentRunWithMetrics[]>('list_agent_runs_with_metrics', { agentId });
-      return Array.isArray(result) ? result : [];
-    } catch (error) {
-      console.error("Failed to list agent runs with metrics:", error);
-      return [];
-    }
-  },
-
-  /**
-   * Gets a single agent run by ID with metrics
-   * @param id - The run ID
-   * @returns Promise resolving to the agent run with metrics
-   */
-  async getAgentRun(id: number): Promise<AgentRunWithMetrics> {
-    try {
-      return await apiCall<AgentRunWithMetrics>('get_agent_run', { id });
-    } catch (error) {
-      console.error("Failed to get agent run:", error);
-      throw new Error(`Failed to get agent run: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
-
-  /**
-   * Gets a single agent run by ID with real-time metrics from JSONL
-   * @param id - The run ID
-   * @returns Promise resolving to the agent run with metrics
-   */
-  async getAgentRunWithRealTimeMetrics(id: number): Promise<AgentRunWithMetrics> {
-    try {
-      return await apiCall<AgentRunWithMetrics>('get_agent_run_with_real_time_metrics', { id });
-    } catch (error) {
-      console.error("Failed to get agent run with real-time metrics:", error);
-      throw new Error(`Failed to get agent run with real-time metrics: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
-
-  /**
-   * Lists all currently running agent sessions
-   * @returns Promise resolving to list of running agent sessions
-   */
-  async listRunningAgentSessions(): Promise<AgentRun[]> {
-    try {
-      return await apiCall<AgentRun[]>('list_running_sessions');
-    } catch (error) {
-      console.error("Failed to list running agent sessions:", error);
-      throw new Error(`Failed to list running agent sessions: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
-
-  /**
-   * Kills a running agent session
-   * @param runId - The run ID to kill
-   * @returns Promise resolving to whether the session was successfully killed
-   */
-  async killAgentSession(runId: number): Promise<boolean> {
-    try {
-      return await apiCall<boolean>('kill_agent_session', { runId });
-    } catch (error) {
-      console.error("Failed to kill agent session:", error);
-      throw new Error(`Failed to kill agent session: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
-
-  /**
-   * Gets the status of a specific agent session
-   * @param runId - The run ID to check
-   * @returns Promise resolving to the session status or null if not found
-   */
-  async getSessionStatus(runId: number): Promise<string | null> {
-    try {
-      return await apiCall<string | null>('get_session_status', { runId });
-    } catch (error) {
-      console.error("Failed to get session status:", error);
-      throw new Error(`Failed to get session status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
-
-  /**
-   * Cleanup finished processes and update their status
-   * @returns Promise resolving to list of run IDs that were cleaned up
-   */
-  async cleanupFinishedProcesses(): Promise<number[]> {
-    try {
-      return await apiCall<number[]>('cleanup_finished_processes');
-    } catch (error) {
-      console.error("Failed to cleanup finished processes:", error);
-      throw new Error(`Failed to cleanup finished processes: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   },
 
@@ -1073,32 +933,21 @@ export const api = {
   },
 
   /**
-   * Executes a new interactive Claude Code session with streaming output
+   * Executes a new interactive Claude Code session with streaming output.
+   * If connectionId is provided, sends through an existing persistent WebSocket.
+   * If sessionId is provided (without connectionId), resumes that session.
    */
-  async executeClaudeCode(projectPath: string, prompt: string, model: string): Promise<void> {
-    return apiCall("execute_claude_code", { projectPath, prompt, model });
-  },
-
-  /**
-   * Continues an existing Claude Code conversation with streaming output
-   */
-  async continueClaudeCode(projectPath: string, prompt: string, model: string): Promise<void> {
-    return apiCall("continue_claude_code", { projectPath, prompt, model });
-  },
-
-  /**
-   * Resumes an existing Claude Code session by ID with streaming output
-   */
-  async resumeClaudeCode(projectPath: string, sessionId: string, prompt: string, model: string): Promise<void> {
-    return apiCall("resume_claude_code", { projectPath, sessionId, prompt, model });
+  async executeClaudeCode(projectPath: string, prompt: string, model: string, thinkingMode?: string, connectionId?: string, sessionId?: string, effort?: string, resumeAt?: string, permissionMode?: string): Promise<any> {
+    return apiCall("execute_claude_code", { projectPath, prompt, model, thinkingMode, connectionId, sessionId, effort, resumeAt, permissionMode });
   },
 
   /**
    * Cancels the currently running Claude Code execution
-   * @param sessionId - Optional session ID to cancel a specific session
+   * @param connectionId - Primary identifier for the connection to cancel
+   * @param sessionId - Fallback session ID to cancel a specific session
    */
-  async cancelClaudeExecution(sessionId?: string): Promise<void> {
-    return apiCall("cancel_claude_execution", { sessionId });
+  async cancelClaudeExecution(connectionId?: string, sessionId?: string): Promise<void> {
+    return apiCall("cancel_claude_execution", { connectionId, sessionId });
   },
 
   /**

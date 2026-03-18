@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, startTransition } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ChevronDown,
-  ChevronUp,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { api, type Session } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useSessionConfig } from "@/hooks/useSessionConfig";
 
 // Conditional imports for Tauri APIs
 let tauriListen: any;
@@ -43,13 +44,16 @@ const listen = tauriListen || ((eventName: string, callback: (event: any) => voi
     window.removeEventListener(eventName, domEventHandler);
   });
 });
-import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { StreamMessage } from "./StreamMessage";
 import { FloatingPromptInput, type FloatingPromptInputRef } from "./FloatingPromptInput";
+import { SessionActivityBar } from "./SessionActivityBar";
+import { SubAgentTracker } from "./SubAgentTracker";
+import { TeamDashboard } from "./TeamDashboard";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TimelineNavigator } from "./TimelineNavigator";
 import { CheckpointSettings } from "./CheckpointSettings";
 import { SlashCommandsManager } from "./SlashCommandsManager";
+import { RewindPanel } from './RewindPanel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { TooltipProvider, TooltipSimple } from "@/components/ui/tooltip-modern";
 import { SplitPane } from "@/components/ui/split-pane";
@@ -88,6 +92,15 @@ interface ClaudeCodeSessionProps {
    * Callback when project path changes
    */
   onProjectPathChange?: (path: string) => void;
+  /**
+   * Whether this session's tab is visible and should auto-scroll
+   */
+  isActive?: boolean;
+  /**
+   * Whether this session owns the shared footer input portal.
+   * In single mode this equals isActive. In grid mode only the focused tab is true.
+   */
+  ownsFooter?: boolean;
 }
 
 /**
@@ -102,9 +115,15 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   className,
   onStreamingChange,
   onProjectPathChange,
+  isActive = true,
+  ownsFooter,
 }) => {
+  const showFooter = ownsFooter ?? isActive;
   const [projectPath] = useState(initialProjectPath || session?.project_path || "");
   const [messages, setMessages] = useState<ClaudeStreamMessage[]>([]);
+  // Ref mirror of messages — passed to StreamMessage to avoid re-renders when messages array changes
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   // Reset live usage when session changes
   useEffect(() => {
@@ -116,11 +135,20 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawJsonlOutput, setRawJsonlOutput] = useState<string[]>([]);
-  const [isFirstPrompt, setIsFirstPrompt] = useState(!session);
   const [totalTokens, setTotalTokens] = useState(0);
   const [_sessionCostUsd, setSessionCostUsd] = useState(0);
   const [extractedSessionInfo, setExtractedSessionInfo] = useState<{ sessionId: string; projectId: string } | null>(null);
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(null);
+  const [connectionId, _setConnectionId] = useState<string | null>(null);
+  const connectionIdRef = useRef<string | null>(null);
+  const resumeAtRef = useRef<string | null>(null);
+  const setConnectionId = useCallback((val: string | null | ((prev: string | null) => string | null)) => {
+    _setConnectionId((prev) => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      connectionIdRef.current = next;
+      return next;
+    });
+  }, []);
   const [showTimeline, setShowTimeline] = useState(false);
   const [timelineVersion, setTimelineVersion] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -130,12 +158,150 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [forkSessionName, setForkSessionName] = useState("");
   
   // Queued prompts state
-  const [queuedPrompts, setQueuedPrompts] = useState<Array<{ id: string; prompt: string; model: "sonnet" | "opus" }>>([]);
+  const [queuedPrompts, setQueuedPrompts] = useState<Array<{ id: string; prompt: string; model: string; thinkingMode?: string; effort?: string; permissionMode?: string }>>([]);
   
   // New state for preview feature
   const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
   const [showPreviewPrompt, setShowPreviewPrompt] = useState(false);
+  const [showRewindPanel, setShowRewindPanel] = useState(false);
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+
+  // Message batching — buffer incoming stream messages and flush in rAF
+  // to avoid per-message re-renders (reduces 50+ renders/sec to ~16/sec)
+  const msgBufferRef = useRef<any[]>([]);
+  const rawBufferRef = useRef<string[]>([]);
+  const flushRafRef = useRef(0);
+
+  const flushMessageBuffer = useCallback(() => {
+    flushRafRef.current = 0;
+    const msgs = msgBufferRef.current;
+    const raws = rawBufferRef.current;
+    if (msgs.length === 0) return;
+    msgBufferRef.current = [];
+    rawBufferRef.current = [];
+    // Low-priority update — React can yield to browser between renders
+    startTransition(() => {
+      setMessages(prev => [...prev, ...msgs]);
+      setRawJsonlOutput(prev => [...prev, ...raws]);
+    });
+  }, []);
+
+  const bufferMessage = useCallback((message: any, raw: string) => {
+    msgBufferRef.current.push(message);
+    rawBufferRef.current.push(raw);
+    if (!flushRafRef.current) {
+      flushRafRef.current = requestAnimationFrame(flushMessageBuffer);
+    }
+  }, [flushMessageBuffer]);
+
+  // Flush on unmount
+  useEffect(() => {
+    return () => { if (flushRafRef.current) cancelAnimationFrame(flushRafRef.current); };
+  }, []);
+
+  // Detect scroll position — show/hide scroll button, load more at top, shrink at bottom
+  const loadMoreCooldown = useRef(false);
+  const shrinkCooldown = useRef(false);
+  // Guard: prevents scroll handler from fighting with programmatic scroll
+  const isRestoringScroll = useRef(false);
+  // Scrollbar auto-hide
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    let scrollRaf = 0;
+    const onScroll = () => {
+      // Throttle via rAF — coalesce rapid scroll events into one layout read per frame.
+      // This prevents the 550-670ms "handler took too long" violations from
+      // @tanstack/react-virtual by avoiding synchronous DOM reads on every scroll event.
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0;
+        // Skip during programmatic restore to prevent race condition
+        if (isRestoringScroll.current) return;
+
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+
+        // "Docked to bottom" — auto-scroll stays on while within 80px of bottom.
+        // Undocks when user scrolls up beyond that threshold.
+        // Only update React state when the value actually changes to avoid re-renders.
+        const atBottom = distFromBottom < 80;
+        const wasAtBottom = isAtBottomRef.current;
+        isAtBottomRef.current = atBottom;
+
+        if (atBottom !== wasAtBottom) {
+          if (atBottom) {
+            setIsUserScrolledUp(false);
+            setNewMessageCount(0);
+            setIsScrolledUp(false);
+          } else {
+            setIsUserScrolledUp(true);
+            setIsScrolledUp(true);
+          }
+        }
+
+        // Show scrollbar while scrolling, hide after 2s idle (avoid re-render if already scrolling)
+        if (!scrollTimeoutRef.current) setIsScrolling(true);
+        else clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => { scrollTimeoutRef.current = null; setIsScrolling(false); }, 2000);
+
+        // Load more messages when scrolling near the top (debounced)
+        if (el.scrollTop < 100 && !loadMoreCooldown.current) {
+          loadMoreCooldown.current = true;
+          setVisibleLimit(prev => {
+            const total = allDisplayableRef.current;
+            if (prev >= total) return prev;
+            return Math.min(prev + LOAD_MORE_COUNT, total);
+          });
+          setTimeout(() => { loadMoreCooldown.current = false; }, 300);
+        }
+
+        // Shrink back to initial when at the bottom (keep DOM small)
+        if (atBottom && !shrinkCooldown.current) {
+          shrinkCooldown.current = true;
+          setVisibleLimit(INITIAL_VISIBLE);
+          setTimeout(() => { shrinkCooldown.current = false; }, 500);
+        }
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+
+    // Keep docked to bottom when the container resizes (e.g. sidebar open/close).
+    // Debounced via rAF to avoid firing on every animation frame.
+    let resizeRaf = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isAtBottomRef.current || isRestoringScroll.current) return;
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        if (isAtBottomRef.current) {
+          el.scrollTop = el.scrollHeight;
+        }
+      });
+    });
+    resizeObserver.observe(el);
+
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      resizeObserver.disconnect();
+      cancelAnimationFrame(resizeRaf);
+      cancelAnimationFrame(scrollRaf);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []);
+
+  // Close rewind panel when this session loses focus (e.g. grid tab switch)
+  useEffect(() => {
+    if (!showFooter) {
+      setShowRewindPanel(false);
+      setShowTimeline(false);
+    }
+  }, [showFooter]);
+
+  // Tab panels use visibility:hidden instead of display:none, so scroll position persists natively.
+
   const [splitPosition, setSplitPosition] = useState(50);
   const [isPreviewMaximized, setIsPreviewMaximized] = useState(false);
   
@@ -146,10 +312,68 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const unlistenRefs = useRef<UnlistenFn[]>([]);
   const hasActiveSessionRef = useRef(false);
   const floatingPromptRef = useRef<FloatingPromptInputRef>(null);
-  const queuedPromptsRef = useRef<Array<{ id: string; prompt: string; model: "sonnet" | "opus" }>>([]);
+  const queuedPromptsRef = useRef<Array<{ id: string; prompt: string; model: string; thinkingMode?: string; effort?: string; permissionMode?: string }>>([]);
   const isMountedRef = useRef(true);
   const isListeningRef = useRef(false);
   const sessionStartTime = useRef<number>(Date.now());
+
+  // Sync model changes to active SDK session
+  const currentModel = useSessionConfig((s) => s.model);
+
+  useEffect(() => {
+    if (connectionIdRef.current && currentModel) {
+      import('@/lib/apiAdapter').then(({ setSessionModel }) => {
+        setSessionModel(connectionIdRef.current!, currentModel);
+      }).catch(() => {});
+    }
+  }, [currentModel]);
+
+  // Toggle RewindPanel when timeline button is clicked — only the focused session responds
+  useEffect(() => {
+    if (!showFooter) return; // only the session that owns the footer handles this
+    const handleToggleRewind = () => {
+      setShowRewindPanel(prev => !prev);
+      setShowTimeline(false);
+    };
+    window.addEventListener('runecode:open-timeline', handleToggleRewind);
+    return () => window.removeEventListener('runecode:open-timeline', handleToggleRewind);
+  }, [showFooter]);
+
+  // Handle rewind actions from the RewindPanel — only the focused session
+  useEffect(() => {
+    if (!showFooter) return;
+    const handleRewind = async (e: CustomEvent) => {
+      const { userMessageId, mode } = e.detail;
+
+      try {
+        // Rewind files if we have an active session connection
+        if (connectionIdRef.current && (mode === 'code_and_conversation' || mode === 'code_only')) {
+          const { rewindSessionFiles } = await import('@/lib/apiAdapter');
+          rewindSessionFiles(connectionIdRef.current, userMessageId, false);
+        }
+
+        // Truncate conversation to the rewind point
+        if (mode === 'code_and_conversation') {
+          const rewindIdx = messages.findIndex(m => m.uuid === userMessageId);
+          if (rewindIdx >= 0) {
+            setMessages(prev => prev.slice(0, rewindIdx + 1));
+          }
+          // Reset connection and store the rewind point so next message resumes there
+          setConnectionId(null);
+          // Store resume-at UUID so the next session init uses resumeSessionAt
+          resumeAtRef.current = userMessageId;
+        }
+
+        setShowRewindPanel(false);
+      } catch (err) {
+        console.error('Rewind failed:', err);
+      }
+    };
+
+    window.addEventListener('runecode:rewind', handleRewind as EventListener);
+    return () => window.removeEventListener('runecode:rewind', handleRewind as EventListener);
+  }, [messages, showFooter]);
+
   const isIMEComposingRef = useRef(false);
 
   // Smart auto-scroll state
@@ -185,19 +409,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // const aiTracking = useAIInteractionTracking('sonnet'); // Default model
   const workflowTracking = useWorkflowTracking('claude_session');
   
-  // Scroll event handler to detect when user is near bottom
-  const handleScroll = useCallback(() => {
-    const el = parentRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    isAtBottomRef.current = atBottom;
-    if (atBottom) {
-      setIsUserScrolledUp(false);
-      setNewMessageCount(0);
-    } else {
-      setIsUserScrolledUp(true);
-    }
-  }, []);
+  // handleScroll is now consolidated into the useEffect scroll listener above.
+  // Keep as a no-op for JSX onScroll prop compatibility.
+  const handleScroll = useCallback(() => {}, []);
 
   // Listen for auto-scroll settings changes
   useEffect(() => {
@@ -239,12 +453,78 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     return null;
   }, [session, extractedSessionInfo, projectPath]);
 
+  // How many messages to show from the end — grows as user scrolls up
+  const INITIAL_VISIBLE = 12; // fewer items on initial load = faster first paint
+  const LOAD_MORE_COUNT = 20;
+  const [visibleLimit, setVisibleLimit] = useState(INITIAL_VISIBLE);
+  const allDisplayableRef = useRef(0); // tracks total displayable count for scroll handler
+
+  // Reset visible limit on session change; auto-expand for new messages
+  const prevMsgCount = useRef(0);
+  useEffect(() => {
+    if (messages.length < prevMsgCount.current) {
+      // Session changed or rewound — reset
+      setVisibleLimit(INITIAL_VISIBLE);
+    } else if (messages.length > prevMsgCount.current && !isScrolledUp) {
+      // New messages arrived while at bottom — ensure they're visible
+      setVisibleLimit(prev => Math.max(prev, INITIAL_VISIBLE));
+    }
+    prevMsgCount.current = messages.length;
+  }, [messages.length, isScrolledUp]);
+
+  // Pre-build a map of tool_use_id → tool name for O(1) lookup in the filter below.
+  // This replaces the O(n²) backward scan through messages.
+  const toolUseNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const msg of messages) {
+      if (msg.type === 'assistant' && msg.message?.content && Array.isArray(msg.message.content)) {
+        for (const c of msg.message.content) {
+          if (c.type === 'tool_use' && c.id) {
+            map.set(c.id, c.name || '');
+          }
+        }
+      }
+    }
+    return map;
+  }, [messages]);
+
+  const toolsWithWidgets = new Set([
+    'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read',
+    'glob', 'bash', 'write', 'grep'
+  ]);
+
   // Filter out messages that shouldn't be displayed
-  const displayableMessages = useMemo(() => {
+  const allDisplayableMessages = useMemo(() => {
     return messages.filter((message, index) => {
-      // Skip non-renderable message types (progress, file-history-snapshot, queue-operation, last-prompt)
-      const nonDisplayableTypes = ['progress', 'file-history-snapshot', 'queue-operation', 'last-prompt'];
+      // Skip non-renderable message types
+      const nonDisplayableTypes = [
+        'progress', 'file-history-snapshot', 'queue-operation', 'last-prompt',
+        'rate_limit_event', 'system', 'start', 'partial', 'session_info',
+        'content_block_start', 'content_block_delta', 'content_block_stop',
+        'message_start', 'message_delta', 'message_stop', 'stream_event',
+      ];
       if (nonDisplayableTypes.includes(message.type)) {
+        return false;
+      }
+
+      // Hide result messages — sidebar PlanUsagePanel shows usage
+      if (message.type === 'result') {
+        return false;
+      }
+
+      // Skip assistant messages with empty or no content (partial streaming placeholders)
+      if (message.type === 'assistant') {
+        const content = message.message?.content;
+        if (!content) return false;
+        if (Array.isArray(content) && content.length === 0) return false;
+        // Skip if content is only empty text blocks
+        if (Array.isArray(content) && content.every((b: any) =>
+          b.type === 'text' && (!b.text || b.text.trim() === '')
+        )) return false;
+      }
+
+      // Hide result/execution-complete messages — sidebar PlanUsagePanel shows this data
+      if (message.type === 'result') {
         return false;
       }
 
@@ -272,25 +552,10 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             if (content.type === "tool_result") {
               let willBeSkipped = false;
               if (content.tool_use_id) {
-                // Look for the matching tool_use in previous assistant messages
-                for (let i = index - 1; i >= 0; i--) {
-                  const prevMsg = messages[i];
-                  if (prevMsg.type === 'assistant' && prevMsg.message?.content && Array.isArray(prevMsg.message.content)) {
-                    const toolUse = prevMsg.message.content.find((c: any) => 
-                      c.type === 'tool_use' && c.id === content.tool_use_id
-                    );
-                    if (toolUse) {
-                      const toolName = toolUse.name?.toLowerCase();
-                      const toolsWithWidgets = [
-                        'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read', 
-                        'glob', 'bash', 'write', 'grep'
-                      ];
-                      if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) {
-                        willBeSkipped = true;
-                      }
-                      break;
-                    }
-                  }
+                // O(1) lookup via pre-built map instead of backward scan
+                const toolName = toolUseNameMap.get(content.tool_use_id);
+                if (toolName && (toolsWithWidgets.has(toolName.toLowerCase()) || toolName.startsWith('mcp__'))) {
+                  willBeSkipped = true;
                 }
               }
               if (!willBeSkipped) {
@@ -308,11 +573,20 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     });
   }, [messages]);
 
+  // Windowed view — show only the last N messages, load more on scroll up
+  const displayableMessages = useMemo(() => {
+    if (allDisplayableMessages.length <= visibleLimit) return allDisplayableMessages;
+    return allDisplayableMessages.slice(-visibleLimit);
+  }, [allDisplayableMessages, visibleLimit]);
+
+  allDisplayableRef.current = allDisplayableMessages.length;
+  const hasMoreMessages = allDisplayableMessages.length > visibleLimit;
+
   const rowVirtualizer = useVirtualizer({
     count: displayableMessages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 150, // Estimate, will be dynamically measured
-    overscan: 5,
+    overscan: 2, // minimal overscan to reduce measurement work
   });
 
   // Scroll to bottom helper
@@ -338,12 +612,14 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     // State tracking (debug only)
   }, [projectPath, session, extractedSessionInfo, effectiveSession, messages.length, isLoading]);
 
-  // Load session history if resuming
+  // Load session history if resuming — keyed on session ID, not object reference,
+  // so closing other tabs (which creates new tab objects) doesn't trigger a reload.
+  const sessionId = session?.id;
   useEffect(() => {
-    if (session) {
+    if (sessionId) {
       // Set the claudeSessionId immediately when we have a session
-      setClaudeSessionId(session.id);
-      
+      setClaudeSessionId(sessionId);
+
       // Load session history first, then check for active session
       const initializeSession = async () => {
         await loadSessionHistory();
@@ -352,50 +628,42 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           await checkForActiveSession();
         }
       };
-      
+
       initializeSession();
     }
-  }, [session]); // Remove hasLoadedSession dependency to ensure it runs on mount
+  }, [sessionId]); // Depend on session ID string, not object reference
 
   // Report streaming state changes
   useEffect(() => {
     onStreamingChange?.(isLoading, claudeSessionId);
   }, [isLoading, claudeSessionId, onStreamingChange]);
 
-  // Listen for timeline open requests from ConfigPanel
-  useEffect(() => {
-    const handler = () => setShowTimeline(true);
-    window.addEventListener('opcode:open-timeline', handler);
-    return () => window.removeEventListener('opcode:open-timeline', handler);
-  }, []);
+  // (timeline open handled by toggle effect above)
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (displayableMessages.length > 0) {
-      if (!autoScrollEnabled || !isAtBottomRef.current) {
-        // User has scrolled up or auto-scroll is disabled — don't scroll, just increment counter
-        if (!isAtBottomRef.current) {
-          setNewMessageCount(prev => prev + 1);
-        }
-        return;
+    if (displayableMessages.length === 0) return;
+    if (!autoScrollEnabled || !isAtBottomRef.current) {
+      if (!isAtBottomRef.current) {
+        setNewMessageCount(prev => prev + 1);
       }
-      // Use a more precise scrolling method to ensure content is fully visible
-      setTimeout(() => {
-        const scrollElement = parentRef.current;
-        if (scrollElement) {
-          // First, scroll using virtualizer to get close to the bottom
-          rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
-
-          // Then use direct scroll to ensure we reach the absolute bottom
-          requestAnimationFrame(() => {
-            scrollElement.scrollTo({
-              top: scrollElement.scrollHeight,
-              behavior: 'smooth'
-            });
-          });
-        }
-      }, 50);
+      return;
     }
+    isRestoringScroll.current = true;
+    let attempts = 0;
+    const doScroll = () => {
+      const scrollElement = parentRef.current;
+      if (!scrollElement) { isRestoringScroll.current = false; return; }
+      rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
+      scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: 'auto' });
+      if (attempts < 3) {
+        attempts++;
+        requestAnimationFrame(doScroll);
+      } else {
+        requestAnimationFrame(() => { isRestoringScroll.current = false; });
+      }
+    };
+    requestAnimationFrame(doScroll);
   }, [displayableMessages.length, rowVirtualizer, autoScrollEnabled]);
 
   // Calculate total tokens and estimated cost from messages
@@ -462,28 +730,39 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         type: entry.type || "assistant"
       }));
       
-      setMessages(loadedMessages);
-      setRawJsonlOutput(history.map(h => JSON.stringify(h)));
-      
-      // After loading history, we're continuing a conversation
-      setIsFirstPrompt(false);
-      
-      // Scroll to bottom after loading history
-      setTimeout(() => {
-        if (loadedMessages.length > 0) {
-          const scrollElement = parentRef.current;
-          if (scrollElement) {
-            // Use the same improved scrolling method
+      // Load messages in a low-priority transition so React can yield to the browser
+      startTransition(() => {
+        setMessages(loadedMessages);
+        setRawJsonlOutput(history.map(h => JSON.stringify(h)));
+      });
+
+      // Scroll to bottom — wait 2 frames for React to process the transition
+      // then retry gently until the virtualizer has rendered content.
+      if (loadedMessages.length > 0) {
+        isRestoringScroll.current = true;
+        let attempts = 0;
+        const scrollDown = () => {
+          const el = parentRef.current;
+          if (!el) { isRestoringScroll.current = false; return; }
+          const sh = el.scrollHeight;
+          const ch = el.clientHeight;
+          if (sh > ch) {
             rowVirtualizer.scrollToIndex(loadedMessages.length - 1, { align: 'end', behavior: 'auto' });
-            requestAnimationFrame(() => {
-              scrollElement.scrollTo({
-                top: scrollElement.scrollHeight,
-                behavior: 'auto'
-              });
-            });
+            isAtBottomRef.current = true;
           }
-        }
-      }, 100);
+          if (sh <= ch + 10 && attempts < 10) {
+            attempts++;
+            requestAnimationFrame(scrollDown);
+            return;
+          }
+          requestAnimationFrame(() => {
+            isRestoringScroll.current = false;
+            // Now that restore is done, trigger a re-measure of visible items
+            rowVirtualizer.measure();
+          });
+        };
+        requestAnimationFrame(() => requestAnimationFrame(scrollDown));
+      }
     } catch (err) {
       console.error("Failed to load session history:", err);
       setError("Failed to load session history");
@@ -584,9 +863,39 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // Project path selection handled by parent tab controls
 
-  const handleSendPrompt = async (prompt: string, model: "sonnet" | "opus") => {
+  const handleSendPrompt = async (prompt: string, model: string, thinkingMode: string = "auto", effort: string = "high", permissionMode: string = "acceptEdits") => {
 
-    
+    // Intercept built-in Claude CLI commands that don't work in -p mode
+    const trimmed = prompt.trim();
+    if (trimmed.startsWith('/')) {
+      const command = trimmed.split(/\s+/)[0].toLowerCase();
+
+      if (command === '/clear') {
+        setMessages([]);
+        setRawJsonlOutput([]);
+        setClaudeSessionId(null);
+        setConnectionId(null);
+        setError(null);
+        return;
+      }
+
+      const unsupportedCliCommands = [
+        '/help', '/compact', '/cost', '/status', '/model', '/config',
+        '/doctor', '/login', '/logout', '/memory', '/permissions',
+        '/terminal-setup', '/vim', '/bug', '/listen', '/fast', '/think',
+        '/undo', '/pr-comments', '/review', '/init',
+      ];
+      if (unsupportedCliCommands.includes(command)) {
+        const infoMessage: ClaudeStreamMessage = {
+          type: 'system',
+          subtype: 'info',
+          content: `\`${command}\` is a Claude CLI interactive command and is not available in RuneCode. Use the Claude CLI terminal for interactive commands.`,
+        } as ClaudeStreamMessage;
+        setMessages(prev => [...prev, infoMessage]);
+        return;
+      }
+    }
+
     if (!projectPath) {
       setError("Please select a project directory first");
       return;
@@ -597,7 +906,10 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       const newPrompt = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         prompt,
-        model
+        model,
+        thinkingMode,
+        effort,
+        permissionMode
       };
       setQueuedPrompts(prev => [...prev, newPrompt]);
       return;
@@ -716,9 +1028,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               rawPayload = JSON.stringify(payload);
             }
             
-            // Store raw JSONL
-            setRawJsonlOutput((prev) => [...prev, rawPayload]);
-
             // Track enhanced tool execution
             if (message.type === 'assistant' && message.message?.content) {
               const toolUses = message.message.content.filter((c: any) => c.type === 'tool_use');
@@ -786,7 +1095,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               sessionMetrics.current.errorsEncountered += 1;
             }
 
-            setMessages((prev) => [...prev, message]);
+            // Buffer message — flushed to state in the next animation frame
+            bufferMessage(message, rawPayload);
           } catch (err) {
             console.error('Failed to parse message:', err, payload);
           }
@@ -886,7 +1196,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             
             // Small delay to ensure UI updates
             setTimeout(() => {
-              handleSendPrompt(nextPrompt.prompt, nextPrompt.model);
+              handleSendPrompt(nextPrompt.prompt, nextPrompt.model, nextPrompt.thinkingMode || "auto", nextPrompt.effort || "high", nextPrompt.permissionMode || "acceptEdits");
             }, 100);
           }
         };
@@ -962,17 +1272,31 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         });
 
         // Execute the appropriate command
-        if (effectiveSession && !isFirstPrompt) {
-          console.log('[ClaudeCodeSession] Resuming session:', effectiveSession.id);
-          trackEvent.sessionResumed(effectiveSession.id);
+        if (connectionIdRef.current) {
+          // Send follow-up through persistent connection
+          console.log('[ClaudeCodeSession] Sending follow-up via persistent connection:', connectionIdRef.current);
           trackEvent.modelSelected(model);
-          await api.resumeClaudeCode(projectPath, effectiveSession.id, prompt, model);
+          await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, connectionIdRef.current, undefined, effort, undefined, permissionMode);
         } else {
-          console.log('[ClaudeCodeSession] Starting new session');
-          setIsFirstPrompt(false);
-          trackEvent.sessionCreated(model, 'prompt_input');
+          // First message — initialize persistent session
+          const sessionId = effectiveSession?.id;
+          if (sessionId) {
+            console.log('[ClaudeCodeSession] Resuming session:', sessionId);
+            trackEvent.sessionResumed(sessionId);
+          } else {
+            console.log('[ClaudeCodeSession] Starting new session');
+          }
           trackEvent.modelSelected(model);
-          await api.executeClaudeCode(projectPath, prompt, model);
+          if (!sessionId) {
+            trackEvent.sessionCreated(model, 'prompt_input');
+          }
+          const resumeAt = resumeAtRef.current;
+          resumeAtRef.current = null; // clear after use
+          const result = await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, undefined, sessionId, effort, resumeAt || undefined, permissionMode);
+          // Store connectionId for subsequent messages
+          if (result && typeof result === 'object' && 'connectionId' in result) {
+            setConnectionId((result as any).connectionId);
+          }
         }
       }
     } catch (err) {
@@ -1073,12 +1397,12 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   const handleCancelExecution = async () => {
     if (!claudeSessionId || !isLoading) return;
-    
+
     try {
       const sessionStartTime = messages.length > 0 ? messages[0].timestamp || Date.now() : Date.now();
       const duration = Date.now() - sessionStartTime;
-      
-      await api.cancelClaudeExecution(claudeSessionId);
+
+      await api.cancelClaudeExecution(connectionIdRef.current || undefined, claudeSessionId);
       
       // Calculate metrics for enhanced analytics
       const metrics = sessionMetrics.current;
@@ -1299,7 +1623,14 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       // Clean up listeners
       unlistenRefs.current.forEach(unlisten => unlisten());
       unlistenRefs.current = [];
-      
+
+      // Close persistent session WebSocket on unmount
+      if (connectionIdRef.current) {
+        import('@/lib/apiAdapter').then(({ closeSessionSocket }) => {
+          closeSessionSocket(connectionIdRef.current!);
+        }).catch(() => { /* ignore cleanup errors */ });
+      }
+
       // Clear checkpoint manager when session ends
       if (effectiveSession) {
         api.clearCheckpointManager(effectiveSession.id).catch(err => {
@@ -1312,17 +1643,23 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const messagesList = (
     <div
       ref={parentRef}
-      className="flex-1 overflow-y-auto relative pb-20"
-      style={{
-        contain: 'strict',
-      }}
+      className={cn(
+        "flex-1 overflow-y-auto relative scrollbar-autohide",
+        isScrolling && "scrollbar-visible"
+      )}
       onScroll={handleScroll}
+      onMouseMove={() => {
+        if (!isScrolling) {
+          setIsScrolling(true);
+          if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+          scrollTimeoutRef.current = setTimeout(() => setIsScrolling(false), 2000);
+        }
+      }}
+      onMouseLeave={() => {
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => setIsScrolling(false), 800);
+      }}
     >
-      <ScrollToBottomButton
-        visible={isUserScrolledUp && displayableMessages.length > 0}
-        newMessageCount={newMessageCount}
-        onClick={scrollToBottom}
-      />
       <div
         className="relative w-full max-w-6xl mx-auto px-4 pt-8 pb-4"
         style={{
@@ -1330,32 +1667,43 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           minHeight: '100px',
         }}
       >
-        <AnimatePresence>
+        {/* Load more indicator */}
+        {hasMoreMessages && (
+          <div className="text-center py-3">
+            <button
+              onClick={() => setVisibleLimit(prev => prev + LOAD_MORE_COUNT)}
+              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+            >
+              ↑ {allDisplayableMessages.length - visibleLimit} older messages · scroll up to load
+            </button>
+          </div>
+        )}
+        {/* No AnimatePresence — virtualizer handles item lifecycle; animation wrapper is too expensive */}
           {rowVirtualizer.getVirtualItems().map((virtualItem) => {
             const message = displayableMessages[virtualItem.index];
             return (
-              <motion.div
+              <div
                 key={virtualItem.key}
                 data-index={virtualItem.index}
-                ref={(el) => { if (el) rowVirtualizer.measureElement(el); }}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.3 }}
+                ref={(el) => {
+                  // Skip measurement during scroll restore — prevents the 400-675ms
+                  // forced reflow cascade where measureElement reads offsetHeight on
+                  // every item during the scroll-to-bottom animation.
+                  if (el && !isRestoringScroll.current) rowVirtualizer.measureElement(el);
+                }}
                 className="absolute inset-x-4 pb-4"
                 style={{
                   top: virtualItem.start,
                 }}
               >
-                <StreamMessage 
-                  message={message} 
-                  streamMessages={messages}
+                <StreamMessage
+                  message={message}
+                  streamMessages={messagesRef.current}
                   onLinkDetected={handleLinkDetected}
                 />
-              </motion.div>
+              </div>
             );
           })}
-        </AnimatePresence>
       </div>
 
       {/* Loading indicator under the latest message */}
@@ -1413,13 +1761,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   return (
     <TooltipProvider>
       <div className={cn("flex flex-col h-full bg-background", className)}>
-        <div className="w-full h-full flex flex-col">
-
         {/* Main Content Area */}
-        <div className={cn(
-          "flex-1 overflow-hidden transition-all duration-300 relative",
-          showTimeline && "sm:mr-96"
-        )}>
+        <div className="flex-1 overflow-hidden relative">
           {showPreview ? (
             // Split pane layout when preview is active
             <SplitPane
@@ -1463,80 +1806,32 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             </div>
           )}
 
-          {/* Navigation Arrows - inside content area so they respect sidebar */}
-          {displayableMessages.length > 5 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ delay: 0.5 }}
-              className="absolute bottom-20 right-6 z-30"
-            >
-              <div className="flex items-center glass border rounded-full shadow-lg overflow-hidden">
-                <TooltipSimple content="Scroll to top" side="top">
-                  <motion.div
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                      if (displayableMessages.length > 0) {
-                        parentRef.current?.scrollTo({
-                          top: 0,
-                          behavior: 'smooth'
-                        });
-                        setTimeout(() => {
-                          if (parentRef.current) {
-                            parentRef.current.scrollTop = 1;
-                            requestAnimationFrame(() => {
-                              if (parentRef.current) {
-                                parentRef.current.scrollTop = 0;
-                              }
-                            });
-                          }
-                        }, 500);
-                      }
-                    }}
-                      className="px-4 py-3 hover:bg-accent rounded-none"
-                    >
-                      <ChevronUp className="h-5 w-5" />
-                    </Button>
-                  </motion.div>
-                </TooltipSimple>
-                <div className="w-px h-4 bg-border" />
-                <TooltipSimple content="Scroll to bottom" side="top">
-                  <motion.div
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (displayableMessages.length > 0) {
-                          const scrollElement = parentRef.current;
-                          if (scrollElement) {
-                            rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
-                            requestAnimationFrame(() => {
-                              scrollElement.scrollTo({
-                                top: scrollElement.scrollHeight,
-                                behavior: 'smooth'
-                              });
-                            });
-                          }
-                        }
-                      }}
-                      className="px-4 py-3 hover:bg-accent rounded-none"
-                    >
-                      <ChevronDown className="h-5 w-5" />
-                    </Button>
-                  </motion.div>
-                </TooltipSimple>
-              </div>
-            </motion.div>
-          )}
+          {/* Smart scroll-to-bottom — only visible when user scrolled up */}
+          <AnimatePresence>
+            {isScrolledUp && displayableMessages.length > 3 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30"
+              >
+                <button
+                  onClick={() => {
+                    const el = parentRef.current;
+                    if (el) {
+                      rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
+                      requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }));
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/20 shadow-lg backdrop-blur-sm hover:bg-primary/25 transition-colors"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                  Scroll to bottom
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Floating Prompt Input - Always visible */}
@@ -1604,68 +1899,62 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             )}
           </AnimatePresence>
 
-          <div className={cn(
-            "fixed bottom-0 left-0 right-0 transition-all duration-300 z-40",
-            showTimeline && "sm:right-96"
-          )}>
-            <FloatingPromptInput
-              ref={floatingPromptRef}
-              onSend={handleSendPrompt}
-              onCancel={handleCancelExecution}
-              isLoading={isLoading}
-              disabled={!projectPath}
-              projectPath={projectPath}
-              sessionId={effectiveSession?.id}
-              projectId={effectiveSession?.project_id}
-              onCopyMarkdown={() => handleCopyAsMarkdown()}
-              onCopyJsonl={() => handleCopyAsJsonl()}
-            />
-          </div>
+          {/* Sub-agent tracker — live subagent lifecycle panel */}
+          <SubAgentTracker />
+
+          {/* Team dashboard — team coordination visibility */}
+          <TeamDashboard />
+
+          {/* Activity status bar — shows active tools, tasks, subagents */}
+          <SessionActivityBar messages={messages} isLoading={isLoading} />
+
+          {showFooter && (() => {
+            const footerEl = document.getElementById("runecode-footer-portal");
+            if (!footerEl) return null;
+            return createPortal(
+              <div className="shrink-0 w-full z-40">
+                <FloatingPromptInput
+                  ref={floatingPromptRef}
+                  onSend={handleSendPrompt}
+                  onCancel={handleCancelExecution}
+                  isLoading={isLoading}
+                  disabled={!projectPath}
+                  projectPath={projectPath}
+                  sessionId={effectiveSession?.id}
+                  projectId={effectiveSession?.project_id}
+                  onCopyMarkdown={() => handleCopyAsMarkdown()}
+                  onCopyJsonl={() => handleCopyAsJsonl()}
+                />
+              </div>,
+              footerEl,
+            );
+          })()}
 
         </ErrorBoundary>
 
-        {/* Timeline */}
+        {/* Rewind Sidebar */}
         <AnimatePresence>
-          {showTimeline && effectiveSession && (
+          {(showTimeline || showRewindPanel) && (
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l border-border shadow-xl z-30 overflow-hidden"
+              className="fixed right-0 w-full sm:w-96 bg-background border-l border-border shadow-2xl z-50 overflow-hidden"
+              style={{ top: '40px', bottom: '0px' }}
             >
-              <div className="h-full flex flex-col">
-                {/* Timeline Header */}
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <h3 className="text-lg font-semibold">Session Timeline</h3>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowTimeline(false)}
-                    className="h-8 w-8"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {/* Timeline Content */}
-                <div className="flex-1 overflow-y-auto p-4">
-                  <TimelineNavigator
-                    sessionId={effectiveSession.id}
-                    projectId={effectiveSession.project_id}
-                    projectPath={projectPath}
-                    currentMessageIndex={messages.length - 1}
-                    onCheckpointSelect={handleCheckpointSelect}
-                    onFork={handleFork}
-                    onCheckpointCreated={handleCheckpointCreated}
-                    refreshVersion={timelineVersion}
-                  />
-                </div>
-              </div>
+              <RewindPanel
+                isOpen={true}
+                onClose={() => { setShowTimeline(false); setShowRewindPanel(false); }}
+                connectionId={connectionIdRef.current}
+                sessionId={claudeSessionId}
+                projectPath={projectPath}
+                messages={messages}
+                embedded
+              />
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
       {/* Fork Dialog */}
       <Dialog open={showForkDialog} onOpenChange={setShowForkDialog}>

@@ -9,6 +9,241 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
+// Persistent WebSocket connections per session tab
+const sessionSockets = new Map<string, WebSocket>();
+
+/**
+ * Get or create a persistent WebSocket for a session.
+ * The connectionId is unique per tab (not per Claude session, since we don't have the session ID yet at connect time).
+ */
+function getOrCreateSocket(connectionId: string): WebSocket {
+  let ws = sessionSockets.get(connectionId);
+  if (ws && ws.readyState === WebSocket.OPEN) return ws;
+
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws/claude`;
+  ws = new WebSocket(wsUrl);
+  sessionSockets.set(connectionId, ws);
+
+  ws.onclose = () => {
+    sessionSockets.delete(connectionId);
+  };
+  ws.onerror = () => {
+    sessionSockets.delete(connectionId);
+  };
+
+  return ws;
+}
+
+function closeSessionSocket(connectionId: string) {
+  const ws = sessionSockets.get(connectionId);
+  if (ws) {
+    if (ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify({ type: 'close' })); } catch { /* ignore */ }
+    }
+    ws.close();
+    sessionSockets.delete(connectionId);
+  }
+}
+
+/**
+ * Initialize a persistent session. Called once when a tab starts a conversation.
+ * Returns a connectionId for subsequent prompts.
+ */
+async function initSession(params: {
+  projectPath: string;
+  prompt: string;
+  model?: string;
+  sessionId?: string;
+  thinkingMode?: string;
+  permissionMode?: string;
+  effort?: string;
+  resumeAt?: string;
+  teamsEnabled?: boolean;
+}): Promise<string> {
+  const connectionId = `conn_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const ws = getOrCreateSocket(connectionId);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (!settled) { settled = true; reject(new Error('Session init timeout')); }
+    }, 30000);
+
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      fn();
+    };
+
+    const onOpen = () => {
+      ws.send(JSON.stringify({
+        type: 'init',
+        project_path: params.projectPath,
+        text: params.prompt,
+        model: params.model || 'sonnet',
+        session_id: params.sessionId,
+        thinking_mode: params.thinkingMode || 'auto',
+        permission_mode: params.permissionMode || 'default',
+        effort: params.effort || 'high',
+        resume_at: params.resumeAt,
+        teams_enabled: params.teamsEnabled,
+      }));
+    };
+
+    if (ws.readyState === WebSocket.OPEN) {
+      onOpen();
+    } else {
+      ws.addEventListener('open', onOpen, { once: true });
+    }
+
+    // Persistent message handler for this connection — stays active for the entire session
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        // Resolve init promise on first meaningful response from server
+        if (!settled && (msg.type === 'session_id' || msg.type === 'message' || msg.type === 'start')) {
+          settle(() => resolve(connectionId));
+        }
+
+        if (msg.type === 'message') {
+          const claudeMessage = typeof msg.content === 'string'
+            ? JSON.parse(msg.content) : msg.content;
+
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-output', { detail: claudeMessage }));
+          });
+
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-output:${sid}`, { detail: claudeMessage }));
+            });
+          }
+        }
+
+        if (msg.type === 'turn_complete') {
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-complete', { detail: true }));
+          });
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-complete:${sid}`, { detail: true }));
+            });
+          }
+        }
+
+        if (msg.type === 'error') {
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-error', { detail: msg.message }));
+          });
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-error:${sid}`, { detail: msg.message }));
+            });
+          }
+        }
+
+        // Rewind preview result
+        if (msg.type === 'rewind_result') {
+          window.dispatchEvent(new CustomEvent('runecode:rewind-result', { detail: msg }));
+        }
+
+        // Model/permission change confirmations
+        if (msg.type === 'model_changed' || msg.type === 'permission_mode_changed') {
+          window.dispatchEvent(new CustomEvent('runecode:config-changed', { detail: msg }));
+        }
+
+        // Sub-agent lifecycle events
+        if (msg.type === 'subagent_event') {
+          window.dispatchEvent(new CustomEvent('runecode:subagent-event', { detail: msg }));
+        }
+
+        // Team events
+        if (msg.type === 'team_event') {
+          window.dispatchEvent(new CustomEvent('runecode:team-event', { detail: msg }));
+        }
+      } catch {
+        // ignore parse errors from non-JSON messages
+      }
+    };
+
+    ws.onerror = () => {
+      settle(() => reject(new Error('WebSocket connection failed')));
+    };
+  });
+}
+
+/**
+ * Send a follow-up prompt to an existing persistent session.
+ */
+async function sendPrompt(connectionId: string, text: string, thinkingMode?: string): Promise<void> {
+  const ws = sessionSockets.get(connectionId);
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    throw new Error('Session not connected');
+  }
+
+  ws.send(JSON.stringify({
+    type: 'prompt',
+    text,
+    thinking_mode: thinkingMode || 'auto',
+  }));
+}
+
+/**
+ * Interrupt the current turn without closing the session.
+ */
+function interruptSession(connectionId: string) {
+  const ws = sessionSockets.get(connectionId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'interrupt' }));
+  }
+}
+
+/**
+ * Change the model mid-session without restarting.
+ */
+function setSessionModel(connectionId: string, model: string) {
+  const ws = sessionSockets.get(connectionId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'set_model', model }));
+  }
+}
+
+/**
+ * Change permission mode mid-session.
+ */
+function setSessionPermissionMode(connectionId: string, mode: string) {
+  const ws = sessionSockets.get(connectionId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'set_permission_mode', mode }));
+  }
+}
+
+/**
+ * Rewind files to a specific message checkpoint.
+ */
+function rewindSessionFiles(connectionId: string, userMessageId: string, dryRun = false) {
+  const ws = sessionSockets.get(connectionId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'rewind_files', user_message_id: userMessageId, dry_run: dryRun }));
+  }
+}
+
+/**
+ * Stop a background task in the session.
+ */
+function stopSessionTask(connectionId: string, taskId: string) {
+  const ws = sessionSockets.get(connectionId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'stop_task', task_id: taskId }));
+  }
+}
+
 // Extend Window interface for Tauri
 declare global {
   interface Window {
@@ -152,13 +387,70 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
   }
   
   // Web environment - use REST API
-  
-  // Special handling for commands that use streaming/events
+
+  // Special handling for cancel — interrupt via persistent connectionId
+  if (command === 'cancel_claude_execution') {
+    const connId = params?.connectionId;
+    if (connId) {
+      interruptSession(connId);
+    }
+    return {} as T;
+  }
+
+  // All three streaming commands (execute, continue, resume) are unified:
+  // they either send a follow-up prompt on an existing connection or init a new session.
+  // The server distinguishes the intent via session_id presence in the init payload.
   const streamingCommands = ['execute_claude_code', 'continue_claude_code', 'resume_claude_code'];
   if (streamingCommands.includes(command)) {
-    return handleStreamingCommand<T>(command, params);
+    // Check if this session already has a persistent connection
+    const connId = params?.connectionId;
+    if (connId && sessionSockets.has(connId)) {
+      // Send follow-up prompt to existing session
+      await sendPrompt(connId, params.prompt, params.thinkingMode);
+      return {} as T;
+    }
+    // Initialize new persistent session
+    const newConnId = await initSession({
+      projectPath: params?.projectPath || '',
+      prompt: params?.prompt || '',
+      model: params?.model,
+      sessionId: params?.sessionId,
+      thinkingMode: params?.thinkingMode,
+      permissionMode: params?.permissionMode,
+      effort: params?.effort,
+      resumeAt: params?.resumeAt,
+      teamsEnabled: params?.teamsEnabled,
+    });
+    // Return the connectionId so the caller can use it for follow-up prompts
+    return { connectionId: newConnId } as T;
   }
-  
+
+  // Special handling for write commands — use POST instead of GET
+  const writeCommands = [
+    'save_claude_settings', 'save_system_prompt', 'save_proxy_settings',
+    'update_hooks_config', 'storage_update_row', 'storage_insert_row',
+    'save_claude_md_file', 'slash_command_save',
+    'create_agent', 'update_agent', 'import_agent',
+  ];
+  if (writeCommands.includes(command)) {
+    const endpoint = mapCommandToEndpoint(command, params);
+    try {
+      const response = await fetch(new URL(endpoint, window.location.origin).toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('json')) return null as T;
+      const json = await response.json();
+      return (json?.data ?? json) as T;
+    } catch (error) {
+      console.error(`REST API POST failed for ${endpoint}:`, error);
+      throw error;
+    }
+  }
+
   // Map Tauri commands to REST endpoints
   const endpoint = mapCommandToEndpoint(command, params);
   return await restApiCall<T>(endpoint, params);
@@ -173,29 +465,18 @@ function mapCommandToEndpoint(command: string, _params?: any): string {
     'list_projects': '/api/projects',
     'get_project_sessions': '/api/projects/{projectId}/sessions',
     
-    // Agent commands
+    // Agent commands (native .md format)
     'list_agents': '/api/agents',
+    'get_agent': '/api/agents/{id}',
+    'create_agent': '/api/agents',
+    'update_agent': '/api/agents/{name}',
+    'delete_agent': '/api/agents/{name}',
+    'export_agent': '/api/agents/{name}/export',
+    'import_agent': '/api/agents/import',
     'fetch_github_agents': '/api/agents/github',
     'fetch_github_agent_content': '/api/agents/github/content',
     'import_agent_from_github': '/api/agents/import/github',
-    'create_agent': '/api/agents',
-    'update_agent': '/api/agents/{id}',
-    'delete_agent': '/api/agents/{id}',
-    'get_agent': '/api/agents/{id}',
-    'export_agent': '/api/agents/{id}/export',
-    'import_agent': '/api/agents/import',
-    'import_agent_from_file': '/api/agents/import/file',
-    'execute_agent': '/api/agents/{agentId}/execute',
-    'list_agent_runs': '/api/agents/runs',
-    'get_agent_run': '/api/agents/runs/{id}',
-    'get_agent_run_with_real_time_metrics': '/api/agents/runs/{id}/metrics',
     'list_running_sessions': '/api/sessions/running',
-    'kill_agent_session': '/api/agents/sessions/{runId}/kill',
-    'get_session_status': '/api/agents/sessions/{runId}/status',
-    'cleanup_finished_processes': '/api/agents/sessions/cleanup',
-    'get_session_output': '/api/agents/sessions/{runId}/output',
-    'get_live_session_output': '/api/agents/sessions/{runId}/output/live',
-    'stream_session_output': '/api/agents/sessions/{runId}/output/stream',
     'load_agent_session_history': '/api/agents/sessions/{sessionId}/history',
     
     // Usage commands
@@ -296,16 +577,27 @@ function mapCommandToEndpoint(command: string, _params?: any): string {
     'create_project': '/api/project/init',
     'initialize_project': '/api/project/init',
 
-    // Agent runs with metrics (alias)
-    'list_agent_runs_with_metrics': '/api/agents/runs',
-
   };
 
-  const endpoint = commandToEndpoint[command];
+  let endpoint = commandToEndpoint[command];
   if (!endpoint) {
     // Silently return a no-op endpoint — don't spam console
     console.debug(`[Web] No endpoint mapped for command: ${command}`);
     return `/api/noop/${command}`;
+  }
+
+  // Interpolate params into URL template placeholders like {tableName}, {id}, {projectId}
+  if (_params && endpoint.includes('{')) {
+    endpoint = endpoint.replace(/\{(\w+)\}/g, (_match, key) => {
+      // Check params directly, then common nested patterns
+      let val = _params[key];
+      if (val == null) val = _params.primaryKeyValues?.[key];
+      // For storage {id}, try primaryKeyValues.key (common pattern for app_settings)
+      if (val == null && key === 'id') {
+        val = _params.primaryKeyValues?.key ?? _params.id;
+      }
+      return val != null ? encodeURIComponent(String(val)) : _match;
+    });
   }
 
   return endpoint;
@@ -320,134 +612,6 @@ export function getEnvironmentInfo() {
     userAgent: navigator.userAgent,
     location: window.location.href,
   };
-}
-
-/**
- * Handle streaming commands via WebSocket in web mode
- */
-async function handleStreamingCommand<T>(command: string, params?: any): Promise<T> {
-  return new Promise((resolve, reject) => {
-    // Use wss:// for HTTPS connections (e.g., ngrok), ws:// for HTTP (localhost)
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/claude`;
-    
-    const ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-      
-      // Send execution request
-      const request = {
-        command_type: command.replace('_claude_code', ''), // execute, continue, resume
-        project_path: params?.projectPath || '',
-        prompt: params?.prompt || '',
-        model: params?.model || 'claude-3-5-sonnet-20241022',
-        session_id: params?.sessionId,
-      };
-      
-      
-      ws.send(JSON.stringify(request));
-    };
-    
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        
-        if (message.type === 'start') {
-        } else if (message.type === 'output') {
-          
-          // The backend sends Claude output as a JSON string in the content field
-          // We need to parse this to get the actual Claude message
-          try {
-            const claudeMessage = typeof message.content === 'string' 
-              ? JSON.parse(message.content) 
-              : message.content;
-            
-            // Simulate Tauri event for compatibility with existing UI
-            const customEvent = new CustomEvent('claude-output', {
-              detail: claudeMessage
-            });
-            window.dispatchEvent(customEvent);
-
-            // Also dispatch session-scoped event for concurrent session support
-            const sid = params?.sessionId;
-            if (sid) {
-              window.dispatchEvent(new CustomEvent(`claude-output:${sid}`, {
-                detail: claudeMessage
-              }));
-            }
-          } catch (e) {
-          }
-        } else if (message.type === 'completion') {
-          
-          // Dispatch claude-complete event for UI state management
-          const completeEvent = new CustomEvent('claude-complete', {
-            detail: message.status === 'success'
-          });
-          window.dispatchEvent(completeEvent);
-
-          // Also dispatch session-scoped completion event
-          const completeSid = params?.sessionId;
-          if (completeSid) {
-            window.dispatchEvent(new CustomEvent(`claude-complete:${completeSid}`, {
-              detail: message.status === 'success'
-            }));
-          }
-
-          ws.close();
-          if (message.status === 'success') {
-            resolve({} as T); // Return empty object for now
-          } else {
-            reject(new Error(message.error || 'Execution failed'));
-          }
-        } else if (message.type === 'error') {
-          
-          // Dispatch claude-error event for UI error handling
-          const errorEvent = new CustomEvent('claude-error', {
-            detail: message.message || 'Unknown error'
-          });
-          window.dispatchEvent(errorEvent);
-
-          // Also dispatch session-scoped error event
-          const errorSid = params?.sessionId;
-          if (errorSid) {
-            window.dispatchEvent(new CustomEvent(`claude-error:${errorSid}`, {
-              detail: message.message || 'Unknown error'
-            }));
-          }
-
-          reject(new Error(message.message || 'Unknown error'));
-        } else {
-        }
-      } catch (e) {
-      }
-    };
-    
-    let settled = false;
-
-    ws.onerror = (_error) => {
-
-      // Dispatch claude-error event for connection errors
-      const errorEvent = new CustomEvent('claude-error', {
-        detail: 'WebSocket connection failed'
-      });
-      window.dispatchEvent(errorEvent);
-
-      if (!settled) { settled = true; reject(new Error('WebSocket connection failed')); }
-    };
-
-    ws.onclose = (event) => {
-      if (settled) return; // don't dispatch if already handled by onerror
-      settled = true;
-
-      // If connection closed unexpectedly (not a normal close), dispatch cancelled event
-      if (event.code !== 1000 && event.code !== 1001) {
-        const cancelEvent = new CustomEvent('claude-complete', {
-          detail: false // false indicates cancellation/failure
-        });
-        window.dispatchEvent(cancelEvent);
-      }
-    };
-  });
 }
 
 /**
@@ -511,3 +675,131 @@ export function initializeWebMode() {
     }
   }
 }
+
+/**
+ * Initialize an agent session. Sends an init_agent message over WebSocket
+ * which triggers SDK query() with the agent option on the server.
+ * Returns a connectionId for subsequent prompts (reuses the same WebSocket protocol).
+ */
+async function initAgentSession(params: {
+  agentName: string;
+  projectPath: string;
+  prompt: string;
+  model?: string;
+  thinkingMode?: string;
+  permissionMode?: string;
+  effort?: string;
+  teamsEnabled?: boolean;
+}): Promise<string> {
+  const connectionId = `conn_agent_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const ws = getOrCreateSocket(connectionId);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (!settled) { settled = true; reject(new Error('Agent session init timeout')); }
+    }, 30000);
+
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      fn();
+    };
+
+    const onOpen = () => {
+      try {
+        ws.send(JSON.stringify({
+          type: 'init_agent',
+          agent_name: params.agentName,
+          project_path: params.projectPath,
+          text: params.prompt,
+          model: params.model || 'sonnet',
+          thinking_mode: params.thinkingMode || 'auto',
+          permission_mode: params.permissionMode || 'default',
+          effort: params.effort || 'high',
+          teams_enabled: params.teamsEnabled,
+        }));
+      } catch (err) {
+        settle(() => reject(new Error(`Failed to send init_agent: ${err}`)));
+      }
+    };
+
+    if (ws.readyState === WebSocket.OPEN) {
+      onOpen();
+    } else {
+      ws.addEventListener('open', onOpen, { once: true });
+    }
+
+    // Persistent message handler — same as initSession
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        if (!settled && (msg.type === 'session_id' || msg.type === 'message' || msg.type === 'start')) {
+          settle(() => resolve(connectionId));
+        }
+
+        if (msg.type === 'message') {
+          const claudeMessage = typeof msg.content === 'string'
+            ? JSON.parse(msg.content) : msg.content;
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-output', { detail: claudeMessage }));
+          });
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-output:${sid}`, { detail: claudeMessage }));
+            });
+          }
+        }
+
+        if (msg.type === 'turn_complete') {
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-complete', { detail: true }));
+          });
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-complete:${sid}`, { detail: true }));
+            });
+          }
+        }
+
+        if (msg.type === 'error') {
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-error', { detail: msg.message }));
+          });
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-error:${sid}`, { detail: msg.message }));
+            });
+          }
+        }
+
+        if (msg.type === 'model_changed' || msg.type === 'permission_mode_changed') {
+          window.dispatchEvent(new CustomEvent('runecode:config-changed', { detail: msg }));
+        }
+
+        // Sub-agent lifecycle events
+        if (msg.type === 'subagent_event') {
+          window.dispatchEvent(new CustomEvent('runecode:subagent-event', { detail: msg }));
+        }
+
+        // Team events
+        if (msg.type === 'team_event') {
+          window.dispatchEvent(new CustomEvent('runecode:team-event', { detail: msg }));
+        }
+      } catch {
+        // ignore parse errors
+      }
+    };
+
+    ws.onerror = () => {
+      settle(() => reject(new Error('WebSocket connection failed')));
+    };
+  });
+}
+
+export { initSession, initAgentSession, sendPrompt, interruptSession, closeSessionSocket, sessionSockets, setSessionModel, setSessionPermissionMode, rewindSessionFiles, stopSessionTask };

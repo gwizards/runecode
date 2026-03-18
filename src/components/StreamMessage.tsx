@@ -5,7 +5,9 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Bot,
+  MessageSquare
 } from "lucide-react";
 import { RuneCodeLogo } from './RuneCodeLogo';
 import { Card, CardContent } from "@/components/ui/card";
@@ -214,6 +216,35 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
       );
     }
 
+    // Task notification system messages (sub-agent completion)
+    if (message.type === "system" && message.subtype === "task_notification") {
+      return (
+        <div className="rounded-md border border-cyan-500/15 bg-cyan-500/[0.03] p-3">
+          <div className="flex items-center gap-2 text-xs">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-medium text-muted-foreground">
+              Sub-agent {message.status === 'completed' ? 'completed' : 'finished'}
+            </span>
+            {message.task_id && (
+              <span className="text-muted-foreground/40 font-mono text-[9px]">{message.task_id.slice(0, 8)}</span>
+            )}
+          </div>
+          {message.summary && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground/70 pl-5.5">{message.summary}</p>
+          )}
+        </div>
+      );
+    }
+
+    // System info message (e.g. unsupported CLI command feedback)
+    if (message.type === "system" && message.subtype === "info" && message.content) {
+      return (
+        <div className="border-l-2 border-l-blue-400/60 pl-3 py-1 text-sm text-muted-foreground opacity-80">
+          {message.content}
+        </div>
+      );
+    }
+
     // Assistant message
     if (message.type === "assistant" && message.message) {
       const msg = message.message;
@@ -381,6 +412,57 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                         return <WebFetchWidget url={input.url} prompt={input.prompt} result={toolResult} />;
                       }
 
+                      // Agent tool — sub-agent/team spawning
+                      if (toolName === "agent" && input) {
+                        renderedSomething = true;
+                        return (
+                          <div className="rounded-md border border-cyan-500/20 bg-cyan-500/[0.03] p-3 space-y-1.5">
+                            <div className="flex items-center gap-2 text-xs">
+                              <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                              <span className="font-medium text-cyan-300/90">
+                                {input.team_name ? 'Spawning Teammate' : 'Spawning Sub-Agent'}
+                              </span>
+                              {input.name && (
+                                <span className="text-muted-foreground/60 font-mono">{input.name}</span>
+                              )}
+                              {input.team_name && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-purple-500/15 text-purple-400 font-mono">
+                                  team: {input.team_name}
+                                </span>
+                              )}
+                            </div>
+                            {input.description && (
+                              <p className="text-[11px] text-muted-foreground/70 pl-5.5">{input.description}</p>
+                            )}
+                            {input.model && (
+                              <span className="text-[9px] text-muted-foreground/40 pl-5.5 font-mono">model: {input.model}</span>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // SendMessage tool — inter-agent communication
+                      if (toolName === "sendmessage" && input) {
+                        renderedSomething = true;
+                        return (
+                          <div className="rounded-md border border-purple-500/20 bg-purple-500/[0.03] p-3 space-y-1">
+                            <div className="flex items-center gap-2 text-xs">
+                              <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+                              <span className="font-medium text-purple-300/90">Agent Message</span>
+                              {input.to && (
+                                <>
+                                  <span className="text-muted-foreground/30">→</span>
+                                  <span className="font-mono text-purple-400/70">{input.to}</span>
+                                </>
+                              )}
+                            </div>
+                            {input.content && (
+                              <p className="text-[11px] text-muted-foreground/70 pl-5.5 whitespace-pre-wrap">{typeof input.content === 'string' ? input.content.slice(0, 300) : JSON.stringify(input.content).slice(0, 300)}</p>
+                            )}
+                          </div>
+                        );
+                      }
+
                       // Skill tool
                       if (toolName === "skill") {
                         renderedSomething = true;
@@ -442,11 +524,6 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                   return null;
                 })}
                 
-                {msg.usage && (
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Tokens: {msg.usage.input_tokens} in, {msg.usage.output_tokens} out
-                  </div>
-                )}
               </div>
             </div>
           </CardContent>

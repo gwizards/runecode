@@ -19,22 +19,35 @@ import { BinarySettings } from "./settings/BinarySettings";
 import { IntegrationsSettings } from "./settings/IntegrationsSettings";
 import { CommandsHooksSettings } from "./settings/CommandsHooksSettings";
 import { NetworkSettings } from "./settings/NetworkSettings";
+import { AiAutocompleteSettings } from "./settings/AiAutocompleteSettings";
+import { AccountsSettings } from "./settings/AccountsSettings";
+import { TeamsSettings } from "./settings/TeamsSettings";
 
 interface SettingsProps {
   onBack: () => void;
   className?: string;
+  initialSection?: string;
 }
 
 /**
  * Comprehensive Settings UI for managing Claude Code settings.
  * Delegates rendering to sub-components via a sidebar layout.
  */
-export const Settings: React.FC<SettingsProps> = ({ className }) => {
+export const Settings: React.FC<SettingsProps> = ({ className, initialSection }) => {
   const [settings, setSettings] = useState<ClaudeSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState("appearance");
+  const [activeSection, setActiveSection] = useState(initialSection || "appearance");
+
+  // Listen for external navigation to a specific section
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.section) setActiveSection(e.detail.section);
+    };
+    window.addEventListener('runecode:open-settings', handler as EventListener);
+    return () => window.removeEventListener('runecode:open-settings', handler as EventListener);
+  }, []);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Binary path state
@@ -194,8 +207,12 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
         return <AppearanceSettings />;
 
       // General group
+      case 'accounts':
+        return <AccountsSettings />;
       case 'session':
         return <SessionSettings settings={settings} onSettingsChange={updateSetting} />;
+      case 'ai-autocomplete':
+        return <AiAutocompleteSettings />;
       case 'permissions':
         return (
           <PermissionsSettings
@@ -207,6 +224,10 @@ export const Settings: React.FC<SettingsProps> = ({ className }) => {
         );
       case 'environment':
         return <EnvironmentSettings envVars={envVars} onEnvVarsChange={setEnvVars} />;
+
+      // Agents & Teams group
+      case 'teams-agents':
+        return <TeamsSettings />;
 
       // Claude Code group
       case 'installation':

@@ -2,7 +2,7 @@ import {
   Palette, Settings2, Code2, Puzzle,
   Timer, Shield, Variable,
   Binary, Terminal,
-  Sparkles, Globe, Database
+  Sparkles, Globe, Database, Wand2, Users, Bot
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -26,9 +26,19 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'General',
     icon: Settings2,
     items: [
+      { id: 'accounts', label: 'Accounts', icon: Users },
       { id: 'session', label: 'Session', icon: Timer },
+      { id: 'ai-autocomplete', label: 'AI Autocomplete', icon: Wand2 },
       { id: 'permissions', label: 'Permissions', icon: Shield },
       { id: 'environment', label: 'Environment', icon: Variable },
+    ],
+  },
+  {
+    id: 'agents',
+    label: 'Agents & Teams',
+    icon: Bot,
+    items: [
+      { id: 'teams-agents', label: 'Teams & Agents', icon: Bot },
     ],
   },
   {
