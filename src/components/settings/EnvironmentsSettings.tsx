@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Server, Plus, Trash2, ChevronDown, ChevronRight,
   Terminal, Globe, Monitor, Loader2, CheckCircle2, AlertCircle,
-  Key, FolderOpen
+  Key, FolderOpen, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -209,6 +209,27 @@ function EnvironmentCard({ env, isExpanded, onToggleExpand, onToggleEnabled, onR
   onToggleEnabled: () => void;
   onRemove: () => void;
 }) {
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/environments/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(env),
+      });
+      const data = await res.json();
+      setTestResult(data.success ? 'success' : 'error');
+    } catch {
+      setTestResult('error');
+    }
+    setTesting(false);
+    setTimeout(() => setTestResult(null), 5000);
+  };
+
   const typeIcons = { ssh: Terminal, wsl: Monitor, docker: Server };
   const typeColors = { ssh: 'text-amber-400/60', wsl: 'text-blue-400/60', docker: 'text-cyan-400/60' };
   const Icon = typeIcons[env.type];
@@ -271,6 +292,10 @@ function EnvironmentCard({ env, isExpanded, onToggleExpand, onToggleEnabled, onR
                 )}
               </div>
               <div className="flex items-center gap-1.5 pt-1">
+                <Button variant="ghost" size="sm" onClick={handleTest} disabled={testing} className="text-[10px] h-6 px-2 text-muted-foreground/60">
+                  {testing ? <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" /> : testResult === 'success' ? <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-emerald-400" /> : testResult === 'error' ? <AlertCircle className="h-2.5 w-2.5 mr-1 text-red-400" /> : <RefreshCw className="h-2.5 w-2.5 mr-1" />}
+                  {testing ? 'Testing...' : testResult === 'success' ? 'Connected' : testResult === 'error' ? 'Failed' : 'Test'}
+                </Button>
                 <Button variant="ghost" size="sm" onClick={onToggleEnabled} className="text-[10px] h-6 px-2 text-muted-foreground/60">
                   {env.enabled ? 'Disable' : 'Enable'}
                 </Button>
@@ -349,6 +374,43 @@ function AddEnvironmentForm({ onAdd, onCancel }: { onAdd: (env: RemoteEnvironmen
         ))}
       </div>
 
+      {/* Prerequisites info */}
+      <div className="p-2.5 rounded-md bg-muted/30 border border-border/20 text-[10px] text-muted-foreground/60 space-y-1">
+        {type === 'ssh' && (
+          <>
+            <p className="font-medium text-muted-foreground/80">SSH Prerequisites:</p>
+            <ul className="space-y-0.5 ml-2">
+              <li>1. SSH access to the remote machine (key-based auth recommended)</li>
+              <li>2. Claude Code installed on the remote: <code className="font-mono bg-muted px-1 rounded">npm install -g @anthropic-ai/claude-code</code></li>
+              <li>3. A valid Anthropic API key or Claude login on the remote</li>
+              <li>4. Test with: <code className="font-mono bg-muted px-1 rounded">ssh user@host "claude --version"</code></li>
+            </ul>
+          </>
+        )}
+        {type === 'wsl' && (
+          <>
+            <p className="font-medium text-muted-foreground/80">WSL2 Prerequisites:</p>
+            <ul className="space-y-0.5 ml-2">
+              <li>1. WSL2 enabled on Windows: <code className="font-mono bg-muted px-1 rounded">wsl --install</code></li>
+              <li>2. A Linux distro installed (Ubuntu recommended)</li>
+              <li>3. Claude Code installed inside WSL: <code className="font-mono bg-muted px-1 rounded">wsl -d Ubuntu -- npm install -g @anthropic-ai/claude-code</code></li>
+              <li>4. Test with: <code className="font-mono bg-muted px-1 rounded">wsl -d Ubuntu -- claude --version</code></li>
+            </ul>
+          </>
+        )}
+        {type === 'docker' && (
+          <>
+            <p className="font-medium text-muted-foreground/80">Docker Prerequisites:</p>
+            <ul className="space-y-0.5 ml-2">
+              <li>1. Docker running with the target container active</li>
+              <li>2. Claude Code installed in the container: <code className="font-mono bg-muted px-1 rounded">docker exec my-container npm install -g @anthropic-ai/claude-code</code></li>
+              <li>3. API key accessible inside the container (via env var or mounted credentials)</li>
+              <li>4. Test with: <code className="font-mono bg-muted px-1 rounded">docker exec my-container claude --version</code></li>
+            </ul>
+          </>
+        )}
+      </div>
+
       {/* Name */}
       <div className="space-y-1.5">
         <Label className="text-[11px] text-muted-foreground/60">Environment Name</Label>
@@ -371,6 +433,10 @@ function AddEnvironmentForm({ onAdd, onCancel }: { onAdd: (env: RemoteEnvironmen
           <div className="space-y-1.5">
             <Label className="text-[11px] text-muted-foreground/60">Identity File (optional)</Label>
             <Input value={sshIdentityFile} onChange={e => setSshIdentityFile(e.target.value)} placeholder="~/.ssh/id_rsa" className="h-8 text-xs font-mono" />
+            <p className="text-[9px] text-muted-foreground/40 mt-1">
+              Tip: If you have hosts configured in <code className="font-mono bg-muted px-0.5 rounded">~/.ssh/config</code>,
+              you can use the host alias directly (e.g., <code className="font-mono bg-muted px-0.5 rounded">myserver</code> instead of <code className="font-mono bg-muted px-0.5 rounded">user@ip</code>).
+            </p>
           </div>
         </div>
       )}

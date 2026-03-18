@@ -48,7 +48,7 @@ const listen = tauriListen || ((eventName: string, callback: (event: any) => voi
   });
 });
 import { StreamMessage } from "./StreamMessage";
-import { FloatingPromptInput, type FloatingPromptInputRef } from "./FloatingPromptInput";
+import { FloatingPromptInput, type FloatingPromptInputRef, getSelectedEnvironment } from "./FloatingPromptInput";
 import { SessionActivityBar } from "./SessionActivityBar";
 import { SubAgentTracker } from "./SubAgentTracker";
 import { TeamDashboard } from "./TeamDashboard";
@@ -1249,6 +1249,18 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
         // Extract sub-agent/team config from session config store
         const sessionConfig = useSessionConfig.getState();
+        // Get selected remote environment (if any)
+        const selectedEnv = getSelectedEnvironment();
+        const environmentConfig = selectedEnv ? {
+          type: selectedEnv.type,
+          sshHost: selectedEnv.sshHost,
+          sshPort: selectedEnv.sshPort,
+          sshIdentityFile: selectedEnv.sshIdentityFile,
+          startDirectory: selectedEnv.startDirectory,
+          wslDistro: selectedEnv.wslDistro,
+          dockerContainer: selectedEnv.dockerContainer,
+        } : undefined;
+
         const agentConfig = {
           teamsEnabled: sessionConfig.teamsEnabled,
           subAgentDefaultModel: sessionConfig.subAgentDefaultModel,
@@ -1257,6 +1269,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           subAgentMaxTurns: sessionConfig.subAgentMaxTurns,
           teamMaxConcurrent: sessionConfig.teamMaxConcurrentAgents,
           teamDefaultModel: sessionConfig.teamDefaultModel,
+          environment: environmentConfig,
         };
 
         // Execute the appropriate command

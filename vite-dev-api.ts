@@ -1799,6 +1799,64 @@ export function devApiPlugin(): Plugin {
             return;
           }
 
+          // POST /api/environments/test — test remote environment connectivity
+          if (req.url === "/api/environments/test" && req.method === "POST") {
+            const chunks: Buffer[] = [];
+            req.on("data", (chunk: Buffer) => chunks.push(chunk));
+            req.on("end", async () => {
+              try {
+                const env = JSON.parse(Buffer.concat(chunks).toString());
+                let success = false;
+                let message = '';
+
+                if (env.type === 'ssh' && env.sshHost) {
+                  try {
+                    const portArgs = env.sshPort && env.sshPort !== 22 ? ['-p', String(env.sshPort)] : [];
+                    const keyArgs = env.sshIdentityFile ? ['-i', env.sshIdentityFile] : [];
+                    const { stdout } = await execAsync(
+                      `ssh -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=accept-new ${portArgs.join(' ')} ${keyArgs.join(' ')} ${env.sshHost} "echo ok && claude --version 2>/dev/null || echo 'claude not found'"`,
+                      { timeout: 10000 }
+                    );
+                    success = stdout.includes('ok');
+                    message = stdout.trim();
+                  } catch (err: any) {
+                    message = err.message || 'SSH connection failed';
+                  }
+                } else if (env.type === 'wsl') {
+                  try {
+                    const distroArgs = env.wslDistro ? `-d ${env.wslDistro}` : '';
+                    const { stdout } = await execAsync(
+                      `wsl ${distroArgs} -- echo ok && wsl ${distroArgs} -- claude --version 2>/dev/null || echo 'claude not found'`,
+                      { timeout: 10000 }
+                    );
+                    success = stdout.includes('ok');
+                    message = stdout.trim();
+                  } catch (err: any) {
+                    message = err.message || 'WSL connection failed';
+                  }
+                } else if (env.type === 'docker' && env.dockerContainer) {
+                  try {
+                    const { stdout } = await execAsync(
+                      `docker exec ${env.dockerContainer} sh -c "echo ok && claude --version 2>/dev/null || echo 'claude not found'"`,
+                      { timeout: 10000 }
+                    );
+                    success = stdout.includes('ok');
+                    message = stdout.trim();
+                  } catch (err: any) {
+                    message = err.message || 'Docker connection failed';
+                  }
+                } else {
+                  message = 'Unknown environment type';
+                }
+
+                res.end(JSON.stringify({ success, message }));
+              } catch (err: any) {
+                res.end(JSON.stringify({ success: false, message: err.message }));
+              }
+            });
+            return;
+          }
+
           // Catch-all
           res.end(JSON.stringify({}));
         } catch (err: any) {
@@ -1916,6 +1974,15 @@ export function devApiPlugin(): Plugin {
         subagent_max_turns?: number;
         team_max_concurrent?: number;
         team_default_model?: string;
+        environment?: {
+          type: 'local' | 'ssh' | 'wsl' | 'docker';
+          sshHost?: string;
+          sshPort?: number;
+          sshIdentityFile?: string;
+          startDirectory?: string;
+          wslDistro?: string;
+          dockerContainer?: string;
+        };
       }, abortController: AbortController): Parameters<SdkModule["query"]>[0]["options"] {
         const cwd = req.project_path && fs.existsSync(req.project_path)
           ? req.project_path
@@ -1983,6 +2050,55 @@ export function devApiPlugin(): Plugin {
         }
         if (req.team_max_concurrent && req.team_max_concurrent > 0) {
           (options as any).maxConcurrentAgents = req.team_max_concurrent;
+        }
+
+        // Remote environment support
+        if (req.environment && req.environment.type === 'ssh' && req.environment.sshHost) {
+          (options as any).sshConfigs = [{
+            id: `ssh_${req.environment.sshHost}`,
+            name: req.environment.sshHost,
+            sshHost: req.environment.sshHost,
+            ...(req.environment.sshPort ? { sshPort: req.environment.sshPort } : {}),
+            ...(req.environment.sshIdentityFile ? { sshIdentityFile: req.environment.sshIdentityFile } : {}),
+            ...(req.environment.startDirectory ? { startDirectory: req.environment.startDirectory } : {}),
+          }];
+        }
+
+        // WSL2 — custom process spawner
+        if (req.environment && req.environment.type === 'wsl') {
+          const distro = req.environment.wslDistro;
+          const startDir = req.environment.startDirectory;
+          (options as any).spawnClaudeCodeProcess = (spawnOpts: any) => {
+            const wslArgs = distro ? ['-d', distro, '--'] : ['--'];
+            if (startDir) wslArgs.push('cd', startDir, '&&');
+            wslArgs.push(spawnOpts.command, ...spawnOpts.args);
+            const child = spawn('wsl', wslArgs, {
+              env: spawnOpts.env,
+              signal: spawnOpts.signal,
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            return child;
+          };
+        }
+
+        // Docker — custom process spawner
+        if (req.environment && req.environment.type === 'docker' && req.environment.dockerContainer) {
+          const container = req.environment.dockerContainer;
+          const startDir = req.environment.startDirectory;
+          (options as any).spawnClaudeCodeProcess = (spawnOpts: any) => {
+            const dockerArgs = ['exec', '-i'];
+            // Pass env vars
+            for (const [key, val] of Object.entries(spawnOpts.env || {})) {
+              if (key && val) dockerArgs.push('-e', `${key}=${val}`);
+            }
+            if (startDir) dockerArgs.push('-w', startDir);
+            dockerArgs.push(container, spawnOpts.command, ...spawnOpts.args);
+            const child = spawn('docker', dockerArgs, {
+              signal: spawnOpts.signal,
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            return child;
+          };
         }
 
         return options;
@@ -2184,6 +2300,7 @@ export function devApiPlugin(): Plugin {
                 subagent_max_turns: msg.subagent_max_turns,
                 team_max_concurrent: msg.team_max_concurrent,
                 team_default_model: msg.team_default_model,
+                environment: msg.environment,
               }, abortController);
 
               console.log("[dev-api] Init session:", {
@@ -2249,6 +2366,7 @@ export function devApiPlugin(): Plugin {
                 subagent_max_turns: msg.subagent_max_turns,
                 team_max_concurrent: msg.team_max_concurrent,
                 team_default_model: msg.team_default_model,
+                environment: msg.environment,
               }, abortController);
 
               // Set the agent option — SDK will load the .md file's prompt, tools, model

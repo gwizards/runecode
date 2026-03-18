@@ -955,6 +955,15 @@ export const api = {
       subAgentMaxTurns?: number;
       teamMaxConcurrent?: number;
       teamDefaultModel?: string;
+      environment?: {
+        type: string;
+        sshHost?: string;
+        sshPort?: number;
+        sshIdentityFile?: string;
+        startDirectory?: string;
+        wslDistro?: string;
+        dockerContainer?: string;
+      };
     }
   ): Promise<any> {
     return apiCall("execute_claude_code", { projectPath, prompt, model, thinkingMode, connectionId, sessionId, effort, resumeAt, permissionMode, ...agentConfig });

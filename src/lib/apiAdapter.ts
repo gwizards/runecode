@@ -66,6 +66,15 @@ async function initSession(params: {
   subAgentMaxTurns?: number;
   teamMaxConcurrent?: number;
   teamDefaultModel?: string;
+  environment?: {
+    type: string;
+    sshHost?: string;
+    sshPort?: number;
+    sshIdentityFile?: string;
+    startDirectory?: string;
+    wslDistro?: string;
+    dockerContainer?: string;
+  };
 }): Promise<string> {
   const connectionId = `conn_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const ws = getOrCreateSocket(connectionId);
@@ -101,6 +110,7 @@ async function initSession(params: {
         subagent_max_turns: params.subAgentMaxTurns,
         team_max_concurrent: params.teamMaxConcurrent,
         team_default_model: params.teamDefaultModel,
+        environment: params.environment,
       }));
     };
 
@@ -438,6 +448,7 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
       subAgentMaxTurns: params?.subAgentMaxTurns,
       teamMaxConcurrent: params?.teamMaxConcurrent,
       teamDefaultModel: params?.teamDefaultModel,
+      environment: params?.environment,
     });
     // Return the connectionId so the caller can use it for follow-up prompts
     return { connectionId: newConnId } as T;
@@ -714,6 +725,15 @@ async function initAgentSession(params: {
   subAgentMaxTurns?: number;
   teamMaxConcurrent?: number;
   teamDefaultModel?: string;
+  environment?: {
+    type: string;
+    sshHost?: string;
+    sshPort?: number;
+    sshIdentityFile?: string;
+    startDirectory?: string;
+    wslDistro?: string;
+    dockerContainer?: string;
+  };
 }): Promise<string> {
   const connectionId = `conn_agent_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const ws = getOrCreateSocket(connectionId);
@@ -749,6 +769,7 @@ async function initAgentSession(params: {
           subagent_max_turns: params.subAgentMaxTurns,
           team_max_concurrent: params.teamMaxConcurrent,
           team_default_model: params.teamDefaultModel,
+          environment: params.environment,
         }));
       } catch (err) {
         settle(() => reject(new Error(`Failed to send init_agent: ${err}`)));

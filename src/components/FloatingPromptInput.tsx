@@ -23,6 +23,13 @@ import { ConfigPill } from '@/components/ConfigPill';
 import { ConfigPanel } from '@/components/ConfigPanel';
 import { useSessionConfig, type ModelId, type ThinkingMode, type PermissionMode } from '@/hooks/useSessionConfig';
 import { useAiAutocomplete } from '@/hooks/useAiAutocomplete';
+import type { RemoteEnvironment } from '@/components/settings/EnvironmentsSettings';
+
+// Module-level selected environment — read by ClaudeCodeSession when sending
+let _selectedEnvironment: RemoteEnvironment | null = null;
+export function getSelectedEnvironment(): RemoteEnvironment | null {
+  return _selectedEnvironment;
+}
 
 /** Orchestration mode — controls how Claude delegates work */
 export type OrchestrationMode = 'normal' | 'subagents' | 'team';
@@ -145,6 +152,8 @@ const FloatingPromptInputInner = (
   const [isExpanded, setIsExpanded] = useState(false);
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>('normal');
+  const [remoteEnvironments, setRemoteEnvironments] = useState<RemoteEnvironment[]>([]);
+  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(null);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerQuery, setFilePickerQuery] = useState("");
   const [showSlashCommandPicker, setShowSlashCommandPicker] = useState(false);
@@ -254,6 +263,23 @@ const FloatingPromptInputInner = (
     const uniquePaths = Array.from(pathsSet);
     return uniquePaths;
   };
+
+  // Load remote environments from localStorage and listen for changes
+  useEffect(() => {
+    const load = () => {
+      try {
+        const stored = localStorage.getItem('runecode-remote-environments');
+        const envs: RemoteEnvironment[] = stored ? JSON.parse(stored) : [];
+        setRemoteEnvironments(envs.filter(e => e.enabled));
+      } catch { setRemoteEnvironments([]); }
+    };
+    load();
+    const handler = () => load();
+    window.addEventListener('runecode:environments-changed', handler);
+    return () => window.removeEventListener('runecode:environments-changed', handler);
+  }, []);
+
+  const selectedEnv = remoteEnvironments.find(e => e.id === selectedEnvId) || null;
 
   // Update embedded images when prompt changes
   useEffect(() => {
@@ -611,6 +637,9 @@ const FloatingPromptInputInner = (
       }
 
       const { model, thinkingMode, effort, permissionMode } = useSessionConfig.getState();
+
+      // Set module-level environment so ClaudeCodeSession can read it
+      _selectedEnvironment = selectedEnv;
 
       onSend(finalPrompt, model, thinkingMode, effort, permissionMode);
       setPrompt("");
@@ -1045,6 +1074,30 @@ const FloatingPromptInputInner = (
                   </button>
                 </TooltipSimple>
               </div>
+
+              {/* Environment selector — only if remote envs configured */}
+              {remoteEnvironments.length > 0 && (
+                <TooltipSimple content={selectedEnv ? `Running on: ${selectedEnv.name}` : 'Running locally'} side="top">
+                  <select
+                    value={selectedEnvId || ''}
+                    onChange={(e) => setSelectedEnvId(e.target.value || null)}
+                    className={cn(
+                      'h-8 px-2 rounded-md border text-[10px] font-medium bg-transparent transition-all appearance-none cursor-pointer',
+                      selectedEnvId
+                        ? 'border-purple-500/30 text-purple-400 bg-purple-500/5'
+                        : 'border-border/30 text-muted-foreground/50'
+                    )}
+                    style={{ minWidth: '70px' }}
+                  >
+                    <option value="">Local</option>
+                    {remoteEnvironments.map(env => (
+                      <option key={env.id} value={env.id}>
+                        [{env.type.toUpperCase()}] {env.name}
+                      </option>
+                    ))}
+                  </select>
+                </TooltipSimple>
+              )}
 
               {/* Config Pill — right of input, centered vertically */}
               <div className="relative config-panel-container shrink-0">
