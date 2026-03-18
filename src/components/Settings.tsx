@@ -22,6 +22,7 @@ import { EnvironmentsSettings } from "./settings/EnvironmentsSettings";
 import { SubAgentSettings } from "./settings/SubAgentSettings";
 import { TeamSettings } from "./settings/TeamSettings";
 import { MCPSettings } from "./settings/MCPSettings";
+import { ProjectExplorer } from "./settings/ProjectExplorer";
 
 interface SettingsProps {
   onBack: () => void;
@@ -175,6 +176,10 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
 
   const renderSection = () => {
     switch (activeSection) {
+      // Project Explorer
+      case 'project-explorer':
+        return <ProjectExplorer />;
+
       // Appearance group (single item)
       case 'appearance':
         return <AppearanceSettings />;

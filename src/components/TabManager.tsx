@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
-import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown, Cpu, LayoutGrid, Monitor, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown, Cpu, LayoutGrid, Monitor, PanelRightClose, PanelRightOpen, FolderOpen } from 'lucide-react';
 import { RuneSpinner } from './RuneCodeLogo';
 import { useTabState } from '@/hooks/useTabState';
 import { Tab, useTabContext } from '@/contexts/TabContext';
@@ -598,6 +598,21 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
       <div className="w-px h-5 bg-border/30 mx-0.5" />
       <TooltipProvider>
         <div className="flex items-center gap-0.5">
+          <TooltipSimple content="Project Explorer" side="bottom">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                createSettingsTab();
+                // Small delay to let the settings tab mount, then navigate to section
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('runecode:open-settings', { detail: { section: 'project-explorer' } }));
+                }, 100);
+              }}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+            </motion.button>
+          </TooltipSimple>
           <TooltipSimple content="Agents" side="bottom">
             <motion.button
               whileTap={{ scale: 0.95 }}

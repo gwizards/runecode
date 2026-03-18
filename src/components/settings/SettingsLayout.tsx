@@ -2,7 +2,7 @@ import {
   Palette, Settings2, Puzzle,
   Timer, Shield, Variable,
   Terminal,
-  Sparkles, Globe, Database, Wand2, Users, Bot, Cpu, Plug, Server
+  Sparkles, Globe, Database, Wand2, Users, Bot, Cpu, Plug, Server, FolderOpen
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -13,6 +13,14 @@ interface SettingsSection {
 }
 
 const SETTINGS_SECTIONS: SettingsSection[] = [
+  {
+    id: 'projects-group',
+    label: 'Projects',
+    icon: FolderOpen,
+    items: [
+      { id: 'project-explorer', label: 'Project Explorer', icon: FolderOpen },
+    ],
+  },
   {
     id: 'appearance',
     label: 'Appearance',
