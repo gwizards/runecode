@@ -1,9 +1,9 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { useTabState } from '@/hooks/useTabState';
 import { useScreenTracking } from '@/hooks/useAnalytics';
 import { Tab } from '@/contexts/TabContext';
-import { Loader2, Plus, ArrowLeft } from 'lucide-react';
+import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical } from 'lucide-react';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
 import { ProjectList } from '@/components/ProjectList';
 import { CreateProjectDialog } from '@/components/CreateProjectDialog';
@@ -17,19 +17,22 @@ const AgentExecution = lazy(() => import('@/components/AgentExecution').then(m =
 const CreateAgent = lazy(() => import('@/components/CreateAgent').then(m => ({ default: m.CreateAgent })));
 const Agents = lazy(() => import('@/components/Agents').then(m => ({ default: m.Agents })));
 const UsageDashboard = lazy(() => import('@/components/UsageDashboard').then(m => ({ default: m.UsageDashboard })));
+const ResourceDetails = lazy(() => import('@/integrations/compute/ResourceDetails').then(m => ({ default: m.ResourceDetails })));
 const MCPManager = lazy(() => import('@/components/MCPManager').then(m => ({ default: m.MCPManager })));
 const Settings = lazy(() => import('@/components/Settings').then(m => ({ default: m.Settings })));
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })));
-// const ClaudeFileEditor = lazy(() => import('@/components/ClaudeFileEditor').then(m => ({ default: m.ClaudeFileEditor })));
+const ClaudeFileEditor = lazy(() => import('@/components/ClaudeFileEditor').then(m => ({ default: m.ClaudeFileEditor })));
 
 // Import non-lazy components for projects view
 
 interface TabPanelProps {
   tab: Tab;
   isActive: boolean;
+  /** In grid mode, only the focused tab owns the footer input. Defaults to isActive. */
+  ownsFooter?: boolean;
 }
 
-const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
+const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFooter }) => {
   const { updateTab } = useTabState();
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
@@ -42,8 +45,11 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   
   // Load projects when tab becomes active and is of type 'projects'
+  // Load projects on first activation only — not on every tab switch
+  const hasLoadedProjects = React.useRef(false);
   useEffect(() => {
-    if (isActive && tab.type === 'projects') {
+    if (isActive && tab.type === 'projects' && !hasLoadedProjects.current) {
+      hasLoadedProjects.current = true;
       loadProjects();
     }
   }, [isActive, tab.type]);
@@ -70,10 +76,11 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
       setSessions(sessionList);
       setSelectedProject(project);
       
-      // Update tab title to show project name
+      // Update tab title and project path so sidebar gets context
       const projectName = project.path.split('/').pop() || 'Project';
       updateTab(tab.id, {
-        title: projectName
+        title: projectName,
+        initialProjectPath: project.path
       });
     } catch (err) {
       console.error("Failed to load sessions:", err);
@@ -165,8 +172,12 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
     }
   };
   
-  // Panel visibility - hide when not active
-  const panelVisibilityClass = isActive ? "" : "hidden";
+  // Panel visibility — use offscreen positioning instead of display:none so
+  // the scroll container keeps its dimensions and the virtualizer measurements
+  // survive tab switches.  This prevents the "jump to middle" scroll reset.
+  const panelStyle: React.CSSProperties = isActive
+    ? {}
+    : { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', visibility: 'hidden', pointerEvents: 'none' };
   
   const renderContent = () => {
     switch (tab.type) {
@@ -293,8 +304,10 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
         return (
           <div className="h-full">
             <ClaudeCodeSession
-              session={tab.sessionData} // Pass the full session object if available
+              session={tab.sessionData}
               initialProjectPath={tab.initialProjectPath || tab.sessionId}
+              isActive={isActive}
+              ownsFooter={ownsFooter ?? isActive}
               onBack={() => {
                 // Go back to projects view in the same tab
                 updateTab(tab.id, {
@@ -369,11 +382,19 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
       
       case 'claude-file':
         if (!tab.claudeFileId) {
-          return <div className="p-4">No Claude file ID specified</div>;
+          return <div className="p-4 text-sm text-muted-foreground">No file specified</div>;
         }
-        // Note: We need to get the actual file object for ClaudeFileEditor
-        // For now, returning a placeholder
-        return <div className="p-4">Claude file editor not yet implemented in tabs</div>;
+        return (
+          <ClaudeFileEditor
+            file={{
+              absolute_path: tab.claudeFileId,
+              relative_path: tab.title || tab.claudeFileId.split('/').pop() || 'file.md',
+              size: 0,
+              modified: Date.now(),
+            }}
+            onBack={() => {}}
+          />
+        );
       
       case 'agent-execution':
         if (!tab.agentData) {
@@ -409,6 +430,18 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
             <div className="p-4">Import agent functionality coming soon...</div>
           </div>
         );
+
+      case 'resource-details':
+        return (
+          <div className="h-full">
+            <ResourceDetails
+              onBack={() => {
+                // Go back to previous tab type or close
+                window.dispatchEvent(new CustomEvent('close-tab', { detail: { tabId: tab.id } }));
+              }}
+            />
+          </div>
+        );
       
       default:
         return (
@@ -421,12 +454,9 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.15 }}
-        className={`h-full w-full ${panelVisibilityClass}`}
+      <div
+        className="h-full w-full"
+        style={panelStyle}
       >
         <Suspense
           fallback={
@@ -437,14 +467,31 @@ const TabPanel: React.FC<TabPanelProps> = ({ tab, isActive }) => {
         >
           {renderContent()}
         </Suspense>
-      </motion.div>
+      </div>
 
     </>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if the tab identity/content or active state actually changed.
+  // Ignore lastAccessedAt / updatedAt — those are bookkeeping fields that don't
+  // affect rendering.
+  if (prevProps.isActive !== nextProps.isActive || prevProps.ownsFooter !== nextProps.ownsFooter) return false;
+  const a = prevProps.tab;
+  const b = nextProps.tab;
+  return a.id === b.id
+    && a.type === b.type
+    && a.sessionId === b.sessionId
+    && a.title === b.title
+    && a.initialProjectPath === b.initialProjectPath
+    && a.projectPath === b.projectPath
+    && a.agentRunId === b.agentRunId
+    && a.agentData === b.agentData
+    && a.status === b.status
+    && a.sessionData === b.sessionData;
+});
 
 export const TabContent: React.FC = () => {
-  const { tabs, activeTabId, createChatTab, createProjectsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, closeTab, updateTab } = useTabState();
+  const { tabs, activeTabId, layoutMode, gridConfig, setGridColumns, setGridRows, setGridOrder, setGridSpan, createChatTab, createProjectsTab, createSettingsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab, switchToTab } = useTabState();
   
   // Listen for events to open sessions in tabs
   useEffect(() => {
@@ -474,7 +521,9 @@ export const TabContent: React.FC = () => {
 
     const handleOpenClaudeFile = (event: CustomEvent) => {
       const { file } = event.detail;
-      createClaudeFileTab(file.id, file.name || 'CLAUDE.md');
+      const fileId = file.absolute_path || file.id || file.relative_path;
+      const fileName = file.relative_path?.split('/').pop() || file.name || 'CLAUDE.md';
+      createClaudeFileTab(fileId, fileName);
     };
 
     const handleOpenAgentExecution = (event: CustomEvent) => {
@@ -490,9 +539,17 @@ export const TabContent: React.FC = () => {
       createImportAgentTab();
     };
 
+    const handleOpenResourceDetails = () => {
+      createResourceDetailsTab();
+    };
+
     const handleCloseTab = (event: CustomEvent) => {
       const { tabId } = event.detail;
       closeTab(tabId);
+    };
+
+    const handleOpenSettings = () => {
+      createSettingsTab();
     };
 
     const handleClaudeSessionSelected = (event: CustomEvent) => {
@@ -534,42 +591,439 @@ export const TabContent: React.FC = () => {
     window.addEventListener('open-agent-execution', handleOpenAgentExecution as EventListener);
     window.addEventListener('open-create-agent-tab', handleOpenCreateAgentTab);
     window.addEventListener('open-import-agent-tab', handleOpenImportAgentTab);
+    window.addEventListener('open-resource-details', handleOpenResourceDetails);
     window.addEventListener('close-tab', handleCloseTab as EventListener);
     window.addEventListener('claude-session-selected', handleClaudeSessionSelected as EventListener);
+    window.addEventListener('runecode:open-settings', handleOpenSettings);
     return () => {
       window.removeEventListener('open-session-in-tab', handleOpenSessionInTab as EventListener);
       window.removeEventListener('open-claude-file', handleOpenClaudeFile as EventListener);
       window.removeEventListener('open-agent-execution', handleOpenAgentExecution as EventListener);
       window.removeEventListener('open-create-agent-tab', handleOpenCreateAgentTab);
       window.removeEventListener('open-import-agent-tab', handleOpenImportAgentTab);
+      window.removeEventListener('open-resource-details', handleOpenResourceDetails);
       window.removeEventListener('close-tab', handleCloseTab as EventListener);
+      window.removeEventListener('runecode:open-settings', handleOpenSettings);
       window.removeEventListener('claude-session-selected', handleClaudeSessionSelected as EventListener);
     };
-  }, [createChatTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, closeTab, updateTab]);
+  }, [createChatTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab]);
   
-  return (
-    <div className="flex-1 h-full relative">
-      <AnimatePresence mode="wait">
-        {tabs.map((tab) => (
+  // Grid mode state
+  const gridTypes = React.useMemo(() => new Set(['chat', 'agent-execution']), []);
+
+  const gridTabs = React.useMemo(() =>
+    layoutMode === 'grid' ? tabs.filter(t => gridTypes.has(t.type)) : [],
+    [tabs, layoutMode, gridTypes]
+  );
+  const nonGridTabs = React.useMemo(() =>
+    layoutMode === 'grid' ? tabs.filter(t => !gridTypes.has(t.type)) : [],
+    [tabs, layoutMode, gridTypes]
+  );
+
+  // Ordered grid tabs — respects user drag order, syncs new/removed tabs
+  const orderedGridTabs = React.useMemo(() => {
+    if (gridTabs.length === 0) return [];
+    const tabMap = new Map(gridTabs.map(t => [t.id, t]));
+    // Start with saved order, filter out removed tabs
+    const ordered = gridConfig.order.filter(id => tabMap.has(id)).map(id => tabMap.get(id)!);
+    // Append any new tabs not in the order
+    const inOrder = new Set(gridConfig.order);
+    for (const t of gridTabs) {
+      if (!inOrder.has(t.id)) ordered.push(t);
+    }
+    return ordered;
+  }, [gridTabs, gridConfig.order]);
+
+  // Sync grid order when tabs change
+  React.useEffect(() => {
+    if (layoutMode !== 'grid' || gridTabs.length === 0) return;
+    const currentIds = orderedGridTabs.map(t => t.id);
+    if (JSON.stringify(currentIds) !== JSON.stringify(gridConfig.order)) {
+      setGridOrder(currentIds);
+    }
+  }, [orderedGridTabs, gridConfig.order, layoutMode, gridTabs.length, setGridOrder]);
+
+  // Span picker popover state — close on outside click
+  const [spanPickerTabId, setSpanPickerTabId] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!spanPickerTabId) return;
+    const handler = () => setSpanPickerTabId(null);
+    // Delay so the current click doesn't immediately close it
+    const timer = setTimeout(() => window.addEventListener('click', handler), 0);
+    return () => { clearTimeout(timer); window.removeEventListener('click', handler); };
+  }, [spanPickerTabId]);
+
+  // Drag state for grid cells
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [dragOverId, setDragOverId] = React.useState<string | null>(null);
+
+  const handleGridDragStart = React.useCallback((tabId: string) => setDragId(tabId), []);
+  const handleGridDragOver = React.useCallback((e: React.DragEvent, tabId: string) => {
+    e.preventDefault();
+    setDragOverId(tabId);
+  }, []);
+  const handleGridDrop = React.useCallback((targetId: string) => {
+    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
+    const ids = orderedGridTabs.map(t => t.id);
+    const fromIdx = ids.indexOf(dragId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, dragId);
+    setGridOrder(ids);
+    setDragId(null);
+    setDragOverId(null);
+  }, [dragId, orderedGridTabs, setGridOrder]);
+
+  // Footer tab drag state
+  const [footerDragId, setFooterDragId] = React.useState<string | null>(null);
+  const [footerDragOverId, setFooterDragOverId] = React.useState<string | null>(null);
+  const handleFooterDrop = React.useCallback((targetId: string) => {
+    if (!footerDragId || footerDragId === targetId) { setFooterDragId(null); setFooterDragOverId(null); return; }
+    const ids = orderedGridTabs.map(t => t.id);
+    const fromIdx = ids.indexOf(footerDragId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, footerDragId);
+    setGridOrder(ids);
+    setFooterDragId(null);
+    setFooterDragOverId(null);
+  }, [footerDragId, orderedGridTabs, setGridOrder]);
+
+  // Shift+Tab cycles grid focus, Ctrl+1..9 jumps to specific grid tab
+  React.useEffect(() => {
+    if (layoutMode !== 'grid' || orderedGridTabs.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Shift+Tab cycles focus forward, Ctrl+Shift+Tab cycles backward
+      if (e.key === 'Tab' && e.shiftKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        const currentIdx = orderedGridTabs.findIndex(t => t.id === activeTabId);
+        const delta = e.ctrlKey ? -1 : 1;
+        const nextIdx = (currentIdx + delta + orderedGridTabs.length) % orderedGridTabs.length;
+        switchToTab(orderedGridTabs[nextIdx].id);
+        return;
+      }
+      // Ctrl+1..9 jumps to specific grid tab
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key) - 1;
+        if (idx < orderedGridTabs.length) {
+          e.preventDefault();
+          switchToTab(orderedGridTabs[idx].id);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [layoutMode, orderedGridTabs, activeTabId, switchToTab]);
+
+  // Ctrl+1..9 in single mode — jump to tab by index
+  React.useEffect(() => {
+    if (layoutMode === 'grid') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key) - 1;
+        if (idx < tabs.length) {
+          e.preventDefault();
+          switchToTab(tabs[idx].id);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [layoutMode, tabs, switchToTab]);
+
+  // Empty grid fallback
+  if (layoutMode === 'grid' && orderedGridTabs.length === 0) {
+    return (
+      <div className="flex-1 h-full relative flex flex-col">
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="text-center">
+            <p className="text-lg mb-2">No conversations in grid</p>
+            <p className="text-sm mb-4">Open a project to add it to the grid</p>
+            <Button onClick={() => createProjectsTab()} size="default">
+              <Plus className="w-4 h-4 mr-2" /> New Project
+            </Button>
+          </div>
+        </div>
+        {/* Non-grid tabs still render */}
+        {nonGridTabs.map((tab) => (
+          <TabPanel key={tab.id} tab={tab} isActive={tab.id === activeTabId} />
+        ))}
+      </div>
+    );
+  }
+
+  if (layoutMode === 'grid' && orderedGridTabs.length > 0) {
+    const activeIsNonGrid = nonGridTabs.some(t => t.id === activeTabId);
+    const cols = gridConfig.columns;
+    const rows = gridConfig.rows; // 0 = auto
+
+    return (
+      <div className="flex-1 h-full relative flex flex-col">
+        {/* Grid of chat/agent tabs */}
+        <div
+          className="flex-1 min-h-0"
+          style={{
+            display: activeIsNonGrid ? 'none' : 'grid',
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gridTemplateRows: rows > 0 ? `repeat(${rows}, 1fr)` : undefined,
+            gridAutoRows: rows > 0 ? undefined : '1fr',
+            gap: '1px',
+            background: 'hsl(var(--border))',
+          }}
+        >
+          {orderedGridTabs.map((tab, gridIdx) => {
+            const isFocused = tab.id === activeTabId;
+            const span = gridConfig.spans[tab.id];
+            const colSpan = span?.colSpan || 1;
+            const rowSpan = span?.rowSpan || 1;
+            const isDragTarget = dragOverId === tab.id && dragId !== tab.id;
+            const cellNumber = gridIdx + 1;
+            return (
+              <div
+                key={tab.id}
+                draggable
+                onDragStart={() => handleGridDragStart(tab.id)}
+                onDragOver={(e) => handleGridDragOver(e, tab.id)}
+                onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                onDrop={() => handleGridDrop(tab.id)}
+                className="relative bg-background overflow-hidden cursor-pointer transition-[filter,opacity] duration-300"
+                style={{
+                  gridColumn: colSpan > 1 ? `span ${Math.min(colSpan, cols)}` : undefined,
+                  gridRow: rowSpan > 1 ? `span ${rowSpan}` : undefined,
+                  outline: isDragTarget ? '2px dashed hsl(var(--primary))' : isFocused ? '2px solid hsl(var(--primary))' : '2px solid transparent',
+                  outlineOffset: '-2px',
+                  filter: isFocused ? 'none' : 'grayscale(0.75) brightness(0.6)',
+                  contain: 'layout style',
+                  opacity: dragId === tab.id ? 0.5 : 1,
+                }}
+                onClick={() => switchToTab(tab.id)}
+              >
+                {/* Grid cell header */}
+                <div className={`flex items-center justify-between px-2 py-1 border-b border-border text-xs transition-colors ${
+                  isFocused ? 'bg-primary/10 text-foreground' : 'bg-muted/20 text-muted-foreground'
+                }`}>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <GripVertical className="w-3 h-3 text-muted-foreground/40 cursor-grab flex-shrink-0" />
+                    <kbd className={`text-[9px] px-1 py-0.5 rounded font-mono leading-none flex-shrink-0 ${
+                      isFocused ? 'bg-primary/20 text-primary' : 'bg-muted/40 text-muted-foreground/50'
+                    }`}>{cellNumber}</kbd>
+                    {tab.status === 'running' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                    )}
+                    <span className="font-medium truncate">{tab.title}</span>
+                    {(colSpan > 1 || rowSpan > 1) && (
+                      <span className="text-[9px] text-primary/60 font-mono flex-shrink-0">{colSpan}×{rowSpan}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    {/* Size picker */}
+                    <div className="relative">
+                      <button
+                        className="text-muted-foreground/50 hover:text-foreground p-0.5"
+                        title={`Size: ${colSpan}×${rowSpan} — click to change`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSpanPickerTabId(prev => prev === tab.id ? null : tab.id);
+                        }}
+                      >
+                        {colSpan > 1 || rowSpan > 1
+                          ? <Minimize2 className="w-3 h-3" />
+                          : <Maximize2 className="w-3 h-3" />
+                        }
+                      </button>
+                      {/* Size picker popover */}
+                      {spanPickerTabId === tab.id && (
+                        <div
+                          className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-xl p-2 min-w-[140px]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="text-[9px] text-muted-foreground/60 font-semibold uppercase tracking-wider mb-1.5 px-1">Cell size</div>
+                          {/* Column span */}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] text-muted-foreground px-1">Columns</span>
+                            <div className="flex gap-0.5">
+                              {Array.from({ length: cols }, (_, i) => i + 1).map(n => (
+                                <button
+                                  key={n}
+                                  onClick={() => setGridSpan(tab.id, { colSpan: n })}
+                                  className={`w-5 h-5 rounded text-[10px] font-medium transition-colors ${
+                                    colSpan === n ? 'bg-primary/20 text-primary' : 'text-muted-foreground/50 hover:bg-muted/60 hover:text-foreground'
+                                  }`}
+                                >{n}</button>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Row span */}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] text-muted-foreground px-1">Rows</span>
+                            <div className="flex gap-0.5">
+                              {[1, 2, 3].map(n => (
+                                <button
+                                  key={n}
+                                  onClick={() => setGridSpan(tab.id, { rowSpan: n })}
+                                  className={`w-5 h-5 rounded text-[10px] font-medium transition-colors ${
+                                    rowSpan === n ? 'bg-primary/20 text-primary' : 'text-muted-foreground/50 hover:bg-muted/60 hover:text-foreground'
+                                  }`}
+                                >{n}</button>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Reset */}
+                          {(colSpan > 1 || rowSpan > 1) && (
+                            <button
+                              onClick={() => { setGridSpan(tab.id, { colSpan: 1, rowSpan: 1 }); setSpanPickerTabId(null); }}
+                              className="w-full text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded py-1 transition-colors"
+                            >
+                              Reset to 1×1
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="text-muted-foreground hover:text-foreground p-0.5 relative z-20"
+                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                {/* Grid cell content */}
+                <div className="h-[calc(100%-28px)] overflow-hidden">
+                  <TabPanel tab={tab} isActive={true} ownsFooter={isFocused} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Grid footer — draggable project tabs + column control + shortcuts */}
+        {!activeIsNonGrid && orderedGridTabs.length > 0 && (
+          <div className="flex items-center gap-1 px-2 py-1 bg-muted/20 border-t border-border shrink-0">
+            {/* Draggable tab list */}
+            <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
+              {orderedGridTabs.map((tab, idx) => {
+                const isFocused = tab.id === activeTabId;
+                const isFooterDragTarget = footerDragOverId === tab.id && footerDragId !== tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    draggable
+                    onDragStart={() => setFooterDragId(tab.id)}
+                    onDragOver={(e) => { e.preventDefault(); setFooterDragOverId(tab.id); }}
+                    onDragEnd={() => { setFooterDragId(null); setFooterDragOverId(null); }}
+                    onDrop={() => handleFooterDrop(tab.id)}
+                    onClick={() => switchToTab(tab.id)}
+                    className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                      isFocused
+                        ? 'bg-primary/15 text-primary border border-primary/30'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    } ${isFooterDragTarget ? 'ring-1 ring-primary' : ''}`}
+                    style={{ opacity: footerDragId === tab.id ? 0.4 : 1 }}
+                  >
+                    <GripVertical className="w-2.5 h-2.5 text-muted-foreground/30 cursor-grab flex-shrink-0" />
+                    {tab.status === 'running' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                    )}
+                    <span className="truncate max-w-[80px]">{tab.title}</span>
+                    <kbd className={`text-[9px] px-1 py-0.5 rounded font-mono leading-none ${
+                      isFocused ? 'bg-primary/20 text-primary' : 'bg-muted/60 text-muted-foreground'
+                    }`}>{idx + 1}</kbd>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Shortcut hints — right of project names */}
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40 flex-shrink-0 px-2 border-l border-border/50">
+              <kbd className="px-1 py-0.5 rounded bg-muted/40 font-mono text-[9px] leading-none">Shift+Tab</kbd>
+              <span className="text-muted-foreground/30">cycle</span>
+              <kbd className="px-1 py-0.5 rounded bg-muted/40 font-mono text-[9px] leading-none">Ctrl+1-9</kbd>
+              <span className="text-muted-foreground/30">jump</span>
+            </div>
+
+            {/* Grid controls */}
+            <div className="flex items-center gap-1.5 flex-shrink-0 pl-2 border-l border-border">
+              {/* Column count */}
+              <div className="flex items-center gap-0.5">
+                <Columns className="w-3 h-3 text-muted-foreground/40" />
+                {[1, 2, 3, 4].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setGridColumns(n)}
+                    className={`w-5 h-5 rounded text-[10px] font-medium transition-colors ${
+                      cols === n
+                        ? 'bg-primary/15 text-primary'
+                        : 'text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40'
+                    }`}
+                  >{n}</button>
+                ))}
+              </div>
+              {/* Row count */}
+              <div className="flex items-center gap-0.5">
+                <Rows3 className="w-3 h-3 text-muted-foreground/40" />
+                {[0, 1, 2, 3, 4].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setGridRows(n)}
+                    className={`w-5 h-5 rounded text-[10px] font-medium transition-colors ${
+                      rows === n
+                        ? 'bg-primary/15 text-primary'
+                        : 'text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40'
+                    }`}
+                    title={n === 0 ? 'Auto rows' : `${n} rows`}
+                  >{n === 0 ? 'A' : n}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Non-grid tabs (settings, agents, etc.) */}
+        {nonGridTabs.map((tab) => (
           <TabPanel
             key={tab.id}
             tab={tab}
-            isActive={tab.id === activeTabId}
+            isActive={activeIsNonGrid && tab.id === activeTabId}
           />
         ))}
-      </AnimatePresence>
-      
+
+        {tabs.length === 0 && (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            <div className="text-center">
+              <p className="text-lg mb-2">No projects open</p>
+              <Button onClick={() => createProjectsTab()} size="default">
+                <Plus className="w-4 h-4 mr-2" /> New Project
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Single mode (default)
+  return (
+    <div className="flex-1 h-full relative">
+      {tabs.map((tab) => (
+        <TabPanel
+          key={tab.id}
+          tab={tab}
+          isActive={tab.id === activeTabId}
+        />
+      ))}
+
       {tabs.length === 0 && (
         <div className="flex items-center justify-center h-full text-muted-foreground">
           <div className="text-center">
             <p className="text-lg mb-2">No projects open</p>
             <p className="text-sm mb-4">Click to start a new project</p>
-            <Button
-              onClick={() => createProjectsTab()}
-              size="default"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
+            <Button onClick={() => createProjectsTab()} size="default">
+              <Plus className="w-4 h-4 mr-2" /> New Project
             </Button>
           </div>
         </div>

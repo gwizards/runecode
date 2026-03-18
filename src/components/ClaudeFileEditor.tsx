@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import { motion } from "motion/react";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toast, ToastContainer } from "@/components/ui/toast";
 import { api, type ClaudeMdFile } from "@/lib/api";
@@ -44,6 +44,13 @@ export const ClaudeFileEditor: React.FC<ClaudeFileEditorProps> = ({
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   
   const hasChanges = content !== originalContent;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   
   // Load the file content on mount
   useEffect(() => {
@@ -119,18 +126,32 @@ export const ClaudeFileEditor: React.FC<ClaudeFileEditorProps> = ({
             </div>
           </div>
           
-          <Button
-            onClick={handleSave}
-            disabled={!hasChanges || saving}
-            size="sm"
-          >
-            {saving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            {saving ? "Saving..." : "Save"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCopy}
+              size="sm"
+            >
+              {copied ? (
+                <Check className="mr-2 h-4 w-4 text-emerald-500" />
+              ) : (
+                <Copy className="mr-2 h-4 w-4" />
+              )}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!hasChanges || saving}
+              size="sm"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
         </motion.div>
         
         {/* Error display */}
