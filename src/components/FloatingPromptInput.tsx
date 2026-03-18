@@ -413,6 +413,18 @@ const FloatingPromptInputInner = (
     }
   }, [isExpanded]);
 
+  // Focus prompt input on tab switch (triggered by Shift+Tab)
+  useEffect(() => {
+    const handler = () => {
+      requestAnimationFrame(() => {
+        const target = isExpanded ? expandedTextareaRef.current : textareaRef.current;
+        target?.focus();
+      });
+    };
+    window.addEventListener('runecode:focus-prompt', handler);
+    return () => window.removeEventListener('runecode:focus-prompt', handler);
+  }, [isExpanded]);
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     const newCursorPosition = e.target.selectionStart || 0;

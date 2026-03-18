@@ -609,16 +609,13 @@ export const TabContent: React.FC = () => {
   }, [createChatTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab]);
   
   // Grid mode state
-  const gridTypes = React.useMemo(() => new Set(['chat', 'agent-execution']), []);
-
+  // In grid mode, all tabs go into the grid layout — any window type can be
+  // placed in a grid cell (settings, agents, sessions, etc.)
   const gridTabs = React.useMemo(() =>
-    layoutMode === 'grid' ? tabs.filter(t => gridTypes.has(t.type)) : [],
-    [tabs, layoutMode, gridTypes]
+    layoutMode === 'grid' ? tabs : [],
+    [tabs, layoutMode]
   );
-  const nonGridTabs = React.useMemo(() =>
-    layoutMode === 'grid' ? tabs.filter(t => !gridTypes.has(t.type)) : [],
-    [tabs, layoutMode, gridTypes]
-  );
+  const nonGridTabs = React.useMemo<Tab[]>(() => [], []);
 
   // Ordered grid tabs — respects user drag order, syncs new/removed tabs
   const orderedGridTabs = React.useMemo(() => {

@@ -155,10 +155,12 @@ function AppContent() {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const modKey = isMac ? e.metaKey : e.ctrlKey;
 
-      // Shift+Tab — cycle to next/previous tab (works even without Ctrl)
+      // Shift+Tab — cycle to next tab and focus input
       if (e.key === 'Tab' && e.shiftKey && !modKey && !isTyping) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('switch-to-next-tab'));
+        // Focus the prompt input after a short delay for the tab to mount
+        setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);
         return;
       }
 
