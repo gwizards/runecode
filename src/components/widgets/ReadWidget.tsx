@@ -19,23 +19,24 @@ import { ShikiCodeBlock } from "../ShikiCodeBlock";
 export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ filePath, result }) => {
   if (result) {
     const { content: resultContent } = extractResultContent(result);
-
-    return (
-      <div className="space-y-0">
-        {resultContent && <ReadResultWidget content={resultContent} filePath={filePath} />}
-      </div>
-    );
+    if (resultContent) {
+      return <ReadResultWidget content={resultContent} filePath={filePath} />;
+    }
   }
+
+  // Pending state — show file name with loading indicator
+  const ext = filePath?.split('.').pop()?.toLowerCase();
+  const isMd = ext === 'md' || ext === 'mdx' || ext === 'markdown';
 
   return (
     <div className="rounded-lg border border-muted-foreground/15 overflow-hidden">
       <div className="px-3 py-2 bg-muted/50 flex items-center gap-2">
-        <FileText className="h-3.5 w-3.5 text-blue-500" />
+        <FileText className={cn("h-3.5 w-3.5", isMd ? "text-emerald-400" : "text-blue-500")} />
         <span className="text-xs font-mono text-muted-foreground truncate">
           {filePath}
         </span>
         <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-          <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse" />
+          <div className={cn("h-2 w-2 rounded-full animate-pulse", isMd ? "bg-emerald-500" : "bg-blue-500")} />
           <span>Reading...</span>
         </div>
       </div>
@@ -116,8 +117,9 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
   const [isExpanded, setIsExpanded] = useState(false);
   const highlighter = useShiki();
 
-  // For .md files, render with the rich markdown viewer
-  const isMarkdownFile = filePath?.toLowerCase().endsWith('.md');
+  // For .md/.mdx/markdown files, render with the rich markdown viewer
+  const ext = filePath?.split('.').pop()?.toLowerCase();
+  const isMarkdownFile = ext === 'md' || ext === 'mdx' || ext === 'markdown';
 
   // Strip line-number prefixes (e.g. "  1→content") from tool output
   const stripLineNumbers = (rawContent: string) => {
