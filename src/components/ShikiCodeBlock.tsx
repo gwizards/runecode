@@ -25,7 +25,7 @@ export function ShikiCodeBlock({ code, language = 'text', theme: themeProp }: Sh
 
   return (
     <div
-      className="shiki-code-block overflow-x-auto rounded-md text-sm [&_pre]:p-3 [&_pre]:m-0 [&_pre]:bg-transparent"
+      className="shiki-code-block overflow-x-auto rounded-md text-sm max-w-full [&_pre]:p-3 [&_pre]:m-0 [&_pre]:bg-transparent"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

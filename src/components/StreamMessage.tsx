@@ -78,7 +78,7 @@ const CollapsibleToolOutput: React.FC<{
         )}
       </button>
       {isExpanded && (
-        <div className="border-t border-muted-foreground/10">
+        <div className="border-t border-muted-foreground/10 overflow-x-auto">
           {children}
         </div>
       )}
@@ -252,20 +252,18 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
       let renderedSomething = false;
       
       const renderedCard = (
-        <Card className={cn("border-l-2 border-l-emerald-500/50 border-emerald-500/15 bg-emerald-500/[0.03]", className)}>
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <RuneCodeLogo size={20} className="mt-0.5" />
-              <div className="flex-1 space-y-2 min-w-0">
+        <Card className={cn("border-l-2 border-l-emerald-500/50 border-emerald-500/15 bg-emerald-500/[0.03] overflow-hidden", className)}>
+          <CardContent className="px-3 py-3 sm:px-4 sm:py-3.5">
+            <div className="flex items-start gap-2.5">
+              <RuneCodeLogo size={18} className="mt-[3px] flex-shrink-0" />
+              <div className="flex-1 space-y-2 min-w-0 overflow-hidden">
                 {msg.content && Array.isArray(msg.content) && msg.content.map((content: any, idx: number) => {
                   // Text content - render as markdown
                   if (content.type === "text") {
-                    // Ensure we have a string to render
                     const rawTextContent = typeof content.text === 'string'
                       ? content.text
                       : (content.text?.text || JSON.stringify(content.text || content));
 
-                    // Parse task notifications and strip metadata tags
                     const { notifications, cleanContent: afterNotifications } = parseTaskNotifications(rawTextContent);
                     const textContent = stripMetadataTags(afterNotifications);
 
@@ -277,7 +275,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                           <TaskNotificationWidget key={`notif-${i}`} {...n} />
                         ))}
                         {textContent && (
-                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-all [&_pre_code]:break-normal [&_a]:break-all [&_table]:text-xs [&_table]:block [&_table]:overflow-x-auto">
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm]}
                               components={{
@@ -289,7 +287,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                                       language={match[1]}
                                     />
                                   ) : (
-                                    <code className={className} {...props}>
+                                    <code className={cn(className, "text-[0.85em] px-1 py-0.5 rounded bg-muted/50")} {...props}>
                                       {children}
                                     </code>
                                   );
@@ -545,11 +543,11 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
       let renderedSomething = false;
       
       const renderedCard = (
-        <Card className={cn("border-l-2 border-l-blue-500/50 border-blue-500/15 bg-blue-500/[0.03]", className)}>
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <User className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-              <div className="flex-1 space-y-2 min-w-0">
+        <Card className={cn("border-l-2 border-l-blue-500/50 border-blue-500/15 bg-blue-500/[0.03] overflow-hidden", className)}>
+          <CardContent className="px-3 py-3 sm:px-4 sm:py-3.5">
+            <div className="flex items-start gap-2.5">
+              <User className="h-[18px] w-[18px] text-blue-600 dark:text-blue-400 mt-[3px] flex-shrink-0" />
+              <div className="flex-1 space-y-2 min-w-0 overflow-hidden break-words">
                 {/* Handle content that is a simple string (e.g. from user commands) */}
                 {(typeof msg.content === 'string' || (msg.content && !Array.isArray(msg.content))) && (
                   (() => {
@@ -588,7 +586,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                             <TaskNotificationWidget key={`user-notif-${i}`} {...n} />
                           ))}
                           {userDisplayContent && (
-                            <div className="text-sm">
+                            <div className="text-sm break-words">
                               {userDisplayContent}
                             </div>
                           )}
@@ -598,7 +596,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
 
                     // Otherwise render as plain text
                     return (
-                      <div className="text-sm">
+                      <div className="text-sm break-words">
                         {contentStr}
                       </div>
                     );
@@ -867,12 +865,12 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                     
                     renderedSomething = true;
                     return (
-                      <div key={idx} className="text-sm">
+                      <div key={idx} className="text-sm break-words">
                         {textContent}
                       </div>
                     );
                   }
-                  
+
                   return null;
                 })}
               </div>
