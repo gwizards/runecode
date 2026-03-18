@@ -25,6 +25,10 @@ export function SubAgentSettings() {
           These apply when Claude uses the Agent tool to delegate tasks.
           Individual agents can override these via their <code className="text-xs bg-muted px-1 py-0.5 rounded font-mono">.md</code> frontmatter.
         </p>
+        <div className="mt-2 px-2.5 py-1.5 rounded-md bg-amber-500/5 border border-amber-500/15 text-[11px] text-amber-400/80 flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+          Sub-agent prompts use ~3-5x more tokens on average than a normal prompt due to parallel context windows.
+        </div>
       </div>
 
       {/* ─── Model ─── */}

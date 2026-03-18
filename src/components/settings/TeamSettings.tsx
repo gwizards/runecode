@@ -23,6 +23,10 @@ export function TeamSettings() {
           Configure how coordinated agent teams behave. Teams are groups of agents that work together
           on complex tasks, coordinated by a team lead agent.
         </p>
+        <div className="mt-2 px-2.5 py-1.5 rounded-md bg-amber-500/5 border border-amber-500/15 text-[11px] text-amber-400/80 flex items-center gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+          Team prompts use ~5-10x more tokens on average than a normal prompt due to multiple parallel agents with inter-agent communication.
+        </div>
       </div>
 
       {/* ─── Master Toggle ─── */}

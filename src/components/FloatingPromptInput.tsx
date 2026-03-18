@@ -5,6 +5,8 @@ import {
   Minimize2,
   Square,
   GitBranch,
+  Bot,
+  Users,
 } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
@@ -19,7 +21,16 @@ import { ImagePreview } from "./ImagePreview";
 import { api, type FileEntry, type SlashCommand } from "@/lib/api";
 import { ConfigPill } from '@/components/ConfigPill';
 import { ConfigPanel } from '@/components/ConfigPanel';
-import { useSessionConfig, type ThinkingMode } from '@/hooks/useSessionConfig';
+import { useSessionConfig, type ModelId, type ThinkingMode, type PermissionMode } from '@/hooks/useSessionConfig';
+import { useAiAutocomplete } from '@/hooks/useAiAutocomplete';
+
+/** Orchestration mode — controls how Claude delegates work */
+export type OrchestrationMode = 'normal' | 'subagents' | 'team';
+
+const ORCHESTRATION_PREFIXES: Record<Exclude<OrchestrationMode, 'normal'>, string> = {
+  subagents: `IMPORTANT: For this request, aggressively parallelize using the Agent tool. Break the work into as many independent sub-agents as possible — each handling a focused subtask. Spawn agents for research, implementation, testing, and review in parallel rather than doing things sequentially. Use background agents where appropriate.\n\n`,
+  team: `IMPORTANT: For this request, create a coordinated Agent Team. Assign each teammate a clear role and name using the Agent tool with team_name and name parameters. Teammates should communicate via SendMessage to coordinate. Structure the team with specialized roles (e.g., researcher, implementer, reviewer, tester) and have them work in parallel. Synthesize all results at the end.\n\n`,
+};
 
 // Conditional import for Tauri webview window
 let tauriGetCurrentWebviewWindow: any;
@@ -42,7 +53,7 @@ interface FloatingPromptInputProps {
   /**
    * Callback when prompt is sent
    */
-  onSend: (prompt: string, model: "sonnet" | "opus") => void;
+  onSend: (prompt: string, model: ModelId, thinkingMode: ThinkingMode, effort?: string, permissionMode?: PermissionMode) => void;
   /**
    * Whether the input is loading
    */
@@ -90,17 +101,6 @@ export interface FloatingPromptInputRef {
 }
 
 /**
- * Thinking mode phrase mapping for appending to prompts
- */
-const THINKING_PHRASES: Record<ThinkingMode, string | undefined> = {
-  auto: undefined,
-  think: "think",
-  think_hard: "think hard",
-  think_harder: "think harder",
-  ultrathink: "ultrathink",
-};
-
-/**
  * FloatingPromptInput component - Fixed position prompt input with model picker
  * 
  * @example
@@ -144,6 +144,7 @@ const FloatingPromptInputInner = (
   const [prompt, setPrompt] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
+  const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>('normal');
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerQuery, setFilePickerQuery] = useState("");
   const [showSlashCommandPicker, setShowSlashCommandPicker] = useState(false);
@@ -152,6 +153,13 @@ const FloatingPromptInputInner = (
   const [embeddedImages, setEmbeddedImages] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+
+  // AI autocomplete ghost text
+  const autocomplete = useAiAutocomplete({
+    text: prompt,
+    cursorPos: cursorPosition,
+    projectPath,
+  });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const expandedTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -175,11 +183,11 @@ const FloatingPromptInputInner = (
           const newPrompt = currentPrompt + (currentPrompt.endsWith(' ') || currentPrompt === '' ? '' : ' ') + mention + ' ';
 
           // Focus the textarea
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             const target = isExpanded ? expandedTextareaRef.current : textareaRef.current;
             target?.focus();
             target?.setSelectionRange(newPrompt.length, newPrompt.length);
-          }, 0);
+          });
 
           return newPrompt;
         });
@@ -253,17 +261,25 @@ const FloatingPromptInputInner = (
     setEmbeddedImages(imagePaths);
     
     // Auto-resize on prompt change (handles paste, programmatic changes, etc.)
+    // Use rAF to batch the read/write and avoid forced reflow
     if (textareaRef.current && !isExpanded) {
-      textareaRef.current.style.height = 'auto';
-      const scrollHeight = textareaRef.current.scrollHeight;
-      const newHeight = Math.min(Math.max(scrollHeight, 48), 240);
-      setTextareaHeight(newHeight);
-      textareaRef.current.style.height = `${newHeight}px`;
+      requestAnimationFrame(() => {
+        if (!textareaRef.current) return;
+        textareaRef.current.style.height = 'auto';
+        const scrollHeight = textareaRef.current.scrollHeight;
+        const newHeight = Math.min(Math.max(scrollHeight, 48), 240);
+        setTextareaHeight(newHeight);
+        textareaRef.current.style.height = `${newHeight}px`;
+      });
     }
   }, [prompt, projectPath, isExpanded]);
 
   // Set up Tauri drag-drop event listener
   useEffect(() => {
+    // Skip entirely in web mode — no Tauri webview APIs available, avoids
+    // a noisy error on every mount and the cost of the dynamic import attempt.
+    if (!tauriGetCurrentWebviewWindow) return;
+
     // This effect runs only once on component mount to set up the listener.
     let lastDropTime = 0;
 
@@ -313,11 +329,11 @@ const FloatingPromptInputInner = (
                 }).join(' ');
                 const newPrompt = currentPrompt + (currentPrompt.endsWith(' ') || currentPrompt === '' ? '' : ' ') + mentionsToAdd + ' ';
 
-                setTimeout(() => {
+                requestAnimationFrame(() => {
                   const target = isExpanded ? expandedTextareaRef.current : textareaRef.current;
                   target?.focus();
                   target?.setSelectionRange(newPrompt.length, newPrompt.length);
-                }, 0);
+                });
 
                 return newPrompt;
               });
@@ -355,28 +371,24 @@ const FloatingPromptInputInner = (
     const newCursorPosition = e.target.selectionStart || 0;
     
     // Auto-resize textarea based on content
+    // Use rAF to batch the read/write and avoid forced reflow
     if (textareaRef.current && !isExpanded) {
-      // Reset height to auto to get the actual scrollHeight
-      textareaRef.current.style.height = 'auto';
-      const scrollHeight = textareaRef.current.scrollHeight;
-      // Set min height to 48px and max to 240px (about 10 lines)
-      const newHeight = Math.min(Math.max(scrollHeight, 48), 240);
-      setTextareaHeight(newHeight);
-      textareaRef.current.style.height = `${newHeight}px`;
+      requestAnimationFrame(() => {
+        if (!textareaRef.current) return;
+        textareaRef.current.style.height = 'auto';
+        const scrollHeight = textareaRef.current.scrollHeight;
+        const newHeight = Math.min(Math.max(scrollHeight, 48), 240);
+        setTextareaHeight(newHeight);
+        textareaRef.current.style.height = `${newHeight}px`;
+      });
     }
 
-    // Check if / was just typed at the beginning of input or after whitespace
-    if (newValue.length > prompt.length && newValue[newCursorPosition - 1] === '/') {
-      // Check if it's at the start or after whitespace
-      const isStartOfCommand = newCursorPosition === 1 || 
-        (newCursorPosition > 1 && /\s/.test(newValue[newCursorPosition - 2]));
-      
-      if (isStartOfCommand) {
-        setShowSlashCommandPicker(true);
-        setSlashCommandQuery("");
-        setConfigPanelOpen(false);
-        setCursorPosition(newCursorPosition);
-      }
+    // Check if / was just typed as the very first character
+    if (newValue.length > prompt.length && newValue[newCursorPosition - 1] === '/' && newCursorPosition === 1) {
+      setShowSlashCommandPicker(true);
+      setSlashCommandQuery("");
+      setConfigPanelOpen(false);
+      setCursorPosition(newCursorPosition);
     }
 
     // Check if @ was just typed
@@ -388,27 +400,15 @@ const FloatingPromptInputInner = (
     }
 
     // Check if we're typing after / (for slash command search)
-    if (showSlashCommandPicker && newCursorPosition >= cursorPosition) {
-      // Find the / position before cursor
-      let slashPosition = -1;
-      for (let i = newCursorPosition - 1; i >= 0; i--) {
-        if (newValue[i] === '/') {
-          slashPosition = i;
-          break;
-        }
-        // Stop if we hit whitespace (new word)
-        if (newValue[i] === ' ' || newValue[i] === '\n') {
-          break;
-        }
-      }
-
-      if (slashPosition !== -1) {
-        const query = newValue.substring(slashPosition + 1, newCursorPosition);
-        setSlashCommandQuery(query);
-      } else {
-        // / was removed or cursor moved away
+    if (showSlashCommandPicker) {
+      // Close picker if the text no longer starts with /
+      if (!newValue.startsWith('/')) {
         setShowSlashCommandPicker(false);
         setSlashCommandQuery("");
+      } else {
+        // Update search query from text after /
+        const query = newValue.substring(1, newCursorPosition);
+        setSlashCommandQuery(query.split(/\s/)[0] || "");
       }
     }
 
@@ -476,11 +476,11 @@ const FloatingPromptInputInner = (
       setFilePickerQuery("");
 
       // Focus back on textarea and set cursor position after the inserted path
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         textarea.focus();
         const newCursorPos = beforeAt.length + relativePath.length + 2; // +2 for @ and space
         textarea.setSelectionRange(newCursorPos, newCursorPos);
-      }, 0);
+      });
     }
   };
 
@@ -488,9 +488,9 @@ const FloatingPromptInputInner = (
     setShowFilePicker(false);
     setFilePickerQuery("");
     // Return focus to textarea
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       textareaRef.current?.focus();
-    }, 0);
+    });
   };
 
   const handleSlashCommandSelect = (command: SlashCommand) => {
@@ -527,11 +527,11 @@ const FloatingPromptInputInner = (
       setSlashCommandQuery("");
 
       // Focus and position cursor after the command
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         textarea.focus();
         const newCursorPos = beforeSlash.length + command.full_command.length + 1;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
-      }, 0);
+      });
     } else {
       // Insert command and close picker
       const newPrompt = `${beforeSlash}${command.full_command} ${afterCursor}`;
@@ -540,11 +540,11 @@ const FloatingPromptInputInner = (
       setSlashCommandQuery("");
 
       // Focus and position cursor after the command
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         textarea.focus();
         const newCursorPos = beforeSlash.length + command.full_command.length + 1;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
-      }, 0);
+      });
     }
   };
 
@@ -552,10 +552,10 @@ const FloatingPromptInputInner = (
     setShowSlashCommandPicker(false);
     setSlashCommandQuery("");
     // Return focus to textarea
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       const textarea = isExpanded ? expandedTextareaRef.current : textareaRef.current;
       textarea?.focus();
-    }, 0);
+    });
   };
 
   const handleCompositionStart = () => {
@@ -605,21 +605,43 @@ const FloatingPromptInputInner = (
     if (prompt.trim() && !disabled) {
       let finalPrompt = prompt.trim();
 
-      // Append thinking phrase if not auto mode
-      const { model, thinkingMode } = useSessionConfig.getState();
-      const phrase = THINKING_PHRASES[thinkingMode];
-      if (phrase) {
-        finalPrompt = `${finalPrompt}.\n\n${phrase}.`;
+      // Prepend orchestration instruction if a mode is active
+      if (orchestrationMode !== 'normal') {
+        finalPrompt = ORCHESTRATION_PREFIXES[orchestrationMode] + finalPrompt;
       }
 
-      onSend(finalPrompt, model);
+      const { model, thinkingMode, effort, permissionMode } = useSessionConfig.getState();
+
+      onSend(finalPrompt, model, thinkingMode, effort, permissionMode);
       setPrompt("");
       setEmbeddedImages([]);
-      setTextareaHeight(48); // Reset height after sending
+      setTextareaHeight(48);
+      // Reset mode after sending — it's per-prompt, not sticky
+      setOrchestrationMode('normal');
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Tab accepts ghost text autocomplete
+    if (e.key === 'Tab' && !e.shiftKey && !showFilePicker && !showSlashCommandPicker && autocomplete.ghostText) {
+      e.preventDefault();
+      const accepted = autocomplete.acceptGhostText();
+      if (accepted) {
+        const before = prompt.slice(0, cursorPosition);
+        const after = prompt.slice(cursorPosition);
+        const newText = before + accepted + after;
+        setPrompt(newText);
+        const newPos = cursorPosition + accepted.length;
+        setCursorPosition(newPos);
+        // Move cursor in textarea
+        requestAnimationFrame(() => {
+          const ta = textareaRef.current;
+          if (ta) { ta.selectionStart = ta.selectionEnd = newPos; }
+        });
+      }
+      return;
+    }
+
     if (showFilePicker && e.key === 'Escape') {
       e.preventDefault();
       setShowFilePicker(false);
@@ -681,11 +703,11 @@ const FloatingPromptInputInner = (
               const newPrompt = currentPrompt + (currentPrompt.endsWith(' ') || currentPrompt === '' ? '' : ' ') + mention + ' ';
               
               // Focus the textarea and move cursor to end
-              setTimeout(() => {
+              requestAnimationFrame(() => {
                 const target = isExpanded ? expandedTextareaRef.current : textareaRef.current;
                 target?.focus();
                 target?.setSelectionRange(newPrompt.length, newPrompt.length);
-              }, 0);
+              });
 
               return newPrompt;
             });
@@ -873,7 +895,7 @@ const FloatingPromptInputInner = (
       {/* Fixed Position Input Bar */}
       <div
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg transition-shadow duration-300",
+          "w-full z-40 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg transition-shadow duration-300",
           dragActive && "ring-2 ring-primary ring-offset-2",
           isFocused && "rune-glow-sm",
           className
@@ -899,6 +921,23 @@ const FloatingPromptInputInner = (
             <div className="flex items-center gap-2">
               {/* Input area — takes most space */}
               <div className="flex-1 relative">
+                {/* Ghost text overlay for AI autocomplete */}
+                {autocomplete.ghostText && (
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 pl-3 pr-12 py-2.5 pointer-events-none overflow-hidden whitespace-pre-wrap break-words text-sm leading-[1.5]"
+                    style={{ fontFamily: 'inherit', zIndex: 1 }}
+                  >
+                    <span className="invisible">{prompt.slice(0, cursorPosition)}</span>
+                    <span className="text-muted-foreground/40">{autocomplete.ghostText}</span>
+                  </div>
+                )}
+                {/* Loading indicator for autocomplete */}
+                {autocomplete.isLoading && !autocomplete.ghostText && autocomplete.enabled && prompt.trim().length >= 5 && (
+                  <div className="absolute right-14 top-1/2 -translate-y-1/2 z-[3] pointer-events-none">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" />
+                  </div>
+                )}
                 <Textarea
                   ref={textareaRef}
                   value={prompt}
@@ -914,13 +953,14 @@ const FloatingPromptInputInner = (
                   }
                   disabled={disabled}
                   className={cn(
-                    "resize-none pr-12 pl-3 py-2.5 transition-all duration-150",
+                    "resize-none pr-12 pl-3 py-2.5 transition-all duration-150 relative z-[2]",
                     dragActive && "border-primary",
                     textareaHeight >= 240 && "overflow-y-auto scrollbar-thin"
                   )}
                   style={{
                     height: `${textareaHeight}px`,
-                    overflowY: textareaHeight >= 240 ? 'auto' : 'hidden'
+                    overflowY: textareaHeight >= 240 ? 'auto' : 'hidden',
+                    ...(autocomplete.ghostText ? { backgroundColor: 'transparent' } : {}),
                   }}
                 />
 
@@ -976,6 +1016,36 @@ const FloatingPromptInputInner = (
                 </AnimatePresence>
               </div>
 
+              {/* Orchestration mode buttons — between input and config */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <TooltipSimple content="Sub-Agents — parallel execution (~3-5x tokens)" side="top">
+                  <button
+                    onClick={() => setOrchestrationMode(orchestrationMode === 'subagents' ? 'normal' : 'subagents')}
+                    className={cn(
+                      'p-1.5 rounded-md transition-all',
+                      orchestrationMode === 'subagents'
+                        ? 'bg-cyan-500/15 text-cyan-400 ring-1 ring-cyan-500/30'
+                        : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/30'
+                    )}
+                  >
+                    <Bot className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipSimple>
+                <TooltipSimple content="Team — coordinated agents (~5-10x tokens)" side="top">
+                  <button
+                    onClick={() => setOrchestrationMode(orchestrationMode === 'team' ? 'normal' : 'team')}
+                    className={cn(
+                      'p-1.5 rounded-md transition-all',
+                      orchestrationMode === 'team'
+                        ? 'bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30'
+                        : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/30'
+                    )}
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipSimple>
+              </div>
+
               {/* Config Pill — right of input, centered vertically */}
               <div className="relative config-panel-container shrink-0">
                 <ConfigPill
@@ -996,11 +1066,11 @@ const FloatingPromptInputInner = (
               </div>
 
               {/* Timeline button — right of ConfigPill */}
-              <TooltipSimple content="Checkpoint Timeline" side="top">
+              <TooltipSimple content="Rewind Timeline" side="top">
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => window.dispatchEvent(new Event('opcode:open-timeline'))}
+                  onClick={() => window.dispatchEvent(new Event('runecode:open-timeline'))}
                   className="h-9 w-9 shrink-0"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
