@@ -193,20 +193,27 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
     const container = isFullscreenModalOpen ? fullscreenScrollRef.current : scrollContainerRef.current;
     if (container) {
       const { scrollTop, scrollHeight, clientHeight } = container;
-      return scrollHeight - scrollTop - clientHeight < 1;
+      return scrollHeight - scrollTop - clientHeight < 80;
     }
     return true;
   };
 
   useEffect(() => {
     if (displayableMessages.length === 0) return;
-    if (scrollLocked) {
-      if (isFullscreenModalOpen) {
-        fullscreenRowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: "end", behavior: "smooth" });
-      } else {
-        rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: "end", behavior: "smooth" });
-      }
+    if (!scrollLocked) return;
+    // Use 'auto' not 'smooth' — smooth can be interrupted by resize/rAF
+    if (isFullscreenModalOpen) {
+      fullscreenRowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: "end", behavior: "auto" });
+    } else {
+      rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: "end", behavior: "auto" });
     }
+    // Double-tap: also scrollTo scrollHeight after virtualizer settles
+    requestAnimationFrame(() => {
+      const container = isFullscreenModalOpen ? fullscreenScrollRef.current : scrollContainerRef.current;
+      if (container && scrollLocked) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
   }, [displayableMessages.length, scrollLocked, isFullscreenModalOpen, rowVirtualizer, fullscreenRowVirtualizer]);
 
   useEffect(() => {
@@ -638,24 +645,28 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
               </div>
             </div>
           </div>
-          {/* Auto-scroll lock */}
-          {displayableMessages.length > 3 && (
+          {/* Auto-scroll lock/unlock */}
+          {displayableMessages.length > 0 && (
             <div className="absolute bottom-3 right-3 z-20">
               <button
                 onClick={() => {
                   if (!scrollLocked) {
                     setScrollLocked(true);
-                    rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'smooth' });
+                    rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
+                    requestAnimationFrame(() => {
+                      const el = scrollContainerRef.current;
+                      if (el) el.scrollTop = el.scrollHeight;
+                    });
                   } else {
                     setScrollLocked(false);
                   }
                 }}
-                title={scrollLocked ? 'Auto-scroll locked (click to unlock)' : 'Auto-scroll unlocked (click to lock)'}
+                title={scrollLocked ? 'Auto-scroll on (click to unlock)' : 'Auto-scroll off (click to pin to bottom)'}
                 className={cn(
                   'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
                   scrollLocked
-                    ? 'bg-primary/10 text-primary/70 border-primary/20 hover:bg-primary/20'
-                    : 'bg-muted/80 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+                    ? 'bg-primary/15 text-primary border-primary/25 hover:bg-primary/25'
+                    : 'bg-background/90 text-muted-foreground/70 border-border/50 hover:bg-muted hover:text-foreground'
                 )}
               >
                 {scrollLocked ? (
@@ -748,24 +759,28 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
               </div>
               <div ref={fullscreenMessagesEndRef} />
             </div>
-            {/* Auto-scroll lock */}
-            {displayableMessages.length > 3 && (
+            {/* Auto-scroll lock/unlock */}
+            {displayableMessages.length > 0 && (
               <div className="absolute bottom-3 right-3 z-20">
                 <button
                   onClick={() => {
                     if (!scrollLocked) {
                       setScrollLocked(true);
-                      fullscreenRowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'smooth' });
+                      fullscreenRowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
+                      requestAnimationFrame(() => {
+                        const el = fullscreenScrollRef.current;
+                        if (el) el.scrollTop = el.scrollHeight;
+                      });
                     } else {
                       setScrollLocked(false);
                     }
                   }}
-                  title={scrollLocked ? 'Auto-scroll locked (click to unlock)' : 'Auto-scroll unlocked (click to lock)'}
+                  title={scrollLocked ? 'Auto-scroll on (click to unlock)' : 'Auto-scroll off (click to pin to bottom)'}
                   className={cn(
                     'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
                     scrollLocked
-                      ? 'bg-primary/10 text-primary/70 border-primary/20 hover:bg-primary/20'
-                      : 'bg-muted/80 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+                      ? 'bg-primary/15 text-primary border-primary/25 hover:bg-primary/25'
+                      : 'bg-background/90 text-muted-foreground/70 border-border/50 hover:bg-muted hover:text-foreground'
                   )}
                 >
                   {scrollLocked ? (

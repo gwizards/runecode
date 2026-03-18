@@ -216,43 +216,36 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     if (!el) return;
     let scrollRaf = 0;
     const onScroll = () => {
-      // Throttle via rAF — coalesce rapid scroll events into one layout read per frame.
-      // This prevents the 550-670ms "handler took too long" violations from
-      // @tanstack/react-virtual by avoiding synchronous DOM reads on every scroll event.
       if (scrollRaf) return;
       scrollRaf = requestAnimationFrame(() => {
         scrollRaf = 0;
-        // Skip during programmatic restore to prevent race condition
+        // Skip during programmatic scroll to prevent fighting
         if (isRestoringScroll.current) return;
 
         const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-
-        // "Docked to bottom" — auto-scroll stays on while within 80px of bottom.
-        // Undocks when user scrolls up beyond that threshold.
-        // Only update React state when the value actually changes to avoid re-renders.
         const atBottom = distFromBottom < 80;
-        const wasAtBottom = isAtBottomRef.current;
         isAtBottomRef.current = atBottom;
 
-        if (atBottom !== wasAtBottom) {
-          if (atBottom) {
-            setIsUserScrolledUp(false);
-            setNewMessageCount(0);
-            setIsScrolledUp(false);
-            setScrollLocked(true); // Re-lock when user scrolls back to bottom
-          } else {
-            setIsUserScrolledUp(true);
-            setIsScrolledUp(true);
-            setScrollLocked(false); // Unlock when user scrolls up
-          }
+        // User scrolled to bottom → re-lock
+        if (atBottom && !scrollLockedRef.current) {
+          setScrollLocked(true);
+          setIsUserScrolledUp(false);
+          setNewMessageCount(0);
+          setIsScrolledUp(false);
+        }
+        // User scrolled away from bottom → unlock
+        if (!atBottom && scrollLockedRef.current) {
+          setScrollLocked(false);
+          setIsUserScrolledUp(true);
+          setIsScrolledUp(true);
         }
 
-        // Show scrollbar while scrolling, hide after 2s idle (avoid re-render if already scrolling)
+        // Scrollbar auto-hide
         if (!scrollTimeoutRef.current) setIsScrolling(true);
         else clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = setTimeout(() => { scrollTimeoutRef.current = null; setIsScrolling(false); }, 2000);
 
-        // Load more messages when scrolling near the top (debounced)
+        // Load more messages when scrolling near the top
         if (el.scrollTop < 100 && !loadMoreCooldown.current) {
           loadMoreCooldown.current = true;
           setVisibleLimit(prev => {
@@ -263,7 +256,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           setTimeout(() => { loadMoreCooldown.current = false; }, 300);
         }
 
-        // Shrink back to initial when at the bottom (keep DOM small)
+        // Shrink back to initial when at the bottom
         if (atBottom && !shrinkCooldown.current) {
           shrinkCooldown.current = true;
           setVisibleLimit(INITIAL_VISIBLE);
@@ -273,14 +266,13 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     };
     el.addEventListener('scroll', onScroll, { passive: true });
 
-    // Keep docked to bottom when the container resizes (e.g. sidebar open/close).
-    // Debounced via rAF to avoid firing on every animation frame.
+    // Keep pinned to bottom on resize (sidebar, window, grid layout change).
     let resizeRaf = 0;
     const resizeObserver = new ResizeObserver(() => {
-      if (!scrollLockedRef.current || isRestoringScroll.current) return;
+      if (!scrollLockedRef.current) return;
       cancelAnimationFrame(resizeRaf);
       resizeRaf = requestAnimationFrame(() => {
-        if (scrollLockedRef.current) {
+        if (scrollLockedRef.current && el.scrollHeight > el.clientHeight) {
           el.scrollTop = el.scrollHeight;
           isAtBottomRef.current = true;
         }
@@ -305,7 +297,21 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
   }, [showFooter]);
 
-  // Tab panels use visibility:hidden instead of display:none, so scroll position persists natively.
+  // When tab becomes active again and scroll is locked, force scroll to bottom.
+  // visibility:hidden panels preserve scroll position but the virtualizer may
+  // have stale measurements, so we need to explicitly re-pin.
+  useEffect(() => {
+    if (!isActive || !scrollLockedRef.current) return;
+    // Small delay to let the virtualizer re-measure after visibility change
+    const timer = setTimeout(() => {
+      const el = parentRef.current;
+      if (el && scrollLockedRef.current) {
+        el.scrollTop = el.scrollHeight;
+        isAtBottomRef.current = true;
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [isActive]);
 
   const [splitPosition, setSplitPosition] = useState(50);
   const [isPreviewMaximized, setIsPreviewMaximized] = useState(false);
@@ -381,13 +387,17 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   const isIMEComposingRef = useRef(false);
 
-  // Smart auto-scroll state
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-  const [newMessageCount, setNewMessageCount] = useState(0);
-  const isAtBottomRef = useRef(true);
-  const [scrollLocked, setScrollLocked] = useState(true); // locked = auto-scroll pinned to bottom
+  // ── Auto-scroll system ──
+  // scrollLocked = true means "pin to bottom". The ref mirrors state for
+  // use inside ResizeObserver / scroll handler (avoids stale closures).
+  const [scrollLocked, setScrollLocked] = useState(true);
   const scrollLockedRef = useRef(true);
   useEffect(() => { scrollLockedRef.current = scrollLocked; }, [scrollLocked]);
+  const [newMessageCount, setNewMessageCount] = useState(0);
+  // isAtBottomRef is a layout-level cache updated by the scroll handler.
+  // It is NOT the source of truth for "should we auto-scroll" — scrollLocked is.
+  const isAtBottomRef = useRef(true);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
 
   // Session metrics state for enhanced analytics
   const sessionMetrics = useRef({
@@ -634,13 +644,17 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // (timeline open handled by toggle effect above)
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or tab becomes active
   useEffect(() => {
     if (displayableMessages.length === 0) return;
     if (!scrollLocked) {
-      setNewMessageCount(prev => prev + 1);
+      // Only count new messages, not tab switches
+      if (displayableMessages.length > (prevMsgCount.current || 0)) {
+        setNewMessageCount(prev => prev + 1);
+      }
       return;
     }
+    // Clear any stuck isRestoringScroll from a previous interrupted rAF chain
     isRestoringScroll.current = true;
     let attempts = 0;
     const doScroll = () => {
@@ -1798,8 +1812,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             </div>
           )}
 
-          {/* Auto-scroll lock button — always visible in bottom-right corner */}
-          {displayableMessages.length > 3 && (
+          {/* Auto-scroll lock/unlock button — always visible */}
+          {displayableMessages.length > 0 && (
             <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5">
               {!scrollLocked && newMessageCount > 0 && (
                 <motion.span
@@ -1825,16 +1839,17 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                       requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }));
                     }
                   } else {
-                    // Unlock
+                    // Unlock — allow free scroll
                     setScrollLocked(false);
+                    isAtBottomRef.current = false;
                   }
                 }}
-                title={scrollLocked ? 'Auto-scroll locked (click to unlock)' : 'Auto-scroll unlocked (click to lock & scroll down)'}
+                title={scrollLocked ? 'Auto-scroll on (click to unlock)' : 'Auto-scroll off (click to pin to bottom)'}
                 className={cn(
                   'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
                   scrollLocked
-                    ? 'bg-primary/10 text-primary/70 border-primary/20 hover:bg-primary/20'
-                    : 'bg-muted/80 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+                    ? 'bg-primary/15 text-primary border-primary/25 hover:bg-primary/25'
+                    : 'bg-background/90 text-muted-foreground/70 border-border/50 hover:bg-muted hover:text-foreground'
                 )}
               >
                 {scrollLocked ? (
