@@ -355,21 +355,18 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       const { userMessageId, mode } = e.detail;
 
       try {
-        // Rewind files if we have an active session connection
         if (connectionIdRef.current && (mode === 'code_and_conversation' || mode === 'code_only')) {
           const { rewindSessionFiles } = await import('@/lib/apiAdapter');
           rewindSessionFiles(connectionIdRef.current, userMessageId, false);
         }
 
-        // Truncate conversation to the rewind point
         if (mode === 'code_and_conversation') {
-          const rewindIdx = messages.findIndex(m => m.uuid === userMessageId);
+          // Use ref to avoid messages in dep array (prevents listener churn)
+          const rewindIdx = messagesRef.current.findIndex(m => m.uuid === userMessageId);
           if (rewindIdx >= 0) {
             setMessages(prev => prev.slice(0, rewindIdx + 1));
           }
-          // Reset connection and store the rewind point so next message resumes there
           setConnectionId(null);
-          // Store resume-at UUID so the next session init uses resumeSessionAt
           resumeAtRef.current = userMessageId;
         }
 
@@ -381,7 +378,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
     window.addEventListener('runecode:rewind', handleRewind as unknown as EventListener);
     return () => window.removeEventListener('runecode:rewind', handleRewind as unknown as EventListener);
-  }, [messages, showFooter]);
+  }, [showFooter]);
 
   const isIMEComposingRef = useRef(false);
   const historyLoadedRef = useRef<string | null>(null);
@@ -1544,12 +1541,12 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   };
 
   // Handle URL detection from terminal output
-  const handleLinkDetected = (url: string) => {
-    if (!showPreview && !showPreviewPrompt) {
-      setPreviewUrl(url);
-      setShowPreviewPrompt(true);
-    }
-  };
+  const handleLinkDetected = useCallback((url: string) => {
+    setPreviewUrl(prev => {
+      if (!prev) { setShowPreviewPrompt(true); }
+      return prev || url;
+    });
+  }, []);
 
   const handleClosePreview = () => {
     setShowPreview(false);
