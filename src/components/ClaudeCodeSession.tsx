@@ -295,17 +295,20 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
   }, [showFooter]);
 
-  // When tab becomes active again and scroll is locked, force scroll to bottom.
-  // visibility:hidden panels preserve scroll position but the virtualizer may
-  // have stale measurements, so we need to explicitly re-pin.
+  // When tab becomes active, always scroll to bottom and re-lock.
+  // Users expect to land at the latest content when switching tabs/grid cells.
   useEffect(() => {
-    if (!isActive || !scrollLockedRef.current) return;
-    // Small delay to let the virtualizer re-measure after visibility change
+    if (!isActive) return;
     const timer = setTimeout(() => {
       const el = parentRef.current;
-      if (el && scrollLockedRef.current) {
+      if (el) {
         el.scrollTop = el.scrollHeight;
         isAtBottomRef.current = true;
+        if (!scrollLockedRef.current) {
+          setScrollLocked(true);
+          setIsScrolledUp(false);
+          setNewMessageCount(0);
+        }
       }
     }, 16);
     return () => clearTimeout(timer);
