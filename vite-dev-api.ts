@@ -1500,35 +1500,28 @@ export function devApiPlugin(): Plugin {
               ? readMcpConfig(path.join(projectPath, ".mcp.json"))
               : {};
 
-            // Build unified server list — project entries override user entries
-            const serverList: Array<{
-              name: string;
-              command: string;
-              args: string[];
-              scope: "user" | "project";
-              status: string;
-            }> = [];
+            // Build unified server list matching MCPServer interface
+            const buildServerEntry = (name: string, config: any, scope: string) => ({
+              name,
+              transport: config.type === 'sse' ? 'sse' : 'stdio',
+              command: config.command || undefined,
+              args: config.args || [],
+              env: config.env || {},
+              url: config.url || undefined,
+              scope,
+              is_active: true,
+              status: { running: false, error: undefined, last_checked: undefined },
+            });
+
+            const serverList: any[] = [];
 
             for (const [name, config] of Object.entries(userServers)) {
-              serverList.push({
-                name,
-                command: config.command || "",
-                args: config.args || [],
-                scope: "user",
-                status: "configured",
-              });
+              serverList.push(buildServerEntry(name, config, "user"));
             }
 
             for (const [name, config] of Object.entries(projectServers)) {
-              // If project has same server name, replace the user-level one
               const existing = serverList.findIndex((s) => s.name === name);
-              const entry = {
-                name,
-                command: config.command || "",
-                args: config.args || [],
-                scope: "project" as const,
-                status: "configured",
-              };
+              const entry = buildServerEntry(name, config, "project");
               if (existing >= 0) {
                 serverList[existing] = entry;
               } else {
@@ -1554,9 +1547,9 @@ export function devApiPlugin(): Plugin {
 
             if (req.url?.startsWith("/api/mcp/status")) {
               // Return status entries for each configured server
-              const statusList = serverList.map((s) => ({
+              const statusList = serverList.map((s: any) => ({
                 name: s.name,
-                status: s.status,
+                status: s.status || { running: false },
                 scope: s.scope,
               }));
               res.end(JSON.stringify(statusList));
