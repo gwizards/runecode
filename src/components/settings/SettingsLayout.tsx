@@ -2,7 +2,7 @@ import {
   Palette, Settings2, Puzzle,
   Timer, Shield, Variable,
   Terminal,
-  Sparkles, Globe, Database, Wand2, Users, Bot, Cpu
+  Sparkles, Globe, Database, Wand2, Users, Bot, Cpu, Plug
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -49,6 +49,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Puzzle,
     items: [
       { id: 'partner-stack', label: 'Partner Stack', icon: Sparkles },
+      { id: 'mcp-servers', label: 'MCP Servers', icon: Plug },
       { id: 'network', label: 'Proxy & Network', icon: Globe },
       { id: 'storage', label: 'Storage', icon: Database },
     ],

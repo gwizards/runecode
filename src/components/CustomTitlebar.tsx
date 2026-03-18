@@ -1,40 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Settings, Minus, Square, X, Bot, BarChart3, FileText, Network, Info, MoreVertical } from 'lucide-react';
+import { Settings, Minus, Square, X, Bot, Cpu } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { TooltipProvider, TooltipSimple } from '@/components/ui/tooltip-modern';
 
 interface CustomTitlebarProps {
   onSettingsClick?: () => void;
   onAgentsClick?: () => void;
-  onUsageClick?: () => void;
-  onClaudeClick?: () => void;
-  onMCPClick?: () => void;
-  onInfoClick?: () => void;
 }
 
 export const CustomTitlebar: React.FC<CustomTitlebarProps> = ({
   onSettingsClick,
   onAgentsClick,
-  onUsageClick,
-  onClaudeClick,
-  onMCPClick,
-  onInfoClick
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const handleMinimize = async () => {
     try {
@@ -153,19 +132,19 @@ export const CustomTitlebar: React.FC<CustomTitlebarProps> = ({
             </TooltipSimple>
           )}
           
-          {onUsageClick && (
-            <TooltipSimple content="Usage Dashboard" side="bottom">
-              <motion.button
-                onClick={onUsageClick}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-                className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors tauri-no-drag"
-                aria-label="Usage Dashboard"
-              >
-                <BarChart3 size={16} />
-              </motion.button>
-            </TooltipSimple>
-          )}
+
+
+          <TooltipSimple content="System Processes" side="bottom">
+            <motion.button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-resource-details'))}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.15 }}
+              className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors tauri-no-drag"
+              aria-label="System Processes"
+            >
+              <Cpu size={16} />
+            </motion.button>
+          </TooltipSimple>
         </div>
 
         {/* Visual separator */}
@@ -186,66 +165,6 @@ export const CustomTitlebar: React.FC<CustomTitlebarProps> = ({
               </motion.button>
             </TooltipSimple>
           )}
-
-          {/* Dropdown menu for additional options */}
-          <div className="relative" ref={dropdownRef}>
-            <TooltipSimple content="More options" side="bottom">
-              <motion.button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-                className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-1"
-                aria-label="More options"
-              >
-                <MoreVertical size={16} />
-              </motion.button>
-            </TooltipSimple>
-
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-popover border border-border rounded-lg shadow-lg z-[250]">
-                <div className="py-1">
-                  {onClaudeClick && (
-                    <button
-                      onClick={() => {
-                        onClaudeClick();
-                        setIsDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-3"
-                    >
-                      <FileText size={14} />
-                      <span>CLAUDE.md</span>
-                    </button>
-                  )}
-                  
-                  {onMCPClick && (
-                    <button
-                      onClick={() => {
-                        onMCPClick();
-                        setIsDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-3"
-                    >
-                      <Network size={14} />
-                      <span>MCP Servers</span>
-                    </button>
-                  )}
-                  
-                  {onInfoClick && (
-                    <button
-                      onClick={() => {
-                        onInfoClick();
-                        setIsDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-3"
-                    >
-                      <Info size={14} />
-                      <span>About</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

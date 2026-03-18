@@ -21,6 +21,7 @@ import { AiAutocompleteSettings } from "./settings/AiAutocompleteSettings";
 import { AccountsSettings } from "./settings/AccountsSettings";
 import { SubAgentSettings } from "./settings/SubAgentSettings";
 import { TeamSettings } from "./settings/TeamSettings";
+import { MCPSettings } from "./settings/MCPSettings";
 
 interface SettingsProps {
   onBack: () => void;
@@ -216,6 +217,8 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
       // Integrations group
       case 'partner-stack':
         return <IntegrationsSettings />;
+      case 'mcp-servers':
+        return <MCPSettings />;
       case 'network':
         return (
           <NetworkSettings
