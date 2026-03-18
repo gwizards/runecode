@@ -39,7 +39,23 @@ export function MCPSettings({ projectPath }: MCPSettingsProps) {
     }
   };
 
-  useEffect(() => { loadServers(); }, []);
+  const [liveStatus, setLiveStatus] = useState<Map<string, any>>(new Map());
+
+  const loadLiveStatus = async () => {
+    try {
+      const res = await fetch('/api/mcp/status');
+      if (res.ok) {
+        const data = await res.json();
+        const statusMap = new Map<string, any>();
+        if (Array.isArray(data)) {
+          data.forEach((s: any) => statusMap.set(s.name, s));
+        }
+        setLiveStatus(statusMap);
+      }
+    } catch {}
+  };
+
+  useEffect(() => { loadServers(); loadLiveStatus(); }, []);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -78,7 +94,7 @@ export function MCPSettings({ projectPath }: MCPSettingsProps) {
     }
   };
 
-  const connectedCount = servers.filter(s => s.status?.running).length;
+  const connectedCount = Array.from(liveStatus.values()).filter((s: any) => s.status === 'connected').length || servers.filter(s => s.status?.running).length;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -127,7 +143,7 @@ export function MCPSettings({ projectPath }: MCPSettingsProps) {
           Browse Directory
         </Button>
         <div className="flex-1" />
-        <Button variant="ghost" size="sm" onClick={loadServers} className="text-xs text-muted-foreground">
+        <Button variant="ghost" size="sm" onClick={() => { loadServers(); loadLiveStatus(); }} className="text-xs text-muted-foreground">
           <RefreshCw className={cn('h-3 w-3 mr-1', loading && 'animate-spin')} />
           Refresh
         </Button>
@@ -151,6 +167,7 @@ export function MCPSettings({ projectPath }: MCPSettingsProps) {
           onRemove={handleRemove}
           onTest={handleTest}
           onImportClaudeDesktop={handleImportClaudeDesktop}
+          liveStatus={liveStatus}
         />
       )}
 
@@ -194,7 +211,7 @@ export function MCPSettings({ projectPath }: MCPSettingsProps) {
 }
 
 /* ─── Server List ─── */
-function ServerList({ servers, loading, expandedServer, onToggleExpand, onRemove, onTest, onImportClaudeDesktop }: {
+function ServerList({ servers, loading, expandedServer, onToggleExpand, onRemove, onTest, onImportClaudeDesktop, liveStatus }: {
   servers: MCPServer[];
   loading: boolean;
   expandedServer: string | null;
@@ -202,6 +219,7 @@ function ServerList({ servers, loading, expandedServer, onToggleExpand, onRemove
   onRemove: (name: string) => void;
   onTest: (name: string) => void;
   onImportClaudeDesktop: () => void;
+  liveStatus: Map<string, any>;
 }) {
   if (loading) {
     return (
@@ -252,6 +270,7 @@ function ServerList({ servers, loading, expandedServer, onToggleExpand, onRemove
                   onToggle={() => onToggleExpand(server.name)}
                   onRemove={() => onRemove(server.name)}
                   onTest={() => onTest(server.name)}
+                  liveInfo={liveStatus.get(server.name)}
                 />
               ))}
             </div>
@@ -265,20 +284,33 @@ function ServerList({ servers, loading, expandedServer, onToggleExpand, onRemove
           Import from Claude Desktop
         </Button>
       </div>
+
+      {/* Connection help */}
+      <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/15 text-xs text-blue-300/70 mt-3">
+        <p className="font-medium text-blue-300/90 mb-1">How MCP servers connect</p>
+        <ul className="space-y-0.5 text-blue-300/60">
+          <li>Servers connect automatically when you start a new session.</li>
+          <li>Stdio servers (npx, node) are launched as child processes.</li>
+          <li>SSE servers connect to the URL you provide.</li>
+          <li>If a server fails, check the error message and verify the command works in your terminal.</li>
+          <li>Refresh this page to see updated connection status.</li>
+        </ul>
+      </div>
     </div>
   );
 }
 
 /* ─── Server Card ─── */
-function ServerCard({ server, isExpanded, onToggle, onRemove, onTest }: {
+function ServerCard({ server, isExpanded, onToggle, onRemove, onTest, liveInfo }: {
   server: MCPServer;
   isExpanded: boolean;
   onToggle: () => void;
   onRemove: () => void;
   onTest: () => void;
+  liveInfo?: any;
 }) {
-  const isRunning = server.status?.running;
-  const hasError = !!server.status?.error;
+  const isConnected = liveInfo?.status === 'connected';
+  const hasFailed = liveInfo?.status === 'failed' || !!server.status?.error;
 
   return (
     <div className="rounded-lg border border-border/20 bg-muted/5 overflow-hidden">
@@ -289,7 +321,7 @@ function ServerCard({ server, isExpanded, onToggle, onRemove, onTest }: {
         {/* Status dot */}
         <div className={cn(
           'w-2 h-2 rounded-full flex-shrink-0',
-          isRunning ? 'bg-emerald-400' : hasError ? 'bg-red-400' : 'bg-muted-foreground/30'
+          isConnected ? 'bg-emerald-400' : hasFailed ? 'bg-red-400' : 'bg-muted-foreground/30'
         )} />
         {/* Transport icon */}
         {server.transport === 'stdio' ? (
@@ -302,9 +334,11 @@ function ServerCard({ server, isExpanded, onToggle, onRemove, onTest }: {
         {/* Status badge */}
         <span className={cn(
           'text-[9px] px-1.5 py-0.5 rounded-full font-mono',
-          isRunning ? 'bg-emerald-500/10 text-emerald-400' : hasError ? 'bg-red-500/10 text-red-400' : 'bg-muted-foreground/10 text-muted-foreground/50'
+          isConnected ? 'bg-emerald-500/10 text-emerald-400' :
+          hasFailed ? 'bg-red-500/10 text-red-400' :
+          'bg-muted-foreground/10 text-muted-foreground/50'
         )}>
-          {isRunning ? 'connected' : hasError ? 'error' : 'stopped'}
+          {liveInfo?.status || (server.status?.running ? 'connected' : 'configured')}
         </span>
         {/* Chevron */}
         {isExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground/40" /> : <ChevronRight className="h-3 w-3 text-muted-foreground/40" />}
@@ -344,6 +378,53 @@ function ServerCard({ server, isExpanded, onToggle, onRemove, onTest }: {
                   </>
                 )}
               </div>
+
+              {/* Live connection status */}
+              {liveInfo && (
+                <div className="mt-2 pt-2 border-t border-border/10">
+                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[10px]">
+                    <span className="text-muted-foreground/40">Status</span>
+                    <span className={cn('font-medium',
+                      liveInfo.status === 'connected' ? 'text-emerald-400' :
+                      liveInfo.status === 'failed' ? 'text-red-400' :
+                      liveInfo.status === 'pending' ? 'text-amber-400' : 'text-muted-foreground/50'
+                    )}>
+                      {liveInfo.status}
+                    </span>
+                    {liveInfo.serverInfo && (
+                      <>
+                        <span className="text-muted-foreground/40">Server</span>
+                        <span className="font-mono">{liveInfo.serverInfo.name} v{liveInfo.serverInfo.version}</span>
+                      </>
+                    )}
+                    {liveInfo.error && (
+                      <>
+                        <span className="text-red-400/60">Error</span>
+                        <span className="text-red-400/70 break-all">{liveInfo.error}</span>
+                      </>
+                    )}
+                  </div>
+                  {/* Available tools */}
+                  {liveInfo.tools && liveInfo.tools.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider font-semibold">
+                        Tools ({liveInfo.tools.length})
+                      </span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {liveInfo.tools.map((tool: any) => (
+                          <span
+                            key={tool.name}
+                            title={tool.description || tool.name}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-muted/30 text-muted-foreground/60 border border-border/15"
+                          >
+                            {tool.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Env vars */}
               {Object.keys(server.env || {}).length > 0 && (

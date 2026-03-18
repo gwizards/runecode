@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from 'lucide-react';
 
 type MCPStatus = 'connected' | 'needs_auth' | 'error' | 'disconnected' | 'unknown';
 
@@ -48,8 +48,9 @@ function parseMCPServer(raw: unknown): MCPServer | null {
 
 export function MCPServersSection() {
   const [collapsed, setCollapsed] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
-  const { data: servers = [] } = useQuery<MCPServer[]>({
+  const { data: servers = [], isLoading } = useQuery<MCPServer[]>({
     queryKey: ['mcp-servers'],
     queryFn: async () => {
       try {
@@ -68,10 +69,14 @@ export function MCPServersSection() {
     refetchInterval: 30000,
   });
 
-  if (servers.length === 0) return null;
+  if (servers.length === 0 && !isLoading) return null;
 
   const connectedCount = servers.filter((s) => s.status === 'connected').length;
-  const sorted = [...servers].sort(
+  const displayServers = showAll ? servers : servers.filter(s => {
+    const status = s.status;
+    return status === 'connected' || status === 'configured' || status === 'needs_auth';
+  });
+  const sorted = [...displayServers].sort(
     (a, b) => (STATUS_ORDER[a.status] ?? 4) - (STATUS_ORDER[b.status] ?? 4)
   );
 
@@ -98,7 +103,27 @@ export function MCPServersSection() {
             servers.length
           )}
         </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent('runecode:open-settings', { detail: { section: 'mcp-servers' } }));
+          }}
+          className="text-[9px] text-primary/50 hover:text-primary/80 transition-colors ml-1"
+        >
+          Manage
+        </button>
       </button>
+
+      {servers.length > displayServers.length && !showAll && (
+        <button onClick={() => setShowAll(true)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/50 px-3 py-0.5">
+          +{servers.length - displayServers.length} disconnected
+        </button>
+      )}
+      {showAll && servers.length > 0 && servers.some(s => s.status !== 'connected' && s.status !== 'configured' && s.status !== 'needs_auth') && (
+        <button onClick={() => setShowAll(false)} className="text-[9px] text-muted-foreground/30 hover:text-muted-foreground/50 px-3 py-0.5">
+          Hide disconnected
+        </button>
+      )}
 
       <AnimatePresence>
         {!collapsed && (
@@ -110,6 +135,12 @@ export function MCPServersSection() {
             className="overflow-hidden"
           >
             <div className="py-1.5 space-y-0.5">
+              {isLoading && (
+                <div className="px-3 py-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Loading servers...</span>
+                </div>
+              )}
               {sorted.map((server) => (
                 <div
                   key={server.name}
