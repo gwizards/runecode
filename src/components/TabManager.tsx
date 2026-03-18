@@ -222,21 +222,25 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const MAX_AGENT_TABS = 6;
   const { visibleTabs, overflowAgentTabs } = useMemo(() => {
     if (layoutMode === 'grid') {
-      // In grid mode: single "Grid (N)" pseudo-tab for all tabs
+      // In grid mode: Grid pseudo-tab for projects + individual tabs for non-grid windows
+      const gridTypes = new Set(['chat', 'agent-execution']);
+      const gridCount = tabs.filter(t => gridTypes.has(t.type)).length;
+      const nonGridInBar = tabs.filter(t => !gridTypes.has(t.type));
+
       const pseudoTabs: Tab[] = [];
-      if (tabs.length > 0) {
+      if (gridCount > 0) {
         pseudoTabs.push({
           id: '__grid__',
           type: 'chat',
-          title: `Grid (${tabs.length})`,
-          status: tabs.some(t => t.status === 'running') ? 'running' : 'idle',
+          title: `Grid (${gridCount})`,
+          status: tabs.some(t => gridTypes.has(t.type) && t.status === 'running') ? 'running' : 'idle',
           hasUnsavedChanges: false,
           order: -1,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
       }
-      return { visibleTabs: pseudoTabs, overflowAgentTabs: [] };
+      return { visibleTabs: [...pseudoTabs, ...nonGridInBar], overflowAgentTabs: [] };
     }
 
     const nonAgentTabs: Tab[] = [];
@@ -463,8 +467,11 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
           >
             {visibleTabs.map((tab) => {
               const isGridPseudo = tab.id === '__grid__';
-              // Grid pseudo-tab is active when any tab in the grid is active
-              const isActive = isGridPseudo ? !!activeTabId : tab.id === activeTabId;
+              const gridTypes = new Set(['chat', 'agent-execution']);
+              // Grid pseudo-tab is active when the active tab is a grid-type tab
+              const isActive = isGridPseudo
+                ? !!activeTabId && gridTypes.has(tabs.find(t => t.id === activeTabId)?.type || '')
+                : tab.id === activeTabId;
 
               return (
                 <TabItem
@@ -474,7 +481,8 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
                   onClose={isGridPseudo ? (_id: string) => {} : handleCloseTab}
                   onClick={isGridPseudo
                     ? (_id: string) => {
-                        if (tabs.length > 0) switchToTab(tabs[0].id);
+                        const firstGrid = tabs.find(t => gridTypes.has(t.type));
+                        if (firstGrid) switchToTab(firstGrid.id);
                       }
                     : switchToTab
                   }

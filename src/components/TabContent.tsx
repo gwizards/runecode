@@ -608,10 +608,17 @@ export const TabContent: React.FC = () => {
     };
   }, [createChatTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab]);
   
-  // Grid mode — all tabs go into the grid
+  // Grid mode — only project/session tabs go into the grid.
+  // Settings, agents, processes, etc. stay as single-panel windows.
+  const gridTypes = React.useMemo(() => new Set(['chat', 'agent-execution']), []);
+
   const gridTabs = React.useMemo(() =>
-    layoutMode === 'grid' ? tabs : [],
-    [tabs, layoutMode]
+    layoutMode === 'grid' ? tabs.filter(t => gridTypes.has(t.type)) : [],
+    [tabs, layoutMode, gridTypes]
+  );
+  const nonGridTabs = React.useMemo(() =>
+    layoutMode === 'grid' ? tabs.filter(t => !gridTypes.has(t.type)) : [],
+    [tabs, layoutMode, gridTypes]
   );
 
   // Ordered grid tabs — respects user drag order, syncs new/removed tabs
@@ -744,7 +751,7 @@ export const TabContent: React.FC = () => {
   }
 
   if (layoutMode === 'grid' && orderedGridTabs.length > 0) {
-    const activeIsNonGrid = false; // All tabs are in the grid
+    const activeIsNonGrid = nonGridTabs.some(t => t.id === activeTabId);
     const cols = gridConfig.columns;
     const rows = gridConfig.rows; // 0 = auto
 
@@ -984,6 +991,15 @@ export const TabContent: React.FC = () => {
           </div>
         )}
 
+
+        {/* Non-grid tabs (settings, agents, etc.) — shown as single panels */}
+        {nonGridTabs.map((tab) => (
+          <TabPanel
+            key={tab.id}
+            tab={tab}
+            isActive={activeIsNonGrid && tab.id === activeTabId}
+          />
+        ))}
 
         {tabs.length === 0 && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
