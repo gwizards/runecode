@@ -48,7 +48,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Integrations',
     icon: Puzzle,
     items: [
-      { id: 'partner-stack', label: 'Partner Stack', icon: Sparkles },
+      { id: 'partner-stack', label: 'Integrations', icon: Sparkles },
       { id: 'mcp-servers', label: 'MCP Servers', icon: Plug },
       { id: 'network', label: 'Proxy & Network', icon: Globe },
       { id: 'storage', label: 'Storage', icon: Database },

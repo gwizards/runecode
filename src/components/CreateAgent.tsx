@@ -9,7 +9,6 @@ import { Toast, ToastContainer } from "@/components/ui/toast";
 import { api, type Agent } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import MDEditor from "@uiw/react-md-editor";
-import { GatewayRecommendation } from "@/integrations/intelligence/GatewayRecommendation";
 
 // Common Claude Code tools for the tools selector
 const COMMON_TOOLS = [
@@ -267,7 +266,6 @@ export const CreateAgent: React.FC<CreateAgentProps> = ({
                       </motion.button>
                     ))}
                   </div>
-                  <GatewayRecommendation variant="inline" />
                 </div>
 
                 <div className="space-y-2 mt-4">

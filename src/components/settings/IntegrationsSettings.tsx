@@ -1,8 +1,7 @@
-import { Sparkles, Eye, Cloud, Lock, ExternalLink } from "lucide-react";
+import { Eye, Cloud, Lock, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useIntegrationConfig } from "@/integrations/hooks/useIntegrationConfig";
 import { INTEGRATIONS } from "@/integrations/config";
-import { GatewayRecommendation } from "@/integrations/intelligence/GatewayRecommendation";
 import type { IntegrationConfig } from "@/integrations/types";
 
 interface IntegrationCardProps {
@@ -132,15 +131,6 @@ export function IntegrationsSettings() {
       </div>
 
       {/* Models / LLM Gateway */}
-      <section>
-        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-purple-400" />
-          LLM Gateway
-        </h4>
-        <GatewayRecommendation variant="settings" />
-      </section>
-
-      <Divider />
 
       {/* Observability / Cost Guard */}
       <section>
