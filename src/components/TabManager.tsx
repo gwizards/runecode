@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
-import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown } from 'lucide-react';
+import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown, Cpu, LayoutGrid, Monitor, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { RuneSpinner } from './RuneCodeLogo';
 import { useTabState } from '@/hooks/useTabState';
 import { Tab, useTabContext } from '@/contexts/TabContext';
 import { cn } from '@/lib/utils';
+import { TooltipProvider, TooltipSimple } from '@/components/ui/tooltip-modern';
 import { useTrackEvent } from '@/hooks';
 import { useAgentStore } from '@/stores/agentStore';
 import { AgentStatusBadge } from './AgentStatusBadge';
@@ -44,6 +45,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
   const [isHovered, setIsHovered] = useState(false);
   
   const getIcon = () => {
+    if (tab.id === '__grid__') return LayoutGrid;
     switch (tab.type) {
       case 'chat':
         return MessageSquare;
@@ -65,6 +67,8 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
       case 'create-agent':
       case 'import-agent':
         return Bot;
+      case 'resource-details':
+        return Cpu;
       default:
         return MessageSquare;
     }
@@ -138,7 +142,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
         )}
       </div>
 
-      {/* Close Button - Always reserves space */}
+      {/* Close Button - Always reserves space (hidden for grid pseudo-tab) */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -148,7 +152,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
           "flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-sm",
           "transition-all duration-100 hover:bg-destructive/20 hover:text-destructive",
           "focus:outline-none focus:ring-1 focus:ring-destructive/50",
-          (isHovered || isActive) ? "opacity-100" : "opacity-0"
+          tab.id === '__grid__' ? "hidden" : (isHovered || isActive) ? "opacity-100" : "opacity-0"
         )}
         title={`Close ${tab.title}`}
         tabIndex={-1}
@@ -170,9 +174,13 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     activeTabId,
     createChatTab,
     createProjectsTab,
+    createSettingsTab,
+    createAgentsTab,
     closeTab,
     switchToTab,
-    canAddTab
+    canAddTab,
+    layoutMode,
+    setLayoutMode,
   } = useTabState();
 
   // Access reorderTabs from context
@@ -182,6 +190,16 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const [showLeftScroll, setShowLeftScroll] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(false);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+
+  // Track sidebar open state (broadcast by ProjectSidebar)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try { return localStorage.getItem('runecode-sidebar-open') !== 'false'; } catch { return true; }
+  });
+  useEffect(() => {
+    const handler = (e: CustomEvent) => setSidebarOpen(!!e.detail?.isOpen);
+    window.addEventListener('runecode:sidebar-state', handler as EventListener);
+    return () => window.removeEventListener('runecode:sidebar-state', handler as EventListener);
+  }, []);
 
   // Live agent tracking
   const liveAgents = useAgentStore((state) => state.liveAgents);
@@ -203,6 +221,30 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   // Split agent-execution tabs: show first 6, overflow the rest
   const MAX_AGENT_TABS = 6;
   const { visibleTabs, overflowAgentTabs } = useMemo(() => {
+    if (layoutMode === 'grid') {
+      // In grid mode, collapse all chat/agent-execution tabs into a single "Grid" pseudo-tab.
+      // Non-grid tabs (settings, agents, usage, etc.) stay as individual tabs.
+      const gridTypes = new Set(['chat', 'agent-execution']);
+      const gridTabCount = tabs.filter(t => gridTypes.has(t.type)).length;
+      const nonGridTabs = tabs.filter(t => !gridTypes.has(t.type));
+
+      const pseudoTabs: Tab[] = [];
+      if (gridTabCount > 0) {
+        // Create a synthetic "Grid" tab entry
+        pseudoTabs.push({
+          id: '__grid__',
+          type: 'chat',
+          title: `Grid (${gridTabCount})`,
+          status: tabs.some(t => gridTypes.has(t.type) && t.status === 'running') ? 'running' : 'idle',
+          hasUnsavedChanges: false,
+          order: -1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return { visibleTabs: [...pseudoTabs, ...nonGridTabs], overflowAgentTabs: [] };
+    }
+
     const nonAgentTabs: Tab[] = [];
     const agentTabs: Tab[] = [];
     for (const tab of tabs) {
@@ -215,7 +257,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     const visible = [...nonAgentTabs, ...agentTabs.slice(0, MAX_AGENT_TABS)];
     const overflow = agentTabs.slice(MAX_AGENT_TABS);
     return { visibleTabs: visible, overflowAgentTabs: overflow };
-  }, [tabs]);
+  }, [tabs, layoutMode]);
 
   // Listen for tab switch events
   useEffect(() => {
@@ -285,7 +327,8 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     };
   }, [tabs, activeTabId, createChatTab, closeTab, switchToTab]);
 
-  // Check scroll buttons visibility
+  // Check scroll buttons visibility (rAF-throttled to avoid layout thrashing)
+  const scrollRafRef = useRef(0);
   const checkScrollButtons = () => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -294,18 +337,26 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     setShowLeftScroll(scrollLeft > 0);
     setShowRightScroll(scrollLeft + clientWidth < scrollWidth - 1);
   };
+  const throttledCheckScroll = () => {
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = 0;
+      checkScrollButtons();
+    });
+  };
 
   useEffect(() => {
     checkScrollButtons();
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    container.addEventListener('scroll', checkScrollButtons);
-    window.addEventListener('resize', checkScrollButtons);
+    container.addEventListener('scroll', throttledCheckScroll);
+    window.addEventListener('resize', throttledCheckScroll);
 
     return () => {
-      container.removeEventListener('scroll', checkScrollButtons);
-      window.removeEventListener('resize', checkScrollButtons);
+      container.removeEventListener('scroll', throttledCheckScroll);
+      window.removeEventListener('resize', throttledCheckScroll);
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
     };
   }, [tabs]);
 
@@ -416,18 +467,32 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
             className="flex items-stretch"
             layoutScroll={false}
           >
-            {visibleTabs.map((tab) => (
-              <TabItem
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onClose={handleCloseTab}
-                onClick={switchToTab}
-                isDragging={draggedTabId === tab.id}
-                setDraggedTabId={setDraggedTabId}
-                agentStatus={getAgentStatusForTab(tab)}
-              />
-            ))}
+            {visibleTabs.map((tab) => {
+              const gridTypes = new Set(['chat', 'agent-execution']);
+              const isGridPseudo = tab.id === '__grid__';
+              const isActive = isGridPseudo
+                ? !!activeTabId && gridTypes.has(tabs.find(t => t.id === activeTabId)?.type || '')
+                : tab.id === activeTabId;
+
+              return (
+                <TabItem
+                  key={tab.id}
+                  tab={tab}
+                  isActive={isActive}
+                  onClose={isGridPseudo ? (_id: string) => {} : handleCloseTab}
+                  onClick={isGridPseudo
+                    ? (_id: string) => {
+                        const firstGrid = tabs.find(t => gridTypes.has(t.type));
+                        if (firstGrid) switchToTab(firstGrid.id);
+                      }
+                    : switchToTab
+                  }
+                  isDragging={draggedTabId === tab.id}
+                  setDraggedTabId={setDraggedTabId}
+                  agentStatus={getAgentStatusForTab(tab)}
+                />
+              );
+            })}
           </Reorder.Group>
 
           {/* Overflow dropdown for agent tabs beyond limit */}
@@ -512,6 +577,71 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* Layout mode toggle */}
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setLayoutMode(layoutMode === 'single' ? 'grid' : 'single')}
+        className={cn(
+          "flex-shrink-0 px-2 h-8 rounded-md flex items-center gap-1.5 text-xs transition-colors mr-1",
+          layoutMode === 'grid'
+            ? "bg-primary/15 text-primary border border-primary/30"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+        )}
+        title={layoutMode === 'single' ? 'Switch to grid view' : 'Switch to single view'}
+      >
+        {layoutMode === 'single' ? <LayoutGrid className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+        <span className="hidden sm:inline">{layoutMode === 'single' ? 'Grid' : 'Single'}</span>
+      </motion.button>
+
+      {/* Separator + action icons (Agents, Processes, Settings) */}
+      <div className="w-px h-5 bg-border/30 mx-0.5" />
+      <TooltipProvider>
+        <div className="flex items-center gap-0.5">
+          <TooltipSimple content="Agents" side="bottom">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => createAgentsTab()}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <Bot className="w-3.5 h-3.5" />
+            </motion.button>
+          </TooltipSimple>
+          <TooltipSimple content="System Processes" side="bottom">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => window.dispatchEvent(new CustomEvent('open-resource-details'))}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <Cpu className="w-3.5 h-3.5" />
+            </motion.button>
+          </TooltipSimple>
+          <TooltipSimple content="Settings" side="bottom">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => createSettingsTab()}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </motion.button>
+          </TooltipSimple>
+        </div>
+      </TooltipProvider>
+
+      {/* Sidebar toggle */}
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={() => window.dispatchEvent(new Event('runecode:toggle-sidebar'))}
+        className={cn(
+          "flex-shrink-0 px-2 h-8 rounded-md flex items-center gap-1.5 text-xs transition-colors mr-1",
+          sidebarOpen
+            ? "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+        )}
+        title={sidebarOpen ? "Close sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}
+      >
+        {sidebarOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
+      </motion.button>
 
       {/* Agent status badge */}
       <AgentStatusBadge

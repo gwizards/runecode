@@ -1,18 +1,10 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Settings, Minus, Square, X, Bot, Cpu } from 'lucide-react';
+import { Minus, Square, X } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { TooltipProvider, TooltipSimple } from '@/components/ui/tooltip-modern';
 
-interface CustomTitlebarProps {
-  onSettingsClick?: () => void;
-  onAgentsClick?: () => void;
-}
+interface CustomTitlebarProps {}
 
-export const CustomTitlebar: React.FC<CustomTitlebarProps> = ({
-  onSettingsClick,
-  onAgentsClick,
-}) => {
+export const CustomTitlebar: React.FC<CustomTitlebarProps> = () => {
   const [isHovered, setIsHovered] = useState(false);
 
   const handleMinimize = async () => {
@@ -52,8 +44,7 @@ export const CustomTitlebar: React.FC<CustomTitlebarProps> = ({
   };
 
   return (
-    <TooltipProvider>
-    <div 
+    <div
       className="relative z-[200] h-11 bg-background/95 backdrop-blur-sm flex items-center justify-between select-none border-b border-border/50 tauri-drag"
       data-tauri-drag-region
       onMouseEnter={() => setIsHovered(true)}
@@ -114,60 +105,8 @@ export const CustomTitlebar: React.FC<CustomTitlebarProps> = ({
         <span className="text-sm font-medium text-foreground/80">{title}</span>
       </div> */}
 
-      {/* Right side - Navigation icons with improved spacing */}
-      <div className="flex items-center pr-5 gap-3 tauri-no-drag">
-        {/* Primary actions group */}
-        <div className="flex items-center gap-1">
-          {onAgentsClick && (
-            <TooltipSimple content="Agents" side="bottom">
-              <motion.button
-                onClick={onAgentsClick}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-                className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors tauri-no-drag"
-                aria-label="Agents"
-              >
-                <Bot size={16} />
-              </motion.button>
-            </TooltipSimple>
-          )}
-          
-
-
-          <TooltipSimple content="System Processes" side="bottom">
-            <motion.button
-              onClick={() => window.dispatchEvent(new CustomEvent('open-resource-details'))}
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.15 }}
-              className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors tauri-no-drag"
-              aria-label="System Processes"
-            >
-              <Cpu size={16} />
-            </motion.button>
-          </TooltipSimple>
-        </div>
-
-        {/* Visual separator */}
-        <div className="w-px h-5 bg-border/50" />
-
-        {/* Secondary actions group */}
-        <div className="flex items-center gap-1">
-          {onSettingsClick && (
-            <TooltipSimple content="Settings" side="bottom">
-              <motion.button
-                onClick={onSettingsClick}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-                className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors tauri-no-drag"
-                aria-label="Settings"
-              >
-                <Settings size={16} />
-              </motion.button>
-            </TooltipSimple>
-          )}
-        </div>
-      </div>
+      {/* Right side intentionally empty — icons moved to TabManager */}
+      <div className="pr-5 tauri-no-drag" />
     </div>
-    </TooltipProvider>
   );
 };

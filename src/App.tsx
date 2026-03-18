@@ -15,7 +15,6 @@ import { SessionList } from "@/components/SessionList";
 import { CustomTitlebar } from "@/components/CustomTitlebar";
 import { ClaudeFileEditor } from "@/components/ClaudeFileEditor";
 import { CCAgents } from "@/components/CCAgents";
-import { NFOCredits } from "@/components/NFOCredits";
 import { ClaudeBinaryDialog } from "@/components/ClaudeBinaryDialog";
 import { Toast, ToastContainer } from "@/components/ui/toast";
 import { ProjectSettings } from '@/components/ProjectSettings';
@@ -72,7 +71,7 @@ type View =
  */
 function AppContent() {
   const [view, setView] = useState<View>("tabs");
-  const { activeTab, createClaudeMdTab, createSettingsTab, createUsageTab, createMCPTab, createAgentsTab } = useTabState();
+  const { activeTab, createSettingsTab, createUsageTab, createAgentsTab } = useTabState();
 
   // Wire sidebar to active tab's project path
   const projectPath = activeTab?.projectPath || activeTab?.initialProjectPath || '';
@@ -85,7 +84,6 @@ function AppContent() {
   const [editingClaudeFile, setEditingClaudeFile] = useState<ClaudeMdFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
-  const [showNFO, setShowNFO] = useState(false);
   const [showClaudeBinaryDialog, setShowClaudeBinaryDialog] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [homeDirectory, setHomeDirectory] = useState<string>('/');
@@ -390,6 +388,8 @@ function AppContent() {
               </div>
               <ProjectSidebar projectPath={projectPath} key={projectPath} />
             </div>
+            {/* Portal target for footer input — sits below sidebar flex, full width */}
+            <div id="runecode-footer-portal" className="shrink-0" />
           </div>
         );
       
@@ -425,14 +425,7 @@ function AppContent() {
       <div className="grain-overlay" aria-hidden="true" />
 
       {/* Custom Titlebar */}
-      <CustomTitlebar
-        onAgentsClick={() => createAgentsTab()}
-        onUsageClick={() => createUsageTab()}
-        onClaudeClick={() => createClaudeMdTab()}
-        onMCPClick={() => createMCPTab()}
-        onSettingsClick={() => createSettingsTab()}
-        onInfoClick={() => setShowNFO(true)}
-      />
+      <CustomTitlebar />
       
       {/* Dev-mode backend status banner */}
       {isDevMode() && !backendConnected && (
@@ -447,7 +440,6 @@ function AppContent() {
         onSettingsClick={() => createSettingsTab()}
         onUsageClick={() => createUsageTab()}
         onMCPClick={() => createMCPTab()}
-        onInfoClick={() => setShowNFO(true)}
         onAgentsClick={() => setShowAgentsModal(true)}
       /> */}
       
@@ -459,7 +451,6 @@ function AppContent() {
       </div>
       
       {/* NFO Credits Modal */}
-      {showNFO && <NFOCredits onClose={() => setShowNFO(false)} />}
       
       
       {/* Claude Binary Dialog */}
@@ -468,8 +459,6 @@ function AppContent() {
         onOpenChange={setShowClaudeBinaryDialog}
         onSuccess={() => {
           setToast({ message: "Claude binary path saved successfully", type: "success" });
-          // Trigger a refresh of the Claude version check
-          window.location.reload();
         }}
         onError={(message) => setToast({ message, type: "error" })}
       />
