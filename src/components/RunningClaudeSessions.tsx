@@ -32,8 +32,8 @@ export const RunningClaudeSessions: React.FC<RunningClaudeSessionsProps> = ({
   useEffect(() => {
     loadRunningSessions();
     
-    // Poll for updates every 5 seconds
-    const interval = setInterval(loadRunningSessions, 5000);
+    // Poll for updates every 30 seconds
+    const interval = setInterval(loadRunningSessions, 30000);
     return () => clearInterval(interval);
   }, []);
 
