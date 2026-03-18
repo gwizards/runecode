@@ -46,7 +46,22 @@ function getToolIcon(name: string): React.ElementType {
 
 export const SessionActivityBar: React.FC<ActivityBarProps> = React.memo(({ messages, isLoading }) => {
   const activity = useMemo(() => {
-    if (!isLoading || messages.length === 0) return null;
+    if (messages.length === 0) return null;
+    // When not loading, only scan for persistent warnings (rate limits)
+    if (!isLoading) {
+      let rateLimitWarning = false;
+      for (let i = messages.length - 1; i >= Math.max(0, messages.length - 20); i--) {
+        const msg = messages[i];
+        if (msg.type === 'rate_limit_event') {
+          const status = msg.rate_limit_info?.status;
+          if (status === 'allowed_warning' || status === 'rejected') {
+            rateLimitWarning = true;
+            break;
+          }
+        }
+      }
+      return rateLimitWarning ? { activeTools: [], runningTasks: [], isCompacting: false, activeHook: null, rateLimitWarning: true } : null;
+    }
 
     const activeTools: ActiveTool[] = [];
     const activeTasks = new Map<string, ActiveTask>();
@@ -136,7 +151,7 @@ export const SessionActivityBar: React.FC<ActivityBarProps> = React.memo(({ mess
 
   return (
     <div className="flex items-center gap-2 px-3 py-1 bg-muted/20 border-t border-border/50 text-[10px] text-muted-foreground overflow-x-auto shrink-0">
-      <Loader2 className="w-3 h-3 animate-spin text-primary/60 flex-shrink-0" />
+      {isLoading && <Loader2 className="w-3 h-3 animate-spin text-primary/60 flex-shrink-0" />}
 
       {/* Active tools */}
       {activity.activeTools.map(tool => {
