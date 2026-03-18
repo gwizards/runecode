@@ -222,21 +222,27 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const MAX_AGENT_TABS = 6;
   const { visibleTabs, overflowAgentTabs } = useMemo(() => {
     if (layoutMode === 'grid') {
-      // In grid mode, all tabs go into the grid — show a single "Grid (N)" pseudo-tab
+      // In grid mode: Grid pseudo-tab for grid cells + individual tabs for non-grid windows
+      const gridOrderSet = new Set(
+        JSON.parse(localStorage.getItem('runecode-grid-config') || '{}').order || []
+      );
+      const gridCount = tabs.filter(t => gridOrderSet.has(t.id)).length;
+      const nonGridInBar = tabs.filter(t => !gridOrderSet.has(t.id));
+
       const pseudoTabs: Tab[] = [];
-      if (tabs.length > 0) {
+      if (gridCount > 0) {
         pseudoTabs.push({
           id: '__grid__',
           type: 'chat',
-          title: `Grid (${tabs.length})`,
-          status: tabs.some(t => t.status === 'running') ? 'running' : 'idle',
+          title: `Grid (${gridCount})`,
+          status: tabs.some(t => gridOrderSet.has(t.id) && t.status === 'running') ? 'running' : 'idle',
           hasUnsavedChanges: false,
           order: -1,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
       }
-      return { visibleTabs: pseudoTabs, overflowAgentTabs: [] };
+      return { visibleTabs: [...pseudoTabs, ...nonGridInBar], overflowAgentTabs: [] };
     }
 
     const nonAgentTabs: Tab[] = [];
