@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy } from "react";
 import { motion } from "motion/react";
 import { Bot, FolderCode } from "lucide-react";
 import { RotatingRune } from "./components/RuneCodeLogo";
@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { ProjectList } from "@/components/ProjectList";
 import { FilePicker } from "@/components/FilePicker";
 import { SessionList } from "@/components/SessionList";
-import { ClaudeFileEditor } from "@/components/ClaudeFileEditor";
+const ClaudeFileEditor = lazy(() => import("@/components/ClaudeFileEditor").then(m => ({ default: m.ClaudeFileEditor })));
 import { CCAgents } from "@/components/CCAgents";
 import { ClaudeBinaryDialog } from "@/components/ClaudeBinaryDialog";
 import { Toast, ToastContainer } from "@/components/ui/toast";
