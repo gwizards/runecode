@@ -80,8 +80,8 @@ export function PlanUsagePanel() {
       if (!res.ok) return {} as PlanWindowData;
       return res.json();
     },
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 
   const plan = data?.subscriptionType || "—";

@@ -58,7 +58,8 @@ interface UsageStatsSectionProps {
 
 async function fetchUsageStats(): Promise<UsageStats> {
   try {
-    if (window.__TAURI__) {
+    const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+    if (isRealTauri) {
       const { invoke } = await import("@tauri-apps/api/core");
       return (await invoke("get_usage_stats", {})) as UsageStats;
     }
@@ -229,7 +230,8 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
       if (!res.ok) return null;
       return await res.json();
     },
-    refetchInterval: 15000, // refresh every 15s for responsive updates
+    refetchInterval: 15000,
+    staleTime: 10_000,
   });
 
   const { data: costData } = useQuery({
@@ -269,7 +271,8 @@ export function UsageStatsSection({ projectPath }: UsageStatsSectionProps) {
   // All-projects totals for comparison
   const allCost = usage.total_cost + liveUsage.costUsd;
 
-  const isIncludedPlan = authStatus?.subscriptionType === 'max' || authStatus?.subscriptionType === 'pro';
+  const subType = (authStatus?.subscriptionType || '').toLowerCase();
+  const isIncludedPlan = subType.includes('max') || subType.includes('pro') || subType.includes('team') || subType.includes('enterprise');
   const isIncluded = isIncludedPlan;
   const hasData = combinedTokens > 0 || combinedCost > 0;
 

@@ -647,19 +647,26 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     requestAnimationFrame(doScroll);
   }, [messages.length, scrollLocked]);
 
-  // Calculate total tokens and estimated cost from messages
+  // Calculate total tokens and cost from messages
   useEffect(() => {
     let totalIn = 0;
     let totalOut = 0;
     let totalCacheWrite = 0;
     let totalCacheRead = 0;
     let msgCount = 0;
+    let actualCost = 0;
+    let hasActualCost = false;
+
     for (const msg of messages) {
+      // Use actual cost from SDK result messages when available
+      if (msg.type === 'result' && !msg.is_error && msg.total_cost_usd) {
+        actualCost += msg.total_cost_usd;
+        hasActualCost = true;
+      }
       const usage = msg.message?.usage ?? msg.usage;
       if (usage) {
         totalIn += usage.input_tokens;
         totalOut += usage.output_tokens;
-        // Cache token fields are present in Claude API responses but not in the base TS type
         const usageAny = usage as Record<string, number>;
         totalCacheWrite += usageAny.cache_creation_input_tokens || 0;
         totalCacheRead += usageAny.cache_read_input_tokens || 0;
@@ -667,8 +674,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       }
     }
     const totalTok = totalIn + totalOut;
-    // Default Claude Sonnet 4 pricing: $3/M input, $15/M output
-    const cost = (totalIn * 3) / 1_000_000 + (totalOut * 15) / 1_000_000;
+    // Use actual SDK cost if available, otherwise estimate from tokens
+    const cost = hasActualCost ? actualCost : (totalIn * 3) / 1_000_000 + (totalOut * 15) / 1_000_000;
     setTotalTokens(totalTok);
     setSessionCostUsd(cost);
 
