@@ -748,6 +748,9 @@ export const api = {
     disallowedTools?: string[];
     skills?: string[];
     maxTurns?: number;
+    permissionMode?: string;
+    isolation?: string;
+    background?: boolean;
     system_prompt: string;
     scope?: 'user' | 'project';
   }): Promise<Agent> {
@@ -773,6 +776,9 @@ export const api = {
     disallowedTools?: string[];
     skills?: string[];
     maxTurns?: number;
+    permissionMode?: string;
+    isolation?: string;
+    background?: boolean;
     system_prompt: string;
     scope?: 'user' | 'project';
   }): Promise<Agent> {

@@ -152,7 +152,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     });
   }, []);
   const [showTimeline, setShowTimeline] = useState(false);
-  const [timelineVersion, setTimelineVersion] = useState(0);
+  const [, setTimelineVersion] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showForkDialog, setShowForkDialog] = useState(false);
   const [showSlashCommandsSettings, setShowSlashCommandsSettings] = useState(false);
@@ -379,8 +379,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       }
     };
 
-    window.addEventListener('runecode:rewind', handleRewind as EventListener);
-    return () => window.removeEventListener('runecode:rewind', handleRewind as EventListener);
+    window.addEventListener('runecode:rewind', handleRewind as unknown as EventListener);
+    return () => window.removeEventListener('runecode:rewind', handleRewind as unknown as EventListener);
   }, [messages, showFooter]);
 
   const isIMEComposingRef = useRef(false);
@@ -395,6 +395,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // isAtBottomRef is a layout-level cache updated by the scroll handler.
   // It is NOT the source of truth for "should we auto-scroll" — scrollLocked is.
   const isAtBottomRef = useRef(true);
+  const prevRawMsgCount = useRef(0);
   // Session metrics state for enhanced analytics
   const sessionMetrics = useRef({
     firstMessageTime: null as number | null,
@@ -493,20 +494,16 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // Filter out messages that shouldn't be displayed
   const allDisplayableMessages = useMemo(() => {
-    return messages.filter((message, index) => {
+    return messages.filter((message) => {
       // Skip non-renderable message types
       const nonDisplayableTypes = [
         'progress', 'file-history-snapshot', 'queue-operation', 'last-prompt',
         'rate_limit_event', 'system', 'start', 'partial', 'session_info',
         'content_block_start', 'content_block_delta', 'content_block_stop',
         'message_start', 'message_delta', 'message_stop', 'stream_event',
+        'result',
       ];
       if (nonDisplayableTypes.includes(message.type)) {
-        return false;
-      }
-
-      // Hide result messages — sidebar PlanUsagePanel shows usage
-      if (message.type === 'result') {
         return false;
       }
 
@@ -519,11 +516,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         if (Array.isArray(content) && content.every((b: any) =>
           b.type === 'text' && (!b.text || b.text.trim() === '')
         )) return false;
-      }
-
-      // Hide result/execution-complete messages — sidebar PlanUsagePanel shows this data
-      if (message.type === 'result') {
-        return false;
       }
 
       // Skip meta messages that don't have meaningful content
@@ -624,12 +616,14 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   useEffect(() => {
     if (displayableMessages.length === 0) return;
     if (!scrollLocked) {
-      // Only count new messages, not tab switches
-      if (displayableMessages.length > (prevMsgCount.current || 0)) {
-        setNewMessageCount(prev => prev + 1);
+      // Only increment badge on actual new messages, not visibility changes
+      if (messages.length > prevRawMsgCount.current) {
+        setNewMessageCount(prev => prev + (messages.length - prevRawMsgCount.current));
       }
+      prevRawMsgCount.current = messages.length;
       return;
     }
+    prevRawMsgCount.current = messages.length;
     // Clear any stuck isRestoringScroll from a previous interrupted rAF chain
     isRestoringScroll.current = true;
     let attempts = 0;
@@ -646,7 +640,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       }
     };
     requestAnimationFrame(doScroll);
-  }, [displayableMessages.length, rowVirtualizer, scrollLocked]);
+  }, [displayableMessages.length, messages.length, rowVirtualizer, scrollLocked]);
 
   // Calculate total tokens and estimated cost from messages
   useEffect(() => {

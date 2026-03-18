@@ -75,6 +75,25 @@ export const SubAgentTracker: React.FC<SubAgentTrackerProps> = ({ className }) =
     return () => window.removeEventListener('runecode:subagent-event', handleSubAgentEvent);
   }, [handleSubAgentEvent]);
 
+  // Prune completed agents after 30s to prevent unbounded Map growth
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAgents(prev => {
+        const now = Date.now();
+        let changed = false;
+        const next = new Map(prev);
+        for (const [id, agent] of next) {
+          if ((agent.status === 'completed' || agent.status === 'failed') && agent.endTime && now - agent.endTime > 30_000) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const agentList = Array.from(agents.values());
   const runningCount = agentList.filter(a => a.status === 'running').length;
 
