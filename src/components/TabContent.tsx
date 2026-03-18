@@ -491,7 +491,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
 });
 
 export const TabContent: React.FC = () => {
-  const { tabs, activeTabId, layoutMode, gridConfig, setGridColumns, setGridRows, setGridOrder, setGridSpan, createChatTab, createProjectsTab, createSettingsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab, switchToTab } = useTabState();
+  const { tabs, activeTabId, layoutMode, setLayoutMode, gridConfig, setGridColumns, setGridRows, setGridOrder, setGridSpan, createChatTab, createProjectsTab, createSettingsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab, switchToTab } = useTabState();
   
   // Listen for events to open sessions in tabs
   useEffect(() => {
@@ -782,11 +782,6 @@ export const TabContent: React.FC = () => {
             return (
               <div
                 key={tab.id}
-                draggable
-                onDragStart={() => handleGridDragStart(tab.id)}
-                onDragOver={(e) => handleGridDragOver(e, tab.id)}
-                onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-                onDrop={() => handleGridDrop(tab.id)}
                 className="relative bg-background overflow-hidden cursor-pointer transition-[filter,opacity] duration-300"
                 style={{
                   gridColumn: colSpan > 1 ? `span ${Math.min(colSpan, cols)}` : undefined,
@@ -798,13 +793,25 @@ export const TabContent: React.FC = () => {
                   opacity: dragId === tab.id ? 0.5 : 1,
                 }}
                 onClick={() => switchToTab(tab.id)}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setLayoutMode('single');
+                  switchToTab(tab.id);
+                }}
               >
-                {/* Grid cell header */}
-                <div className={`flex items-center justify-between px-2 py-1 border-b border-border text-xs transition-colors ${
-                  isFocused ? 'bg-primary/10 text-foreground' : 'bg-muted/20 text-muted-foreground'
-                }`}>
+                {/* Grid cell header — drag handle */}
+                <div
+                  className={`flex items-center justify-between px-2 py-1 border-b border-border text-xs transition-colors cursor-grab active:cursor-grabbing ${
+                    isFocused ? 'bg-primary/10 text-foreground' : 'bg-muted/20 text-muted-foreground'
+                  }`}
+                  draggable
+                  onDragStart={() => handleGridDragStart(tab.id)}
+                  onDragOver={(e) => handleGridDragOver(e, tab.id)}
+                  onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                  onDrop={() => handleGridDrop(tab.id)}
+                >
                   <div className="flex items-center gap-1 min-w-0">
-                    <GripVertical className="w-3 h-3 text-muted-foreground/40 cursor-grab flex-shrink-0" />
+                    <GripVertical className="w-3 h-3 text-muted-foreground/30 flex-shrink-0" />
                     <kbd className={`text-[9px] px-1 py-0.5 rounded font-mono leading-none flex-shrink-0 ${
                       isFocused ? 'bg-primary/20 text-primary' : 'bg-muted/40 text-muted-foreground/50'
                     }`}>{cellNumber}</kbd>
@@ -881,6 +888,13 @@ export const TabContent: React.FC = () => {
                         </div>
                       )}
                     </div>
+                    <button
+                      className="text-muted-foreground hover:text-foreground p-0.5 relative z-20"
+                      onClick={(e) => { e.stopPropagation(); setLayoutMode('single'); switchToTab(tab.id); }}
+                      title="Pop out to single view"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                    </button>
                     <button
                       className="text-muted-foreground hover:text-foreground p-0.5 relative z-20"
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
