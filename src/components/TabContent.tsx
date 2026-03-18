@@ -894,7 +894,7 @@ export const TabContent: React.FC = () => {
                 </div>
                 {/* Grid cell content */}
                 <div className="h-[calc(100%-28px)] overflow-hidden">
-                  <TabPanel tab={tab} isActive={true} ownsFooter={isFocused} />
+                  <TabPanel tab={tab} isActive={!activeIsNonGrid} ownsFooter={isFocused} />
                 </div>
               </div>
             );
