@@ -65,10 +65,11 @@ function createEmptyUsage() {
 }
 let cachedTotalUsage = createEmptyUsage();
 
-/** Reset usage accumulator if the rate limit window has expired */
+/** Reset usage accumulator and rate limit info if the rate limit window has expired */
 function checkWindowReset() {
   if (windowResetsAt > 0 && Date.now() / 1000 >= windowResetsAt) {
     cachedTotalUsage = createEmptyUsage();
+    cachedRateLimitInfo = null;
     windowResetsAt = 0;
   }
 }
@@ -1722,6 +1723,7 @@ export function devApiPlugin(): Plugin {
 
           // GET /api/usage/window — plan info + rate limits + accumulated usage
           if (req.url?.startsWith("/api/usage/window")) {
+            checkWindowReset(); // Clear stale rate limit data if window expired
             const initData = await getInitData();
             res.end(JSON.stringify({
               // Plan info

@@ -95,12 +95,12 @@ export function PlanUsagePanel() {
   const wLabel = windowLabel(rl?.rateLimitType);
   const u = data?.usage;
 
-  // Live countdown
+  // Live countdown — clears when expired
   useEffect(() => {
     if (!resetsAt) { setCountdown(""); return; }
     const tick = () => {
       const diff = resetsAt - Date.now() / 1000;
-      if (diff <= 0) { setCountdown("resetting..."); return; }
+      if (diff <= 0) { setCountdown(""); return; }
       const d = Math.floor(diff / 86400);
       const h = Math.floor((diff % 86400) / 3600);
       const m = Math.floor((diff % 3600) / 60);
