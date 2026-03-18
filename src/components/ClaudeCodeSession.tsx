@@ -165,7 +165,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // New state for preview feature
   const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [showPreviewPrompt, setShowPreviewPrompt] = useState(false);
+  const [, setShowPreviewPrompt] = useState(false);
   const [showRewindPanel, setShowRewindPanel] = useState(false);
   const [isScrolledUp, setIsScrolledUp] = useState(false);
 
