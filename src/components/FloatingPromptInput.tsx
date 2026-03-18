@@ -149,7 +149,7 @@ const FloatingPromptInputInner = (
       const timeline = await api.getSessionTimeline(sessionId!, projectId!, projectPath || '');
       return timeline?.totalCheckpoints || 0;
     },
-    staleTime: 30000,
+    staleTime: 120000,
     enabled: !!sessionId && !!projectId,
   });
 

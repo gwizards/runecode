@@ -307,7 +307,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         el.scrollTop = el.scrollHeight;
         isAtBottomRef.current = true;
       }
-    }, 50);
+    }, 16);
     return () => clearTimeout(timer);
   }, [isActive]);
 
@@ -384,6 +384,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   }, [messages, showFooter]);
 
   const isIMEComposingRef = useRef(false);
+  const historyLoadedRef = useRef<string | null>(null);
 
   // ── Auto-scroll system ──
   // scrollLocked = true means "pin to bottom". The ref mirrors state for
@@ -588,7 +589,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // so closing other tabs (which creates new tab objects) doesn't trigger a reload.
   const sessionId = session?.id;
   useEffect(() => {
-    if (sessionId) {
+    if (sessionId && sessionId !== historyLoadedRef.current) {
+      historyLoadedRef.current = sessionId;
       // Set the claudeSessionId immediately when we have a session
       setClaudeSessionId(sessionId);
 

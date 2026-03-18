@@ -2,10 +2,16 @@ import React, { useState } from "react";
 import {
   FileText,
   ChevronRight,
+  ChevronDown,
+  Copy,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useShiki, highlightCode } from "@/hooks/useShiki";
 import { extractResultContent } from "./types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { ShikiCodeBlock } from "../ShikiCodeBlock";
 
 /**
  * Widget for Read tool
@@ -38,12 +44,111 @@ export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ fileP
 };
 
 /**
+ * Markdown file viewer with rendered content, copy button, and collapsible body
+ */
+const MarkdownFileCard: React.FC<{ filePath: string; content: string }> = ({ filePath, content }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const fileName = filePath.split('/').pop() || filePath;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-lg border border-border/30 overflow-hidden bg-background w-full">
+      <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border/20">
+        <FileText className="h-3.5 w-3.5 text-emerald-400/60" />
+        <span className="text-xs font-mono font-medium flex-1 truncate text-muted-foreground">{fileName}</span>
+        <button
+          onClick={handleCopy}
+          className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-1 transition-colors"
+        >
+          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+        >
+          {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+      </div>
+      {!collapsed && (
+        <div className="p-4 prose prose-sm dark:prose-invert max-w-none text-xs overflow-x-auto">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              code({ node, inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || '');
+                return !inline && match ? (
+                  <ShikiCodeBlock
+                    code={String(children).replace(/\n$/, '')}
+                    language={match[1]}
+                  />
+                ) : (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                );
+              }
+            }}
+          >
+            {content}
+          </ReactMarkdown>
+        </div>
+      )}
+      {collapsed && (
+        <div className="px-4 py-3 text-xs text-muted-foreground text-center bg-muted/30">
+          Click to expand markdown content
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
  * Widget for Read tool result - shows file content with line numbers
  */
 export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> = ({ content, filePath }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const highlighter = useShiki();
-  
+
+  // For .md files, render with the rich markdown viewer
+  const isMarkdownFile = filePath?.toLowerCase().endsWith('.md');
+
+  // Strip line-number prefixes (e.g. "  1→content") from tool output
+  const stripLineNumbers = (rawContent: string) => {
+    const lines = rawContent.split('\n');
+    const nonEmptyLines = lines.filter(line => line.trim() !== '');
+    if (nonEmptyLines.length === 0) return rawContent;
+    const parsableLines = nonEmptyLines.filter(line => /^\s*\d+→/.test(line)).length;
+    const isLikelyNumbered = (parsableLines / nonEmptyLines.length) > 0.5;
+    if (!isLikelyNumbered) return rawContent;
+    const codeLines: string[] = [];
+    for (const line of lines) {
+      const match = line.trimStart().match(/^(\d+)→(.*)$/);
+      if (match) {
+        codeLines.push(match[2]);
+      } else if (line.trim() === '') {
+        codeLines.push('');
+      } else {
+        codeLines.push(line);
+      }
+    }
+    while (codeLines.length > 0 && codeLines[codeLines.length - 1] === '') {
+      codeLines.pop();
+    }
+    return codeLines.join('\n');
+  };
+
+  if (isMarkdownFile && filePath) {
+    const mdContent = stripLineNumbers(content);
+    return <MarkdownFileCard filePath={filePath} content={mdContent} />;
+  }
+
   const getLanguage = (path?: string) => {
     if (!path) return "text";
     const ext = path.split('.').pop()?.toLowerCase();

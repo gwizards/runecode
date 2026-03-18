@@ -79,7 +79,7 @@ export function MCPServersSection() {
       }
     },
     staleTime: 30000,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   if (servers.length === 0 && !isLoading) return null;
