@@ -11,6 +11,8 @@ import {
   ChevronDown,
   Maximize2,
   X,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,7 +116,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
   const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
   const [totalTokens, setTotalTokens] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [hasUserScrolled, setHasUserScrolled] = useState(false);
+  const [scrollLocked, setScrollLocked] = useState(true);
   const [isFullscreenModalOpen, setIsFullscreenModalOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -198,15 +200,14 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
 
   useEffect(() => {
     if (displayableMessages.length === 0) return;
-    const shouldAutoScroll = !hasUserScrolled || isAtBottom();
-    if (shouldAutoScroll) {
+    if (scrollLocked) {
       if (isFullscreenModalOpen) {
         fullscreenRowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: "end", behavior: "smooth" });
       } else {
         rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: "end", behavior: "smooth" });
       }
     }
-  }, [displayableMessages.length, hasUserScrolled, isFullscreenModalOpen, rowVirtualizer, fullscreenRowVirtualizer]);
+  }, [displayableMessages.length, scrollLocked, isFullscreenModalOpen, rowVirtualizer, fullscreenRowVirtualizer]);
 
   useEffect(() => {
     if (isRunning && executionStartTime) {
@@ -424,8 +425,12 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = 0;
-      if (!hasUserScrolled) setHasUserScrolled(true);
-      if (isAtBottom()) setHasUserScrolled(false);
+      const atBottom = isAtBottom();
+      if (atBottom && !scrollLocked) {
+        setScrollLocked(true); // Re-lock when user scrolls to bottom
+      } else if (!atBottom && scrollLocked) {
+        setScrollLocked(false); // Unlock when user scrolls up
+      }
     });
   };
 
@@ -609,7 +614,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
         </div>
 
         {/* Scrollable Output Display */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden relative">
           <div className="w-full max-w-5xl mx-auto h-full">
             <div ref={scrollContainerRef} className="h-full overflow-y-auto p-6 space-y-8" onScroll={scrollHandler}>
               <div ref={messagesContainerRef}>
@@ -633,6 +638,34 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
               </div>
             </div>
           </div>
+          {/* Auto-scroll lock */}
+          {displayableMessages.length > 3 && (
+            <div className="absolute bottom-3 right-3 z-20">
+              <button
+                onClick={() => {
+                  if (!scrollLocked) {
+                    setScrollLocked(true);
+                    rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'smooth' });
+                  } else {
+                    setScrollLocked(false);
+                  }
+                }}
+                title={scrollLocked ? 'Auto-scroll locked (click to unlock)' : 'Auto-scroll unlocked (click to lock)'}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
+                  scrollLocked
+                    ? 'bg-primary/10 text-primary/70 border-primary/20 hover:bg-primary/20'
+                    : 'bg-muted/80 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+                )}
+              >
+                {scrollLocked ? (
+                  <Lock className="h-3 w-3" />
+                ) : (
+                  <Unlock className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -673,7 +706,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
               </Button>
             </div>
           </div>
-          <div className="flex-1 overflow-hidden p-6">
+          <div className="flex-1 overflow-hidden p-6 relative">
             <div ref={fullscreenScrollRef} className="h-full overflow-y-auto space-y-8" onScroll={scrollHandler}>
               {messages.length === 0 && !isRunning && (
                 <div className="flex flex-col items-center justify-center h-full text-center">
@@ -715,6 +748,34 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
               </div>
               <div ref={fullscreenMessagesEndRef} />
             </div>
+            {/* Auto-scroll lock */}
+            {displayableMessages.length > 3 && (
+              <div className="absolute bottom-3 right-3 z-20">
+                <button
+                  onClick={() => {
+                    if (!scrollLocked) {
+                      setScrollLocked(true);
+                      fullscreenRowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'smooth' });
+                    } else {
+                      setScrollLocked(false);
+                    }
+                  }}
+                  title={scrollLocked ? 'Auto-scroll locked (click to unlock)' : 'Auto-scroll unlocked (click to lock)'}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
+                    scrollLocked
+                      ? 'bg-primary/10 text-primary/70 border-primary/20 hover:bg-primary/20'
+                      : 'bg-muted/80 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+                  )}
+                >
+                  {scrollLocked ? (
+                    <Lock className="h-3 w-3" />
+                  ) : (
+                    <Unlock className="h-3 w-3" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

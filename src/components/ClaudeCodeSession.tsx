@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ChevronDown,
+  Lock,
+  Unlock,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -237,9 +239,11 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             setIsUserScrolledUp(false);
             setNewMessageCount(0);
             setIsScrolledUp(false);
+            setScrollLocked(true); // Re-lock when user scrolls back to bottom
           } else {
             setIsUserScrolledUp(true);
             setIsScrolledUp(true);
+            setScrollLocked(false); // Unlock when user scrolls up
           }
         }
 
@@ -273,11 +277,12 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     // Debounced via rAF to avoid firing on every animation frame.
     let resizeRaf = 0;
     const resizeObserver = new ResizeObserver(() => {
-      if (!isAtBottomRef.current || isRestoringScroll.current) return;
+      if (!scrollLockedRef.current || isRestoringScroll.current) return;
       cancelAnimationFrame(resizeRaf);
       resizeRaf = requestAnimationFrame(() => {
-        if (isAtBottomRef.current) {
+        if (scrollLockedRef.current) {
           el.scrollTop = el.scrollHeight;
+          isAtBottomRef.current = true;
         }
       });
     });
@@ -380,10 +385,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
   const isAtBottomRef = useRef(true);
-  const [autoScrollEnabled, setAutoScrollEnabled] = useState(() => {
-    const stored = localStorage.getItem('runecode-auto-scroll');
-    return stored !== null ? stored === 'true' : true;
-  });
+  const [scrollLocked, setScrollLocked] = useState(true); // locked = auto-scroll pinned to bottom
+  const scrollLockedRef = useRef(true);
+  useEffect(() => { scrollLockedRef.current = scrollLocked; }, [scrollLocked]);
 
   // Session metrics state for enhanced analytics
   const sessionMetrics = useRef({
@@ -413,19 +417,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // Keep as a no-op for JSX onScroll prop compatibility.
   const handleScroll = useCallback(() => {}, []);
 
-  // Listen for auto-scroll settings changes
-  useEffect(() => {
-    const handler = () => {
-      const stored = localStorage.getItem('runecode-auto-scroll');
-      setAutoScrollEnabled(stored !== null ? stored === 'true' : true);
-    };
-    window.addEventListener('storage', handler);
-    window.addEventListener('runecode-settings-changed', handler);
-    return () => {
-      window.removeEventListener('storage', handler);
-      window.removeEventListener('runecode-settings-changed', handler);
-    };
-  }, []);
+  // (auto-scroll lock is now per-session, no localStorage listener needed)
 
   // Call onProjectPathChange when component mounts with initial path
   useEffect(() => {
@@ -605,6 +597,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
     setIsUserScrolledUp(false);
     setNewMessageCount(0);
+    setScrollLocked(true);
+    isAtBottomRef.current = true;
   }, [rowVirtualizer, displayableMessages.length]);
 
   // Debug logging
@@ -643,10 +637,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (displayableMessages.length === 0) return;
-    if (!autoScrollEnabled || !isAtBottomRef.current) {
-      if (!isAtBottomRef.current) {
-        setNewMessageCount(prev => prev + 1);
-      }
+    if (!scrollLocked) {
+      setNewMessageCount(prev => prev + 1);
       return;
     }
     isRestoringScroll.current = true;
@@ -664,7 +656,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       }
     };
     requestAnimationFrame(doScroll);
-  }, [displayableMessages.length, rowVirtualizer, autoScrollEnabled]);
+  }, [displayableMessages.length, rowVirtualizer, scrollLocked]);
 
   // Calculate total tokens and estimated cost from messages
   useEffect(() => {
@@ -1806,32 +1798,53 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             </div>
           )}
 
-          {/* Smart scroll-to-bottom — only visible when user scrolled up */}
-          <AnimatePresence>
-            {isScrolledUp && displayableMessages.length > 3 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                transition={{ duration: 0.15 }}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30"
-              >
-                <button
-                  onClick={() => {
+          {/* Auto-scroll lock button — always visible in bottom-right corner */}
+          {displayableMessages.length > 3 && (
+            <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5">
+              {!scrollLocked && newMessageCount > 0 && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-primary/15 text-primary border border-primary/20"
+                >
+                  {newMessageCount} new
+                </motion.span>
+              )}
+              <button
+                onClick={() => {
+                  if (!scrollLocked) {
+                    // Lock and scroll to bottom
+                    setScrollLocked(true);
+                    setIsUserScrolledUp(false);
+                    setNewMessageCount(0);
+                    setIsScrolledUp(false);
+                    isAtBottomRef.current = true;
                     const el = parentRef.current;
                     if (el) {
                       rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'auto' });
                       requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }));
                     }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/20 shadow-lg backdrop-blur-sm hover:bg-primary/25 transition-colors"
-                >
-                  <ChevronDown className="h-3 w-3" />
-                  Scroll to bottom
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  } else {
+                    // Unlock
+                    setScrollLocked(false);
+                  }
+                }}
+                title={scrollLocked ? 'Auto-scroll locked (click to unlock)' : 'Auto-scroll unlocked (click to lock & scroll down)'}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border shadow-lg backdrop-blur-sm transition-all',
+                  scrollLocked
+                    ? 'bg-primary/10 text-primary/70 border-primary/20 hover:bg-primary/20'
+                    : 'bg-muted/80 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+                )}
+              >
+                {scrollLocked ? (
+                  <Lock className="h-3 w-3" />
+                ) : (
+                  <Unlock className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Floating Prompt Input - Always visible */}
