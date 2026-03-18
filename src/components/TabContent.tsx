@@ -5,6 +5,7 @@ import { useScreenTracking } from '@/hooks/useAnalytics';
 import { Tab } from '@/contexts/TabContext';
 import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical } from 'lucide-react';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { ProjectList } from '@/components/ProjectList';
 import { CreateProjectDialog } from '@/components/CreateProjectDialog';
 import { SessionList } from '@/components/SessionList';
@@ -652,6 +653,7 @@ export const TabContent: React.FC = () => {
   // Drag state for grid cells
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [dragOverId, setDragOverId] = React.useState<string | null>(null);
+  const [gridAreaDragOver, setGridAreaDragOver] = React.useState(false);
 
   const handleGridDragStart = React.useCallback((tabId: string) => setDragId(tabId), []);
   const handleGridDragOver = React.useCallback((e: React.DragEvent, tabId: string) => {
@@ -782,9 +784,9 @@ export const TabContent: React.FC = () => {
 
     return (
       <div className="flex-1 h-full relative flex flex-col">
-        {/* Grid of chat/agent tabs */}
+        {/* Grid of tabs — drop target for adding tabs from tab bar */}
         <div
-          className="flex-1 min-h-0"
+          className={cn("flex-1 min-h-0 transition-colors", gridAreaDragOver && "ring-2 ring-primary/30 ring-inset")}
           style={{
             display: activeIsNonGrid ? 'none' : 'grid',
             gridTemplateColumns: `repeat(${cols}, 1fr)`,
@@ -792,6 +794,25 @@ export const TabContent: React.FC = () => {
             gridAutoRows: rows > 0 ? undefined : '1fr',
             gap: '1px',
             background: 'hsl(var(--border))',
+          }}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('text/runecode-tab-id')) {
+              e.preventDefault();
+              setGridAreaDragOver(true);
+            }
+          }}
+          onDragLeave={(e) => {
+            // Only clear if leaving the grid container itself
+            if (e.currentTarget === e.target) setGridAreaDragOver(false);
+          }}
+          onDrop={(e) => {
+            setGridAreaDragOver(false);
+            const tabId = e.dataTransfer.getData('text/runecode-tab-id');
+            if (tabId && !gridOrderSet.has(tabId)) {
+              e.preventDefault();
+              e.stopPropagation();
+              addToGrid(tabId);
+            }
           }}
         >
           {orderedGridTabs.map((tab, gridIdx) => {
@@ -827,7 +848,7 @@ export const TabContent: React.FC = () => {
                     isFocused ? 'bg-primary/10 text-foreground' : 'bg-muted/20 text-muted-foreground'
                   }`}
                   draggable
-                  onDragStart={() => handleGridDragStart(tab.id)}
+                  onDragStart={(e) => { handleGridDragStart(tab.id); e.dataTransfer.setData('text/runecode-tab-id', tab.id); }}
                   onDragOver={(e) => handleGridDragOver(e, tab.id)}
                   onDragEnd={() => { setDragId(null); setDragOverId(null); }}
                   onDrop={() => handleGridDrop(tab.id)}

@@ -93,7 +93,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
       value={tab}
       id={tab.id}
       dragListener={true}
-      transition={{ duration: 0.1 }} // Snappy reorder animation
+      transition={{ duration: 0.1 }}
       className={cn(
         "relative flex items-center gap-2 text-sm cursor-pointer select-none group",
         "transition-colors duration-100 overflow-hidden border-r border-border/20",
@@ -105,6 +105,14 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
         agentStatus === 'completed' && "opacity-60",
         "min-w-[120px] max-w-[220px] h-8 px-3"
       )}
+      onPointerDown={(e: any) => {
+        // Set up HTML5 drag data on the underlying DOM element for cross-component drops
+        const el = e.currentTarget as HTMLElement;
+        const handleDragStart = (de: DragEvent) => {
+          if (de.dataTransfer) de.dataTransfer.setData('text/runecode-tab-id', tab.id);
+        };
+        el.addEventListener('dragstart', handleDragStart, { once: true });
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onClick(tab.id)}
@@ -181,6 +189,8 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     canAddTab,
     layoutMode,
     setLayoutMode,
+    gridConfig,
+    setGridOrder,
   } = useTabState();
 
   // Access reorderTabs from context
@@ -190,6 +200,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const [showLeftScroll, setShowLeftScroll] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(false);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const [tabBarDragOver, setTabBarDragOver] = useState(false);
 
   // Track sidebar open state (broadcast by ProjectSidebar)
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -453,11 +464,28 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
         )}
       </AnimatePresence>
 
-      {/* Tabs container */}
+      {/* Tabs container — also a drop target for removing from grid */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 flex overflow-x-auto scrollbar-hide"
+        className={cn("flex-1 flex overflow-x-auto scrollbar-hide transition-colors", tabBarDragOver && "bg-primary/10 ring-2 ring-primary/30 ring-inset")}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes('text/runecode-tab-id')) {
+            e.preventDefault();
+            setTabBarDragOver(true);
+          }
+        }}
+        onDragLeave={() => setTabBarDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setTabBarDragOver(false);
+          const tabId = e.dataTransfer.getData('text/runecode-tab-id');
+          if (tabId) {
+            // Remove from grid by updating gridConfig.order
+            setGridOrder(gridConfig.order.filter(id => id !== tabId));
+            switchToTab(tabId);
+          }
+        }}
       >
         <div className="flex items-stretch h-8">
           <Reorder.Group
