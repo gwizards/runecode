@@ -741,6 +741,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           });
         };
         requestAnimationFrame(() => requestAnimationFrame(scrollDown));
+        // Safety: ensure isRestoringScroll is cleared even if rAF chain gets interrupted
+        setTimeout(() => { isRestoringScroll.current = false; }, 2000);
       }
     } catch (err) {
       console.error("Failed to load session history:", err);

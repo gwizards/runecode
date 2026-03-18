@@ -25,10 +25,15 @@ import { useSessionConfig, type ModelId, type ThinkingMode, type PermissionMode 
 import { useAiAutocomplete } from '@/hooks/useAiAutocomplete';
 import type { RemoteEnvironment } from '@/components/settings/EnvironmentsSettings';
 
-// Module-level selected environment — read by ClaudeCodeSession when sending
-let _selectedEnvironment: RemoteEnvironment | null = null;
+// Read the selected environment atomically from localStorage
 export function getSelectedEnvironment(): RemoteEnvironment | null {
-  return _selectedEnvironment;
+  try {
+    const id = localStorage.getItem('runecode-selected-env-id');
+    if (!id) return null;
+    const stored = localStorage.getItem('runecode-remote-environments');
+    const envs: RemoteEnvironment[] = stored ? JSON.parse(stored) : [];
+    return envs.find(e => e.id === id) || null;
+  } catch { return null; }
 }
 
 /** Orchestration mode — controls how Claude delegates work */
@@ -153,7 +158,9 @@ const FloatingPromptInputInner = (
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>('normal');
   const [remoteEnvironments, setRemoteEnvironments] = useState<RemoteEnvironment[]>([]);
-  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(null);
+  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(() => {
+    try { return localStorage.getItem('runecode-selected-env-id'); } catch { return null; }
+  });
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerQuery, setFilePickerQuery] = useState("");
   const [showSlashCommandPicker, setShowSlashCommandPicker] = useState(false);
@@ -263,6 +270,14 @@ const FloatingPromptInputInner = (
     const uniquePaths = Array.from(pathsSet);
     return uniquePaths;
   };
+
+  // Sync selectedEnvId to localStorage so getSelectedEnvironment() can read it atomically
+  useEffect(() => {
+    try {
+      if (selectedEnvId) localStorage.setItem('runecode-selected-env-id', selectedEnvId);
+      else localStorage.removeItem('runecode-selected-env-id');
+    } catch {}
+  }, [selectedEnvId]);
 
   // Load remote environments from localStorage and listen for changes
   useEffect(() => {
@@ -637,9 +652,6 @@ const FloatingPromptInputInner = (
       }
 
       const { model, thinkingMode, effort, permissionMode } = useSessionConfig.getState();
-
-      // Set module-level environment so ClaudeCodeSession can read it
-      _selectedEnvironment = selectedEnv;
 
       onSend(finalPrompt, model, thinkingMode, effort, permissionMode);
       setPrompt("");

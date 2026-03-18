@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Server, Plus, Trash2, ChevronDown, ChevronRight,
   Terminal, Globe, Monitor, Loader2, CheckCircle2, AlertCircle,
-  Key, FolderOpen, RefreshCw
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

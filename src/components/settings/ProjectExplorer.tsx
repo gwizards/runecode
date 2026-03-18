@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   FolderOpen, ChevronDown, ChevronRight, Plug, Bot, FileText,
-  MessageSquare, Loader2, RefreshCw, Search, ExternalLink, Clock
+  MessageSquare, Loader2, RefreshCw, Search, Clock
 } from 'lucide-react';
 import { api, type Project, type Agent, type ClaudeMdFile, type MCPProjectConfig } from '@/lib/api';
 import { cn } from '@/lib/utils';

@@ -17,7 +17,7 @@ interface MCPSettingsProps {
 
 type ViewMode = 'list' | 'add' | 'browse';
 
-export function MCPSettings({ projectPath }: MCPSettingsProps) {
+export function MCPSettings({ projectPath: _projectPath }: MCPSettingsProps) {
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

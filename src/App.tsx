@@ -70,7 +70,7 @@ type View =
  */
 function AppContent() {
   const [view, setView] = useState<View>("tabs");
-  const { activeTab, createSettingsTab, createUsageTab, createAgentsTab } = useTabState();
+  const { activeTab, createSettingsTab: _createSettingsTab, createUsageTab: _createUsageTab, createAgentsTab: _createAgentsTab } = useTabState();
 
   // Wire sidebar to active tab's project path
   const projectPath = activeTab?.projectPath || activeTab?.initialProjectPath || '';

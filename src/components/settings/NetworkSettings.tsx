@@ -7,7 +7,7 @@ interface NetworkSettingsProps {
   onProxyChange?: (hasChanges: boolean, getSettings: () => any, save: () => Promise<void>) => void;
 }
 
-export function NetworkSettings({ settings, onSettingsChange, setToast, onProxyChange }: NetworkSettingsProps) {
+export function NetworkSettings({ settings: _settings, onSettingsChange: _onSettingsChange, setToast, onProxyChange }: NetworkSettingsProps) {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>

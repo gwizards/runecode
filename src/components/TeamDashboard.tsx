@@ -58,26 +58,26 @@ export const TeamDashboard: React.FC<TeamDashboardProps> = ({ className }) => {
 
     setTeammates(prev => {
       const next = new Map(prev);
-      // Try to match by description or task_id
+      // First try exact task_id match
+      let matched = false;
       for (const [name, teammate] of next) {
-        if (teammate.taskId === detail.task_id ||
-            (detail.event === 'task_started' && detail.description && teammate.description === detail.description)) {
-          if (detail.event === 'task_started') {
-            next.set(name, { ...teammate, taskId: detail.task_id });
-          } else if (detail.event === 'task_progress') {
-            next.set(name, {
-              ...teammate,
-              summary: detail.summary || teammate.summary,
-              tokenCount: detail.usage?.output_tokens || teammate.tokenCount,
-            });
+        if (teammate.taskId === detail.task_id) {
+          if (detail.event === 'task_progress') {
+            next.set(name, { ...teammate, summary: detail.summary || teammate.summary, tokenCount: detail.usage?.output_tokens || teammate.tokenCount });
           } else if (detail.event === 'task_notification') {
-            next.set(name, {
-              ...teammate,
-              status: detail.status === 'completed' ? 'completed' : 'idle',
-              summary: detail.summary || teammate.summary,
-            });
+            next.set(name, { ...teammate, status: detail.status === 'completed' ? 'completed' : 'idle', summary: detail.summary || teammate.summary });
           }
+          matched = true;
           break;
+        }
+      }
+      // Fallback: for task_started, assign task_id to first unmatched teammate with same description
+      if (!matched && detail.event === 'task_started' && detail.description) {
+        for (const [name, teammate] of next) {
+          if (!teammate.taskId && teammate.description === detail.description) {
+            next.set(name, { ...teammate, taskId: detail.task_id });
+            break;
+          }
         }
       }
       return next;
