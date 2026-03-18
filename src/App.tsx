@@ -148,18 +148,13 @@ function AppContent() {
     if (view !== "tabs") return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture shortcuts when typing in input/textarea
-      const target = e.target as HTMLElement;
-      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const modKey = isMac ? e.metaKey : e.ctrlKey;
 
-      // Shift+Tab — cycle to next tab and focus input
-      if (e.key === 'Tab' && e.shiftKey && !modKey && !isTyping) {
+      // Shift+Tab — always cycle to next tab, even from input
+      if (e.key === 'Tab' && e.shiftKey && !modKey) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('switch-to-next-tab'));
-        // Focus the prompt input after a short delay for the tab to mount
         setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);
         return;
       }
