@@ -148,9 +148,20 @@ function AppContent() {
     if (view !== "tabs") return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture shortcuts when typing in input/textarea
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const modKey = isMac ? e.metaKey : e.ctrlKey;
-      
+
+      // Shift+Tab — cycle to next/previous tab (works even without Ctrl)
+      if (e.key === 'Tab' && e.shiftKey && !modKey && !isTyping) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('switch-to-next-tab'));
+        return;
+      }
+
       if (modKey) {
         switch (e.key) {
           case 't':
@@ -170,7 +181,7 @@ function AppContent() {
             }
             break;
           default:
-            // Handle number keys 1-9
+            // Ctrl/Cmd + 1-9: switch to tab by index
             if (e.key >= '1' && e.key <= '9') {
               e.preventDefault();
               const index = parseInt(e.key) - 1;
