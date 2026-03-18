@@ -1,5 +1,4 @@
 import { ProxySettings } from '@/components/ProxySettings';
-import { SettingRow } from './SessionSettings';
 
 interface NetworkSettingsProps {
   settings: any;
@@ -27,22 +26,6 @@ export function NetworkSettings({ settings, onSettingsChange, setToast, onProxyC
         />
       </section>
 
-      {/* API Key Helper Script */}
-      <section className="pt-4 border-t border-border/20">
-        <h4 className="text-sm font-semibold mb-3">API Configuration</h4>
-        <SettingRow
-          label="API Key Helper Script"
-          description="Path to a script that provides API keys"
-        >
-          <input
-            type="text"
-            value={settings?.apiKeyHelper || ''}
-            onChange={(e) => onSettingsChange('apiKeyHelper', e.target.value)}
-            placeholder="/path/to/script"
-            className="w-48 rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-          />
-        </SettingRow>
-      </section>
     </div>
   );
 }

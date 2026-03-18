@@ -14,16 +14,11 @@ interface SessionSettingsProps {
 export function SessionSettings({ settings, onSettingsChange }: SessionSettingsProps) {
   const trackEvent = useTrackEvent();
 
-  // Auto-scroll preference (localStorage-backed)
-  const [autoScrollEnabled, setAutoScrollEnabled] = useState(() => {
-    const stored = localStorage.getItem('runecode-auto-scroll');
-    return stored !== null ? stored === 'true' : true;
-  });
-
   // Reduced visual effects preference (localStorage-backed)
   const [reducedEffects, setReducedEffects] = useState(() => {
     return localStorage.getItem('runecode-reduced-effects') === 'true';
   });
+
 
   // Tab persistence preference
   const [tabPersistenceEnabled, setTabPersistenceEnabled] = useState(() => {
@@ -129,21 +124,6 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         />
       </SettingRow>
 
-      {/* Auto-scroll */}
-      <SettingRow
-        label="Auto-scroll to bottom"
-        description="Automatically follow new messages"
-      >
-        <Switch
-          checked={autoScrollEnabled}
-          onCheckedChange={(v) => {
-            localStorage.setItem('runecode-auto-scroll', String(v));
-            window.dispatchEvent(new Event('runecode-settings-changed'));
-            setAutoScrollEnabled(v);
-          }}
-        />
-      </SettingRow>
-
       {/* Reduce Visual Effects */}
       <SettingRow
         label="Reduce visual effects"
@@ -158,6 +138,7 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
           }}
         />
       </SettingRow>
+
     </div>
   );
 }

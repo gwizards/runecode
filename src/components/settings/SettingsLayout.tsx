@@ -1,7 +1,7 @@
 import {
-  Palette, Settings2, Code2, Puzzle,
+  Palette, Settings2, Puzzle,
   Timer, Shield, Variable,
-  Binary, Terminal,
+  Terminal,
   Sparkles, Globe, Database, Wand2, Users, Bot, Cpu
 } from 'lucide-react';
 
@@ -31,6 +31,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
       { id: 'ai-autocomplete', label: 'AI Autocomplete', icon: Wand2 },
       { id: 'permissions', label: 'Permissions', icon: Shield },
       { id: 'environment', label: 'Environment', icon: Variable },
+      { id: 'commands-hooks', label: 'Commands & Hooks', icon: Terminal },
     ],
   },
   {
@@ -40,15 +41,6 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     items: [
       { id: 'subagent-defaults', label: 'Sub-Agents', icon: Cpu },
       { id: 'team-settings', label: 'Agent Teams', icon: Users },
-    ],
-  },
-  {
-    id: 'claude-code',
-    label: 'Claude Code',
-    icon: Code2,
-    items: [
-      { id: 'installation', label: 'Installation', icon: Binary },
-      { id: 'commands-hooks', label: 'Commands & Hooks', icon: Terminal },
     ],
   },
   {

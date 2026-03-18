@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   api,
   type ClaudeSettings,
-  type ClaudeInstallation
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Toast, ToastContainer } from "@/components/ui/toast";
@@ -15,7 +14,6 @@ import { AppearanceSettings } from "./settings/AppearanceSettings";
 import { SessionSettings } from "./settings/SessionSettings";
 import { PermissionsSettings, type PermissionRule } from "./settings/PermissionsSettings";
 import { EnvironmentSettings, type EnvironmentVariable } from "./settings/EnvironmentSettings";
-import { BinarySettings } from "./settings/BinarySettings";
 import { IntegrationsSettings } from "./settings/IntegrationsSettings";
 import { CommandsHooksSettings } from "./settings/CommandsHooksSettings";
 import { NetworkSettings } from "./settings/NetworkSettings";
@@ -51,11 +49,6 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
   }, []);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Binary path state
-  const [currentBinaryPath, setCurrentBinaryPath] = useState<string | null>(null);
-  const [selectedInstallation, setSelectedInstallation] = useState<ClaudeInstallation | null>(null);
-  const [binaryPathChanged, setBinaryPathChanged] = useState(false);
-
   // Permission rules state
   const [allowRules, setAllowRules] = useState<PermissionRule[]>([]);
   const [denyRules, setDenyRules] = useState<PermissionRule[]>([]);
@@ -74,17 +67,7 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
   // Load settings on mount
   useEffect(() => {
     loadSettings();
-    loadClaudeBinaryPath();
   }, []);
-
-  const loadClaudeBinaryPath = async () => {
-    try {
-      const path = await api.getClaudeBinaryPath();
-      setCurrentBinaryPath(path);
-    } catch (err) {
-      console.error("Failed to load Claude binary path:", err);
-    }
-  };
 
   const loadSettings = async () => {
     try {
@@ -162,13 +145,6 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
       await api.saveClaudeSettings(updatedSettings);
       setSettings(updatedSettings);
 
-      // Save Claude binary path if changed
-      if (binaryPathChanged && selectedInstallation) {
-        await api.setClaudeBinaryPath(selectedInstallation.path);
-        setCurrentBinaryPath(selectedInstallation.path);
-        setBinaryPathChanged(false);
-      }
-
       // Save user hooks if changed
       if (userHooksChanged && getUserHooks.current) {
         const hooks = getUserHooks.current();
@@ -194,11 +170,6 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
 
   const updateSetting = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleClaudeInstallationSelect = (installation: ClaudeInstallation) => {
-    setSelectedInstallation(installation);
-    setBinaryPathChanged(installation.path !== currentBinaryPath);
   };
 
   const renderSection = () => {
@@ -232,14 +203,6 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
       case 'team-settings':
         return <TeamSettings />;
 
-      // Claude Code group
-      case 'installation':
-        return (
-          <BinarySettings
-            selectedPath={currentBinaryPath}
-            onSelect={handleClaudeInstallationSelect}
-          />
-        );
       case 'commands-hooks':
         return (
           <CommandsHooksSettings
