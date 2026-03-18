@@ -18,7 +18,7 @@ import { IntegrationsSettings } from "./settings/IntegrationsSettings";
 import { CommandsHooksSettings } from "./settings/CommandsHooksSettings";
 import { NetworkSettings } from "./settings/NetworkSettings";
 import { AiAutocompleteSettings } from "./settings/AiAutocompleteSettings";
-import { AccountsSettings } from "./settings/AccountsSettings";
+import { EnvironmentsSettings } from "./settings/EnvironmentsSettings";
 import { SubAgentSettings } from "./settings/SubAgentSettings";
 import { TeamSettings } from "./settings/TeamSettings";
 import { MCPSettings } from "./settings/MCPSettings";
@@ -180,8 +180,8 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
         return <AppearanceSettings />;
 
       // General group
-      case 'accounts':
-        return <AccountsSettings />;
+      case 'environments':
+        return <EnvironmentsSettings />;
       case 'session':
         return <SessionSettings settings={settings} onSettingsChange={updateSetting} />;
       case 'ai-autocomplete':
