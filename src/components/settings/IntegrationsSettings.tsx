@@ -1,4 +1,4 @@
-import { Eye, Cloud, Lock, ExternalLink } from "lucide-react";
+import { Eye, Lock, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useIntegrationConfig } from "@/integrations/hooks/useIntegrationConfig";
 import { INTEGRATIONS } from "@/integrations/config";
@@ -48,47 +48,6 @@ function ObservabilityCard({ config, updateConfig }: IntegrationCardProps) {
   );
 }
 
-function ComputeCard({ config, updateConfig }: IntegrationCardProps) {
-  return (
-    <div className="space-y-3 rounded-lg border border-border p-4">
-      <p className="text-xs text-muted-foreground">
-        When heavy workloads are detected, get a recommendation to eject to the cloud.
-      </p>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm">Cloud Provider</label>
-          <select
-            value={config.compute.provider}
-            onChange={(e) => updateConfig({ compute: { ...config.compute, provider: e.target.value as any } })}
-            className="rounded-md border border-border bg-background px-2 py-1 text-sm"
-          >
-            <option value="railway">Railway (Recommended)</option>
-            <option value="digitalocean">DigitalOcean ($200 credit)</option>
-          </select>
-        </div>
-        <div className="flex items-center justify-between">
-          <label className="text-sm">CPU threshold</label>
-          <div className="flex items-center gap-1">
-            <input type="number" value={config.compute.thresholdCpu}
-              onChange={(e) => updateConfig({ compute: { ...config.compute, thresholdCpu: parseInt(e.target.value) || 80 } })}
-              className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm text-right" />
-            <span className="text-xs text-muted-foreground">%</span>
-          </div>
-        </div>
-        <div className="flex items-center justify-between">
-          <label className="text-sm">RAM threshold</label>
-          <div className="flex items-center gap-1">
-            <input type="number" value={config.compute.thresholdRam}
-              onChange={(e) => updateConfig({ compute: { ...config.compute, thresholdRam: parseInt(e.target.value) || 85 } })}
-              className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm text-right" />
-            <span className="text-xs text-muted-foreground">%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SecurityCard({ config, updateConfig }: IntegrationCardProps) {
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
@@ -124,9 +83,9 @@ export function IntegrationsSettings() {
   return (
     <div className="space-y-8 max-w-2xl">
       <div>
-        <h3 className="text-lg font-semibold mb-1">Partner Stack</h3>
+        <h3 className="text-lg font-semibold mb-1">Integrations</h3>
         <p className="text-sm text-muted-foreground mb-6">
-          Opinionated defaults for a production-ready AI development stack
+          Cost monitoring and secrets management for your development workflow.
         </p>
       </div>
 
@@ -139,17 +98,6 @@ export function IntegrationsSettings() {
           Cost Guard
         </h4>
         <ObservabilityCard config={config} updateConfig={updateConfig} />
-      </section>
-
-      <Divider />
-
-      {/* Compute / Cloud Eject */}
-      <section>
-        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Cloud className="h-4 w-4 text-blue-400" />
-          Cloud Compute
-        </h4>
-        <ComputeCard config={config} updateConfig={updateConfig} />
       </section>
 
       <Divider />

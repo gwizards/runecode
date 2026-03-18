@@ -460,6 +460,7 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
     'update_hooks_config', 'storage_update_row', 'storage_insert_row',
     'save_claude_md_file', 'slash_command_save',
     'create_agent', 'update_agent', 'import_agent',
+    'mcp_add', 'mcp_add_json', 'mcp_add_from_claude_desktop', 'mcp_remove',
   ];
   if (writeCommands.includes(command)) {
     const endpoint = mapCommandToEndpoint(command, params);

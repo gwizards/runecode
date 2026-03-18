@@ -1316,9 +1316,166 @@ export function devApiPlugin(): Plugin {
             res.end(JSON.stringify(fileAgents));
             return;
           }
-          // GET /api/mcp/servers and /api/mcp/status — read MCP config files
+          // MCP server management — POST, DELETE, GET
           // Also handle /api/commands/mcp (alias used by MCPServersSection sidebar)
           if (req.url?.startsWith("/api/mcp/") || req.url?.startsWith("/api/commands/mcp")) {
+
+            // POST /api/mcp/servers — add a new MCP server
+            if (req.method === 'POST' && (req.url === '/api/mcp/servers' || req.url?.startsWith('/api/mcp/servers?'))) {
+              let body = '';
+              req.on('data', (chunk: Buffer) => body += chunk.toString());
+              req.on('end', async () => {
+                try {
+                  const params = JSON.parse(body);
+                  const { name, transport, command, args, env, url, scope } = params;
+
+                  if (!name) {
+                    res.statusCode = 400;
+                    res.end(JSON.stringify({ success: false, message: 'Server name is required' }));
+                    return;
+                  }
+
+                  // Determine config file path based on scope
+                  const configPath = scope === 'project' && params.projectPath
+                    ? path.join(params.projectPath, '.mcp.json')
+                    : path.join(os.homedir(), '.claude', '.mcp.json');
+
+                  // Read existing config
+                  let config: Record<string, any> = {};
+                  try {
+                    if (fs.existsSync(configPath)) {
+                      const raw = fs.readFileSync(configPath, 'utf-8');
+                      config = JSON.parse(raw);
+                    }
+                  } catch { /* start fresh */ }
+
+                  // Ensure mcpServers key exists
+                  if (!config.mcpServers) config.mcpServers = {};
+
+                  // Add the new server
+                  const serverConfig: Record<string, any> = {};
+                  if (transport === 'stdio') {
+                    serverConfig.command = command || '';
+                    serverConfig.args = args || [];
+                  } else if (transport === 'sse') {
+                    serverConfig.type = 'sse';
+                    serverConfig.url = url || '';
+                  }
+                  if (env && Object.keys(env).length > 0) {
+                    serverConfig.env = env;
+                  }
+
+                  config.mcpServers[name] = serverConfig;
+
+                  // Ensure directory exists
+                  const configDir = path.dirname(configPath);
+                  if (!fs.existsSync(configDir)) {
+                    fs.mkdirSync(configDir, { recursive: true });
+                  }
+
+                  // Write config
+                  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+
+                  // Invalidate cache so next list reflects the change
+                  cachedInitData = null;
+
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ success: true, message: `Server "${name}" added`, server_name: name }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+
+            // POST /api/mcp/servers/json — add from JSON config
+            if (req.method === 'POST' && req.url?.startsWith('/api/mcp/servers/json')) {
+              let body = '';
+              req.on('data', (chunk: Buffer) => body += chunk.toString());
+              req.on('end', async () => {
+                try {
+                  const params = JSON.parse(body);
+                  const { name, jsonConfig, scope } = params;
+                  const serverConfig = typeof jsonConfig === 'string' ? JSON.parse(jsonConfig) : jsonConfig;
+
+                  const configPath = scope === 'project' && params.projectPath
+                    ? path.join(params.projectPath, '.mcp.json')
+                    : path.join(os.homedir(), '.claude', '.mcp.json');
+
+                  let config: Record<string, any> = {};
+                  try {
+                    if (fs.existsSync(configPath)) config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+                  } catch {}
+                  if (!config.mcpServers) config.mcpServers = {};
+                  config.mcpServers[name] = serverConfig;
+
+                  const configDir = path.dirname(configPath);
+                  if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+                  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+                  cachedInitData = null;
+
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ success: true, message: `Server "${name}" added from JSON`, server_name: name }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              });
+              return;
+            }
+
+            // POST /api/mcp/servers/{name} — remove an MCP server (mcp_remove goes through writeCommands as POST)
+            // Also handle DELETE /api/mcp/servers/{name}
+            if ((req.method === 'POST' || req.method === 'DELETE') && req.url?.match(/\/api\/mcp\/servers\/[^/]+/)) {
+              // For POST, read body to get params; for DELETE, extract name from URL
+              const urlServerName = decodeURIComponent(req.url.split('/api/mcp/servers/')[1].split('?')[0]);
+
+              const handleRemove = async (serverName: string) => {
+                try {
+                  // Try removing from user config
+                  const userConfigPath = path.join(os.homedir(), '.claude', '.mcp.json');
+                  let removed = false;
+
+                  if (fs.existsSync(userConfigPath)) {
+                    const config = JSON.parse(fs.readFileSync(userConfigPath, 'utf-8'));
+                    if (config.mcpServers && config.mcpServers[serverName]) {
+                      delete config.mcpServers[serverName];
+                      fs.writeFileSync(userConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+                      removed = true;
+                    }
+                  }
+
+                  // Invalidate cache
+                  cachedInitData = null;
+
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ success: true, message: removed ? `Removed "${serverName}"` : `"${serverName}" not found in user config` }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ success: false, message: err.message }));
+                }
+              };
+
+              if (req.method === 'DELETE') {
+                await handleRemove(urlServerName);
+              } else {
+                // POST — read body for name param, fall back to URL name
+                let body = '';
+                req.on('data', (chunk: Buffer) => body += chunk.toString());
+                req.on('end', async () => {
+                  try {
+                    const params = JSON.parse(body);
+                    await handleRemove(params.name || urlServerName);
+                  } catch {
+                    await handleRemove(urlServerName);
+                  }
+                });
+              }
+              return;
+            }
+
+            // GET handlers below
             const urlObj = new URL(req.url, "http://localhost");
 
             // Read and merge MCP configs from user and project level
