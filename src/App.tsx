@@ -12,7 +12,6 @@ import { Card } from "@/components/ui/card";
 import { ProjectList } from "@/components/ProjectList";
 import { FilePicker } from "@/components/FilePicker";
 import { SessionList } from "@/components/SessionList";
-import { CustomTitlebar } from "@/components/CustomTitlebar";
 import { ClaudeFileEditor } from "@/components/ClaudeFileEditor";
 import { CCAgents } from "@/components/CCAgents";
 import { ClaudeBinaryDialog } from "@/components/ClaudeBinaryDialog";
@@ -424,9 +423,6 @@ function AppContent() {
       <div className="mesh-orb-gold" aria-hidden="true" />
       <div className="grain-overlay" aria-hidden="true" />
 
-      {/* Custom Titlebar */}
-      <CustomTitlebar />
-      
       {/* Dev-mode backend status banner */}
       {isDevMode() && !backendConnected && (
         <div className="text-xs text-yellow-400 bg-yellow-500/10 px-3 py-1.5 text-center select-none">
