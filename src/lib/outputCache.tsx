@@ -3,7 +3,7 @@ import { api } from './api';
 
 // Use the same message interface as AgentExecution for consistency
 export interface ClaudeStreamMessage {
-  type: "system" | "assistant" | "user" | "result" | "summary" | "start" | "partial" | "response" | "error" | "output" | "session_info";
+  type: "system" | "assistant" | "user" | "result" | "summary" | "start" | "partial" | "response" | "error" | "output" | "session_info" | "rate_limit_event";
   subtype?: string;
   session_id?: string;
   project_id?: string;
@@ -138,7 +138,7 @@ export function OutputCacheProvider({ children }: OutputCacheProviderProps) {
 
   const pollRunningSessions = useCallback(async () => {
     try {
-      const runningSessions = await api.listRunningAgentSessions();
+      const runningSessions = await api.listRunningClaudeSessions();
       
       // Update cache for all running sessions
       for (const session of runningSessions) {
@@ -147,17 +147,20 @@ export function OutputCacheProvider({ children }: OutputCacheProviderProps) {
         }
       }
 
-      // Clean up cache for sessions that are no longer running
-      const runningIds = new Set(runningSessions.map(s => s.id).filter(Boolean));
-      setCache(prev => {
-        const updated = new Map();
-        for (const [sessionId, data] of prev) {
-          if (runningIds.has(sessionId) || data.status !== 'running') {
-            updated.set(sessionId, data);
+      // Only clean up if we got real data from the endpoint
+      // (empty array in web mode means the endpoint returned a stub, not that sessions stopped)
+      if (runningSessions.length > 0) {
+        const runningIds = new Set(runningSessions.map(s => s.id).filter(Boolean));
+        setCache(prev => {
+          const updated = new Map();
+          for (const [sessionId, data] of prev) {
+            if (runningIds.has(sessionId) || data.status !== 'running') {
+              updated.set(sessionId, data);
+            }
           }
-        }
-        return updated;
-      });
+          return updated;
+        });
+      }
     } catch (error) {
       console.warn('Failed to poll running sessions:', error);
     }
@@ -167,7 +170,7 @@ export function OutputCacheProvider({ children }: OutputCacheProviderProps) {
     if (pollingInterval) return;
 
     setIsPolling(true);
-    const interval = setInterval(pollRunningSessions, 3000); // Poll every 3 seconds
+    const interval = setInterval(pollRunningSessions, 15000); // Poll every 15 seconds
     setPollingInterval(interval);
   }, [pollingInterval, pollRunningSessions]);
 

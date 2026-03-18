@@ -223,7 +223,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
     if (isRunning && executionStartTime) {
       elapsedTimeIntervalRef.current = setInterval(() => {
         setElapsedTime(Math.floor((Date.now() - executionStartTime) / 1000));
-      }, 100);
+      }, 1000);
     } else {
       if (elapsedTimeIntervalRef.current) clearInterval(elapsedTimeIntervalRef.current);
     }

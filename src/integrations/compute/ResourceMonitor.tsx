@@ -54,7 +54,7 @@ export function useResourceMonitor() {
   const { data: resources = { cpuPercent: 0, ramPercent: 0, ramUsedGb: 0, ramTotalGb: 0, diskPercent: 0, diskUsedGb: 0, diskTotalGb: 0 } } = useQuery({
     queryKey: ['system-resources'],
     queryFn: fetchResources,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   return resources;
@@ -76,8 +76,8 @@ export function useDockerMonitor() {
   const { data: docker = emptyDocker } = useQuery({
     queryKey: ['docker-stats'],
     queryFn: fetchDocker,
-    refetchInterval: 8000,
-    staleTime: 5000,
+    refetchInterval: 30000,
+    staleTime: 15000,
   });
 
   return docker;
