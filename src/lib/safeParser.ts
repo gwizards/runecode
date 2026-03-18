@@ -83,7 +83,7 @@ export interface SafePluginGroup {
 export function safeParsePluginGroup(raw: any): SafePluginGroup | null {
   try {
     if (!raw || typeof raw !== 'object') return null;
-    const plugin = String(raw.plugin || raw.name || 'Unknown');
+    const plugin = String(raw.plugin || raw.plugin_name || raw.name || 'Unknown');
     const skills = Array.isArray(raw.skills)
       ? (raw.skills.map(safeParseSkill).filter(Boolean) as SafeSkill[])
       : [];
