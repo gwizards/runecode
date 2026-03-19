@@ -1852,16 +1852,39 @@ export function devApiPlugin(): Plugin {
 
           // GET /api/usage/window — plan info + rate limits + accumulated usage
           if (req.url?.startsWith("/api/usage/window")) {
-            checkWindowReset(); // Clear stale rate limit data if window expired
+            checkWindowReset();
             const initData = await getInitData();
+
+            // Fallback: if SDK account is empty, read from saved accounts
+            let subscriptionType = initData.account?.subscriptionType;
+            let email = initData.account?.email;
+            let organization = initData.account?.organization;
+
+            if (!subscriptionType) {
+              try {
+                const credPath = path.join(os.homedir(), ".claude", ".credentials.json");
+                if (fs.existsSync(credPath)) {
+                  const creds = JSON.parse(fs.readFileSync(credPath, "utf-8"));
+                  // Try active account from accounts store
+                  const accountsPath = path.join(os.homedir(), ".claude", ".runecode-accounts.json");
+                  if (fs.existsSync(accountsPath)) {
+                    const accounts = JSON.parse(fs.readFileSync(accountsPath, "utf-8"));
+                    const active = accounts.accounts?.find((a: any) => a.id === accounts.activeId);
+                    if (active) {
+                      subscriptionType = active.subscriptionType || subscriptionType;
+                      email = active.email || email;
+                      organization = active.organization || active.displayName || organization;
+                    }
+                  }
+                }
+              } catch { /* ignore */ }
+            }
+
             res.end(JSON.stringify({
-              // Plan info
-              subscriptionType: initData.account?.subscriptionType || "unknown",
-              email: initData.account?.email || null,
-              organization: initData.account?.organization || null,
-              // Rate limit
+              subscriptionType: subscriptionType || "unknown",
+              email: email || null,
+              organization: organization || null,
               rateLimitInfo: cachedRateLimitInfo || null,
-              // Accumulated usage across all sessions since server start
               usage: cachedTotalUsage,
             }));
             return;

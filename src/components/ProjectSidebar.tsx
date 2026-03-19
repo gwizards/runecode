@@ -250,7 +250,6 @@ export function ProjectSidebar({
                   <SectionDivider />
 
                   {/* ═══════ WORKSPACE ═══════ */}
-                  <GroupLabel>Workspace</GroupLabel>
 
 
 

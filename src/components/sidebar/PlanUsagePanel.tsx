@@ -142,9 +142,16 @@ export function PlanUsagePanel() {
             <><AlertTriangle className="h-2.5 w-2.5 text-yellow-400" /><span className="text-[9px] text-yellow-400">{hasUtilization ? `${Math.round(utilization * 100)}%` : 'Warning'}</span></>
           ) : rl ? (
             <><span className="h-1.5 w-1.5 rounded-full bg-green-400" /><span className="text-[9px] text-muted-foreground">{hasUtilization ? `${Math.round(utilization * 100)}%` : 'Active'}</span></>
-          ) : null}
+          ) : (
+            <><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /><span className="text-[9px] text-muted-foreground/50">Ready</span></>
+          )}
         </div>
       </div>
+
+      {/* Organization */}
+      {data?.organization && (
+        <div className="text-[9px] text-muted-foreground/40">{data.organization}{data?.email ? ` · ${data.email}` : ''}</div>
+      )}
 
       {/* Utilization bar — always show when we have data */}
       {hasUtilization && (
