@@ -105,6 +105,7 @@ export function EmbeddedTerminal({
       params.set('rows', String(term.rows));
 
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal?${params}`);
+      ws.binaryType = 'arraybuffer'; // Skip Blob conversion overhead
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -112,14 +113,13 @@ export function EmbeddedTerminal({
       };
 
       ws.onmessage = (event) => {
-        if (typeof event.data === 'string') {
-          if (event.data.startsWith('{')) {
-            try { if (JSON.parse(event.data).type === 'terminal_started') return; } catch {}
-          }
-          term.write(event.data);
-        } else if (event.data instanceof Blob) {
-          event.data.arrayBuffer().then(buf => term.write(new Uint8Array(buf)));
+        // Fast path: binary data goes directly to xterm
+        if (event.data instanceof ArrayBuffer) {
+          term.write(new Uint8Array(event.data));
+          return;
         }
+        // String data — write directly (skip JSON check for speed)
+        term.write(event.data);
       };
 
       ws.onclose = () => {

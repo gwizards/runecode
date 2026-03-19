@@ -2150,28 +2150,29 @@ export function devApiPlugin(): Plugin {
 
         // Raw keystrokes from xterm.js → child stdin
         ws.on("message", (data: Buffer | string) => {
+          // Fast path: short messages (keystrokes) go directly to stdin
           const str = typeof data === "string" ? data : data.toString();
-          // Check for JSON resize messages
-          if (str.startsWith("{")) {
-            try {
-              const msg = JSON.parse(str);
-              if (msg.type === "resize" && msg.cols && msg.rows) {
-                // Resize the script PTY via stty on the child's /proc fd
-                const c = terminalChildren.get(ws);
-                if (c && c.pid) {
-                  try {
-                    // Find the shell child of the script process
-                    const childPids = execSync(`pgrep -P ${c.pid} 2>/dev/null`, { encoding: "utf-8", timeout: 1000 }).trim();
-                    const firstChild = childPids.split("\n")[0];
-                    if (firstChild) {
-                      execSync(`stty cols ${msg.cols} rows ${msg.rows} < /proc/${firstChild}/fd/0`, { timeout: 1000 });
-                    }
-                  } catch { /* resize best-effort */ }
-                }
-                return;
-              }
-            } catch { /* not JSON, treat as raw input */ }
+          if (str.length < 3 || str.charCodeAt(0) !== 123) { // not '{' = not JSON
+            child.stdin?.write(str);
+            return;
           }
+          // Possible JSON control message (resize, etc.)
+          try {
+            const msg = JSON.parse(str);
+            if (msg.type === "resize" && msg.cols && msg.rows) {
+              const c = terminalChildren.get(ws);
+              if (c && c.pid) {
+                exec(`pgrep -P ${c.pid} 2>/dev/null`, { timeout: 1000 }, (err, stdout) => {
+                  if (err) return;
+                  const firstChild = stdout.trim().split("\n")[0];
+                  if (firstChild) {
+                    exec(`stty cols ${msg.cols} rows ${msg.rows} < /proc/${firstChild}/fd/0`, { timeout: 1000 });
+                  }
+                });
+              }
+              return;
+            }
+          } catch { /* not JSON */ }
           child.stdin?.write(str);
         });
 
