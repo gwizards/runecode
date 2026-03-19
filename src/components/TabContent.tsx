@@ -1,5 +1,4 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { motion } from 'motion/react';
 import { useTabState } from '@/hooks/useTabState';
 import { useScreenTracking } from '@/hooks/useAnalytics';
 import { Tab } from '@/contexts/TabContext';
@@ -31,6 +30,182 @@ interface TabPanelProps {
   isActive: boolean;
   /** In grid mode, only the focused tab owns the footer input. Defaults to isActive. */
   ownsFooter?: boolean;
+}
+
+/* ─── Project Session View — launch config + session list ─── */
+function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunch, onEditClaudeFile }: {
+  project: Project;
+  sessions: Session[];
+  loading: boolean;
+  error: string | null;
+  onBack: () => void;
+  onLaunch: (session: Session | null, mode: 'terminal' | 'web', flags: string[]) => void;
+  onEditClaudeFile: (file: ClaudeMdFile) => void;
+}) {
+  const [launchMode, setLaunchMode] = React.useState<'terminal' | 'web'>('terminal');
+  const [skipPermissions, setSkipPermissions] = React.useState(true);
+  const [teammateMode, setTeammateMode] = React.useState(true);
+  const [worktree, setWorktree] = React.useState(false);
+  const [customModel, setCustomModel] = React.useState('');
+
+  const buildFlags = (): string[] => {
+    const flags: string[] = [];
+    if (skipPermissions) flags.push('--dangerously-skip-permissions');
+    if (teammateMode) flags.push('--teammate-mode', 'tmux');
+    if (worktree) flags.push('--worktree');
+    if (customModel) flags.push('--model', customModel);
+    return flags;
+  };
+
+  const projectName = project.path.split('/').pop() || 'Project';
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 -ml-2">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{projectName}</h1>
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">{project.path}</p>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        {/* Launch Configuration */}
+        <div className="rounded-lg border border-border/30 bg-muted/5 p-4 space-y-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            Launch Configuration
+          </h3>
+
+          {/* Mode selector */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setLaunchMode('terminal')}
+              className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                launchMode === 'terminal'
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'border-border/30 text-muted-foreground hover:border-border/50 hover:bg-muted/30'
+              }`}
+            >
+              <TerminalSquare className="h-4 w-4" />
+              <div className="text-left">
+                <div>Terminal Mode</div>
+                <div className="text-[10px] opacity-60 font-normal">Full Claude Code TUI</div>
+              </div>
+            </button>
+            <button
+              onClick={() => setLaunchMode('web')}
+              className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                launchMode === 'web'
+                  ? 'border-blue-500/40 bg-blue-500/10 text-blue-400'
+                  : 'border-border/30 text-muted-foreground hover:border-border/50 hover:bg-muted/30'
+              }`}
+            >
+              <Globe className="h-4 w-4" />
+              <div className="text-left">
+                <div>Web Mode</div>
+                <div className="text-[10px] opacity-60 font-normal">Experimental rich UI</div>
+              </div>
+            </button>
+          </div>
+
+          {/* Terminal options — only when terminal mode selected */}
+          {launchMode === 'terminal' && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                <input type="checkbox" checked={skipPermissions} onChange={(e) => setSkipPermissions(e.target.checked)} className="rounded border-border" />
+                <div>
+                  <span className="font-medium">Bypass Permissions</span>
+                  <p className="text-[10px] text-muted-foreground/50">Auto-approve all tools</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                <input type="checkbox" checked={teammateMode} onChange={(e) => setTeammateMode(e.target.checked)} className="rounded border-border" />
+                <div>
+                  <span className="font-medium">Team Mode (tmux)</span>
+                  <p className="text-[10px] text-muted-foreground/50">Teammate interface via tmux</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} className="rounded border-border" />
+                <div>
+                  <span className="font-medium">Git Worktree</span>
+                  <p className="text-[10px] text-muted-foreground/50">Isolated git worktree</p>
+                </div>
+              </label>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="flex-1">
+                  <span className="font-medium">Model Override</span>
+                  <select
+                    value={customModel}
+                    onChange={(e) => setCustomModel(e.target.value)}
+                    className="mt-1 w-full px-2 py-1 rounded border border-border/30 bg-background text-xs"
+                  >
+                    <option value="">Default</option>
+                    <option value="sonnet">Sonnet</option>
+                    <option value="opus">Opus</option>
+                    <option value="haiku">Haiku</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Launch new session button */}
+          <Button
+            onClick={() => onLaunch(null, launchMode, buildFlags())}
+            size="default"
+            className="w-full"
+          >
+            {launchMode === 'terminal' ? <TerminalSquare className="mr-2 h-4 w-4" /> : <Globe className="mr-2 h-4 w-4" />}
+            New {launchMode === 'terminal' ? 'Terminal' : 'Web'} Session
+          </Button>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Sessions */}
+        {!loading && sessions.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-muted-foreground">
+              Resume a session
+            </h3>
+            <SessionList
+              sessions={sessions}
+              projectPath={project.path}
+              onSessionClick={(session) => onLaunch(session, launchMode, buildFlags())}
+              onEditClaudeFile={onEditClaudeFile}
+            />
+          </div>
+        )}
+
+        {!loading && sessions.length === 0 && (
+          <div className="text-center py-8 text-sm text-muted-foreground/50">
+            No previous sessions. Click above to start a new one.
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFooter }) => {
@@ -152,38 +327,6 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
     }
   };
 
-  const handleNewSession = (mode: 'terminal' | 'web' = 'terminal') => {
-    if (selectedProject) {
-      const projectName = selectedProject.path.split('/').pop() || 'Session';
-      if (mode === 'terminal') {
-        updateTab(tab.id, {
-          type: 'claude-terminal',
-          title: projectName,
-          sessionId: undefined,
-          projectPath: selectedProject.path,
-          initialProjectPath: selectedProject.path,
-          terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
-        });
-        return;
-      }
-      updateTab(tab.id, {
-        type: 'chat',
-        title: projectName,
-        sessionId: undefined,
-        sessionData: undefined,
-        initialProjectPath: selectedProject.path
-      });
-    } else {
-      updateTab(tab.id, {
-        type: 'chat',
-        title: 'New Session',
-        sessionId: undefined,
-        sessionData: undefined,
-        initialProjectPath: undefined
-      });
-    }
-  };
-  
   // Panel visibility — use offscreen positioning instead of display:none so
   // the scroll container keeps its dimensions and the virtualizer measurements
   // survive tab switches.  This prevents the "jump to middle" scroll reset.
@@ -198,108 +341,42 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
           <div className="h-full">
               {/* Content based on selection */}
               {selectedProject ? (
-                <div className="h-full overflow-y-auto">
-                  <div className="max-w-6xl mx-auto p-6">
-                    <div className="mb-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <motion.div
-                            whileTap={{ scale: 0.97 }}
-                            transition={{ duration: 0.15 }}
-                          >
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedProject(null);
-                                setSessions([]);
-                                // Restore tab title to "Projects"
-                                updateTab(tab.id, {
-                                  title: 'Projects'
-                                });
-                              }}
-                              className="h-8 w-8 -ml-2"
-                              title="Back to Projects"
-                            >
-                              <ArrowLeft className="h-4 w-4" />
-                            </Button>
-                          </motion.div>
-                          <div>
-                            <h1 className="text-3xl font-bold tracking-tight">
-                              {selectedProject.path.split('/').pop()}
-                            </h1>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {`${sessions.length} session${sessions.length !== 1 ? 's' : ''}`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => handleNewSession('terminal')}
-                            size="default"
-                          >
-                            <TerminalSquare className="mr-2 h-4 w-4" />
-                            New Terminal Session
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => handleNewSession('web')}
-                            size="default"
-                            title="Experimental web-based UI"
-                          >
-                            <Globe className="mr-2 h-4 w-4" />
-                            Web Mode
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Error display */}
-                    {error && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.15 }}
-                        className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive"
-                      >
-                        {error}
-                      </motion.div>
-                    )}
-
-                    {/* Loading state */}
-                    {loading && (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-
-                    {/* Session List */}
-                    {!loading && (
-                      <SessionList
-                        sessions={sessions}
-                        projectPath={selectedProject.path}
-                        onSessionClick={(session) => {
-                          // Default: open in terminal mode with --resume
-                          updateTab(tab.id, {
-                            type: 'claude-terminal',
-                            title: session.project_path.split('/').pop() || 'Session',
-                            sessionId: session.id,
-                            sessionData: session,
-                            projectPath: session.project_path,
-                            initialProjectPath: session.project_path,
-                            terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
-                          });
-                        }}
-                        onEditClaudeFile={(file: ClaudeMdFile) => {
-                          // Open CLAUDE.md file in a new tab
-                          window.dispatchEvent(new CustomEvent('open-claude-file', { 
-                            detail: { file } 
-                          }));
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
+                <ProjectSessionView
+                  project={selectedProject}
+                  sessions={sessions}
+                  loading={loading}
+                  error={error}
+                  onBack={() => {
+                    setSelectedProject(null);
+                    setSessions([]);
+                    updateTab(tab.id, { title: 'Projects' });
+                  }}
+                  onLaunch={(session, mode, flags) => {
+                    const title = selectedProject.path.split('/').pop() || 'Session';
+                    if (mode === 'terminal') {
+                      updateTab(tab.id, {
+                        type: 'claude-terminal',
+                        title,
+                        sessionId: session?.id,
+                        sessionData: session,
+                        projectPath: selectedProject.path,
+                        initialProjectPath: selectedProject.path,
+                        terminalFlags: flags,
+                      });
+                    } else {
+                      updateTab(tab.id, {
+                        type: 'chat',
+                        title,
+                        sessionId: session?.id,
+                        sessionData: session,
+                        initialProjectPath: selectedProject.path,
+                      });
+                    }
+                  }}
+                  onEditClaudeFile={(file: ClaudeMdFile) => {
+                    window.dispatchEvent(new CustomEvent('open-claude-file', { detail: { file } }));
+                  }}
+                />
               ) : (
                 /* Projects List View */
                 <>
