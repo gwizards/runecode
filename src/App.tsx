@@ -151,8 +151,11 @@ function AppContent() {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const modKey = isMac ? e.metaKey : e.ctrlKey;
 
-      // Shift+Tab — always cycle to next tab, even from input
+      // Shift+Tab — cycle tabs in single mode, grid handles its own cycling
       if (e.key === 'Tab' && e.shiftKey && !modKey) {
+        // Check if grid mode is active — let the grid's own handler deal with it
+        const gridMode = localStorage.getItem('runecode-layout-mode');
+        if (gridMode === 'grid') return; // Grid handler in TabContent.tsx handles this
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('switch-to-next-tab'));
         setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);

@@ -750,10 +750,13 @@ export const TabContent: React.FC = () => {
       // Shift+Tab cycles focus forward, Ctrl+Shift+Tab cycles backward
       if (e.key === 'Tab' && e.shiftKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
+        e.stopPropagation();
         const currentIdx = orderedGridTabs.findIndex(t => t.id === activeTabId);
         const delta = e.ctrlKey ? -1 : 1;
         const nextIdx = (currentIdx + delta + orderedGridTabs.length) % orderedGridTabs.length;
         switchToTab(orderedGridTabs[nextIdx].id);
+        // Focus the terminal/prompt in the new cell
+        setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);
         return;
       }
       // Ctrl+1..9 jumps to specific grid tab
