@@ -867,17 +867,25 @@ export const TabContent: React.FC = () => {
   }, [layoutMode, tabs, switchToTab]);
 
   if (layoutMode === 'grid' && orderedGridTabs.length === 0) {
+    const hasNonGrid = nonGridTabs.some(t => t.id === activeTabId);
     return (
       <div className="flex-1 h-full relative flex flex-col">
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <div className="text-center">
-            <p className="text-lg mb-2">No windows open</p>
-            <p className="text-sm mb-4">Open a project to add it to the grid</p>
-            <Button onClick={() => createProjectsTab()} size="default">
-              <Plus className="w-4 h-4 mr-2" /> New Project
-            </Button>
+        {/* Show active non-grid tab (projects, settings) if one is selected */}
+        {hasNonGrid ? (
+          nonGridTabs.map((tab) => (
+            <TabPanel key={tab.id} tab={tab} isActive={tab.id === activeTabId} />
+          ))
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="text-center">
+              <p className="text-lg mb-2">No windows in grid</p>
+              <p className="text-sm mb-4">Open a project to get started</p>
+              <Button onClick={() => createProjectsTab()} size="default">
+                <Plus className="w-4 h-4 mr-2" /> New Project
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
