@@ -56,8 +56,12 @@ export function EmbeddedTerminal({
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(containerRef.current);
-    fitAddon.fit();
-    termRef.current = term;
+
+    // Delay fit to ensure the container has its final layout dimensions
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+      termRef.current = term;
+    });
 
     // Build WebSocket URL with query params
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -74,6 +78,11 @@ export function EmbeddedTerminal({
 
     ws.onopen = () => {
       term.writeln('\x1b[90m— Connected to Claude CLI —\x1b[0m\r\n');
+      // Re-fit and send actual dimensions after connection
+      requestAnimationFrame(() => {
+        fitAddon.fit();
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      });
     };
 
     ws.onmessage = (event) => {
@@ -151,7 +160,7 @@ export function EmbeddedTerminal({
     <div
       ref={containerRef}
       className={`w-full h-full overflow-hidden ${className}`}
-      style={{ background: '#0a0a0f' }}
+      style={{ background: '#0a0a0f', minWidth: 0 }}
     />
   );
 }
