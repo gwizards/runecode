@@ -2094,7 +2094,7 @@ export function devApiPlugin(): Plugin {
           const claudeArgs: string[] = [];
           if (sessionId) {
             // Verify the session file exists before using --resume
-            const projectId = projectPath.replace(/\//g, '-').replace(/^-/, '');
+            const projectId = projectPath.replace(/\//g, '-');
             const sessionFile = path.join(os.homedir(), ".claude", "projects", projectId, `${sessionId}.jsonl`);
             if (fs.existsSync(sessionFile)) {
               claudeArgs.push("--resume", sessionId);
