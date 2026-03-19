@@ -175,12 +175,19 @@ const FloatingPromptInputInner = (
   const [dragActive, setDragActive] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
+  // Available commands context for autocomplete when typing /
+  const commandsContext = React.useMemo(() =>
+    '/help /clear /compact /review /init /config /cost /doctor /memory /model /permissions /status /undo /pr-comments /bug /login /logout /fast /think /listen /vim /terminal-setup',
+    []
+  );
+
   // AI autocomplete ghost text
   const autocomplete = useAiAutocomplete({
     text: prompt,
     cursorPos: cursorPosition,
     projectPath,
     conversationContext,
+    availableCommands: commandsContext,
   });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);

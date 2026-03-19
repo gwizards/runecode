@@ -1930,14 +1930,23 @@ export function devApiPlugin(): Plugin {
                 const abort = new AbortController();
                 _autocompleteAbort = abort;
 
-                const prompt = `Complete this text: "${prefix}"${suffix ? ` [cursor] "${suffix}"` : ''}`;
+                // Build context-aware prompt
+                const contextParts: string[] = [];
+                if (body.conversationContext) {
+                  contextParts.push(`Recent conversation:\n${body.conversationContext}`);
+                }
+                if (body.availableCommands && prefix.startsWith('/')) {
+                  contextParts.push(`Available commands: ${body.availableCommands}`);
+                }
+                const contextBlock = contextParts.length > 0 ? contextParts.join('\n\n') + '\n\n' : '';
+                const prompt = `${contextBlock}Complete this text: "${prefix}"${suffix ? ` [cursor] "${suffix}"` : ''}`;
 
                 const q = sdkQuery({
                   prompt,
                   options: {
                     maxTurns: 1,
                     model: 'haiku',
-                    systemPrompt: 'Output ONLY the completion text. No quotes, no formatting. Under 20 words.',
+                    systemPrompt: 'You are an autocomplete engine for a Claude Code IDE. Output ONLY the completion text — no quotes, no formatting, no explanation. Under 20 words. If the user is typing a slash command (/), suggest the matching command name.',
                     tools: [], // empty = no tools available, forces pure text response
                     settingSources: [],
                     permissionMode: 'auto',
