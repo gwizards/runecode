@@ -10,6 +10,8 @@ interface EmbeddedTerminalProps {
   projectPath?: string;
   /** Extra CLI flags (e.g., --dangerously-skip-permissions) */
   flags?: string[];
+  /** Tab ID — used to determine if this terminal should receive focus */
+  tabId?: string;
   /** Called when the process exits */
   onExit?: () => void;
   /** Extra CSS classes */
@@ -20,6 +22,7 @@ export function EmbeddedTerminal({
   sessionId,
   projectPath,
   flags,
+  tabId,
   onExit,
   className = '',
 }: EmbeddedTerminalProps) {
@@ -122,8 +125,13 @@ export function EmbeddedTerminal({
     });
     ro.observe(containerRef.current);
 
-    // Focus terminal when tab is switched to (Shift+Tab)
-    const handleFocus = () => term.focus();
+    // Focus terminal when its tab becomes active (Tab key cycling)
+    const handleFocus = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      // If event specifies a target tab, only focus if it matches
+      if (detail?.tabId && tabId && detail.tabId !== tabId) return;
+      term.focus();
+    };
     window.addEventListener('runecode:focus-prompt', handleFocus);
 
     // Auto-focus on mount

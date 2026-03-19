@@ -295,6 +295,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
       const nextIndex = (currentIndex + 1) % tabs.length;
       if (tabs[nextIndex]) {
         switchToTab(tabs[nextIndex].id);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt', { detail: { tabId: tabs[nextIndex].id } })), 50);
       }
     };
 
@@ -303,6 +304,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
       const previousIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
       if (tabs[previousIndex]) {
         switchToTab(tabs[previousIndex].id);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt', { detail: { tabId: tabs[previousIndex].id } })), 50);
       }
     };
 

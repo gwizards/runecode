@@ -581,6 +581,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
               sessionId={tab.sessionId}
               projectPath={tab.projectPath || tab.initialProjectPath}
               flags={tab.terminalFlags}
+              tabId={tab.id}
             />
           </div>
         );
@@ -870,8 +871,9 @@ export const TabContent: React.FC = () => {
         const currentIdx = orderedGridTabs.findIndex(t => t.id === activeTabId);
         const delta = e.shiftKey ? -1 : 1;
         const nextIdx = (currentIdx + delta + orderedGridTabs.length) % orderedGridTabs.length;
-        switchToTab(orderedGridTabs[nextIdx].id);
-        setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);
+        const nextTabId = orderedGridTabs[nextIdx].id;
+        switchToTab(nextTabId);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt', { detail: { tabId: nextTabId } })), 50);
         return;
       }
       // Ctrl+1..9 jumps to specific grid tab

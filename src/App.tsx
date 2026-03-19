@@ -164,7 +164,6 @@ function AppContent() {
 
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('switch-to-next-tab'));
-        setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);
         return;
       }
 
