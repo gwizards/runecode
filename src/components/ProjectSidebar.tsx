@@ -4,10 +4,10 @@ import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { PlanUsagePanel } from "./sidebar/PlanUsagePanel";
 import { EnvironmentSelector } from "./sidebar/EnvironmentSelector";
-import { ActiveSessions } from "./sidebar/ActiveSessions";
 import { RecentFiles } from "./sidebar/RecentFiles";
 import { SidebarBookmarks } from "./sidebar/SidebarBookmarks";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
+import { DockerSection } from "../integrations/compute/DockerSection";
 import { SecurityWarning } from "../integrations/security/SecurityWarning";
 import { useEnvScanner } from "../integrations/security/useEnvScanner";
 
@@ -252,9 +252,6 @@ export function ProjectSidebar({
                   {/* ═══════ WORKSPACE ═══════ */}
                   <GroupLabel>Workspace</GroupLabel>
 
-                  <SectionErrorBoundary>
-                    <ActiveSessions />
-                  </SectionErrorBoundary>
 
 
 
@@ -281,6 +278,10 @@ export function ProjectSidebar({
                       <ResourcesSection />
                     </SectionErrorBoundary>
                   </div>
+
+                  <SectionErrorBoundary>
+                    <DockerSection />
+                  </SectionErrorBoundary>
 
 
                 </div>
