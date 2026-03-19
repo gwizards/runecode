@@ -175,6 +175,97 @@ function invalidateSessionsCache() {
   _sessionsCache = null;
 }
 
+// ---------------------------------------------------------------------------
+// Loop Manager — runs Claude Code repeatedly to complete a plan autonomously
+// ---------------------------------------------------------------------------
+
+interface LoopState {
+  id: string;
+  projectPath: string;
+  status: 'running' | 'paused' | 'completed' | 'failed' | 'stopped';
+  iterations: number;
+  maxIterations: number;
+  prompt: string;
+  lastOutput: string;
+  startTime: number;
+  elapsedMs: number;
+  error?: string;
+}
+
+const activeLoops = new Map<string, { state: LoopState; abort: AbortController; child?: any }>();
+
+async function runLoop(loopId: string, model?: string) {
+  const entry = activeLoops.get(loopId);
+  if (!entry) return;
+  const { state, abort } = entry;
+
+  while (state.iterations < state.maxIterations && state.status === 'running') {
+    if (abort.signal.aborted) { state.status = 'stopped'; break; }
+
+    state.iterations++;
+    console.log(`[loop] ${loopId} iteration ${state.iterations}/${state.maxIterations}`);
+
+    try {
+      const claudeArgs = ['-p', '--continue', '--dangerously-skip-permissions'];
+      if (model) claudeArgs.push('--model', model);
+
+      const child = spawn('claude', claudeArgs, {
+        cwd: state.projectPath,
+        env: { ...process.env, TERM: 'dumb' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      entry.child = child;
+
+      // Send the prompt
+      child.stdin?.write(state.prompt);
+      child.stdin?.end();
+
+      // Collect output
+      let output = '';
+      child.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
+      child.stderr?.on('data', (data: Buffer) => { output += data.toString(); });
+
+      // Wait for completion
+      const exitCode = await new Promise<number>((resolve) => {
+        child.on('exit', (code: number | null) => resolve(code ?? 1));
+        // Timeout after 10 minutes per iteration
+        setTimeout(() => { try { child.kill('SIGTERM'); } catch {} resolve(1); }, 600_000);
+      });
+
+      entry.child = null;
+      state.lastOutput = output.slice(-2000); // Keep last 2KB
+      state.elapsedMs = Date.now() - state.startTime;
+
+      // Check for completion
+      if (output.includes('LOOP_COMPLETE') || output.includes('nothing left to do') || output.includes('all tasks are complete')) {
+        state.status = 'completed';
+        console.log(`[loop] ${loopId} completed after ${state.iterations} iterations`);
+        break;
+      }
+
+      if (exitCode !== 0 && exitCode !== undefined) {
+        state.error = `Exit code ${exitCode}`;
+        // Don't fail on non-zero — claude -p returns non-zero on some completions
+      }
+
+      // Brief pause between iterations
+      await new Promise(r => setTimeout(r, 2000));
+
+    } catch (err: any) {
+      if (abort.signal.aborted) { state.status = 'stopped'; break; }
+      state.error = err.message;
+      state.status = 'failed';
+      break;
+    }
+  }
+
+  if (state.status === 'running') {
+    state.status = state.iterations >= state.maxIterations ? 'completed' : 'stopped';
+  }
+  state.elapsedMs = Date.now() - state.startTime;
+  console.log(`[loop] ${loopId} finished: ${state.status}, ${state.iterations} iterations, ${(state.elapsedMs / 1000).toFixed(0)}s`);
+}
+
 async function listProjects(): Promise<ProjectEntry[]> {
   const allSessions = await cachedListSessions();
 
@@ -2180,6 +2271,90 @@ export function devApiPlugin(): Plugin {
                 res.end(JSON.stringify({ success: false, message: err.message }));
               }
             });
+            return;
+          }
+
+          // ─── Loop Manager ───
+
+          // POST /api/loops/start
+          if (req.url === "/api/loops/start" && req.method === "POST") {
+            let body = '';
+            req.on('data', (chunk: Buffer) => body += chunk.toString());
+            req.on('end', async () => {
+              try {
+                const params = JSON.parse(body);
+                const { projectPath, prompt, maxIterations = 25, model } = params;
+
+                const loopId = `loop_${Date.now()}`;
+                const abort = new AbortController();
+
+                const state: LoopState = {
+                  id: loopId,
+                  projectPath,
+                  status: 'running',
+                  iterations: 0,
+                  maxIterations,
+                  prompt: prompt || 'Continue working on the current task. Review what has been done so far and continue with the next steps. If everything is complete and there is nothing left to do, respond with exactly: LOOP_COMPLETE',
+                  lastOutput: '',
+                  startTime: Date.now(),
+                  elapsedMs: 0,
+                };
+
+                activeLoops.set(loopId, { state, abort });
+
+                // Start the loop asynchronously
+                runLoop(loopId, model);
+
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true, loopId, state }));
+              } catch (err: any) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, message: err.message }));
+              }
+            });
+            return;
+          }
+
+          // POST /api/loops/stop
+          if (req.url === "/api/loops/stop" && req.method === "POST") {
+            let body = '';
+            req.on('data', (chunk: Buffer) => body += chunk.toString());
+            req.on('end', () => {
+              try {
+                const { loopId } = JSON.parse(body);
+                const loop = activeLoops.get(loopId);
+                if (loop) {
+                  loop.abort.abort();
+                  loop.state.status = 'stopped';
+                  loop.state.elapsedMs = Date.now() - loop.state.startTime;
+                  if (loop.child) { try { loop.child.kill('SIGTERM'); } catch {} }
+                }
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true }));
+              } catch (err: any) {
+                res.end(JSON.stringify({ success: false, message: err.message }));
+              }
+            });
+            return;
+          }
+
+          // GET /api/loops/status
+          if (req.url?.startsWith("/api/loops/status")) {
+            const states = Array.from(activeLoops.values()).map(l => ({
+              ...l.state,
+              elapsedMs: l.state.status === 'running' ? Date.now() - l.state.startTime : l.state.elapsedMs,
+            }));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(states));
+            return;
+          }
+
+          // DELETE /api/loops/{id}
+          if (req.method === "DELETE" && req.url?.startsWith("/api/loops/")) {
+            const loopId = decodeURIComponent(req.url.split("/api/loops/")[1]);
+            activeLoops.delete(loopId);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
             return;
           }
 

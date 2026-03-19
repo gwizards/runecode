@@ -10,6 +10,7 @@ import { ResourcesSection } from "../integrations/compute/ResourcesSection";
 import { DockerSection } from "../integrations/compute/DockerSection";
 import { SecurityWarning } from "../integrations/security/SecurityWarning";
 import { useEnvScanner } from "../integrations/security/useEnvScanner";
+import { LoopsSection } from "./sidebar/LoopsSection";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
 const LS_KEY_OPEN = "runecode-sidebar-open";
@@ -265,6 +266,10 @@ export function ProjectSidebar({
 
                   <SectionErrorBoundary>
                     <SidebarBookmarks />
+                  </SectionErrorBoundary>
+
+                  <SectionErrorBoundary>
+                    <LoopsSection projectPath={projectPath} />
                   </SectionErrorBoundary>
 
                   <SectionDivider />
