@@ -1979,6 +1979,19 @@ export function devApiPlugin(): Plugin {
             return;
           }
 
+          // GET /api/check/tmux — check if tmux is installed
+          if (req.url?.startsWith("/api/check/tmux")) {
+            try {
+              execSync("which tmux", { timeout: 3000 });
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ installed: true }));
+            } catch {
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ installed: false }));
+            }
+            return;
+          }
+
           // POST /api/environments/test — test remote environment connectivity
           if (req.url === "/api/environments/test" && req.method === "POST") {
             const chunks: Buffer[] = [];

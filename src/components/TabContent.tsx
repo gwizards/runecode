@@ -47,6 +47,14 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
   const [teammateMode, setTeammateMode] = React.useState(true);
   const [worktree, setWorktree] = React.useState(false);
   const [customModel, setCustomModel] = React.useState('');
+  const [tmuxInstalled, setTmuxInstalled] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    fetch('/api/check/tmux').then(r => r.json()).then(d => {
+      setTmuxInstalled(d.installed);
+      if (!d.installed) setTeammateMode(false);
+    }).catch(() => {});
+  }, []);
 
   const buildFlags = (): string[] => {
     const flags: string[] = [];
@@ -126,13 +134,39 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
                   <p className="text-[10px] text-muted-foreground/50">Auto-approve all tools</p>
                 </div>
               </label>
-              <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                <input type="checkbox" checked={teammateMode} onChange={(e) => setTeammateMode(e.target.checked)} className="rounded border-border" />
-                <div>
-                  <span className="font-medium">Team Mode (tmux)</span>
-                  <p className="text-[10px] text-muted-foreground/50">Teammate interface via tmux</p>
-                </div>
-              </label>
+              <div className="flex items-center gap-2 text-xs select-none">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={teammateMode}
+                    onChange={(e) => setTeammateMode(e.target.checked)}
+                    disabled={tmuxInstalled === false}
+                    className="rounded border-border"
+                  />
+                  <div>
+                    <span className="font-medium">Team Mode (tmux)</span>
+                    {tmuxInstalled === false ? (
+                      <p className="text-[10px] text-red-400/80">
+                        tmux not installed —{' '}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            // Open a shell terminal to install tmux
+                            window.dispatchEvent(new CustomEvent('open-claude-terminal', {
+                              detail: { flags: ['--shell'] }
+                            }));
+                          }}
+                          className="underline hover:text-red-300 transition-colors"
+                        >
+                          open terminal to install
+                        </button>
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground/50">Teammate interface via tmux</p>
+                    )}
+                  </div>
+                </label>
+              </div>
               <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                 <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} className="rounded border-border" />
                 <div>
