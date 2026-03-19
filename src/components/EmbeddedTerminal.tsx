@@ -122,7 +122,15 @@ export function EmbeddedTerminal({
     });
     ro.observe(containerRef.current);
 
+    // Focus terminal when tab is switched to (Shift+Tab)
+    const handleFocus = () => term.focus();
+    window.addEventListener('runecode:focus-prompt', handleFocus);
+
+    // Auto-focus on mount
+    term.focus();
+
     return () => {
+      window.removeEventListener('runecode:focus-prompt', handleFocus);
       ro.disconnect();
       ws.close();
       term.dispose();

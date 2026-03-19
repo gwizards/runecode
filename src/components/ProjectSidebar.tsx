@@ -2,18 +2,11 @@ import { Component, type ReactNode, useState, useEffect, useRef, useCallback } f
 import { RuneCodeLogo } from "./RuneCodeLogo";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
-import { SkillsCatalogSection } from "./sidebar/SkillsCatalogSection";
 import { PlanUsagePanel } from "./sidebar/PlanUsagePanel";
 import { EnvironmentSelector } from "./sidebar/EnvironmentSelector";
-import { MCPServersSection } from "./sidebar/MCPServersSection";
-import { AgentsSection } from "./sidebar/AgentsSection";
-import { PluginsSection } from "./sidebar/PluginsSection";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
-import { DockerSection } from "../integrations/compute/DockerSection";
-import { LocalModelSection } from "./sidebar/LocalModelSection";
 import { SecurityWarning } from "../integrations/security/SecurityWarning";
 import { useEnvScanner } from "../integrations/security/useEnvScanner";
-import { useSessionStore } from "../stores/sessionStore";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
 const LS_KEY_OPEN = "runecode-sidebar-open";
@@ -68,7 +61,6 @@ class SectionErrorBoundary extends Component<
 export function ProjectSidebar({
   projectPath = "",
 }: ProjectSidebarProps) {
-  const activeSkills = useSessionStore((state) => state.activeSkills);
   const envScan = useEnvScanner(projectPath);
   const [isOpen, setIsOpen] = useState(() => {
     try {
@@ -263,41 +255,6 @@ export function ProjectSidebar({
                     </SectionErrorBoundary>
                   </div>
 
-                  <div ref={(el) => { sectionRefs.current["docker"] = el; }}>
-                    <SectionErrorBoundary>
-                      <DockerSection />
-                    </SectionErrorBoundary>
-                  </div>
-
-                  <div ref={(el) => { sectionRefs.current["local-model"] = el; }}>
-                    <SectionErrorBoundary>
-                      <LocalModelSection />
-                    </SectionErrorBoundary>
-                  </div>
-
-                  <div ref={(el) => { sectionRefs.current["agents"] = el; }}>
-                    <SectionErrorBoundary>
-                      <AgentsSection />
-                    </SectionErrorBoundary>
-                  </div>
-
-                  <div ref={(el) => { sectionRefs.current["mcp"] = el; }}>
-                    <SectionErrorBoundary>
-                      <MCPServersSection />
-                    </SectionErrorBoundary>
-                  </div>
-
-                  <div ref={(el) => { sectionRefs.current["plugins"] = el; }}>
-                    <SectionErrorBoundary>
-                      <PluginsSection />
-                    </SectionErrorBoundary>
-                  </div>
-
-                  <div ref={(el) => { sectionRefs.current["skills"] = el; }}>
-                    <SectionErrorBoundary>
-                      <SkillsCatalogSection activeSkills={activeSkills} />
-                    </SectionErrorBoundary>
-                  </div>
 
                 </div>
 
