@@ -2079,7 +2079,18 @@ export function devApiPlugin(): Plugin {
           console.log("[dev-api] Terminal spawn: shell", userShell, "cwd:", projectPath);
         } else {
           const claudeArgs: string[] = [];
-          if (sessionId) claudeArgs.push("--resume", sessionId);
+          if (sessionId) {
+            // Verify the session file exists before using --resume
+            const projectId = projectPath.replace(/\//g, '-').replace(/^-/, '');
+            const sessionFile = path.join(os.homedir(), ".claude", "projects", projectId, `${sessionId}.jsonl`);
+            if (fs.existsSync(sessionFile)) {
+              claudeArgs.push("--resume", sessionId);
+            } else {
+              // Session not on disk — use --continue to resume most recent, or start fresh
+              console.log("[dev-api] Session file not found:", sessionFile, "— using --continue");
+              claudeArgs.push("--continue");
+            }
+          }
           for (const flag of extraFlags) {
             if (flag !== "--shell") claudeArgs.push(flag);
           }
