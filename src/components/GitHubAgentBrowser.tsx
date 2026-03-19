@@ -306,7 +306,7 @@ export const GitHubAgentBrowser: React.FC<GitHubAgentBrowserProps> = ({
                     {/* Agent Info */}
                     <div className="flex items-start gap-4">
                       <div className="p-3 rounded-lg bg-primary/10 text-primary">
-                        {renderIcon(selectedAgent.data.agent.icon)}
+                        {renderIcon('bot')}
                       </div>
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold">
@@ -328,15 +328,7 @@ export const GitHubAgentBrowser: React.FC<GitHubAgentBrowserProps> = ({
                       </div>
                     </div>
 
-                    {/* Default Task */}
-                    {selectedAgent.data.agent.default_task && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">Default Task</h4>
-                        <div className="bg-muted rounded-lg p-3">
-                          <p className="text-sm">{selectedAgent.data.agent.default_task}</p>
-                        </div>
-                      </div>
-                    )}
+                    {/* Default Task placeholder removed - property no longer exists on AgentExport */}
 
 
 

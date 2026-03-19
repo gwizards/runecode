@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +23,85 @@ import type { SlashCommand } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { safeParseCommand, safeParseSkill, toSlashCommand } from "@/lib/safeParser";
 import { useTrackEvent, useFeatureAdoptionTracking } from "@/hooks";
+
+// Module-level cache so re-opening the picker is instant
+interface CommandCache {
+  commands: SlashCommand[];
+  agents: AgentInfo[];
+  mcpServers: McpServerInfo[];
+  projectPath: string | undefined;
+}
+let commandCache: CommandCache | null = null;
+let loadingPromise: Promise<CommandCache> | null = null;
+
+async function fetchAllCommandData(projectPath: string | undefined): Promise<CommandCache> {
+  const allCommands: SlashCommand[] = [...BUILTIN_COMMANDS_FALLBACK];
+
+  // Run all 4 API calls in parallel
+  const [builtinResult, customResult, agentsResult, mcpResult, skillsResult] =
+    await Promise.allSettled([
+      fetch('/api/commands/builtin').then(r => r.ok ? r.json() : null),
+      api.slashCommandsList(projectPath),
+      fetch('/api/commands/agents').then(r => r.ok ? r.json() : null),
+      fetch('/api/commands/mcp').then(r => r.ok ? r.json() : null),
+      fetch('/api/skills').then(r => r.ok ? r.json() : null),
+    ]);
+
+  // Merge built-in discovered commands
+  if (builtinResult.status === 'fulfilled' && builtinResult.value) {
+    const items = Array.isArray(builtinResult.value?.data) ? builtinResult.value.data : [];
+    for (const raw of items) {
+      const parsed = safeParseCommand(raw);
+      if (parsed && !allCommands.find(c => c.name === parsed.name)) {
+        allCommands.push(toSlashCommand(parsed, 'discovered'));
+      }
+    }
+  }
+
+  // Merge custom commands
+  if (customResult.status === 'fulfilled' && Array.isArray(customResult.value)) {
+    for (const cmd of customResult.value) {
+      const parsed = safeParseCommand(cmd);
+      if (parsed && !allCommands.find(c => c.name === parsed.name)) {
+        allCommands.push(toSlashCommand(parsed, 'api'));
+      }
+    }
+  }
+
+  // Parse agents
+  const agents: AgentInfo[] = agentsResult.status === 'fulfilled' && agentsResult.value
+    ? (Array.isArray(agentsResult.value?.data) ? agentsResult.value.data : [])
+    : [];
+
+  // Parse MCP servers
+  const mcpServers: McpServerInfo[] = mcpResult.status === 'fulfilled' && mcpResult.value
+    ? (Array.isArray(mcpResult.value?.data) ? mcpResult.value.data : [])
+    : [];
+
+  // Merge skills
+  if (skillsResult.status === 'fulfilled' && Array.isArray(skillsResult.value)) {
+    for (const group of skillsResult.value) {
+      const pluginName = String(group?.plugin || 'Plugin');
+      const groupSkills = Array.isArray(group?.skills) ? group.skills : [];
+      for (const skill of groupSkills) {
+        const parsed = safeParseSkill(skill);
+        if (parsed && !allCommands.find(c => c.name === parsed.name)) {
+          const cmdParsed = safeParseCommand({
+            name: parsed.name,
+            description: parsed.description,
+            namespace: pluginName,
+            accepts_arguments: true,
+          });
+          if (cmdParsed) {
+            allCommands.push(toSlashCommand(cmdParsed, `skill-${pluginName}`));
+          }
+        }
+      }
+    }
+  }
+
+  return { commands: allCommands, agents, mcpServers, projectPath };
+}
 
 const BUILTIN_COMMANDS_FALLBACK: SlashCommand[] = [
   { id: 'builtin-help', name: 'help', full_command: '/help', description: 'Show help and available commands', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
@@ -120,9 +199,9 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
   initialQuery = "",
   className,
 }) => {
-  const [commands, setCommands] = useState<SlashCommand[]>([]);
+  const [commands, setCommands] = useState<SlashCommand[]>(BUILTIN_COMMANDS_FALLBACK);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
@@ -135,11 +214,6 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
   // Analytics tracking
   const trackEvent = useTrackEvent();
   const slashCommandFeatureTracking = useFeatureAdoptionTracking('slash_commands');
-  
-  // Load commands on mount or when project path changes
-  useEffect(() => {
-    loadCommands();
-  }, [projectPath]);
   
   // Filter commands based on search query and active tab
   useEffect(() => {
@@ -254,112 +328,47 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
     }
   }, [selectedIndex]);
   
-  const loadCommands = async () => {
+  const loadCommands = useCallback(async () => {
+    // If cache exists for this project, use it immediately (no loading state)
+    if (commandCache && commandCache.projectPath === projectPath) {
+      setCommands(commandCache.commands);
+      setAgents(commandCache.agents);
+      setMcpServers(commandCache.mcpServers);
+      setIsLoading(false);
+      return;
+    }
+
+    // Show built-ins immediately so the picker is usable right away
+    setCommands(BUILTIN_COMMANDS_FALLBACK);
+    setIsLoading(true); // spins the refresh icon only
+    setError(null);
+
+    // Deduplicate concurrent loads (e.g. StrictMode double-invoke)
+    if (!loadingPromise) {
+      loadingPromise = fetchAllCommandData(projectPath).finally(() => {
+        loadingPromise = null;
+      });
+    }
+
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Start with fallback built-in commands
-      const allCommands: SlashCommand[] = [...BUILTIN_COMMANDS_FALLBACK];
-
-      // Try dynamic discovery from backend (queries Claude binary)
-      try {
-        const res = await fetch('/api/commands/builtin');
-        if (res.ok) {
-          const contentType = res.headers.get('content-type') || '';
-          if (contentType.includes('json')) {
-            const data = await res.json();
-            const items = Array.isArray(data?.data) ? data.data : [];
-            for (const raw of items) {
-              const parsed = safeParseCommand(raw);
-              if (parsed && !allCommands.find(c => c.name === parsed.name)) {
-                allCommands.push(toSlashCommand(parsed, 'discovered'));
-              }
-            }
-          }
-        }
-      } catch { /* dynamic discovery unavailable, using fallbacks */ }
-
-      // Load custom commands from API
-      try {
-        const apiCommands = await api.slashCommandsList(projectPath);
-        if (Array.isArray(apiCommands)) {
-          for (const cmd of apiCommands) {
-            const parsed = safeParseCommand(cmd);
-            if (parsed && !allCommands.find(c => c.name === parsed.name)) {
-              allCommands.push(toSlashCommand(parsed, 'api'));
-            }
-          }
-        }
-      } catch {
-        // API may be unavailable in web mode, continue with built-ins
-      }
-
-      // Load agents
-      try {
-        const agentsRes = await fetch('/api/commands/agents');
-        if (agentsRes.ok) {
-          const contentType = agentsRes.headers.get('content-type') || '';
-          if (contentType.includes('json')) {
-            const data = await agentsRes.json();
-            setAgents(Array.isArray(data?.data) ? data.data : []);
-          }
-        }
-      } catch { /* agents discovery unavailable */ }
-
-      // Load MCP servers
-      try {
-        const mcpRes = await fetch('/api/commands/mcp');
-        if (mcpRes.ok) {
-          const contentType = mcpRes.headers.get('content-type') || '';
-          if (contentType.includes('json')) {
-            const data = await mcpRes.json();
-            setMcpServers(Array.isArray(data?.data) ? data.data : []);
-          }
-        }
-      } catch { /* MCP discovery unavailable */ }
-
-      // Try loading skills as commands
-      try {
-        const res = await fetch('/api/skills');
-        if (res.ok) {
-          const contentType = res.headers.get('content-type') || '';
-          if (contentType.includes('json')) {
-            const skills = await res.json();
-            if (Array.isArray(skills)) {
-              for (const group of skills) {
-                const pluginName = String(group?.plugin || 'Plugin');
-                const groupSkills = Array.isArray(group?.skills) ? group.skills : [];
-                for (const skill of groupSkills) {
-                  const parsed = safeParseSkill(skill);
-                  if (parsed && !allCommands.find(c => c.name === parsed.name)) {
-                    const cmdParsed = safeParseCommand({
-                      name: parsed.name,
-                      description: parsed.description,
-                      namespace: pluginName,
-                      accepts_arguments: true,
-                    });
-                    if (cmdParsed) {
-                      allCommands.push(toSlashCommand(cmdParsed, `skill-${pluginName}`));
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch { /* skills API unavailable */ }
-
-      setCommands(allCommands);
+      const result = await loadingPromise;
+      commandCache = result;
+      setCommands(result.commands);
+      setAgents(result.agents);
+      setMcpServers(result.mcpServers);
     } catch (err) {
       console.error("Failed to load slash commands:", err);
       setError(err instanceof Error ? err.message : 'Failed to load commands');
-      setCommands(BUILTIN_COMMANDS_FALLBACK);
     } finally {
       setIsLoading(false);
     }
-  };
-  
+  }, [projectPath]);
+
+  // Load commands on mount or when project path changes
+  useEffect(() => {
+    loadCommands();
+  }, [loadCommands]);
+
   const handleCommandClick = (command: SlashCommand) => {
     trackEvent.slashCommandSelected({
       command_name: command.name,
@@ -451,12 +460,6 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
 
       {/* Command List */}
       <div className="flex-1 overflow-y-auto relative">
-        {isLoading && (
-          <div className="flex items-center justify-center h-full">
-            <span className="text-sm text-muted-foreground">Loading commands...</span>
-          </div>
-        )}
-
         {error && (
           <div className="flex flex-col items-center justify-center h-full p-4">
             <AlertCircle className="h-8 w-8 text-destructive mb-2" />
@@ -464,7 +467,7 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
           </div>
         )}
 
-        {!isLoading && !error && (
+        {!error && (
           <>
             {/* Default Tab Content */}
             {activeTab === "default" && (

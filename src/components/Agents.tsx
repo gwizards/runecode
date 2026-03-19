@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Toast } from '@/components/ui/toast';
-import { api, type Agent, type AgentRunWithMetrics } from '@/lib/api';
+import { api, type Agent } from '@/lib/api';
 // Dialog imports are done dynamically to support web mode
 import { GitHubAgentBrowser } from '@/components/GitHubAgentBrowser';
 import { CreateAgent } from '@/components/CreateAgent';
@@ -23,7 +23,7 @@ export const Agents: React.FC = () => {
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [runningAgents, setRunningAgents] = useState<AgentRunWithMetrics[]>([]);
+  const [runningAgents, setRunningAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -61,7 +61,8 @@ export const Agents: React.FC = () => {
 
   const loadRunningAgents = async () => {
     try {
-      const runs = await api.listAgentRunsWithMetrics();
+      // listAgentRunsWithMetrics no longer exists; use listRunningClaudeSessions as fallback
+      const runs = await api.listRunningClaudeSessions();
       setRunningAgents(runs || []);
     } catch (error) {
       console.error('Failed to load running agents:', error);
@@ -69,8 +70,8 @@ export const Agents: React.FC = () => {
   };
 
   const handleRunAgent = async (agent: Agent) => {
-    if (!agent.id) {
-      setToast({ message: 'Agent ID is missing', type: 'error' });
+    if (!agent.name) {
+      setToast({ message: 'Agent name is missing', type: 'error' });
       return;
     }
     
@@ -94,7 +95,7 @@ export const Agents: React.FC = () => {
       }
       
       // Dispatch event to open agent execution in a new tab
-      const tabId = `agent-exec-${agent.id}-${Date.now()}`;
+      const tabId = `agent-exec-${agent.name}-${Date.now()}`;
       window.dispatchEvent(new CustomEvent('open-agent-execution', { 
         detail: { agent, tabId, projectPath } 
       }));
@@ -107,12 +108,12 @@ export const Agents: React.FC = () => {
   };
 
   const handleDeleteAgent = async () => {
-    if (!agentToDelete || !agentToDelete.id) return;
-    
+    if (!agentToDelete || !agentToDelete.name) return;
+
     try {
-      await api.deleteAgent(agentToDelete.id);
+      await api.deleteAgent(agentToDelete.name);
       setToast({ message: `Deleted agent: ${agentToDelete.name}`, type: 'success' });
-      setAgents(prev => prev.filter(a => a.id !== agentToDelete.id));
+      setAgents(prev => prev.filter(a => a.name !== agentToDelete.name));
       setShowDeleteDialog(false);
       setAgentToDelete(null);
     } catch (error) {
@@ -138,7 +139,10 @@ export const Agents: React.FC = () => {
       });
 
       if (selected) {
-        const importedAgent = await api.importAgentFromFile(selected as string);
+        // importAgentFromFile no longer exists; read file via invoke and use importAgent
+        const { invoke } = await import('@tauri-apps/api/core');
+        const content = await invoke<string>('read_text_file', { path: selected as string });
+        const importedAgent = await api.importAgent(content, 'user');
         setToast({ message: `Imported agent: ${importedAgent.name}`, type: 'success' });
         loadAgents();
       }
@@ -164,8 +168,8 @@ export const Agents: React.FC = () => {
         ]
       });
 
-      if (path && agent.id) {
-        await invoke('export_agent_to_file', { id: agent.id, filePath: path });
+      if (path && agent.name) {
+        await invoke('export_agent_to_file', { id: agent.name, filePath: path });
         setToast({ message: `Exported agent: ${agent.name}`, type: 'success' });
       }
     } catch (error) {
@@ -359,7 +363,7 @@ export const Agents: React.FC = () => {
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {agents.map((agent) => (
                     <Card
-                      key={agent.id}
+                      key={agent.name}
                       className="p-4 hover:shadow-md transition-shadow"
                     >
                       <div className="flex items-start justify-between mb-3">

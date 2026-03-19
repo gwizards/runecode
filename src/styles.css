@@ -109,6 +109,33 @@ html {
   background-color: var(--color-muted-foreground);
 }
 
+/* Auto-hide scrollbar — always reserves space, thumb hidden when idle */
+.scrollbar-autohide {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-autohide::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-autohide::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-autohide::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 3px;
+}
+
+/* Show thumb when scrolling or hovering */
+.scrollbar-autohide.scrollbar-visible {
+  scrollbar-color: var(--color-border) transparent;
+}
+.scrollbar-autohide.scrollbar-visible::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+}
+.scrollbar-autohide.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted-foreground);
+}
+
 /* Void Protocol Design System */
 @theme {
   /* ===== FONTS ===== */

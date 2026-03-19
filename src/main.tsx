@@ -9,7 +9,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AnalyticsErrorBoundary } from "./components/AnalyticsErrorBoundary";
-import { analytics, resourceMonitor } from "./lib/analytics";
+import { analytics } from "./lib/analytics";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import "./assets/shimmer.css";
@@ -23,8 +23,7 @@ const isWebMode = !tauriInternals || tauriInternals.__WEB_MODE_MOCK__;
 // Initialize analytics before rendering
 analytics.initialize();
 
-// Start resource monitoring (check every 2 minutes)
-resourceMonitor.startMonitoring(120000);
+// Resource monitoring handled by ResourceMonitor.tsx sidebar hook
 
 // Add a macOS-specific class to the <html> element to enable platform-specific styling
 // Browser-safe detection using navigator properties (works in Tauri and web preview)

@@ -31,8 +31,8 @@ const now = Date.now() / 1000; // unix seconds
 
 export const DEV_PROJECTS: Project[] = [
   {
-    id: 'dev-project-opcode',
-    path: '/home/koves/GitHub/opcode',
+    id: 'dev-project-runecode',
+    path: '/home/koves/GitHub/runecode',
     sessions: ['dev-session-1', 'dev-session-2'],
     created_at: now - 86400 * 7,
     most_recent_session: now - 300,
@@ -49,16 +49,16 @@ export const DEV_PROJECTS: Project[] = [
 export const DEV_SESSIONS: Session[] = [
   {
     id: 'dev-session-1',
-    project_id: 'dev-project-opcode',
-    project_path: '/home/koves/GitHub/opcode',
+    project_id: 'dev-project-runecode',
+    project_path: '/home/koves/GitHub/runecode',
     created_at: now - 300,
     first_message: 'Add dev mode fallback data layer',
     message_timestamp: new Date((now - 300) * 1000).toISOString(),
   },
   {
     id: 'dev-session-2',
-    project_id: 'dev-project-opcode',
-    project_path: '/home/koves/GitHub/opcode',
+    project_id: 'dev-project-runecode',
+    project_path: '/home/koves/GitHub/runecode',
     created_at: now - 7200,
     first_message: 'Fix sidebar layout on mobile',
     message_timestamp: new Date((now - 7200) * 1000).toISOString(),

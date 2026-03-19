@@ -11,7 +11,7 @@ import type {
 export * from './types';
 export * from './events';
 export { ConsentManager } from './consent';
-export { ResourceMonitor, resourceMonitor } from './resourceMonitor';
+// ResourceMonitor removed — UI uses src/integrations/compute/ResourceMonitor.tsx instead
 
 class AnalyticsService {
   private static instance: AnalyticsService;

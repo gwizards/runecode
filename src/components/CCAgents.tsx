@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
+import {
+  Plus,
+  Edit,
+  Trash2,
   Play,
   Bot,
   ArrowLeft,
-  History,
   Download,
   Upload,
   Globe,
@@ -30,13 +29,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api, type Agent, type AgentRunWithMetrics } from "@/lib/api";
+import { api, type Agent } from "@/lib/api";
 // Dialog and invoke imports are done dynamically to support web mode
 import { cn } from "@/lib/utils";
 import { Toast, ToastContainer } from "@/components/ui/toast";
 import { CreateAgent } from "./CreateAgent";
 import { AgentExecution } from "./AgentExecution";
-import { AgentRunsList } from "./AgentRunsList";
 import { GitHubAgentBrowser } from "./GitHubAgentBrowser";
 import { ICON_MAP } from "./IconPicker";
 
@@ -51,9 +49,8 @@ interface CCAgentsProps {
   className?: string;
 }
 
-// Available icons for agents - now using all icons from IconPicker
+/** @deprecated Agents no longer use custom icons */
 export const AGENT_ICONS = ICON_MAP;
-
 export type AgentIconName = keyof typeof AGENT_ICONS;
 
 /**
@@ -64,9 +61,7 @@ export type AgentIconName = keyof typeof AGENT_ICONS;
  */
 export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [runs, setRuns] = useState<AgentRunWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
-  const [runsLoading, setRunsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,7 +77,6 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
 
   useEffect(() => {
     loadAgents();
-    loadRuns();
   }, []);
 
   const loadAgents = async () => {
@@ -100,22 +94,6 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
     }
   };
 
-  const loadRuns = async () => {
-    try {
-      setRunsLoading(true);
-      const runsList = await api.listAgentRuns();
-      setRuns(runsList || []);
-    } catch (err) {
-      console.error("Failed to load runs:", err);
-    } finally {
-      setRunsLoading(false);
-    }
-  };
-
-  /**
-   * Initiates the delete agent process by showing the confirmation dialog
-   * @param agent - The agent to be deleted
-   */
   const handleDeleteAgent = (agent: Agent) => {
     setAgentToDelete(agent);
     setShowDeleteDialog(true);
@@ -126,14 +104,13 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
    * Only called when user explicitly confirms the deletion
    */
   const confirmDeleteAgent = async () => {
-    if (!agentToDelete?.id) return;
+    if (!agentToDelete?.name) return;
 
     try {
       setIsDeleting(true);
-      await api.deleteAgent(agentToDelete.id);
+      await api.deleteAgent(agentToDelete.name);
       setToast({ message: "Agent deleted successfully", type: "success" });
       await loadAgents();
-      await loadRuns(); // Reload runs as they might be affected
     } catch (err) {
       console.error("Failed to delete agent:", err);
       setToast({ message: "Failed to delete agent", type: "error" });
@@ -174,43 +151,22 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
     setToast({ message: "Agent updated successfully", type: "success" });
   };
 
-  // const handleRunClick = (run: AgentRunWithMetrics) => {
-  //   if (run.id) {
-  //     setSelectedRunId(run.id);
-  //     setView("viewRun");
-  //   }
-  // };
-
   const handleExecutionComplete = async () => {
-    // Reload runs when returning from execution
-    await loadRuns();
+    // Agent sessions are now WebSocket-based
   };
 
   const handleExportAgent = async (agent: Agent) => {
     try {
-      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
-      if (isWebMode) {
-        setToast({ message: "Export is only available in desktop mode", type: "error" });
-        return;
-      }
-      const { save } = await import('@tauri-apps/plugin-dialog');
-      const { invoke } = await import('@tauri-apps/api/core');
-      const filePath = await save({
-        defaultPath: `${agent.name.toLowerCase().replace(/\s+/g, '-')}.runecode.json`,
-        filters: [{
-          name: 'RuneCode Agent',
-          extensions: ['runecode.json']
-        }]
-      });
-
-      if (!filePath) return;
-
-      await invoke('export_agent_to_file', {
-        id: agent.id!,
-        filePath
-      });
-      
-      setToast({ message: `Agent "${agent.name}" exported successfully`, type: "success" });
+      const mdContent = await api.exportAgent(agent.name);
+      // Download as .md file
+      const blob = new Blob([mdContent], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${agent.name}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToast({ message: `Agent "${agent.name}" exported as .md`, type: "success" });
     } catch (err) {
       console.error("Failed to export agent:", err);
       setToast({ message: "Failed to export agent", type: "error" });
@@ -218,36 +174,24 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
   };
 
   const handleImportAgent = async () => {
-    try {
-      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
-      if (isWebMode) {
-        setToast({ message: "Import is only available in desktop mode", type: "error" });
-        return;
+    // Use file input to import .md files
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.md';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const content = await file.text();
+        await api.importAgent(content, 'user');
+        setToast({ message: "Agent imported successfully", type: "success" });
+        await loadAgents();
+      } catch (err) {
+        console.error("Failed to import agent:", err);
+        setToast({ message: "Failed to import agent", type: "error" });
       }
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const filePath = await open({
-        multiple: false,
-        filters: [{
-          name: 'RuneCode Agent',
-          extensions: ['runecode.json', 'json']
-        }]
-      });
-      
-      if (!filePath) {
-        // User cancelled the dialog
-        return;
-      }
-      
-      // Import the agent from the selected file
-      await api.importAgentFromFile(filePath as string);
-      
-      setToast({ message: "Agent imported successfully", type: "success" });
-      await loadAgents();
-    } catch (err) {
-      console.error("Failed to import agent:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to import agent";
-      setToast({ message: errorMessage, type: "error" });
-    }
+    };
+    input.click();
   };
 
   // Pagination calculations
@@ -255,10 +199,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
   const startIndex = (currentPage - 1) * AGENTS_PER_PAGE;
   const paginatedAgents = agents.slice(startIndex, startIndex + AGENTS_PER_PAGE);
 
-  const renderIcon = (iconName: string) => {
-    const Icon = AGENT_ICONS[iconName as AgentIconName] || AGENT_ICONS.bot;
-    return <Icon className="h-12 w-12" />;
-  };
+  // No more icon picker — agents use the Bot icon
 
   if (view === "create") {
     return (
@@ -401,7 +342,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
                       <AnimatePresence mode="popLayout">
                         {paginatedAgents.map((agent, index) => (
                           <motion.div
-                            key={agent.id}
+                            key={agent.name}
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
@@ -410,14 +351,22 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
                             <Card className="h-full hover:shadow-lg transition-shadow">
                               <CardContent className="p-6 flex flex-col items-center text-center">
                                 <div className="mb-4 p-4 rounded-full bg-primary/10 text-primary">
-                                  {renderIcon(agent.icon)}
+                                  <Bot className="h-12 w-12" />
                                 </div>
                                 <h3 className="text-heading-4 mb-2">
                                   {agent.name}
                                 </h3>
-                                <p className="text-caption text-muted-foreground">
-                                  Created: {new Date(agent.created_at).toLocaleDateString()}
-                                </p>
+                                {agent.description && (
+                                  <p className="text-caption text-muted-foreground">
+                                    {agent.description}
+                                  </p>
+                                )}
+                                {agent.scope && (
+                                  <p className="text-caption text-muted-foreground mt-1">
+                                    {agent.scope === 'project' ? 'Project' : 'User'} agent
+                                    {agent.model ? ` • ${agent.model}` : ''}
+                                  </p>
+                                )}
                               </CardContent>
                               <CardFooter className="p-4 pt-0 flex justify-center gap-1 flex-wrap">
                                 <Button
@@ -495,24 +444,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
                 )}
               </div>
 
-              {/* Execution History */}
-              {!loading && agents.length > 0 && (
-                <div className="overflow-hidden">
-                  <div className="flex items-center gap-2 mb-4">
-                    <History className="h-5 w-5 text-muted-foreground" />
-                    <h2 className="text-heading-4">Recent Executions</h2>
-                  </div>
-                  {runsLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                    </div>
-                  ) : (
-                    <AgentRunsList 
-                      runs={runs} 
-                    />
-                  )}
-                </div>
-              )}
+              {/* Agent execution now uses WebSocket sessions — no persistent run history here */}
             </motion.div>
           </AnimatePresence>
         </div>

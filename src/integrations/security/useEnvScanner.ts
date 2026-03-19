@@ -4,7 +4,6 @@ import { useSessionStore } from '../../stores/sessionStore';
 interface EnvScanResult {
   hasEnvFiles: boolean;
   envFiles: string[];
-  hasHardcodedSecrets: boolean;
 }
 
 const ENV_FILE_NAMES = ['.env', '.env.local', '.env.production', '.env.development', '.env.staging', '.env.test'];
@@ -49,7 +48,6 @@ export function useEnvScanner(projectPath: string): EnvScanResult {
   const [result, setResult] = useState<EnvScanResult>({
     hasEnvFiles: false,
     envFiles: [],
-    hasHardcodedSecrets: false,
   });
 
   // Track already-found files across renders so we accumulate without duplicates
@@ -61,7 +59,7 @@ export function useEnvScanner(projectPath: string): EnvScanResult {
   useEffect(() => {
     if (!projectPath) {
       foundFilesRef.current.clear();
-      setResult({ hasEnvFiles: false, envFiles: [], hasHardcodedSecrets: false });
+      setResult({ hasEnvFiles: false, envFiles: [] });
       return;
     }
 
@@ -83,7 +81,6 @@ export function useEnvScanner(projectPath: string): EnvScanResult {
       setResult({
         hasEnvFiles: files.length > 0,
         envFiles: files,
-        hasHardcodedSecrets: false,
       });
     }
   }, [projectPath, sessionOutputs]);
@@ -127,7 +124,6 @@ export function useEnvScanner(projectPath: string): EnvScanResult {
             setResult({
               hasEnvFiles: true,
               envFiles: allFiles,
-              hasHardcodedSecrets: false,
             });
           }
         }

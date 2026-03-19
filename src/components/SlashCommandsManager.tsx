@@ -121,11 +121,6 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
   // Analytics tracking
   const trackEvent = useTrackEvent();
 
-  // Load commands on mount
-  useEffect(() => {
-    loadCommands();
-  }, [projectPath]);
-
   const loadCommands = async () => {
     try {
       setLoading(true);
@@ -139,6 +134,11 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
       setLoading(false);
     }
   };
+
+  // Load commands on mount
+  useEffect(() => {
+    loadCommands();
+  }, [projectPath]);
 
   const handleCreateNew = () => {
     setEditingCommand(null);

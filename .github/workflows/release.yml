@@ -56,14 +56,14 @@ jobs:
           
           # Linux artifacts
           if [ -d "artifacts/linux-x86_64" ]; then
-            cp artifacts/linux-x86_64/*.deb release-assets/opcode_${{ steps.version.outputs.version }}_linux_x86_64.deb || true
-            cp artifacts/linux-x86_64/*.AppImage release-assets/opcode_${{ steps.version.outputs.version }}_linux_x86_64.AppImage || true
+            cp artifacts/linux-x86_64/*.deb release-assets/runecode_${{ steps.version.outputs.version }}_linux_x86_64.deb || true
+            cp artifacts/linux-x86_64/*.AppImage release-assets/runecode_${{ steps.version.outputs.version }}_linux_x86_64.AppImage || true
           fi
           
           # macOS artifacts
           if [ -d "artifacts/macos-universal" ]; then
-            cp artifacts/macos-universal/opcode.dmg release-assets/opcode_${{ steps.version.outputs.version }}_macos_universal.dmg || true
-            cp artifacts/macos-universal/opcode.app.zip release-assets/opcode_${{ steps.version.outputs.version }}_macos_universal.app.tar.gz || true
+            cp artifacts/macos-universal/runecode.dmg release-assets/runecode_${{ steps.version.outputs.version }}_macos_universal.dmg || true
+            cp artifacts/macos-universal/runecode.app.zip release-assets/runecode_${{ steps.version.outputs.version }}_macos_universal.app.tar.gz || true
           fi
           
           # Create source code archives
@@ -75,8 +75,8 @@ jobs:
           echo "Creating source code archives..."
           
           # Create a clean export of the repository
-          git archive --format=tar.gz --prefix=opcode-${CLEAN_VERSION}/ -o release-assets/opcode-${CLEAN_VERSION}.tar.gz HEAD
-          git archive --format=zip --prefix=opcode-${CLEAN_VERSION}/ -o release-assets/opcode-${CLEAN_VERSION}.zip HEAD
+          git archive --format=tar.gz --prefix=runecode-${CLEAN_VERSION}/ -o release-assets/runecode-${CLEAN_VERSION}.tar.gz HEAD
+          git archive --format=zip --prefix=runecode-${CLEAN_VERSION}/ -o release-assets/runecode-${CLEAN_VERSION}.zip HEAD
 
           # Generate signatures for all files
           cd release-assets
@@ -91,7 +91,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          name: opcode ${{ steps.version.outputs.version }}
+          name: RuneCode ${{ steps.version.outputs.version }}
           draft: true
           prerelease: false
           generate_release_notes: true
@@ -115,6 +115,6 @@ jobs:
 
             ### Installation
 
-            - macOS: Open the `.dmg` and drag opcode to Applications.
+            - macOS: Open the `.dmg` and drag RuneCode to Applications.
             - Linux: `chmod +x` the `.AppImage` and run it, or install the `.deb` on Debian/Ubuntu.
             

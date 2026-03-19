@@ -33,41 +33,82 @@ RuneCode is the ultimate command center for [Claude Code](https://claude.ai/code
 ### Why RuneCode?
 
 - **Aesthetic superiority** — Glassmorphic design language with rune-themed accents. Dark-first, screenshot-worthy UI.
+- **Native SDK integration** — Powered by the official Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), not CLI hacks.
 - **Agentic power** — Create custom AI agents, run them in isolated processes, monitor them in real-time with live status tabs.
-- **Zero friction** — Connect Claude to your local machine without configuring Docker or writing custom MCP servers.
+- **Zero friction** — Works with your existing Claude subscription. No API keys, no Docker, no configuration.
 - **Blazingly fast** — Built with Tauri 2 (Rust backend) and React 19. Sub-2-second builds with Vite 8 + Rolldown.
 
 ## Features
 
+### Claude Agent SDK Integration
+
+RuneCode integrates directly with the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) — the same programmatic interface used by VS Code and other first-party integrations. This means:
+
+- **Native streaming** — Real-time message streaming via async generators, not stdout parsing
+- **Session management** — `listSessions()` and `getSessionMessages()` for browsing all your Claude Code projects and conversation history
+- **Multi-turn conversations** — Resume, continue, and fork sessions natively
+- **Tool orchestration** — Full access to Read, Edit, Write, Bash, Glob, Grep, WebFetch, WebSearch, and all MCP tools
+- **Permission control** — Configurable permission modes (default, acceptEdits, bypassPermissions)
+- **Works with Claude subscriptions** — Uses the same authentication as your Claude Code CLI (Pro, Max, Team, Enterprise)
+
+```typescript
+// How RuneCode talks to Claude under the hood
+import { query, listSessions, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
+
+for await (const message of query({
+  prompt: "Fix the auth bug",
+  options: { cwd: "/path/to/project", settingSources: ["user", "project"] }
+})) {
+  // Stream messages directly to the UI — no process spawning needed
+}
+```
+
 ### Interactive Claude Code Sessions
-Launch and manage Claude Code sessions with a polished visual interface. Smart auto-scroll follows new output, pauses when you scroll up, and shows an unread count to jump back down.
+Launch and manage Claude Code sessions with a polished visual interface. Smart auto-scroll follows new output, pauses when you scroll up, and shows an unread count to jump back down. Rich rendering of tool calls, code diffs, file reads, bash commands, and thinking blocks.
+
+### Multi-Tab Workspace
+Open multiple projects and sessions simultaneously in a tabbed interface. Each tab maintains its own state, session history, and connection. Switch between projects without losing context.
+
+### Project & Session Browser
+Browse all your Claude Code projects and sessions from a unified interface. Sessions show first-message previews, timestamps, and pagination. Click any session to load its full conversation history with rendered tool widgets.
 
 ### Custom AI Agents
 Design specialized agents with custom system prompts, model selection, and permission controls. Run them in isolated background processes. Monitor every running agent with live status tabs — green for running, red for failed, gray for done.
 
 ### Project Context Sidebar
-A collapsible right sidebar with five live sections:
+A collapsible right sidebar with live sections:
 - **Project Info** — auto-detected tech stack, name, description (from package.json, Cargo.toml, etc.)
-- **Live Context** — current git branch, modified files, last error
-- **Session Stats** — tokens, cost, elapsed time, files modified
-- **Resources** — live CPU/RAM bars with cloud eject alerts
-- **Skills Catalog** — browse installed plugins and skills with active indicators
+- **Context** — current git branch, modified files
+- **Usage** — tokens, cost, session count
+- **Resources** — live CPU/RAM bars
+- **Agents, Plugins, Skills** — browse installed components
 
-### Opinionated Stack Defaults
-RuneCode ships with smart recommendations for a production-ready AI development stack:
-- **Compute** — resource monitoring with automatic cloud eject to Railway/DigitalOcean when local hardware is overloaded
-- **Security** — scans for plaintext `.env` files and recommends Infisical for secure secret injection
-- **Intelligence** — unified LLM gateway recommendation for multi-model access in custom agents
-- **Observability** — Helicone-powered cost guard with live session cost tracking and limit alerts
+### Slash Command Picker
+Type `/` to open a searchable command palette with tabs for default and custom commands. Cached for instant access, with keyboard navigation and auto-refresh.
+
+### CLAUDE.md Memory Viewer
+Browse and edit CLAUDE.md files (project memory) directly from the session view. Supports global, project, and local scopes.
 
 ### Usage Analytics
 Track Claude API costs with visual charts broken down by model, project, and time period. Export data for accounting.
 
 ### MCP Server Management
-Manage Model Context Protocol servers from a central UI. Add, configure, test connections, and import from Claude Desktop.
+Manage Model Context Protocol servers from a central UI. Add, configure, test connections, and import from Claude Desktop. 170+ MCP services supported.
 
 ### Timeline & Checkpoints
 Create checkpoints during sessions, navigate a visual timeline, fork sessions from any point, and see diffs between checkpoints.
+
+### Tool Widgets
+Rich visual rendering for every Claude Code tool:
+- **Code tools** — Read, Edit, Write, MultiEdit with syntax-highlighted diffs
+- **Search tools** — Glob, Grep with match highlighting
+- **System tools** — Bash with command/output display, LS with file listings
+- **Web tools** — WebFetch, WebSearch with result cards
+- **Planning tools** — TodoWrite with task lists, Thinking with expandable blocks
+- **Notifications** — Task notifications, skill badges, system reminders
+
+### Dev Mode (Frontend-Only)
+Run `npm run dev` for frontend development without the Tauri backend. The Vite dev server serves real data from `~/.claude/` via the Agent SDK — real projects, real sessions, real chat execution.
 
 ### Headless / Server Mode
 Run RuneCode without the desktop wrapper:
@@ -80,6 +121,7 @@ Access the full UI from any browser. The frontend is embedded in the binary — 
 
 | Layer | Technology |
 |-------|-----------|
+| **Claude Integration** | `@anthropic-ai/claude-agent-sdk` (official Agent SDK) |
 | **Frontend** | React 19.2, TypeScript 5.9, Vite 8 (Rolldown) |
 | **Styling** | Tailwind CSS v4, glassmorphic design tokens |
 | **Components** | shadcn/ui (Radix primitives), Shiki (syntax highlighting) |
@@ -87,6 +129,7 @@ Access the full UI from any browser. The frontend is embedded in the binary — 
 | **Animation** | Motion (formerly Framer Motion) |
 | **Backend** | Rust, Tauri 2, Axum |
 | **Database** | SQLite (rusqlite) |
+| **Dev Server** | Vite + Agent SDK (WebSocket streaming, no Tauri needed) |
 | **Package Manager** | Bun |
 
 ## Installation
@@ -134,10 +177,12 @@ The executable will be in `src-tauri/target/release/runecode`.
 ### Development
 
 ```bash
-bun run tauri dev     # Desktop with hot reload
-bun run dev           # Frontend only
+bun run tauri dev     # Desktop app with hot reload (Rust + React)
+bun run dev           # Frontend only — uses Agent SDK for real data
 runecode serve        # Headless server mode
 ```
+
+**Dev mode** (`bun run dev`) runs the full UI without Tauri. The Vite dev server uses the Claude Agent SDK directly to serve real project data, session history, and chat execution via WebSocket. No Rust compilation needed for frontend development.
 
 ## Project Structure
 

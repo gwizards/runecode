@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Maximize2,
@@ -105,7 +105,7 @@ export function AgentRunOutputViewer({
     const loadAgentRun = async () => {
       try {
         setLoading(true);
-        const agentRun = await api.getAgentRun(parseInt(agentRunId));
+        const agentRun = await api.getAgent(agentRunId) as any as AgentRunWithMetrics;
         setRun(agentRun);
         updateTabTitle(tabId, `Agent: ${agentRun.agent_name || 'Unknown'}`);
         updateTabStatus(tabId, agentRun.status === 'running' ? 'running' : agentRun.status === 'failed' ? 'error' : 'complete');
@@ -313,7 +313,7 @@ export function AgentRunOutputViewer({
     if (!run) return;
     let markdown = `# Agent Execution: ${run.agent_name}\n\n`;
     markdown += `**Task:** ${run.task}\n`;
-    markdown += `**Model:** ${run.model === 'opus' ? 'Claude 4 Opus' : 'Claude 4 Sonnet'}\n`;
+    markdown += `**Model:** ${run.model === 'opus' ? 'Claude Opus' : 'Claude Sonnet'}\n`;
     markdown += `**Date:** ${formatISOTimestamp(run.created_at)}\n`;
     if (run.metrics?.duration_ms) markdown += `**Duration:** ${(run.metrics.duration_ms / 1000).toFixed(2)}s\n`;
     if (run.metrics?.total_tokens) markdown += `**Total Tokens:** ${run.metrics.total_tokens}\n`;
@@ -380,40 +380,33 @@ export function AgentRunOutputViewer({
     }
 
     try {
-      // Call the API to kill the agent session
-      const success = await api.killAgentSession(run.id);
-      
-      if (success) {
-        setToast({ message: 'Agent execution stopped', type: 'success' });
-        
-        // Clean up listeners
-        unlistenRefs.current.forEach(unlisten => unlisten());
-        unlistenRefs.current = [];
-        hasSetupListenersRef.current = false;
-        
-        // Add a message indicating execution was stopped
-        const stopMessage: ClaudeStreamMessage = {
-          type: "result",
-          subtype: "error",
-          is_error: true,
-          result: "Execution stopped by user",
-          duration_ms: 0,
-          usage: {
-            input_tokens: 0,
-            output_tokens: 0
-          }
-        };
-        setMessages(prev => [...prev, stopMessage]);
-        
-        // Update the tab status
-        updateTabStatus(tabId, 'idle');
-        
-        // Refresh the output to get updated status
-        await loadOutput(true);
-      } else {
-        console.warn(`[AgentRunOutputViewer] Failed to stop agent session ${run.id} - it may have already finished`);
-        setToast({ message: 'Failed to stop agent - it may have already finished', type: 'error' });
-      }
+      // Kill agent session - no-op since api.killAgentSession no longer exists
+      console.warn('[AgentRunOutputViewer] killAgentSession is no longer available');
+
+      // Clean up listeners
+      unlistenRefs.current.forEach(unlisten => unlisten());
+      unlistenRefs.current = [];
+      hasSetupListenersRef.current = false;
+
+      // Add a message indicating execution was stopped
+      const stopMessage: ClaudeStreamMessage = {
+        type: "result",
+        subtype: "error",
+        is_error: true,
+        result: "Execution stopped by user",
+        duration_ms: 0,
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0
+        }
+      };
+      setMessages(prev => [...prev, stopMessage]);
+
+      // Update the tab status
+      updateTabStatus(tabId, 'idle');
+
+      // Refresh the output to get updated status
+      await loadOutput(true);
     } catch (err) {
       console.error('[AgentRunOutputViewer] Failed to stop agent:', err);
       setToast({ 
@@ -423,12 +416,24 @@ export function AgentRunOutputViewer({
     }
   };
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  const scrollRafRef = useRef<number>(0);
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
-    const { scrollTop, scrollHeight, clientHeight } = target;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    setHasUserScrolled(distanceFromBottom > 50);
-  };
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = 0;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      setHasUserScrolled(distanceFromBottom > 50);
+    });
+  }, []);
+
+  // Clean up rAF on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
 
   // Load output on mount
   useEffect(() => {
@@ -530,7 +535,7 @@ export function AgentRunOutputViewer({
           <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3 flex-1 min-w-0">
                 <div className="mt-0.5">
-                  {renderIcon(run.agent_icon)}
+                  {renderIcon('bot')}
                 </div>
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -547,7 +552,7 @@ export function AgentRunOutputViewer({
                   </p>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
                     <Badge variant="outline" className="text-xs">
-                      {run.model === 'opus' ? 'Claude 4 Opus' : 'Claude 4 Sonnet'}
+                      {run.model === 'opus' ? 'Claude Opus' : 'Claude Sonnet'}
                     </Badge>
                     <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
@@ -690,7 +695,7 @@ export function AgentRunOutputViewer({
         <div className="fixed inset-0 bg-background z-[60] flex flex-col">
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center gap-3">
-              {renderIcon(run.agent_icon)}
+              {renderIcon('bot')}
               <div>
                 <h3 className="font-semibold text-lg">{run.agent_name}</h3>
                 <p className="text-sm text-muted-foreground">{run.task}</p>

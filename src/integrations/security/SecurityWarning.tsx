@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { INTEGRATIONS } from '../config';
 
-const DISMISS_KEY = 'opcode-env-warning-dismissed';
+const DISMISS_KEY = 'runecode-env-warning-dismissed';
 
 interface SecurityWarningProps {
   hasEnvFiles: boolean;

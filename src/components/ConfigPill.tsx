@@ -1,10 +1,15 @@
 import { Zap, ChevronUp } from 'lucide-react';
-import { useSessionConfig, type ModelId, type ThinkingMode } from '@/hooks/useSessionConfig';
+import { useSessionConfig, type ThinkingMode } from '@/hooks/useSessionConfig';
 
-const MODEL_INFO: Record<ModelId, { name: string; iconColor: string }> = {
-  sonnet: { name: 'Sonnet', iconColor: 'var(--color-gold-400)' },
-  opus: { name: 'Opus', iconColor: 'var(--color-purple-400)' },
-};
+function getModelInfo(model: string): { name: string; iconColor: string } {
+  const lower = model.toLowerCase();
+  if (lower.includes('opus')) return { name: 'Opus', iconColor: 'var(--color-purple-400)' };
+  if (lower.includes('haiku')) return { name: 'Haiku', iconColor: 'var(--color-blue-400)' };
+  if (lower.includes('sonnet') || lower === 'default') return { name: 'Sonnet', iconColor: 'var(--color-gold-400)' };
+  // For unknown models, use the raw name
+  const displayName = model.split('-').pop() || model;
+  return { name: displayName.charAt(0).toUpperCase() + displayName.slice(1), iconColor: 'var(--color-gold-400)' };
+}
 
 const THINKING_LABELS: Record<ThinkingMode, string> = {
   auto: 'Auto',
@@ -30,7 +35,7 @@ interface ConfigPillProps {
 
 export function ConfigPill({ onClick, isOpen, checkpointCount = 0 }: ConfigPillProps) {
   const { model, thinkingMode } = useSessionConfig();
-  const modelInfo = MODEL_INFO[model];
+  const modelInfo = getModelInfo(model);
   const thinkingLabel = THINKING_LABELS[thinkingMode];
   const thinkingColor = THINKING_COLORS[thinkingMode];
 

@@ -15,7 +15,8 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
 
   const handleBrowse = async () => {
     try {
-      if (window.__TAURI__) {
+      const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      if (isRealTauri) {
         const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
         const selected = await openDialog({
           directory: true,
