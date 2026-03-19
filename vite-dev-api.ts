@@ -929,6 +929,116 @@ export function devApiPlugin(): Plugin {
 
           // Fallback for other /api/settings/ routes
           if (req.url?.startsWith("/api/settings/")) { res.end(JSON.stringify({})); return; }
+
+          // GET /api/git/status — git branch, dirty files, ahead/behind
+          if (req.url?.startsWith("/api/git/status")) {
+            const urlObj = new URL(req.url, "http://localhost");
+            const projectPath = urlObj.searchParams.get("path") || "";
+            if (!projectPath) {
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ hasRepo: false }));
+              return;
+            }
+            try {
+              // Check if it's a git repo
+              execSync("git rev-parse --git-dir", { cwd: projectPath, timeout: 3000 });
+
+              // Get branch name
+              let branch = "";
+              try {
+                branch = execSync("git branch --show-current", { cwd: projectPath, encoding: "utf-8", timeout: 3000 }).trim();
+                if (!branch) branch = execSync("git rev-parse --short HEAD", { cwd: projectPath, encoding: "utf-8", timeout: 3000 }).trim();
+              } catch { branch = "unknown"; }
+
+              // Count dirty files
+              let dirty = 0;
+              let staged = 0;
+              try {
+                const status = execSync("git status --porcelain", { cwd: projectPath, encoding: "utf-8", timeout: 5000 });
+                const lines = status.trim().split("\n").filter(l => l.trim());
+                for (const line of lines) {
+                  const x = line[0];
+                  const y = line[1];
+                  if (x !== " " && x !== "?") staged++;
+                  if (y !== " " && y !== "?") dirty++;
+                  if (x === "?" && y === "?") dirty++; // untracked
+                }
+              } catch {}
+
+              // Ahead/behind
+              let ahead = 0;
+              let behind = 0;
+              try {
+                const ab = execSync("git rev-list --left-right --count HEAD...@{upstream}", { cwd: projectPath, encoding: "utf-8", timeout: 3000 }).trim();
+                const parts = ab.split(/\s+/);
+                ahead = parseInt(parts[0]) || 0;
+                behind = parseInt(parts[1]) || 0;
+              } catch {}
+
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ hasRepo: true, branch, dirty, staged, ahead, behind }));
+            } catch {
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ hasRepo: false }));
+            }
+            return;
+          }
+
+          // GET /api/git/recent-files — recently modified files
+          if (req.url?.startsWith("/api/git/recent-files")) {
+            const urlObj = new URL(req.url, "http://localhost");
+            const projectPath = urlObj.searchParams.get("path") || "";
+            const limit = parseInt(urlObj.searchParams.get("limit") || "10");
+
+            if (!projectPath) {
+              res.setHeader("Content-Type", "application/json");
+              res.end("[]");
+              return;
+            }
+
+            try {
+              // Get recently modified tracked files
+              const raw = execSync(
+                `git log --pretty=format:"%H %at" --name-status --diff-filter=ACDMR -n 20 2>/dev/null | head -200`,
+                { cwd: projectPath, encoding: "utf-8", timeout: 5000 }
+              );
+
+              const files: Array<{ path: string; project: string; timestamp: number; action: string }> = [];
+              const seen = new Set<string>();
+              let currentTimestamp = 0;
+              const projectName = projectPath.split("/").pop() || "";
+
+              for (const line of raw.split("\n")) {
+                // Commit line: hash timestamp
+                const commitMatch = line.match(/^[a-f0-9]{40}\s+(\d+)$/);
+                if (commitMatch) {
+                  currentTimestamp = parseInt(commitMatch[1]);
+                  continue;
+                }
+                // File line: A/M/D\tpath
+                const fileMatch = line.match(/^([ACDMR])\t(.+)$/);
+                if (fileMatch && currentTimestamp && !seen.has(fileMatch[2])) {
+                  seen.add(fileMatch[2]);
+                  const actionMap: Record<string, string> = { A: 'created', C: 'created', D: 'deleted', M: 'modified', R: 'modified' };
+                  files.push({
+                    path: fileMatch[2],
+                    project: projectName,
+                    timestamp: currentTimestamp,
+                    action: actionMap[fileMatch[1]] || 'modified',
+                  });
+                  if (files.length >= limit) break;
+                }
+              }
+
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify(files));
+            } catch {
+              res.setHeader("Content-Type", "application/json");
+              res.end("[]");
+            }
+            return;
+          }
+
           // GET /api/slash-commands — discover slash command .md files
           if (req.url?.startsWith("/api/slash-commands")) {
             const urlObj = new URL(req.url, "http://localhost");

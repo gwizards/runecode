@@ -4,8 +4,12 @@ import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
 import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { PlanUsagePanel } from "./sidebar/PlanUsagePanel";
 import { EnvironmentSelector } from "./sidebar/EnvironmentSelector";
+import { ActiveSessions } from "./sidebar/ActiveSessions";
+import { GitStatus } from "./sidebar/GitStatus";
+import { QuickActions } from "./sidebar/QuickActions";
+import { RecentFiles } from "./sidebar/RecentFiles";
+import { SidebarBookmarks } from "./sidebar/SidebarBookmarks";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
-import { ProjectProcesses } from "./sidebar/ProjectProcesses";
 import { SecurityWarning } from "../integrations/security/SecurityWarning";
 import { useEnvScanner } from "../integrations/security/useEnvScanner";
 
@@ -247,18 +251,42 @@ export function ProjectSidebar({
 
                   <SectionDivider />
 
+                  {/* ═══════ WORKSPACE ═══════ */}
+                  <GroupLabel>Workspace</GroupLabel>
+
+                  <SectionErrorBoundary>
+                    <ActiveSessions />
+                  </SectionErrorBoundary>
+
+                  <SectionErrorBoundary>
+                    <GitStatus projectPath={projectPath} />
+                  </SectionErrorBoundary>
+
+                  <SectionErrorBoundary>
+                    <QuickActions />
+                  </SectionErrorBoundary>
+
+                  <SectionDivider />
+
+                  {/* ═══════ ACTIVITY ═══════ */}
+                  <GroupLabel>Activity</GroupLabel>
+
+                  <SectionErrorBoundary>
+                    <RecentFiles projectPath={projectPath} />
+                  </SectionErrorBoundary>
+
+                  <SectionErrorBoundary>
+                    <SidebarBookmarks />
+                  </SectionErrorBoundary>
+
+                  <SectionDivider />
+
                   {/* ═══════ SYSTEM ═══════ */}
                   <GroupLabel>System</GroupLabel>
 
                   <div ref={(el) => { sectionRefs.current["resources"] = el; }}>
                     <SectionErrorBoundary>
                       <ResourcesSection />
-                    </SectionErrorBoundary>
-                  </div>
-
-                  <div ref={(el) => { sectionRefs.current["processes"] = el; }}>
-                    <SectionErrorBoundary>
-                      <ProjectProcesses />
                     </SectionErrorBoundary>
                   </div>
 
