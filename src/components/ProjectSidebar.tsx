@@ -5,6 +5,7 @@ import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { PlanUsagePanel } from "./sidebar/PlanUsagePanel";
 import { EnvironmentSelector } from "./sidebar/EnvironmentSelector";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
+import { ProjectProcesses } from "./sidebar/ProjectProcesses";
 import { SecurityWarning } from "../integrations/security/SecurityWarning";
 import { useEnvScanner } from "../integrations/security/useEnvScanner";
 
@@ -252,6 +253,12 @@ export function ProjectSidebar({
                   <div ref={(el) => { sectionRefs.current["resources"] = el; }}>
                     <SectionErrorBoundary>
                       <ResourcesSection />
+                    </SectionErrorBoundary>
+                  </div>
+
+                  <div ref={(el) => { sectionRefs.current["processes"] = el; }}>
+                    <SectionErrorBoundary>
+                      <ProjectProcesses />
                     </SectionErrorBoundary>
                   </div>
 
