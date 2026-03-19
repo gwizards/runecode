@@ -137,7 +137,7 @@ export function EmbeddedTerminal({
       termRef.current = null;
       wsRef.current = null;
     };
-  }, [sessionId, projectPath]);
+  }, [sessionId, projectPath, flags]);
 
   return (
     <div

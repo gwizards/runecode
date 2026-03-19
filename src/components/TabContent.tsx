@@ -446,7 +446,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
 
       case 'claude-terminal':
         return (
-          <div className="h-full">
+          <div className="h-full w-full">
             <EmbeddedTerminal
               sessionId={tab.sessionId}
               projectPath={tab.projectPath || tab.initialProjectPath}
