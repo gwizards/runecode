@@ -62,14 +62,23 @@ export function EmbeddedTerminal({
       }
     });
 
-    // Resize observer
+    // Resize observer — debounced to avoid flooding backend during drag resize
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastCols = term.cols;
+    let lastRows = term.rows;
     const ro = new ResizeObserver(() => {
-      try {
-        fitAddon.fit();
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-        }
-      } catch { /* ignore */ }
+      try { fitAddon.fit(); } catch { return; }
+      // Only send resize if dimensions actually changed, debounced 150ms
+      if (term.cols !== lastCols || term.rows !== lastRows) {
+        lastCols = term.cols;
+        lastRows = term.rows;
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+          }
+        }, 150);
+      }
     });
     ro.observe(containerRef.current);
     roRef.current = ro;
@@ -126,6 +135,7 @@ export function EmbeddedTerminal({
     }));
 
     return () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener('runecode:focus-prompt', handleFocus);
       ro.disconnect();
       roRef.current = null;

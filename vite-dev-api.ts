@@ -2156,8 +2156,18 @@ export function devApiPlugin(): Plugin {
             try {
               const msg = JSON.parse(str);
               if (msg.type === "resize" && msg.cols && msg.rows) {
-                // Note: script-based PTY cannot be resized at runtime
-                // (would need node-pty for SIGWINCH support)
+                // Resize the script PTY via stty on the child's /proc fd
+                const c = terminalChildren.get(ws);
+                if (c && c.pid) {
+                  try {
+                    // Find the shell child of the script process
+                    const childPids = execSync(`pgrep -P ${c.pid} 2>/dev/null`, { encoding: "utf-8", timeout: 1000 }).trim();
+                    const firstChild = childPids.split("\n")[0];
+                    if (firstChild) {
+                      execSync(`stty cols ${msg.cols} rows ${msg.rows} < /proc/${firstChild}/fd/0`, { timeout: 1000 });
+                    }
+                  } catch { /* resize best-effort */ }
+                }
                 return;
               }
             } catch { /* not JSON, treat as raw input */ }
