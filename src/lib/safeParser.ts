@@ -77,6 +77,7 @@ export function safeParseSkill(raw: any): SafeSkill | null {
 
 export interface SafePluginGroup {
   plugin: string;
+  description?: string;
   skills: SafeSkill[];
 }
 
@@ -84,11 +85,13 @@ export function safeParsePluginGroup(raw: any): SafePluginGroup | null {
   try {
     if (!raw || typeof raw !== 'object') return null;
     const plugin = String(raw.plugin || raw.plugin_name || raw.name || 'Unknown');
+    if (plugin === 'Unknown') return null;
+    const description = raw.description ? String(raw.description) : undefined;
     const skills = Array.isArray(raw.skills)
       ? (raw.skills.map(safeParseSkill).filter(Boolean) as SafeSkill[])
       : [];
-    if (skills.length === 0) return null;
-    return { plugin, skills };
+    // Allow plugins with zero skills — they still exist as installed plugins
+    return { plugin, description, skills };
   } catch {
     return null;
   }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { ChevronDown, ChevronRight, Package, Loader2 } from 'lucide-react';
 import { useSessionStore } from '../../stores/sessionStore';
 import { safeParsePluginGroup, type SafePluginGroup } from '../../lib/safeParser';
 
@@ -10,11 +10,12 @@ export function PluginsSection() {
   const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
   const activeSkills = useSessionStore((state) => state.activeSkills);
 
-  const { data: plugins = [] } = useQuery({
+  const { data: plugins = [], isLoading } = useQuery({
     queryKey: ['plugins-list'],
     queryFn: async (): Promise<SafePluginGroup[]> => {
       let raw: unknown;
-      if (window.__TAURI__) {
+      const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      if (isRealTauri) {
         const { invoke } = await import('@tauri-apps/api/core');
         raw = await invoke('get_skills_catalog');
       } else {
@@ -75,7 +76,13 @@ export function PluginsSection() {
             className="overflow-hidden"
           >
             <div className="py-1.5">
-              {plugins.length === 0 ? (
+              {isLoading && (
+                <div className="px-3 py-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Loading plugins...</span>
+                </div>
+              )}
+              {plugins.length === 0 && !isLoading ? (
                 <p className="text-[11px] text-muted-foreground pl-1">
                   No plugins installed
                 </p>
@@ -87,20 +94,26 @@ export function PluginsSection() {
                       <div key={plugin.plugin}>
                         {/* Plugin row */}
                         <button
-                          onClick={() => togglePlugin(plugin.plugin)}
+                          onClick={() => plugin.skills.length > 0 ? togglePlugin(plugin.plugin) : undefined}
                           className="flex items-center gap-1.5 w-full text-left px-1 py-1 rounded transition-colors group sidebar-item"
                         >
-                          {isExpanded ? (
-                            <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60 flex-shrink-0" />
+                          {plugin.skills.length > 0 ? (
+                            isExpanded ? (
+                              <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60 flex-shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/60 flex-shrink-0" />
+                            )
                           ) : (
-                            <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/60 flex-shrink-0" />
+                            <Package className="h-2.5 w-2.5 text-muted-foreground/40 flex-shrink-0" />
                           )}
                           <Package className="h-3 w-3 text-muted-foreground/70 flex-shrink-0" />
                           <span className="text-[11px] font-medium truncate transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
                             {plugin.plugin}
                           </span>
                           <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums flex-shrink-0">
-                            {plugin.skills.length} {plugin.skills.length === 1 ? 'skill' : 'skills'}
+                            {plugin.skills.length > 0
+                              ? `${plugin.skills.length} ${plugin.skills.length === 1 ? 'skill' : 'skills'}`
+                              : ''}
                           </span>
                         </button>
 

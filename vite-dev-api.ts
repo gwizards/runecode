@@ -1578,35 +1578,54 @@ export function devApiPlugin(): Plugin {
           }
           if (req.url?.startsWith("/api/hooks/")) { res.end(JSON.stringify({})); return; }
 
-          // GET /api/skills — list installed plugin skills from ~/.claude/plugins/cache/
+          // GET /api/skills — list installed plugins from ~/.claude/plugins/cache/
+          // Structure: cache/{repo-name}/{hash}/.claude-plugin/plugin.json
+          // OR legacy: cache/{name}/plugin.json
           if (req.url?.startsWith("/api/skills")) {
             const pluginsCacheDir = path.join(os.homedir(), ".claude", "plugins", "cache");
-            const skills: Array<{ plugin_name: string; skills: Array<{ name: string; description: string }> }> = [];
+            const plugins: Array<{ plugin_name: string; description?: string; skills: Array<{ name: string; description: string }> }> = [];
+
+            /** Recursively find plugin.json files in a directory */
+            const findPluginJsons = (dir: string): string[] => {
+              const results: string[] = [];
+              try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                for (const entry of entries) {
+                  const full = path.join(dir, entry.name);
+                  if (entry.isFile() && entry.name === 'plugin.json') {
+                    results.push(full);
+                  } else if (entry.isDirectory()) {
+                    // Recurse max 3 levels deep
+                    const depth = full.replace(pluginsCacheDir, '').split(path.sep).length;
+                    if (depth <= 4) results.push(...findPluginJsons(full));
+                  }
+                }
+              } catch { /* skip unreadable dirs */ }
+              return results;
+            };
 
             try {
               if (fs.existsSync(pluginsCacheDir)) {
-                const pluginDirs = fs.readdirSync(pluginsCacheDir, { withFileTypes: true });
-                for (const entry of pluginDirs) {
-                  if (!entry.isDirectory()) continue;
-                  const pluginJsonPath = path.join(pluginsCacheDir, entry.name, "plugin.json");
-                  if (!fs.existsSync(pluginJsonPath)) continue;
+                const pluginJsonFiles = findPluginJsons(pluginsCacheDir);
+                const seen = new Set<string>();
+                for (const jsonPath of pluginJsonFiles) {
                   try {
-                    const raw = fs.readFileSync(pluginJsonPath, "utf-8");
+                    const raw = fs.readFileSync(jsonPath, "utf-8");
                     const parsed = JSON.parse(raw);
-                    skills.push({
-                      plugin_name: parsed.name || entry.name,
+                    const name = parsed.name || path.basename(path.dirname(jsonPath));
+                    if (seen.has(name)) continue; // dedupe by name
+                    seen.add(name);
+                    plugins.push({
+                      plugin_name: name,
+                      description: parsed.description || undefined,
                       skills: Array.isArray(parsed.skills) ? parsed.skills : [],
                     });
-                  } catch {
-                    // skip malformed plugin.json
-                  }
+                  } catch { /* skip malformed */ }
                 }
               }
-            } catch {
-              // plugins dir doesn't exist or isn't readable
-            }
+            } catch { /* cache dir doesn't exist */ }
 
-            res.end(JSON.stringify(skills));
+            res.end(JSON.stringify(plugins));
             return;
           }
 
