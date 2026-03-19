@@ -179,6 +179,14 @@ function invalidateSessionsCache() {
 // Loop Manager — runs Claude Code repeatedly to complete a plan autonomously
 // ---------------------------------------------------------------------------
 
+interface LoopIteration {
+  index: number;
+  startTime: number;
+  endTime: number;
+  outputPreview: string;
+  exitCode: number;
+}
+
 interface LoopState {
   id: string;
   projectPath: string;
@@ -190,11 +198,15 @@ interface LoopState {
   startTime: number;
   elapsedMs: number;
   error?: string;
+  model?: string;
+  history: LoopIteration[];
+  pauseBetweenMs: number;
+  completionMarkers: string[];
 }
 
 const activeLoops = new Map<string, { state: LoopState; abort: AbortController; child?: any }>();
 
-async function runLoop(loopId: string, model?: string) {
+async function runLoop(loopId: string) {
   const entry = activeLoops.get(loopId);
   if (!entry) return;
   const { state, abort } = entry;
@@ -202,12 +214,24 @@ async function runLoop(loopId: string, model?: string) {
   while (state.iterations < state.maxIterations && state.status === 'running') {
     if (abort.signal.aborted) { state.status = 'stopped'; break; }
 
+    // Pause support — wait while paused
+    while (state.status === 'paused') {
+      await new Promise(r => setTimeout(r, 500));
+      if (abort.signal.aborted) { state.status = 'stopped'; return; }
+    }
+
     state.iterations++;
+    const iterStart = Date.now();
     console.log(`[loop] ${loopId} iteration ${state.iterations}/${state.maxIterations}`);
 
     try {
       const claudeArgs = ['-p', '--continue', '--dangerously-skip-permissions'];
-      if (model) claudeArgs.push('--model', model);
+      if (state.model) claudeArgs.push('--model', state.model);
+
+      // First iteration uses the custom prompt; subsequent use continuation
+      const iterPrompt = state.iterations === 1 && state.prompt
+        ? state.prompt
+        : 'Continue working on the current task. Review what has been done so far and continue with the next steps. If everything is complete and there is nothing left to do, respond with exactly: LOOP_COMPLETE';
 
       const child = spawn('claude', claudeArgs, {
         cwd: state.projectPath,
@@ -216,40 +240,49 @@ async function runLoop(loopId: string, model?: string) {
       });
       entry.child = child;
 
-      // Send the prompt
-      child.stdin?.write(state.prompt);
+      child.stdin?.write(iterPrompt);
       child.stdin?.end();
 
-      // Collect output
       let output = '';
       child.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
       child.stderr?.on('data', (data: Buffer) => { output += data.toString(); });
 
-      // Wait for completion
       const exitCode = await new Promise<number>((resolve) => {
         child.on('exit', (code: number | null) => resolve(code ?? 1));
-        // Timeout after 10 minutes per iteration
         setTimeout(() => { try { child.kill('SIGTERM'); } catch {} resolve(1); }, 600_000);
       });
 
       entry.child = null;
-      state.lastOutput = output.slice(-2000); // Keep last 2KB
+      const iterEnd = Date.now();
+      state.lastOutput = output.slice(-2000);
       state.elapsedMs = Date.now() - state.startTime;
 
-      // Check for completion
-      if (output.includes('LOOP_COMPLETE') || output.includes('nothing left to do') || output.includes('all tasks are complete')) {
+      // Save iteration to history
+      state.history.push({
+        index: state.iterations,
+        startTime: iterStart,
+        endTime: iterEnd,
+        outputPreview: output.slice(-300),
+        exitCode,
+      });
+      // Keep last 50 iterations
+      if (state.history.length > 50) state.history = state.history.slice(-50);
+
+      // Check completion markers
+      const lowerOutput = output.toLowerCase();
+      const isComplete = state.completionMarkers.some(marker => lowerOutput.includes(marker.toLowerCase()));
+      if (isComplete) {
         state.status = 'completed';
         console.log(`[loop] ${loopId} completed after ${state.iterations} iterations`);
         break;
       }
 
-      if (exitCode !== 0 && exitCode !== undefined) {
-        state.error = `Exit code ${exitCode}`;
-        // Don't fail on non-zero — claude -p returns non-zero on some completions
+      if (exitCode !== 0) {
+        state.error = `Iteration ${state.iterations}: exit code ${exitCode}`;
       }
 
-      // Brief pause between iterations
-      await new Promise(r => setTimeout(r, 2000));
+      // Pause between iterations
+      await new Promise(r => setTimeout(r, state.pauseBetweenMs));
 
     } catch (err: any) {
       if (abort.signal.aborted) { state.status = 'stopped'; break; }
@@ -2283,10 +2316,11 @@ export function devApiPlugin(): Plugin {
             req.on('end', async () => {
               try {
                 const params = JSON.parse(body);
-                const { projectPath, prompt, maxIterations = 25, model } = params;
+                const { projectPath, prompt, maxIterations = 25, model, pauseBetweenMs = 3000, completionMarkers } = params;
 
                 const loopId = `loop_${Date.now()}`;
                 const abort = new AbortController();
+                const defaultMarkers = ['LOOP_COMPLETE', 'nothing left to do', 'all tasks are complete', 'plan is complete', 'all done'];
 
                 const state: LoopState = {
                   id: loopId,
@@ -2294,16 +2328,18 @@ export function devApiPlugin(): Plugin {
                   status: 'running',
                   iterations: 0,
                   maxIterations,
-                  prompt: prompt || 'Continue working on the current task. Review what has been done so far and continue with the next steps. If everything is complete and there is nothing left to do, respond with exactly: LOOP_COMPLETE',
+                  prompt: prompt || '',
                   lastOutput: '',
                   startTime: Date.now(),
                   elapsedMs: 0,
+                  model: model || undefined,
+                  history: [],
+                  pauseBetweenMs,
+                  completionMarkers: completionMarkers || defaultMarkers,
                 };
 
                 activeLoops.set(loopId, { state, abort });
-
-                // Start the loop asynchronously
-                runLoop(loopId, model);
+                runLoop(loopId);
 
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ success: true, loopId, state }));
@@ -2331,6 +2367,28 @@ export function devApiPlugin(): Plugin {
                 }
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ success: true }));
+              } catch (err: any) {
+                res.end(JSON.stringify({ success: false, message: err.message }));
+              }
+            });
+            return;
+          }
+
+          // POST /api/loops/pause — toggle pause/resume
+          if (req.url === "/api/loops/pause" && req.method === "POST") {
+            let body = '';
+            req.on('data', (chunk: Buffer) => body += chunk.toString());
+            req.on('end', () => {
+              try {
+                const { loopId } = JSON.parse(body);
+                const loop = activeLoops.get(loopId);
+                if (loop && loop.state.status === 'running') {
+                  loop.state.status = 'paused';
+                } else if (loop && loop.state.status === 'paused') {
+                  loop.state.status = 'running';
+                }
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true, status: loop?.state.status }));
               } catch (err: any) {
                 res.end(JSON.stringify({ success: false, message: err.message }));
               }
