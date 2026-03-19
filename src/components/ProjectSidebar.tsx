@@ -5,8 +5,6 @@ import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { PlanUsagePanel } from "./sidebar/PlanUsagePanel";
 import { EnvironmentSelector } from "./sidebar/EnvironmentSelector";
 import { ActiveSessions } from "./sidebar/ActiveSessions";
-import { GitStatus } from "./sidebar/GitStatus";
-import { QuickActions } from "./sidebar/QuickActions";
 import { RecentFiles } from "./sidebar/RecentFiles";
 import { SidebarBookmarks } from "./sidebar/SidebarBookmarks";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
@@ -258,13 +256,7 @@ export function ProjectSidebar({
                     <ActiveSessions />
                   </SectionErrorBoundary>
 
-                  <SectionErrorBoundary>
-                    <GitStatus projectPath={projectPath} />
-                  </SectionErrorBoundary>
 
-                  <SectionErrorBoundary>
-                    <QuickActions />
-                  </SectionErrorBoundary>
 
                   <SectionDivider />
 

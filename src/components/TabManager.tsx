@@ -553,12 +553,13 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
             <Plus className="w-4 h-4" />
           </motion.button>
 
-          {/* Shell terminal button — opens a plain shell, not Claude */}
+          {/* Shell terminal button — opens in active project directory */}
           <motion.button
             onClick={() => {
               if (canAddTab()) {
-                // Open plain shell terminal (no claude command)
-                createTerminalTab(undefined, undefined, ['--shell']);
+                const activeTab = tabs.find(t => t.id === activeTabId);
+                const projectPath = activeTab?.projectPath || activeTab?.initialProjectPath || undefined;
+                createTerminalTab(undefined, projectPath, ['--shell']);
                 trackEvent.tabCreated('claude-terminal');
               }
             }}
