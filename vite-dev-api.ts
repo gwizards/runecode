@@ -2113,32 +2113,33 @@ export function devApiPlugin(): Plugin {
 
         // Use `script` to allocate a real PTY (Linux vs macOS syntax)
         // Prepend stty to set PTY dimensions (script doesn't inherit them from env)
+        // Wrap with stdbuf to minimize output buffering latency
         const isLinux = process.platform === "linux";
         const sizeCmd = `stty cols ${cols} rows ${rows}`;
-        const scriptArgs = isLinux
-          ? ["-qfec", `${sizeCmd}; ${termCmd}`, "/dev/null"]
-          : ["-q", "/dev/null", "sh", "-c", `${sizeCmd}; ${termCmd}`]; // macOS
+        const innerCmd = `${sizeCmd}; ${termCmd}`;
 
         console.log("[dev-api] Terminal dimensions:", cols, "x", rows);
-        const child = spawn("script", scriptArgs, {
-          cwd: projectPath,
-          env: {
-            ...process.env,
-            TERM: "xterm-256color",
-            COLUMNS: String(cols),
-            LINES: String(rows),
-          },
-        });
+        let child;
+        if (isLinux) {
+          child = spawn("stdbuf", ["-o0", "script", "-qfec", innerCmd, "/dev/null"], {
+            cwd: projectPath,
+            env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+          });
+        } else {
+          child = spawn("script", ["-q", "/dev/null", "sh", "-c", innerCmd], {
+            cwd: projectPath,
+            env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+          });
+        }
 
         terminalChildren.set(ws, child);
 
-        child.stdout?.on("data", (data: Buffer) => {
+        // Pipe PTY output to WebSocket — raw Buffer for minimum overhead
+        const sendData = (data: Buffer) => {
           if (ws.readyState === WebSocket.OPEN) ws.send(data);
-        });
-
-        child.stderr?.on("data", (data: Buffer) => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(data);
-        });
+        };
+        child.stdout?.on("data", sendData);
+        child.stderr?.on("data", sendData);
 
         child.on("exit", (code: number | null) => {
           if (ws.readyState === WebSocket.OPEN) {
