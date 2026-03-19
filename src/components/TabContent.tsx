@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { useTabState } from '@/hooks/useTabState';
 import { useScreenTracking } from '@/hooks/useAnalytics';
 import { Tab } from '@/contexts/TabContext';
-import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical } from 'lucide-react';
+import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical, TerminalSquare, Globe } from 'lucide-react';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
 import { ProjectList } from '@/components/ProjectList';
 import { CreateProjectDialog } from '@/components/CreateProjectDialog';
@@ -124,37 +124,48 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
   
   const handleNewProjectCreated = async (projectPath: string, projectName: string) => {
     try {
-      // Create the project in the backend
       const project = await api.createProject(projectPath);
       await loadProjects();
-
-      // Open a new chat tab for this project
       const dirName = projectName || projectPath.split('/').pop() || projectPath.split('\\').pop() || 'New Project';
+      // Default: open in terminal mode
       updateTab(tab.id, {
-        type: 'chat',
+        type: 'claude-terminal',
         title: dirName,
         sessionId: undefined,
         sessionData: undefined,
-        initialProjectPath: project.path
+        projectPath: project.path,
+        initialProjectPath: project.path,
+        terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
       });
     } catch (err) {
       console.error('Failed to create project:', err);
-      // Even if backend project creation fails, open a chat tab with the path
       const dirName = projectName || projectPath.split('/').pop() || projectPath.split('\\').pop() || 'New Project';
       updateTab(tab.id, {
-        type: 'chat',
+        type: 'claude-terminal',
         title: dirName,
         sessionId: undefined,
         sessionData: undefined,
-        initialProjectPath: projectPath
+        projectPath: projectPath,
+        initialProjectPath: projectPath,
+        terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
       });
     }
   };
 
-  const handleNewSession = () => {
-    // Update current tab to show new chat session instead of creating a new tab
+  const handleNewSession = (mode: 'terminal' | 'web' = 'terminal') => {
     if (selectedProject) {
       const projectName = selectedProject.path.split('/').pop() || 'Session';
+      if (mode === 'terminal') {
+        updateTab(tab.id, {
+          type: 'claude-terminal',
+          title: projectName,
+          sessionId: undefined,
+          projectPath: selectedProject.path,
+          initialProjectPath: selectedProject.path,
+          terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
+        });
+        return;
+      }
       updateTab(tab.id, {
         type: 'chat',
         title: projectName,
@@ -222,18 +233,24 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
                             </p>
                           </div>
                         </div>
-                        <motion.div
-                          whileTap={{ scale: 0.97 }}
-                          transition={{ duration: 0.15 }}
-                        >
+                        <div className="flex items-center gap-2">
                           <Button
-                            onClick={handleNewSession}
+                            onClick={() => handleNewSession('terminal')}
                             size="default"
                           >
-                            <Plus className="mr-2 h-4 w-4" />
-                            New session
+                            <TerminalSquare className="mr-2 h-4 w-4" />
+                            New Terminal Session
                           </Button>
-                        </motion.div>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleNewSession('web')}
+                            size="default"
+                            title="Experimental web-based UI"
+                          >
+                            <Globe className="mr-2 h-4 w-4" />
+                            Web Mode
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
@@ -262,13 +279,15 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
                         sessions={sessions}
                         projectPath={selectedProject.path}
                         onSessionClick={(session) => {
-                          // Update current tab to show the selected session
+                          // Default: open in terminal mode with --resume
                           updateTab(tab.id, {
-                            type: 'chat',
+                            type: 'claude-terminal',
                             title: session.project_path.split('/').pop() || 'Session',
                             sessionId: session.id,
                             sessionData: session,
-                            initialProjectPath: session.project_path
+                            projectPath: session.project_path,
+                            initialProjectPath: session.project_path,
+                            terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
                           });
                         }}
                         onEditClaudeFile={(file: ClaudeMdFile) => {
