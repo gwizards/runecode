@@ -2180,8 +2180,15 @@ export function devApiPlugin(): Plugin {
         ws.on("close", () => {
           console.log("[dev-api] Terminal WebSocket closed");
           const c = terminalChildren.get(ws);
-          if (c) {
-            try { c.kill("SIGTERM"); } catch { /* ignore */ }
+          if (c && c.pid) {
+            // Kill the entire process tree to avoid orphaned children
+            try { exec(`pkill -TERM -P ${c.pid} 2>/dev/null`); } catch {}
+            try { c.kill("SIGTERM"); } catch {}
+            // Force kill stragglers after 2s
+            setTimeout(() => {
+              try { exec(`pkill -KILL -P ${c.pid} 2>/dev/null`); } catch {}
+              try { c.kill("SIGKILL"); } catch {}
+            }, 2000);
             terminalChildren.delete(ws);
           }
         });

@@ -630,7 +630,9 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
     && a.agentRunId === b.agentRunId
     && a.agentData === b.agentData
     && a.status === b.status
-    && a.sessionData === b.sessionData;
+    && a.sessionData === b.sessionData
+    && a.terminalFlags === b.terminalFlags
+    && a.claudeFileId === b.claudeFileId;
 });
 
 export const TabContent: React.FC = () => {
