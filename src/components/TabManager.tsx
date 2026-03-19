@@ -551,11 +551,12 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
             <Plus className="w-4 h-4" />
           </motion.button>
 
-          {/* Terminal tab button */}
+          {/* Shell terminal button — opens a plain shell, not Claude */}
           <motion.button
             onClick={() => {
               if (canAddTab()) {
-                createTerminalTab();
+                // Open plain shell terminal (no claude command)
+                createTerminalTab(undefined, undefined, ['--shell']);
                 trackEvent.tabCreated('claude-terminal');
               }
             }}
@@ -569,7 +570,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
                 ? "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
                 : "opacity-50 cursor-not-allowed text-muted-foreground"
             )}
-            title={canAddTab() ? "Open Claude Terminal" : "Maximum tabs reached"}
+            title={canAddTab() ? "Open Shell" : "Maximum tabs reached"}
           >
             <TerminalSquare className="w-4 h-4" />
           </motion.button>

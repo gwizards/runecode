@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Clock, MessageSquare } from "lucide-react";
+import { Clock, MessageSquare, Globe } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { ClaudeMemoriesDropdown } from "@/components/ClaudeMemoriesDropdown";
@@ -106,11 +106,10 @@ export const SessionList: React.FC<SessionListProps> = ({
                   session.todo_data && "bg-primary/5"
                 )}
                 onClick={() => {
-                  // Emit a special event for Claude Code session navigation
-                  const event = new CustomEvent('claude-session-selected', { 
-                    detail: { session, projectPath } 
-                  });
-                  window.dispatchEvent(event);
+                  // Default: open in terminal mode
+                  window.dispatchEvent(new CustomEvent('claude-session-selected', {
+                    detail: { session, projectPath }
+                  }));
                   onSessionClick?.(session);
                 }}
               >
@@ -156,14 +155,29 @@ export const SessionList: React.FC<SessionListProps> = ({
                     )}
                   </div>
                   
-                  {/* Metadata footer */}
+                  {/* Mode buttons + metadata footer */}
                   <div className="flex items-center justify-between pt-2 border-t">
                     <p className="text-caption text-muted-foreground font-mono">
                       {session.id.slice(-8)}
                     </p>
-                    {session.todo_data && (
-                      <MessageSquare className="h-3 w-3 text-primary" />
-                    )}
+                    <div className="flex items-center gap-1">
+                      {session.todo_data && (
+                        <MessageSquare className="h-3 w-3 text-primary" />
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.dispatchEvent(new CustomEvent('claude-session-selected', {
+                            detail: { session, projectPath, mode: 'web' }
+                          }));
+                          onSessionClick?.(session);
+                        }}
+                        className="p-1 rounded text-muted-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                        title="Open in Web Mode (experimental)"
+                      >
+                        <Globe className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </Card>

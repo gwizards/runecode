@@ -528,7 +528,7 @@ export const TabContent: React.FC = () => {
         });
       } else {
         // Terminal mode (default) — full Claude Code TUI
-        const defaultFlags = ['--dangerously-skip-permissions'];
+        const defaultFlags = ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'];
         createTerminalTab(session.id, session.project_path, defaultFlags);
       }
     };
@@ -567,7 +567,7 @@ export const TabContent: React.FC = () => {
     };
 
     const handleClaudeSessionSelected = (event: CustomEvent) => {
-      const { session } = event.detail;
+      const { session, mode } = event.detail;
       // Check if there's an existing tab for this session
       const existingTab = findTabBySessionId(session.id);
       if (existingTab) {
@@ -577,11 +577,26 @@ export const TabContent: React.FC = () => {
           title: session.project_path.split('/').pop() || 'Session',
         });
         window.dispatchEvent(new CustomEvent('switch-to-tab', { detail: { tabId: existingTab.id } }));
-      } else {
-        // Default: open in terminal mode
+      } else if (mode === 'web') {
+        // Web mode (experimental) — SDK-based streaming UI
         const currentTab = tabs.find(t => t.id === activeTabId);
         if (currentTab && currentTab.type === 'projects') {
-          // Replace projects tab with terminal
+          updateTab(currentTab.id, {
+            type: 'chat',
+            title: session.project_path.split('/').pop() || 'Session',
+            sessionId: session.id,
+            sessionData: session,
+            initialProjectPath: session.project_path,
+          });
+        } else {
+          const projectName = session.project_path.split('/').pop() || 'Session';
+          const newTabId = createChatTab(session.id, projectName, session.project_path);
+          updateTab(newTabId, { sessionData: session, initialProjectPath: session.project_path });
+        }
+      } else {
+        // Terminal mode (default) — full Claude Code TUI
+        const currentTab = tabs.find(t => t.id === activeTabId);
+        if (currentTab && currentTab.type === 'projects') {
           updateTab(currentTab.id, {
             type: 'claude-terminal',
             title: session.project_path.split('/').pop() || 'Session',
@@ -589,10 +604,10 @@ export const TabContent: React.FC = () => {
             sessionData: session,
             projectPath: session.project_path,
             initialProjectPath: session.project_path,
-            terminalFlags: ['--dangerously-skip-permissions'],
+            terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
           });
         } else {
-          createTerminalTab(session.id, session.project_path, ['--dangerously-skip-permissions']);
+          createTerminalTab(session.id, session.project_path, ['--dangerously-skip-permissions', '--teammate-mode', 'tmux']);
         }
       }
     };

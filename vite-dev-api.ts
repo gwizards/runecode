@@ -2065,27 +2065,33 @@ export function devApiPlugin(): Plugin {
         const cols = parseInt(url.searchParams.get("cols") || "120", 10);
         const rows = parseInt(url.searchParams.get("rows") || "40", 10);
 
-        // Build claude command with optional flags
-        const claudeArgs: string[] = [];
-        if (sessionId) claudeArgs.push("--resume", sessionId);
-
         // Parse extra CLI flags from query param (comma-separated)
         const flagsParam = url.searchParams.get("flags") || "";
-        if (flagsParam) {
-          for (const flag of flagsParam.split(",")) {
-            const trimmed = flag.trim();
-            if (trimmed) claudeArgs.push(trimmed);
-          }
-        }
+        const extraFlags = flagsParam ? flagsParam.split(",").map(f => f.trim()).filter(Boolean) : [];
+        const isShellOnly = extraFlags.includes("--shell");
 
-        const claudeCmd = ["claude", ...claudeArgs].join(" ");
-        console.log("[dev-api] Terminal spawn:", claudeCmd, "cwd:", projectPath);
+        // Build command: plain shell or claude with flags
+        let termCmd: string;
+        if (isShellOnly) {
+          // Plain shell — user's default shell
+          const userShell = process.env.SHELL || "/bin/bash";
+          termCmd = userShell;
+          console.log("[dev-api] Terminal spawn: shell", userShell, "cwd:", projectPath);
+        } else {
+          const claudeArgs: string[] = [];
+          if (sessionId) claudeArgs.push("--resume", sessionId);
+          for (const flag of extraFlags) {
+            if (flag !== "--shell") claudeArgs.push(flag);
+          }
+          termCmd = ["claude", ...claudeArgs].join(" ");
+          console.log("[dev-api] Terminal spawn:", termCmd, "cwd:", projectPath);
+        }
 
         // Use `script` to allocate a real PTY (Linux vs macOS syntax)
         const isLinux = process.platform === "linux";
         const scriptArgs = isLinux
-          ? ["-qfec", claudeCmd, "/dev/null"]
-          : ["-q", "/dev/null", "claude", ...claudeArgs]; // macOS
+          ? ["-qfec", termCmd, "/dev/null"]
+          : ["-q", "/dev/null", ...termCmd.split(" ")]; // macOS
 
         const child = spawn("script", scriptArgs, {
           cwd: projectPath,
