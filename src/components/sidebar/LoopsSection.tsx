@@ -3,10 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronDown, ChevronRight, Play, Square, Trash2,
-  Loader2, CheckCircle2, XCircle, Pause, RotateCcw, Settings2
+  Loader2, CheckCircle2, XCircle, Pause, RotateCcw, Settings2, Maximize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTabState } from '@/hooks/useTabState';
 
 interface LoopIteration {
   index: number;
@@ -43,6 +44,7 @@ export function LoopsSection({ projectPath }: { projectPath?: string }) {
   const [expandedLoop, setExpandedLoop] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { createLoopDetailTab } = useTabState();
 
   const { data: loops = [] } = useQuery<LoopState[]>({
     queryKey: ['loops-status'],
@@ -220,6 +222,9 @@ export function LoopsSection({ projectPath }: { projectPath?: string }) {
 
                           {/* Actions */}
                           <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => createLoopDetailTab(loop.id, loop.projectPath.split('/').pop() || loop.id)} className="text-[9px] h-5 px-1.5 text-cyan-400/60 hover:text-cyan-400">
+                              <Maximize2 className="h-2.5 w-2.5 mr-0.5" /> View Full
+                            </Button>
                             {(loop.status === 'running' || loop.status === 'paused') && (
                               <Button variant="ghost" size="sm" onClick={() => pauseMutation.mutate(loop.id)} className="text-[9px] h-5 px-1.5 text-yellow-400/60 hover:text-yellow-400">
                                 {loop.status === 'paused' ? <><Play className="h-2.5 w-2.5 mr-0.5" /> Resume</> : <><Pause className="h-2.5 w-2.5 mr-0.5" /> Pause</>}

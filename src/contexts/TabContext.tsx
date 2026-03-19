@@ -22,7 +22,7 @@ export interface GridConfig {
 
 export interface Tab {
   id: string;
-  type: 'chat' | 'agent' | 'agents' | 'projects' | 'usage' | 'mcp' | 'settings' | 'claude-md' | 'claude-file' | 'agent-execution' | 'create-agent' | 'import-agent' | 'resource-details' | 'claude-terminal';
+  type: 'chat' | 'agent' | 'agents' | 'projects' | 'usage' | 'mcp' | 'settings' | 'claude-md' | 'claude-file' | 'agent-execution' | 'create-agent' | 'import-agent' | 'resource-details' | 'claude-terminal' | 'loop-detail';
   title: string;
   sessionId?: string;  // for chat tabs
   sessionData?: any; // for chat tabs - stores full session object
@@ -31,6 +31,7 @@ export interface Tab {
   claudeFileId?: string; // for claude-file tabs
   initialProjectPath?: string; // for chat tabs
   projectPath?: string; // for agent-execution tabs
+  loopId?: string; // for loop-detail tabs
   /** CLI flags for terminal tabs */
   terminalFlags?: string[];
   status: 'active' | 'idle' | 'running' | 'complete' | 'error';

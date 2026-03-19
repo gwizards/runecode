@@ -26,6 +26,7 @@ interface UseTabStateReturn {
   createImportAgentTab: () => string;
   createResourceDetailsTab: () => string;
   createTerminalTab: (sessionId?: string, projectPath?: string, flags?: string[]) => string;
+  createLoopDetailTab: (loopId: string, loopName: string) => string;
   closeTab: (id: string, force?: boolean) => Promise<boolean>;
   closeCurrentTab: () => Promise<boolean>;
   switchToTab: (id: string) => void;
@@ -298,6 +299,24 @@ export const useTabState = (): UseTabStateReturn => {
     });
   }, [addTab]);
 
+  const createLoopDetailTab = useCallback((loopId: string, loopName: string): string => {
+    // Check if tab already exists for this loop
+    const existingTab = tabs.find(tab => tab.type === 'loop-detail' && tab.loopId === loopId);
+    if (existingTab) {
+      setActiveTab(existingTab.id);
+      return existingTab.id;
+    }
+
+    return addTab({
+      type: 'loop-detail',
+      title: `Loop: ${loopName}`,
+      loopId,
+      status: 'active',
+      hasUnsavedChanges: false,
+      icon: 'rotate-ccw'
+    });
+  }, [addTab, tabs, setActiveTab]);
+
   const closeTab = useCallback(async (id: string, force: boolean = false): Promise<boolean> => {
     const tab = getTabById(id);
     if (!tab) return true;
@@ -392,6 +411,7 @@ export const useTabState = (): UseTabStateReturn => {
     createImportAgentTab,
     createResourceDetailsTab,
     createTerminalTab,
+    createLoopDetailTab,
     closeTab,
     closeCurrentTab,
     switchToTab: setActiveTab,

@@ -19,6 +19,7 @@ const UsageDashboard = lazy(() => import('@/components/UsageDashboard').then(m =
 const ResourceDetails = lazy(() => import('@/integrations/compute/ResourceDetails').then(m => ({ default: m.ResourceDetails })));
 const MCPManager = lazy(() => import('@/components/MCPManager').then(m => ({ default: m.MCPManager })));
 const Settings = lazy(() => import('@/components/Settings').then(m => ({ default: m.Settings })));
+const LoopDetailView = lazy(() => import('@/components/LoopDetailView').then(m => ({ default: m.LoopDetailView })));
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })));
 const ClaudeFileEditor = lazy(() => import('@/components/ClaudeFileEditor').then(m => ({ default: m.ClaudeFileEditor })));
 const EmbeddedTerminal = lazy(() => import('@/components/EmbeddedTerminal').then(m => ({ default: m.EmbeddedTerminal })));
@@ -583,6 +584,16 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
               flags={tab.terminalFlags}
               tabId={tab.id}
             />
+          </div>
+        );
+
+      case 'loop-detail':
+        if (!tab.loopId) {
+          return <div className="p-4">No loop ID specified</div>;
+        }
+        return (
+          <div className="h-full">
+            <LoopDetailView loopId={tab.loopId} />
           </div>
         );
 
