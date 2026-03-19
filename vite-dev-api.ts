@@ -2153,9 +2153,8 @@ export function devApiPlugin(): Plugin {
             try {
               const msg = JSON.parse(str);
               if (msg.type === "resize" && msg.cols && msg.rows) {
-                // Send SIGWINCH-style resize via stty if possible
-                // For now, this is best-effort; the script PTY picks up
-                // COLUMNS/LINES from env on start.
+                // Note: script-based PTY cannot be resized at runtime
+                // (would need node-pty for SIGWINCH support)
                 return;
               }
             } catch { /* not JSON, treat as raw input */ }
