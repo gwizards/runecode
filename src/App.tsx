@@ -151,11 +151,17 @@ function AppContent() {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const modKey = isMac ? e.metaKey : e.ctrlKey;
 
-      // Shift+Tab — cycle tabs in single mode, grid handles its own cycling
-      if (e.key === 'Tab' && e.shiftKey && !modKey) {
-        // Check if grid mode is active — let the grid's own handler deal with it
+      // Tab (alone) — cycle to next tab/grid cell
+      if (e.key === 'Tab' && !e.shiftKey && !modKey && !e.altKey) {
+        // Skip if focus is in a regular input (not terminal)
+        const target = e.target as HTMLElement;
+        const isTextInput = (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && !target.closest('.xterm');
+        if (isTextInput) return; // Let normal Tab work in text inputs
+
+        // Grid mode — let TabContent's own handler deal with it
         const gridMode = localStorage.getItem('runecode-layout-mode');
-        if (gridMode === 'grid') return; // Grid handler in TabContent.tsx handles this
+        if (gridMode === 'grid') return;
+
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('switch-to-next-tab'));
         setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);

@@ -853,20 +853,24 @@ export const TabContent: React.FC = () => {
     setFooterDragOverId(null);
   }, [footerDragId, orderedGridTabs, setGridOrder]);
 
-  // Shift+Tab cycles grid focus, Ctrl+1..9 jumps to specific grid tab
+  // Tab cycles grid focus, Shift+Tab goes backward, Ctrl+1..9 jumps to specific grid tab
   React.useEffect(() => {
     if (layoutMode !== 'grid' || orderedGridTabs.length === 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Shift+Tab cycles focus forward, Ctrl+Shift+Tab cycles backward
-      if (e.key === 'Tab' && e.shiftKey && !e.altKey && !e.metaKey) {
+      // Tab cycles focus forward through grid cells, Shift+Tab cycles backward
+      if (e.key === 'Tab' && !e.altKey && !e.metaKey) {
+        // Skip if focus is in a regular text input (not terminal)
+        const target = e.target as HTMLElement;
+        const isTextInput = (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && !target.closest('.xterm');
+        if (isTextInput) return;
+
         e.preventDefault();
         e.stopPropagation();
         const currentIdx = orderedGridTabs.findIndex(t => t.id === activeTabId);
-        const delta = e.ctrlKey ? -1 : 1;
+        const delta = e.shiftKey ? -1 : 1;
         const nextIdx = (currentIdx + delta + orderedGridTabs.length) % orderedGridTabs.length;
         switchToTab(orderedGridTabs[nextIdx].id);
-        // Focus the terminal/prompt in the new cell
         setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt')), 50);
         return;
       }
@@ -1122,7 +1126,7 @@ export const TabContent: React.FC = () => {
 
             {/* Shortcut hints — right of project names */}
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40 flex-shrink-0 px-2 border-l border-border/50">
-              <kbd className="px-1 py-0.5 rounded bg-muted/40 font-mono text-[9px] leading-none">Shift+Tab</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-muted/40 font-mono text-[9px] leading-none">Tab</kbd>
               <span className="text-muted-foreground/30">cycle</span>
               <kbd className="px-1 py-0.5 rounded bg-muted/40 font-mono text-[9px] leading-none">Ctrl+1-9</kbd>
               <span className="text-muted-foreground/30">jump</span>
