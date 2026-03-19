@@ -31,6 +31,8 @@ export interface Tab {
   claudeFileId?: string; // for claude-file tabs
   initialProjectPath?: string; // for chat tabs
   projectPath?: string; // for agent-execution tabs
+  /** CLI flags for terminal tabs */
+  terminalFlags?: string[];
   status: 'active' | 'idle' | 'running' | 'complete' | 'error';
   hasUnsavedChanges: boolean;
   order: number;

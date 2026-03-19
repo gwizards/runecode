@@ -2065,9 +2065,18 @@ export function devApiPlugin(): Plugin {
         const cols = parseInt(url.searchParams.get("cols") || "120", 10);
         const rows = parseInt(url.searchParams.get("rows") || "40", 10);
 
-        // Build claude command
+        // Build claude command with optional flags
         const claudeArgs: string[] = [];
         if (sessionId) claudeArgs.push("--resume", sessionId);
+
+        // Parse extra CLI flags from query param (comma-separated)
+        const flagsParam = url.searchParams.get("flags") || "";
+        if (flagsParam) {
+          for (const flag of flagsParam.split(",")) {
+            const trimmed = flag.trim();
+            if (trimmed) claudeArgs.push(trimmed);
+          }
+        }
 
         const claudeCmd = ["claude", ...claudeArgs].join(" ");
         console.log("[dev-api] Terminal spawn:", claudeCmd, "cwd:", projectPath);

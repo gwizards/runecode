@@ -69,6 +69,8 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
         return Bot;
       case 'resource-details':
         return Cpu;
+      case 'claude-terminal':
+        return TerminalSquare;
       default:
         return MessageSquare;
     }
@@ -224,7 +226,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const { visibleTabs, overflowAgentTabs } = useMemo(() => {
     if (layoutMode === 'grid') {
       // In grid mode: Grid pseudo-tab for projects + individual tabs for non-grid windows
-      const gridTypes = new Set(['chat', 'agent-execution']);
+      const gridTypes = new Set(['chat', 'agent-execution', 'claude-terminal']);
       const gridCount = tabs.filter(t => gridTypes.has(t.type)).length;
       const nonGridInBar = tabs.filter(t => !gridTypes.has(t.type));
 
@@ -468,7 +470,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
           >
             {visibleTabs.map((tab) => {
               const isGridPseudo = tab.id === '__grid__';
-              const gridTypes = new Set(['chat', 'agent-execution']);
+              const gridTypes = new Set(['chat', 'agent-execution', 'claude-terminal']);
               // Grid pseudo-tab is active when the active tab is a grid-type tab
               const isActive = isGridPseudo
                 ? !!activeTabId && gridTypes.has(tabs.find(t => t.id === activeTabId)?.type || '')

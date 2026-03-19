@@ -25,7 +25,7 @@ interface UseTabStateReturn {
   createCreateAgentTab: () => string;
   createImportAgentTab: () => string;
   createResourceDetailsTab: () => string;
-  createTerminalTab: (sessionId?: string, projectPath?: string) => string;
+  createTerminalTab: (sessionId?: string, projectPath?: string, flags?: string[]) => string;
   closeTab: (id: string, force?: boolean) => Promise<boolean>;
   closeCurrentTab: () => Promise<boolean>;
   switchToTab: (id: string) => void;
@@ -284,12 +284,14 @@ export const useTabState = (): UseTabStateReturn => {
     });
   }, [addTab, tabs, setActiveTab]);
 
-  const createTerminalTab = useCallback((sessionId?: string, projectPath?: string): string => {
+  const createTerminalTab = useCallback((sessionId?: string, projectPath?: string, flags?: string[]): string => {
+    const name = projectPath?.split('/').pop() || (sessionId ? sessionId.slice(0, 8) : 'Terminal');
     return addTab({
       type: 'claude-terminal',
-      title: sessionId ? `Terminal (${sessionId.slice(0, 8)})` : 'Claude Terminal',
+      title: name,
       sessionId,
       projectPath,
+      terminalFlags: flags,
       status: 'active',
       hasUnsavedChanges: false,
       icon: 'terminal'

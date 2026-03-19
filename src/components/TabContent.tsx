@@ -450,6 +450,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
             <EmbeddedTerminal
               sessionId={tab.sessionId}
               projectPath={tab.projectPath || tab.initialProjectPath}
+              flags={tab.terminalFlags}
             />
           </div>
         );
@@ -507,26 +508,28 @@ export const TabContent: React.FC = () => {
   // Listen for events to open sessions in tabs
   useEffect(() => {
     const handleOpenSessionInTab = (event: CustomEvent) => {
-      const { session } = event.detail;
-      
+      const { session, mode } = event.detail;
+
       // Check if tab already exists for this session
       const existingTab = findTabBySessionId(session.id);
       if (existingTab) {
-        // Update existing tab with session data and switch to it
         updateTab(existingTab.id, {
           sessionData: session,
           title: session.project_path.split('/').pop() || 'Session'
         });
         window.dispatchEvent(new CustomEvent('switch-to-tab', { detail: { tabId: existingTab.id } }));
-      } else {
-        // Create new tab for this session
+      } else if (mode === 'web') {
+        // Web mode (experimental) — uses SDK-based streaming UI
         const projectName = session.project_path.split('/').pop() || 'Session';
         const newTabId = createChatTab(session.id, projectName, session.project_path);
-        // Update the new tab with session data
         updateTab(newTabId, {
           sessionData: session,
           initialProjectPath: session.project_path
         });
+      } else {
+        // Terminal mode (default) — full Claude Code TUI
+        const defaultFlags = ['--dangerously-skip-permissions'];
+        createTerminalTab(session.id, session.project_path, defaultFlags);
       }
     };
 
@@ -575,24 +578,21 @@ export const TabContent: React.FC = () => {
         });
         window.dispatchEvent(new CustomEvent('switch-to-tab', { detail: { tabId: existingTab.id } }));
       } else {
-        // If we're in a projects tab, update it to show the session
-        // Otherwise create a new tab (for compatibility with other parts of the app)
+        // Default: open in terminal mode
         const currentTab = tabs.find(t => t.id === activeTabId);
         if (currentTab && currentTab.type === 'projects') {
+          // Replace projects tab with terminal
           updateTab(currentTab.id, {
-            type: 'chat',
+            type: 'claude-terminal',
             title: session.project_path.split('/').pop() || 'Session',
             sessionId: session.id,
             sessionData: session,
-            initialProjectPath: session.project_path
+            projectPath: session.project_path,
+            initialProjectPath: session.project_path,
+            terminalFlags: ['--dangerously-skip-permissions'],
           });
         } else {
-          const projectName = session.project_path.split('/').pop() || 'Session';
-          const newTabId = createChatTab(session.id, projectName, session.project_path);
-          updateTab(newTabId, {
-            sessionData: session,
-            initialProjectPath: session.project_path,
-          });
+          createTerminalTab(session.id, session.project_path, ['--dangerously-skip-permissions']);
         }
       }
     };
@@ -628,7 +628,7 @@ export const TabContent: React.FC = () => {
   
   // Grid mode — only project/session tabs go into the grid.
   // Settings, agents, processes, etc. stay as single-panel windows.
-  const gridTypes = React.useMemo(() => new Set(['chat', 'agent-execution']), []);
+  const gridTypes = React.useMemo(() => new Set(['chat', 'agent-execution', 'claude-terminal']), []);
 
   const gridTabs = React.useMemo(() =>
     layoutMode === 'grid' ? tabs.filter(t => gridTypes.has(t.type)) : [],

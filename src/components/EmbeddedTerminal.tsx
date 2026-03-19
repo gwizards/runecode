@@ -8,6 +8,8 @@ interface EmbeddedTerminalProps {
   sessionId?: string;
   /** Project working directory */
   projectPath?: string;
+  /** Extra CLI flags (e.g., --dangerously-skip-permissions) */
+  flags?: string[];
   /** Called when the process exits */
   onExit?: () => void;
   /** Extra CSS classes */
@@ -17,6 +19,7 @@ interface EmbeddedTerminalProps {
 export function EmbeddedTerminal({
   sessionId,
   projectPath,
+  flags,
   onExit,
   className = '',
 }: EmbeddedTerminalProps) {
@@ -58,6 +61,7 @@ export function EmbeddedTerminal({
     const params = new URLSearchParams();
     if (sessionId) params.set('sessionId', sessionId);
     if (projectPath) params.set('projectPath', projectPath);
+    if (flags && flags.length > 0) params.set('flags', flags.join(','));
     params.set('cols', String(term.cols));
     params.set('rows', String(term.rows));
     const url = `${protocol}//${window.location.host}/ws/terminal?${params}`;
