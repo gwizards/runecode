@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
-import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown, Cpu, LayoutGrid, Monitor, PanelRightClose, PanelRightOpen, FolderOpen } from 'lucide-react';
+import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown, Cpu, LayoutGrid, Monitor, PanelRightClose, PanelRightOpen, FolderOpen, TerminalSquare } from 'lucide-react';
 import { RuneSpinner } from './RuneCodeLogo';
 import { useTabState } from '@/hooks/useTabState';
 import { Tab, useTabContext } from '@/contexts/TabContext';
@@ -176,6 +176,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     createProjectsTab,
     createSettingsTab,
     createAgentsTab,
+    createTerminalTab,
     closeTab,
     switchToTab,
     canAddTab,
@@ -546,6 +547,29 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
             title={canAddTab() ? "New project (Ctrl+T)" : "Maximum tabs reached"}
           >
             <Plus className="w-4 h-4" />
+          </motion.button>
+
+          {/* Terminal tab button */}
+          <motion.button
+            onClick={() => {
+              if (canAddTab()) {
+                createTerminalTab();
+                trackEvent.tabCreated('claude-terminal');
+              }
+            }}
+            disabled={!canAddTab()}
+            whileTap={canAddTab() ? { scale: 0.97 } : {}}
+            transition={{ duration: 0.15 }}
+            className={cn(
+              "px-2 rounded-md flex items-center justify-center flex-shrink-0",
+              "bg-background/50 backdrop-blur-sm h-8",
+              canAddTab()
+                ? "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                : "opacity-50 cursor-not-allowed text-muted-foreground"
+            )}
+            title={canAddTab() ? "Open Claude Terminal" : "Maximum tabs reached"}
+          >
+            <TerminalSquare className="w-4 h-4" />
           </motion.button>
         </div>
       </div>

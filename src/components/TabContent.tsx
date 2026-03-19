@@ -22,6 +22,7 @@ const MCPManager = lazy(() => import('@/components/MCPManager').then(m => ({ def
 const Settings = lazy(() => import('@/components/Settings').then(m => ({ default: m.Settings })));
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })));
 const ClaudeFileEditor = lazy(() => import('@/components/ClaudeFileEditor').then(m => ({ default: m.ClaudeFileEditor })));
+const EmbeddedTerminal = lazy(() => import('@/components/EmbeddedTerminal').then(m => ({ default: m.EmbeddedTerminal })));
 
 // Import non-lazy components for projects view
 
@@ -442,7 +443,17 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
             />
           </div>
         );
-      
+
+      case 'claude-terminal':
+        return (
+          <div className="h-full">
+            <EmbeddedTerminal
+              sessionId={tab.sessionId}
+              projectPath={tab.projectPath || tab.initialProjectPath}
+            />
+          </div>
+        );
+
       default:
         return (
           <div className="h-full">
@@ -491,7 +502,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
 });
 
 export const TabContent: React.FC = () => {
-  const { tabs, activeTabId, layoutMode, setLayoutMode, gridConfig, setGridColumns, setGridRows, setGridOrder, setGridSpan, createChatTab, createProjectsTab, createSettingsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab, switchToTab } = useTabState();
+  const { tabs, activeTabId, layoutMode, setLayoutMode, gridConfig, setGridColumns, setGridRows, setGridOrder, setGridSpan, createChatTab, createProjectsTab, createSettingsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, createTerminalTab, closeTab, updateTab, switchToTab } = useTabState();
   
   // Listen for events to open sessions in tabs
   useEffect(() => {
@@ -586,12 +597,18 @@ export const TabContent: React.FC = () => {
       }
     };
 
+    const handleOpenTerminal = (event: CustomEvent) => {
+      const { sessionId, projectPath } = event.detail || {};
+      createTerminalTab(sessionId, projectPath);
+    };
+
     window.addEventListener('open-session-in-tab', handleOpenSessionInTab as EventListener);
     window.addEventListener('open-claude-file', handleOpenClaudeFile as EventListener);
     window.addEventListener('open-agent-execution', handleOpenAgentExecution as EventListener);
     window.addEventListener('open-create-agent-tab', handleOpenCreateAgentTab);
     window.addEventListener('open-import-agent-tab', handleOpenImportAgentTab);
     window.addEventListener('open-resource-details', handleOpenResourceDetails);
+    window.addEventListener('open-claude-terminal', handleOpenTerminal as EventListener);
     window.addEventListener('close-tab', handleCloseTab as EventListener);
     window.addEventListener('claude-session-selected', handleClaudeSessionSelected as EventListener);
     window.addEventListener('runecode:open-settings', handleOpenSettings);
@@ -602,11 +619,12 @@ export const TabContent: React.FC = () => {
       window.removeEventListener('open-create-agent-tab', handleOpenCreateAgentTab);
       window.removeEventListener('open-import-agent-tab', handleOpenImportAgentTab);
       window.removeEventListener('open-resource-details', handleOpenResourceDetails);
+      window.removeEventListener('open-claude-terminal', handleOpenTerminal as EventListener);
       window.removeEventListener('close-tab', handleCloseTab as EventListener);
       window.removeEventListener('runecode:open-settings', handleOpenSettings);
       window.removeEventListener('claude-session-selected', handleClaudeSessionSelected as EventListener);
     };
-  }, [createChatTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, closeTab, updateTab]);
+  }, [createChatTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, createTerminalTab, closeTab, updateTab]);
   
   // Grid mode — only project/session tabs go into the grid.
   // Settings, agents, processes, etc. stay as single-panel windows.

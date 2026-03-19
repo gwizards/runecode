@@ -2051,8 +2051,100 @@ export function devApiPlugin(): Plugin {
 
       const wss = new WebSocketServer({ noServer: true });
 
+      // -----------------------------------------------------------------------
+      // Terminal WebSocket — PTY via `script` command (no node-pty needed)
+      // -----------------------------------------------------------------------
+      const terminalWss = new WebSocketServer({ noServer: true });
+
+      const terminalChildren = new Map<WebSocket, ReturnType<typeof spawn>>();
+
+      terminalWss.on("connection", (ws: WebSocket, request: import("http").IncomingMessage) => {
+        const url = new URL(request.url || "", "http://localhost");
+        const sessionId = url.searchParams.get("sessionId") || "";
+        const projectPath = url.searchParams.get("projectPath") || os.homedir();
+        const cols = parseInt(url.searchParams.get("cols") || "120", 10);
+        const rows = parseInt(url.searchParams.get("rows") || "40", 10);
+
+        // Build claude command
+        const claudeArgs: string[] = [];
+        if (sessionId) claudeArgs.push("--resume", sessionId);
+        claudeArgs.push("--no-update-check");
+
+        const claudeCmd = ["claude", ...claudeArgs].join(" ");
+        console.log("[dev-api] Terminal spawn:", claudeCmd, "cwd:", projectPath);
+
+        // Use `script` to allocate a real PTY (Linux vs macOS syntax)
+        const isLinux = process.platform === "linux";
+        const scriptArgs = isLinux
+          ? ["-qfec", claudeCmd, "/dev/null"]
+          : ["-q", "/dev/null", "claude", ...claudeArgs]; // macOS
+
+        const child = spawn("script", scriptArgs, {
+          cwd: projectPath,
+          env: {
+            ...process.env,
+            TERM: "xterm-256color",
+            COLUMNS: String(cols),
+            LINES: String(rows),
+          },
+        });
+
+        terminalChildren.set(ws, child);
+
+        child.stdout?.on("data", (data: Buffer) => {
+          if (ws.readyState === WebSocket.OPEN) ws.send(data);
+        });
+
+        child.stderr?.on("data", (data: Buffer) => {
+          if (ws.readyState === WebSocket.OPEN) ws.send(data);
+        });
+
+        child.on("exit", (code: number | null) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(`\r\n\x1b[90m— Process exited (code ${code ?? "?"}) —\x1b[0m\r\n`);
+            ws.close();
+          }
+          terminalChildren.delete(ws);
+        });
+
+        // Raw keystrokes from xterm.js → child stdin
+        ws.on("message", (data: Buffer | string) => {
+          const str = typeof data === "string" ? data : data.toString();
+          // Check for JSON resize messages
+          if (str.startsWith("{")) {
+            try {
+              const msg = JSON.parse(str);
+              if (msg.type === "resize" && msg.cols && msg.rows) {
+                // Send SIGWINCH-style resize via stty if possible
+                // For now, this is best-effort; the script PTY picks up
+                // COLUMNS/LINES from env on start.
+                return;
+              }
+            } catch { /* not JSON, treat as raw input */ }
+          }
+          child.stdin?.write(str);
+        });
+
+        ws.on("close", () => {
+          console.log("[dev-api] Terminal WebSocket closed");
+          const c = terminalChildren.get(ws);
+          if (c) {
+            try { c.kill("SIGTERM"); } catch { /* ignore */ }
+            terminalChildren.delete(ws);
+          }
+        });
+
+        // Send acknowledgement
+        ws.send(JSON.stringify({ type: "terminal_started", pid: child.pid }));
+      });
+
       server.httpServer?.on("upgrade", (request, socket, head) => {
-        if (request.url === "/ws/claude") {
+        const url = new URL(request.url || "", "http://localhost");
+        if (url.pathname === "/ws/terminal") {
+          terminalWss.handleUpgrade(request, socket, head, (ws) => {
+            terminalWss.emit("connection", ws, request);
+          });
+        } else if (url.pathname === "/ws/claude" || request.url === "/ws/claude") {
           wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit("connection", ws, request);
           });

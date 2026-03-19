@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useTabContext } from '@/contexts/TabContext';
-import { Tab } from '@/contexts/TabContext';
+import { Tab, type LayoutMode, type GridConfig, type GridSpan } from '@/contexts/TabContext';
 
 interface UseTabStateReturn {
   // State
@@ -24,6 +24,8 @@ interface UseTabStateReturn {
   createClaudeFileTab: (fileId: string, fileName: string) => string;
   createCreateAgentTab: () => string;
   createImportAgentTab: () => string;
+  createResourceDetailsTab: () => string;
+  createTerminalTab: (sessionId?: string, projectPath?: string) => string;
   closeTab: (id: string, force?: boolean) => Promise<boolean>;
   closeCurrentTab: () => Promise<boolean>;
   switchToTab: (id: string) => void;
@@ -38,12 +40,26 @@ interface UseTabStateReturn {
   findTabByAgentRunId: (agentRunId: string) => Tab | undefined;
   findTabByType: (type: Tab['type']) => Tab | undefined;
   canAddTab: () => boolean;
+  layoutMode: LayoutMode;
+  setLayoutMode: (mode: LayoutMode) => void;
+  gridConfig: GridConfig;
+  setGridColumns: (cols: number) => void;
+  setGridRows: (rows: number) => void;
+  setGridOrder: (order: string[]) => void;
+  setGridSpan: (tabId: string, span: Partial<GridSpan>) => void;
 }
 
 export const useTabState = (): UseTabStateReturn => {
   const {
     tabs,
     activeTabId,
+    layoutMode,
+    setLayoutMode,
+    gridConfig,
+    setGridColumns,
+    setGridRows,
+    setGridOrder,
+    setGridSpan,
     addTab,
     removeTab,
     updateTab,
@@ -252,6 +268,34 @@ export const useTabState = (): UseTabStateReturn => {
     });
   }, [addTab, tabs, setActiveTab]);
 
+  const createResourceDetailsTab = useCallback((): string => {
+    const existingTab = tabs.find(tab => tab.type === 'resource-details');
+    if (existingTab) {
+      setActiveTab(existingTab.id);
+      return existingTab.id;
+    }
+
+    return addTab({
+      type: 'resource-details',
+      title: 'Processes',
+      status: 'idle',
+      hasUnsavedChanges: false,
+      icon: 'cpu'
+    });
+  }, [addTab, tabs, setActiveTab]);
+
+  const createTerminalTab = useCallback((sessionId?: string, projectPath?: string): string => {
+    return addTab({
+      type: 'claude-terminal',
+      title: sessionId ? `Terminal (${sessionId.slice(0, 8)})` : 'Claude Terminal',
+      sessionId,
+      projectPath,
+      status: 'active',
+      hasUnsavedChanges: false,
+      icon: 'terminal'
+    });
+  }, [addTab]);
+
   const closeTab = useCallback(async (id: string, force: boolean = false): Promise<boolean> => {
     const tab = getTabById(id);
     if (!tab) return true;
@@ -344,6 +388,8 @@ export const useTabState = (): UseTabStateReturn => {
     createClaudeFileTab,
     createCreateAgentTab,
     createImportAgentTab,
+    createResourceDetailsTab,
+    createTerminalTab,
     closeTab,
     closeCurrentTab,
     switchToTab: setActiveTab,
@@ -357,6 +403,13 @@ export const useTabState = (): UseTabStateReturn => {
     findTabBySessionId,
     findTabByAgentRunId,
     findTabByType,
-    canAddTab
+    canAddTab,
+    layoutMode,
+    setLayoutMode,
+    gridConfig,
+    setGridColumns,
+    setGridRows,
+    setGridOrder,
+    setGridSpan,
   };
 };
