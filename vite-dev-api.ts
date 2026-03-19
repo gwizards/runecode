@@ -2068,7 +2068,6 @@ export function devApiPlugin(): Plugin {
         // Build claude command
         const claudeArgs: string[] = [];
         if (sessionId) claudeArgs.push("--resume", sessionId);
-        claudeArgs.push("--no-update-check");
 
         const claudeCmd = ["claude", ...claudeArgs].join(" ");
         console.log("[dev-api] Terminal spawn:", claudeCmd, "cwd:", projectPath);
