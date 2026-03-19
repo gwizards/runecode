@@ -2112,11 +2112,14 @@ export function devApiPlugin(): Plugin {
         }
 
         // Use `script` to allocate a real PTY (Linux vs macOS syntax)
+        // Prepend stty to set PTY dimensions (script doesn't inherit them from env)
         const isLinux = process.platform === "linux";
+        const sizeCmd = `stty cols ${cols} rows ${rows}`;
         const scriptArgs = isLinux
-          ? ["-qfec", termCmd, "/dev/null"]
-          : ["-q", "/dev/null", ...termCmd.split(" ")]; // macOS
+          ? ["-qfec", `${sizeCmd}; ${termCmd}`, "/dev/null"]
+          : ["-q", "/dev/null", "sh", "-c", `${sizeCmd}; ${termCmd}`]; // macOS
 
+        console.log("[dev-api] Terminal dimensions:", cols, "x", rows);
         const child = spawn("script", scriptArgs, {
           cwd: projectPath,
           env: {
