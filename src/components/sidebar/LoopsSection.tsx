@@ -19,7 +19,7 @@ interface LoopIteration {
 interface LoopState {
   id: string;
   projectPath: string;
-  status: 'running' | 'paused' | 'completed' | 'failed' | 'stopped';
+  status: 'running' | 'paused' | 'completed' | 'failed' | 'stopped' | 'rate_limited';
   iterations: number;
   maxIterations: number;
   prompt: string;
@@ -125,6 +125,7 @@ export function LoopsSection({ projectPath }: { projectPath?: string }) {
       case 'failed': return <XCircle className="h-3 w-3 text-red-400" />;
       case 'stopped': return <Square className="h-3 w-3 text-muted-foreground/50" />;
       case 'paused': return <Pause className="h-3 w-3 text-yellow-400" />;
+      case 'rate_limited': return <Pause className="h-3 w-3 text-orange-400 animate-pulse" />;
       default: return null;
     }
   };
@@ -158,6 +159,7 @@ export function LoopsSection({ projectPath }: { projectPath?: string }) {
               {projectLoops.map(loop => (
                 <div key={loop.id} className={`rounded-md border overflow-hidden ${
                   loop.status === 'running' ? 'border-cyan-500/20 bg-cyan-500/[0.03]' :
+                  loop.status === 'rate_limited' ? 'border-orange-500/20 bg-orange-500/[0.03]' :
                   loop.status === 'paused' ? 'border-yellow-500/20 bg-yellow-500/[0.03]' :
                   'border-border/20 bg-muted/5'
                 }`}>
@@ -223,12 +225,12 @@ export function LoopsSection({ projectPath }: { projectPath?: string }) {
                                 {loop.status === 'paused' ? <><Play className="h-2.5 w-2.5 mr-0.5" /> Resume</> : <><Pause className="h-2.5 w-2.5 mr-0.5" /> Pause</>}
                               </Button>
                             )}
-                            {(loop.status === 'running' || loop.status === 'paused') && (
+                            {(loop.status === 'running' || loop.status === 'paused' || loop.status === 'rate_limited') && (
                               <Button variant="ghost" size="sm" onClick={() => stopMutation.mutate(loop.id)} className="text-[9px] h-5 px-1.5 text-red-400/60 hover:text-red-400">
                                 <Square className="h-2.5 w-2.5 mr-0.5" /> Stop
                               </Button>
                             )}
-                            {loop.status !== 'running' && loop.status !== 'paused' && (
+                            {loop.status !== 'running' && loop.status !== 'paused' && loop.status !== 'rate_limited' && (
                               <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(loop.id)} className="text-[9px] h-5 px-1.5 text-muted-foreground/40">
                                 <Trash2 className="h-2.5 w-2.5 mr-0.5" /> Remove
                               </Button>

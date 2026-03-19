@@ -190,7 +190,7 @@ interface LoopIteration {
 interface LoopState {
   id: string;
   projectPath: string;
-  status: 'running' | 'paused' | 'completed' | 'failed' | 'stopped';
+  status: 'running' | 'paused' | 'completed' | 'failed' | 'stopped' | 'rate_limited';
   iterations: number;
   maxIterations: number;
   prompt: string;
@@ -202,19 +202,43 @@ interface LoopState {
   history: LoopIteration[];
   pauseBetweenMs: number;
   completionMarkers: string[];
+  rateLimitWaitsCount: number;
+  noProgressCount: number;
 }
 
 const activeLoops = new Map<string, { state: LoopState; abort: AbortController; child?: any }>();
+
+// Rate limit detection patterns (inspired by ralph-claude-code)
+const RATE_LIMIT_PATTERNS = [
+  'rate limit', 'rate_limit', 'too many requests', '429',
+  'overloaded', 'capacity', 'try again later', 'exceeded your',
+];
+
+function detectRateLimit(output: string, exitCode: number): boolean {
+  if (exitCode === 124) return true; // timeout = likely rate limited
+  const lower = output.toLowerCase();
+  return RATE_LIMIT_PATTERNS.some(p => lower.includes(p));
+}
+
+function detectNoProgress(output: string): boolean {
+  // Short output or empty response likely means no useful work done
+  const stripped = output.replace(/\s+/g, '').length;
+  return stripped < 50;
+}
 
 async function runLoop(loopId: string) {
   const entry = activeLoops.get(loopId);
   if (!entry) return;
   const { state, abort } = entry;
 
+  let noProgressCount = 0;
+  let sameErrorCount = 0;
+  let lastErrorSig = '';
+
   while (state.iterations < state.maxIterations && state.status === 'running') {
     if (abort.signal.aborted) { state.status = 'stopped'; break; }
 
-    // Pause support — wait while paused
+    // Pause support
     while (state.status === 'paused') {
       await new Promise(r => setTimeout(r, 500));
       if (abort.signal.aborted) { state.status = 'stopped'; return; }
@@ -228,7 +252,7 @@ async function runLoop(loopId: string) {
       const claudeArgs = ['-p', '--continue', '--dangerously-skip-permissions'];
       if (state.model) claudeArgs.push('--model', state.model);
 
-      // First iteration uses the custom prompt; subsequent use continuation
+      // First iteration uses custom prompt; subsequent use continuation
       const iterPrompt = state.iterations === 1 && state.prompt
         ? state.prompt
         : 'Continue working on the current task. Review what has been done so far and continue with the next steps. If everything is complete and there is nothing left to do, respond with exactly: LOOP_COMPLETE';
@@ -265,13 +289,63 @@ async function runLoop(loopId: string) {
         outputPreview: output.slice(-300),
         exitCode,
       });
-      // Keep last 50 iterations
       if (state.history.length > 50) state.history = state.history.slice(-50);
 
-      // Check completion markers
+      // ── Rate limit detection & auto-wait (inspired by Ralph) ──
+      if (detectRateLimit(output, exitCode)) {
+        state.rateLimitWaitsCount++;
+        const waitMinutes = Math.min(5 * state.rateLimitWaitsCount, 30); // Exponential backoff, max 30m
+        state.error = `Rate limited — auto-waiting ${waitMinutes}m (attempt ${state.rateLimitWaitsCount})`;
+        state.status = 'rate_limited';
+        console.log(`[loop] ${loopId} rate limited, waiting ${waitMinutes}m (attempt ${state.rateLimitWaitsCount})`);
+
+        // Wait in 30s chunks so we can be aborted
+        const waitEnd = Date.now() + waitMinutes * 60 * 1000;
+        while (Date.now() < waitEnd) {
+          if (abort.signal.aborted) { state.status = 'stopped'; break; }
+          await new Promise(r => setTimeout(r, 30_000));
+          state.elapsedMs = Date.now() - state.startTime;
+        }
+        if (abort.signal.aborted) break;
+
+        state.status = 'running';
+        state.error = undefined;
+        state.iterations--; // Don't count the rate-limited attempt
+        continue;
+      }
+
+      // ── Circuit breaker: stuck loop detection ──
+      if (detectNoProgress(output)) {
+        noProgressCount++;
+        if (noProgressCount >= 3) {
+          state.error = `Circuit breaker: ${noProgressCount} iterations with no progress — stopping`;
+          state.status = 'failed';
+          console.log(`[loop] ${loopId} circuit breaker: no progress`);
+          break;
+        }
+      } else {
+        noProgressCount = 0;
+      }
+
+      // Same-error detection
+      const errorSig = output.slice(-200).replace(/\s+/g, ' ').trim();
+      if (exitCode !== 0 && errorSig === lastErrorSig) {
+        sameErrorCount++;
+        if (sameErrorCount >= 3) {
+          state.error = `Circuit breaker: same error repeated ${sameErrorCount} times — stopping`;
+          state.status = 'failed';
+          console.log(`[loop] ${loopId} circuit breaker: same error`);
+          break;
+        }
+      } else {
+        sameErrorCount = 0;
+      }
+      lastErrorSig = exitCode !== 0 ? errorSig : '';
+
+      // ── Completion detection (dual-condition inspired by Ralph) ──
       const lowerOutput = output.toLowerCase();
-      const isComplete = state.completionMarkers.some(marker => lowerOutput.includes(marker.toLowerCase()));
-      if (isComplete) {
+      const markerHit = state.completionMarkers.some(m => lowerOutput.includes(m.toLowerCase()));
+      if (markerHit) {
         state.status = 'completed';
         console.log(`[loop] ${loopId} completed after ${state.iterations} iterations`);
         break;
@@ -2336,6 +2410,8 @@ export function devApiPlugin(): Plugin {
                   history: [],
                   pauseBetweenMs,
                   completionMarkers: completionMarkers || defaultMarkers,
+                  rateLimitWaitsCount: 0,
+                  noProgressCount: 0,
                 };
 
                 activeLoops.set(loopId, { state, abort });
