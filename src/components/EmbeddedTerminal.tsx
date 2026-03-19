@@ -123,16 +123,25 @@ export function EmbeddedTerminal({
     });
 
     // Resize on container resize
-    const ro = new ResizeObserver(() => {
+    let lastCols = term.cols;
+    let lastRows = term.rows;
+    const doFit = () => {
       try {
         fitAddon.fit();
-        // Notify backend of new dimensions
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        if (term.cols !== lastCols || term.rows !== lastRows) {
+          lastCols = term.cols;
+          lastRows = term.rows;
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+          }
         }
       } catch { /* ignore */ }
-    });
+    };
+    const ro = new ResizeObserver(doFit);
     ro.observe(containerRef.current);
+
+    // Periodic refit — catches edge cases where ResizeObserver misses
+    const fitInterval = setInterval(doFit, 10_000);
 
     // Focus terminal when its tab becomes active (Tab key cycling)
     const handleFocus = (e: Event) => {
@@ -147,6 +156,7 @@ export function EmbeddedTerminal({
     term.focus();
 
     return () => {
+      clearInterval(fitInterval);
       window.removeEventListener('runecode:focus-prompt', handleFocus);
       ro.disconnect();
       ws.close();
