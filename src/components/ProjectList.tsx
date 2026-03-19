@@ -4,7 +4,8 @@ import {
   FolderOpen,
   ChevronLeft,
   ChevronRight,
-  Plus
+  Plus,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -93,6 +94,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   onProjectClick,
   onOpenProject,
   onNewProject,
+  loading,
   className,
 }) => {
   const [showAll, setShowAll] = useState(false);
@@ -165,8 +167,12 @@ export const ProjectList: React.FC<ProjectListProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Recent projects section */}
-          {displayedProjects.length > 0 ? (
+          {/* Loading state */}
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : displayedProjects.length > 0 ? (
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-heading-4">Recent Projects</h2>
