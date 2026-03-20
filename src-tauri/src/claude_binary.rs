@@ -665,7 +665,8 @@ pub fn create_command_with_env(program: &str) -> Command {
             let current_path = std::env::var("PATH").unwrap_or_default();
             let node_bin_str = node_bin_dir.to_string_lossy();
             if !current_path.contains(&node_bin_str.as_ref()) {
-                let new_path = format!("{}:{}", node_bin_str, current_path);
+                let sep = if cfg!(windows) { ";" } else { ":" };
+                let new_path = format!("{}{}{}", node_bin_str, sep, current_path);
                 debug!("Adding NVM bin directory to PATH: {}", node_bin_str);
                 cmd.env("PATH", new_path);
             }
@@ -679,7 +680,8 @@ pub fn create_command_with_env(program: &str) -> Command {
             let current_path = std::env::var("PATH").unwrap_or_default();
             let homebrew_bin_str = program_dir.to_string_lossy();
             if !current_path.contains(&homebrew_bin_str.as_ref()) {
-                let new_path = format!("{}:{}", homebrew_bin_str, current_path);
+                let sep = if cfg!(windows) { ";" } else { ":" };
+                let new_path = format!("{}{}{}", homebrew_bin_str, sep, current_path);
                 debug!(
                     "Adding Homebrew bin directory to PATH: {}",
                     homebrew_bin_str
