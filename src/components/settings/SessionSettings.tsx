@@ -144,6 +144,24 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         />
       </SettingRow>
 
+      {/* Re-run onboarding */}
+      <section>
+        <h4 className="text-sm font-semibold mb-3">Setup Wizard</h4>
+        <div className="rounded-lg border border-border p-4">
+          <p className="text-xs text-muted-foreground mb-3">
+            Re-run the initial setup wizard to check dependencies and update preferences.
+          </p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('runecode-onboarding-complete');
+              window.location.reload();
+            }}
+            className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-accent transition-colors"
+          >
+            Run Setup Wizard Again
+          </button>
+        </div>
+      </section>
 
     </div>
   );
