@@ -135,13 +135,29 @@ jobs:
           name: windows-x86_64
           path: dist/windows-x86_64/*
 
+  # ── Check if macOS secrets are available ──
+  check-macos-secrets:
+    name: Check macOS Secrets
+    needs: [version]
+    runs-on: ubuntu-latest
+    outputs:
+      has_secrets: ${{ steps.check.outputs.has_secrets }}
+    steps:
+      - name: Check for Apple signing secrets
+        id: check
+        run: |
+          if [ -n "${{ secrets.APPLE_CERTIFICATE }}" ]; then
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+          fi
+
   # ── Build macOS (skipped if Apple secrets missing) ──
   build-macos:
     name: Build macOS
-    needs: [version]
+    needs: [version, check-macos-secrets]
     runs-on: macos-14
-    # Only run if Apple signing secrets are configured
-    if: ${{ secrets.APPLE_CERTIFICATE != '' }}
+    if: needs.check-macos-secrets.outputs.has_secrets == 'true'
     steps:
       - uses: actions/checkout@v4
 
