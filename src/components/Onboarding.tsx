@@ -39,8 +39,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   // Listen for install-progress events
   useEffect(() => {
-    const unlisten = listen<string>('install-progress', (event) => {
-      setInstallLines((prev) => [...prev, event.payload]);
+    const unlisten = listen<{ line: string } | string>('install-progress', (event) => {
+      const line = typeof event.payload === 'string'
+        ? event.payload
+        : event.payload?.line ?? String(event.payload);
+      setInstallLines((prev) => [...prev, line]);
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -114,6 +117,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [currentStep, statuses, checkClaude]);
 
   const handleInstallNode = async () => {
+    const confirmed = window.confirm(
+      'This will install Node.js v22 on your system.\n\nProceed with installation?'
+    );
+    if (!confirmed) return;
+
     setStatus(1, 'checking');
     setInstallLines([]);
     try {
@@ -125,6 +133,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const handleInstallClaude = async () => {
+    const confirmed = window.confirm(
+      'This will install Claude Code globally via npm.\n\nCommand: npm install -g @anthropic-ai/claude-code\n\nProceed?'
+    );
+    if (!confirmed) return;
+
     setStatus(2, 'checking');
     setInstallLines([]);
     try {

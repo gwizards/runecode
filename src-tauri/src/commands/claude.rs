@@ -2279,7 +2279,7 @@ pub fn check_node_installed() -> serde_json::Value {
         "node"
     };
 
-    match std::process::Command::new(node_bin)
+    match crate::claude_binary::silent_command(node_bin)
         .arg("--version")
         .output()
     {
@@ -2415,11 +2415,19 @@ pub async fn install_claude_code(app: AppHandle) -> Result<String, String> {
         "npm"
     };
 
-    let mut child = tokio::process::Command::new(npm_bin)
-        .args(["install", "-g", "@anthropic-ai/claude-code"])
+    let mut cmd = tokio::process::Command::new(npm_bin);
+    cmd.args(["install", "-g", "@anthropic-ai/claude-code"])
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+
+    // Hide console window on Windows
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+
+    let mut child = cmd.spawn()
         .map_err(|e| format!("Failed to start npm install: {}", e))?;
 
     let mut output_lines = Vec::new();
