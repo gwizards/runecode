@@ -1,0 +1,317 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+
+# Cancel in-progress runs on new push
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Get version from tauri.conf.json ──
+  version:
+    name: Get Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      tag_exists: ${{ steps.check_tag.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (tag: v$VERSION)"
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          TAG="v$(jq -r '.version' src-tauri/tauri.conf.json)"
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $TAG already exists — will update existing release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag $TAG is new — will create release"
+          fi
+
+  # ── Build Linux ──
+  build-linux:
+    name: Build Linux
+    needs: [version]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Tauri app
+        run: bun run tauri build --target x86_64-unknown-linux-gnu
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist/linux-x86_64
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb dist/linux-x86_64/ || true
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage dist/linux-x86_64/ || true
+          cd dist/linux-x86_64 && sha256sum * > checksums.txt 2>/dev/null || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: dist/linux-x86_64/*
+
+  # ── Build Windows ──
+  build-windows:
+    name: Build Windows
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Tauri app
+        run: bun run tauri build --target x86_64-pc-windows-msvc
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist/windows-x86_64
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi dist/windows-x86_64/ || true
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe dist/windows-x86_64/ || true
+          cd dist/windows-x86_64 && sha256sum * > checksums.txt 2>/dev/null || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: dist/windows-x86_64/*
+
+  # ── Build macOS (skipped if Apple secrets missing) ──
+  build-macos:
+    name: Build macOS
+    needs: [version]
+    runs-on: macos-14
+    # Only run if Apple signing secrets are configured
+    if: ${{ secrets.APPLE_CERTIFICATE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Import Apple certificates
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Build Apple Silicon
+        run: bun run tauri build --target aarch64-apple-darwin
+
+      - name: Build Intel
+        run: bun run tauri build --target x86_64-apple-darwin
+
+      - name: Create universal binary & DMG
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          mkdir -p dmg_temp
+          AARCH64_APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/RuneCode.app"
+          X86_64_APP="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/RuneCode.app"
+          cp -R "$AARCH64_APP" dmg_temp/RuneCode.app
+          lipo -create -output dmg_temp/RuneCode.app/Contents/MacOS/RuneCode \
+            "$AARCH64_APP/Contents/MacOS/RuneCode" \
+            "$X86_64_APP/Contents/MacOS/RuneCode" 2>/dev/null || \
+          lipo -create -output dmg_temp/RuneCode.app/Contents/MacOS/runecode \
+            "$AARCH64_APP/Contents/MacOS/runecode" \
+            "$X86_64_APP/Contents/MacOS/runecode"
+          chmod +x dmg_temp/RuneCode.app/Contents/MacOS/*
+          codesign --sign "$APPLE_SIGNING_IDENTITY" --timestamp --options runtime --force --deep \
+            --entitlements src-tauri/entitlements.plist dmg_temp/RuneCode.app || true
+          hdiutil create -volname "RuneCode" -srcfolder dmg_temp -ov -format UDZO runecode.dmg
+          codesign --sign "$APPLE_SIGNING_IDENTITY" --timestamp --force runecode.dmg || true
+
+      - name: Notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials "notarytool-profile" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_PASSWORD"
+          xcrun notarytool submit runecode.dmg --keychain-profile "notarytool-profile" --wait || true
+          xcrun stapler staple runecode.dmg || true
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist/macos-universal
+          cp runecode.dmg dist/macos-universal/
+          cd dist/macos-universal && shasum -a 256 * > checksums.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: dist/macos-universal/*
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" 2>/dev/null || true
+
+  # ── Create Release (runs after Linux + Windows succeed) ──
+  release:
+    name: Create Release
+    needs: [version, build-linux, build-windows]
+    # Don't require macOS — it may be skipped if secrets are missing
+    if: ${{ !cancelled() && needs.build-linux.result == 'success' && needs.build-windows.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | head -30
+
+      - name: Prepare release assets
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          TAG="${{ needs.version.outputs.tag }}"
+          mkdir -p release-assets
+
+          # Linux
+          if [ -d "artifacts/linux-x86_64" ]; then
+            for f in artifacts/linux-x86_64/*.deb; do
+              [ -f "$f" ] && cp "$f" "release-assets/RuneCode_${VERSION}_linux_amd64.deb"
+            done
+            for f in artifacts/linux-x86_64/*.AppImage; do
+              [ -f "$f" ] && cp "$f" "release-assets/RuneCode_${VERSION}_linux_amd64.AppImage"
+            done
+          fi
+
+          # Windows
+          if [ -d "artifacts/windows-x86_64" ]; then
+            for f in artifacts/windows-x86_64/*.msi; do
+              [ -f "$f" ] && cp "$f" "release-assets/RuneCode_${VERSION}_windows_x64.msi"
+            done
+            for f in artifacts/windows-x86_64/*.exe; do
+              [ -f "$f" ] && cp "$f" "release-assets/RuneCode_${VERSION}_windows_x64_setup.exe"
+            done
+          fi
+
+          # macOS (if available)
+          if [ -d "artifacts/macos-universal" ]; then
+            for f in artifacts/macos-universal/*.dmg; do
+              [ -f "$f" ] && cp "$f" "release-assets/RuneCode_${VERSION}_macos_universal.dmg"
+            done
+          fi
+
+          # Checksums
+          cd release-assets
+          if ls * 1>/dev/null 2>&1; then
+            sha256sum * > SHA256SUMS.txt
+          fi
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: RuneCode ${{ needs.version.outputs.tag }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          files: release-assets/*
+          body: |
+            ## RuneCode ${{ needs.version.outputs.tag }}
+
+            ### Downloads
+
+            | Platform | File |
+            |----------|------|
+            | Windows | `.msi` or `.exe` installer |
+            | Linux | `.AppImage` or `.deb` |
+            | macOS | `.dmg` (when available) |
+
+            ### Install
+
+            - **Windows**: Run the `.msi` or `.exe` installer
+            - **Linux**: `chmod +x *.AppImage && ./RuneCode*.AppImage` or `sudo dpkg -i *.deb`
+            - **macOS**: Open the `.dmg` and drag RuneCode to Applications
+
+            SHA256 checksums are in `SHA256SUMS.txt`.

@@ -28,9 +28,6 @@ on:
         description: 'Run ID to download artifacts from (leave empty for latest)'
         required: false
         type: string
-  push:
-    branches: [main]
-
 jobs:
   build:
     name: Build macOS ${{ matrix.target }}
