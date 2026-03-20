@@ -11,7 +11,7 @@ use tauri::Manager;
 /// Create a std::process::Command with CREATE_NO_WINDOW on Windows
 /// to prevent console windows from flashing during background operations
 pub fn silent_command(program: &str) -> Command {
-    let mut cmd = silent_command(program);
+    let mut cmd = Command::new(program);
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;

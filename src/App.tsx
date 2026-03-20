@@ -1,5 +1,5 @@
-import React, { useState, useEffect, lazy } from "react";
-import { Onboarding } from "@/components/Onboarding";
+import React, { useState, useEffect, lazy, Suspense } from "react";
+const Onboarding = lazy(() => import("@/components/Onboarding").then(m => ({ default: m.Onboarding })));
 import { motion } from "motion/react";
 import { Bot, FolderCode } from "lucide-react";
 import { RotatingRune } from "./components/RuneCodeLogo";
@@ -573,7 +573,13 @@ function AppContent() {
   if (!onboardingComplete) {
     return (
       <OnboardingErrorBoundary onSkip={() => setOnboardingComplete(true)}>
-        <Onboarding onComplete={() => setOnboardingComplete(true)} />
+        <Suspense fallback={
+          <div className="fixed inset-0 bg-[#0a0a0f] flex items-center justify-center">
+            <div className="text-white/40 text-sm">Loading setup wizard...</div>
+          </div>
+        }>
+          <Onboarding onComplete={() => setOnboardingComplete(true)} />
+        </Suspense>
       </OnboardingErrorBoundary>
     );
   }
