@@ -647,6 +647,18 @@ export const api = {
     }
   },
 
+  async checkNodeInstalled(): Promise<{ installed: boolean; version: string | null; major: number; meets_minimum: boolean }> {
+    return apiCall('check_node_installed', {});
+  },
+
+  async installNode(): Promise<string> {
+    return apiCall('install_node', {});
+  },
+
+  async installClaudeCode(): Promise<string> {
+    return apiCall('install_claude_code', {});
+  },
+
   /**
    * Saves the CLAUDE.md system prompt file
    * @param content - The new content for the system prompt
