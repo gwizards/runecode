@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy } from "react";
+import { Onboarding } from "@/components/Onboarding";
 import { motion } from "motion/react";
 import { Bot, FolderCode } from "lucide-react";
 import { RotatingRune } from "./components/RuneCodeLogo";
@@ -66,9 +67,9 @@ type View =
   | "tabs"; // New view for tab-based interface
 
 /**
- * AppContent component - Contains the main app logic, wrapped by providers
+ * AppMain component - Contains the main app logic (shown after onboarding)
  */
-function AppContent() {
+function AppMain() {
   const [view, setView] = useState<View>("tabs");
   const { activeTab, createSettingsTab: _createSettingsTab, createUsageTab: _createUsageTab, createAgentsTab: _createAgentsTab } = useTabState();
 
@@ -521,6 +522,21 @@ function AppContent() {
 
     </div>
   );
+}
+
+/**
+ * AppContent component - Gates the main app behind the onboarding wizard on first run
+ */
+function AppContent() {
+  const [onboardingComplete, setOnboardingComplete] = useState(() =>
+    localStorage.getItem('runecode-onboarding-complete') === 'true'
+  );
+
+  if (!onboardingComplete) {
+    return <Onboarding onComplete={() => setOnboardingComplete(true)} />;
+  }
+
+  return <AppMain />;
 }
 
 /**
