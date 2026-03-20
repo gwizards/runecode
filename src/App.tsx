@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy } from "react";
+import React, { useState, useEffect, lazy } from "react";
 import { Onboarding } from "@/components/Onboarding";
 import { motion } from "motion/react";
 import { Bot, FolderCode } from "lucide-react";
@@ -525,6 +525,44 @@ function AppMain() {
 }
 
 /**
+ * Error boundary for onboarding — if it crashes, skip it and let the user into the app
+ */
+class OnboardingErrorBoundary extends React.Component<
+  { children: React.ReactNode; onSkip: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; onSkip: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error) {
+    console.error('Onboarding crashed, skipping:', error);
+    localStorage.setItem('runecode-onboarding-complete', 'true');
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 bg-[#0a0a0f] flex items-center justify-center">
+          <div className="text-center space-y-4 max-w-md">
+            <p className="text-white/70 text-sm">Setup wizard encountered an error.</p>
+            <button
+              onClick={() => { this.props.onSkip(); }}
+              className="px-6 py-2 rounded-lg bg-purple-500 hover:bg-purple-400 text-white text-sm font-medium"
+            >
+              Skip Setup &amp; Continue
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/**
  * AppContent component - Gates the main app behind the onboarding wizard on first run
  */
 function AppContent() {
@@ -533,7 +571,11 @@ function AppContent() {
   );
 
   if (!onboardingComplete) {
-    return <Onboarding onComplete={() => setOnboardingComplete(true)} />;
+    return (
+      <OnboardingErrorBoundary onSkip={() => setOnboardingComplete(true)}>
+        <Onboarding onComplete={() => setOnboardingComplete(true)} />
+      </OnboardingErrorBoundary>
+    );
   }
 
   return <AppMain />;

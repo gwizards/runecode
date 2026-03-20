@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { listen } from '@tauri-apps/api/event';
 import {
   Box,
   Terminal,
@@ -37,16 +36,30 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   const { setPermissionMode } = useSessionConfig();
 
-  // Listen for install-progress events
+  // Listen for install-progress events (dynamic import to avoid crash if Tauri not ready)
   useEffect(() => {
-    const unlisten = listen<{ line: string } | string>('install-progress', (event) => {
-      const line = typeof event.payload === 'string'
-        ? event.payload
-        : event.payload?.line ?? String(event.payload);
-      setInstallLines((prev) => [...prev, line]);
-    });
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const fn = await listen<{ line: string } | string>('install-progress', (event) => {
+          if (!mounted) return;
+          const line = typeof event.payload === 'string'
+            ? event.payload
+            : (event.payload as any)?.line ?? String(event.payload);
+          setInstallLines((prev) => [...prev, line]);
+        });
+        unlisten = fn;
+      } catch {
+        // Tauri event system not available (web mode) — install progress won't stream
+      }
+    })();
+
     return () => {
-      unlisten.then((fn) => fn());
+      mounted = false;
+      unlisten?.();
     };
   }, []);
 
@@ -69,13 +82,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     setInstallLines([]);
     try {
       const result = await api.checkNodeInstalled();
-      if (result.installed && result.meets_minimum) {
+      if (result && result.installed && result.meets_minimum) {
         setNodeVersion(result.version);
         setStatus(1, 'passed');
+      } else if (result && result.installed) {
+        setNodeVersion(result.version);
+        setStatus(1, 'failed');
       } else {
         setStatus(1, 'failed');
       }
-    } catch {
+    } catch (err) {
+      console.warn('Node.js check failed:', err);
       setStatus(1, 'failed');
     }
   }, [setStatus]);
@@ -97,10 +114,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
   }, [setStatus]);
 
-  // Auto-check on step enter
+  // Auto-check on step enter (small delay to let Tauri IPC initialize on Windows)
   useEffect(() => {
     if (currentStep === 1 && !statuses[1]) {
-      checkNode();
+      const timer = setTimeout(() => checkNode(), 500);
+      return () => clearTimeout(timer);
     }
   }, [currentStep, statuses, checkNode]);
 
