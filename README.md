@@ -138,7 +138,16 @@ Access the full UI from any browser. The frontend is embedded in the binary — 
 - [Claude Code CLI](https://claude.ai/code) installed and in your PATH
 
 ### Download
-Pre-built binaries coming soon. For now, build from source.
+
+Pre-built binaries are available for macOS, Windows, and Linux:
+
+**[Download the latest release](https://github.com/gwizards/runecode/releases)**
+
+| Platform | Format |
+|----------|--------|
+| macOS (Apple Silicon + Intel) | `.dmg` |
+| Windows | `.msi`, `.exe` |
+| Linux | `.AppImage`, `.deb` |
 
 ## Build from Source
 
