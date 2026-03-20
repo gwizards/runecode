@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
 interface EmbeddedTerminalProps {
@@ -8,6 +9,8 @@ interface EmbeddedTerminalProps {
   projectPath?: string;
   flags?: string[];
   tabId?: string;
+  /** Environment ID — null/undefined = local */
+  environmentId?: string;
   onExit?: () => void;
   className?: string;
 }
@@ -17,6 +20,7 @@ export function EmbeddedTerminal({
   projectPath,
   flags,
   tabId,
+  environmentId,
   onExit,
   className = '',
 }: EmbeddedTerminalProps) {
@@ -25,6 +29,13 @@ export function EmbeddedTerminal({
   const wsRef = useRef<WebSocket | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
+  // Use refs for callback and identity props to avoid tearing down the terminal on every change
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
+  const tabIdRef = useRef(tabId);
+  tabIdRef.current = tabId;
+  const environmentIdRef = useRef(environmentId);
+  environmentIdRef.current = environmentId;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -51,6 +62,18 @@ export function EmbeddedTerminal({
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+
+    // Clickable URLs — open in browser panel or external browser
+    const webLinksAddon = new WebLinksAddon((_event, url) => {
+      const openInBrowser = localStorage.getItem('runecode-terminal-links-in-browser') !== 'false';
+      if (openInBrowser) {
+        window.dispatchEvent(new CustomEvent('runecode:open-url-in-browser', { detail: { url } }));
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
+    term.loadAddon(webLinksAddon);
+
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;
@@ -86,10 +109,22 @@ export function EmbeddedTerminal({
     // Focus handler for Tab key cycling
     const handleFocus = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.tabId && tabId && detail.tabId !== tabId) return;
+      if (detail?.tabId && tabIdRef.current && detail.tabId !== tabIdRef.current) return;
       term.focus();
     };
     window.addEventListener('runecode:focus-prompt', handleFocus);
+
+    // Listen for "type text into terminal" events (e.g. from browser devtools)
+    const handleTypeInTerminal = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.tabId && tabIdRef.current && detail.tabId !== tabIdRef.current) return;
+      if (!detail?.text) return;
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(detail.text);
+      }
+      term.focus();
+    };
+    window.addEventListener('runecode:type-in-terminal', handleTypeInTerminal);
 
     // Delay WebSocket connection until layout is settled (double-rAF)
     // so cols/rows reflect the actual container size
@@ -101,6 +136,18 @@ export function EmbeddedTerminal({
       if (sessionId) params.set('sessionId', sessionId);
       if (projectPath) params.set('projectPath', projectPath);
       if (flags && flags.length > 0) params.set('flags', flags.join(','));
+      if (environmentIdRef.current) {
+        params.set('environmentId', environmentIdRef.current);
+        // Pass the full environment config so the backend can connect
+        try {
+          const stored = localStorage.getItem('runecode-remote-environments');
+          if (stored) {
+            const envs = JSON.parse(stored);
+            const env = envs.find((e: any) => e.id === environmentIdRef.current);
+            if (env) params.set('environment', JSON.stringify(env));
+          }
+        } catch {}
+      }
       params.set('cols', String(term.cols));
       params.set('rows', String(term.rows));
 
@@ -124,7 +171,7 @@ export function EmbeddedTerminal({
 
       ws.onclose = () => {
         term.writeln('\r\n\x1b[90m— Disconnected —\x1b[0m');
-        onExit?.();
+        onExitRef.current?.();
       };
 
       ws.onerror = () => {
@@ -137,6 +184,7 @@ export function EmbeddedTerminal({
     return () => {
       if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener('runecode:focus-prompt', handleFocus);
+      window.removeEventListener('runecode:type-in-terminal', handleTypeInTerminal);
       ro.disconnect();
       roRef.current = null;
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }

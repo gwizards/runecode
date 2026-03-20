@@ -38,4 +38,19 @@ CLAUDE.md
 # Claude project-specific files
 .claude/
 
+# Environment and secrets
 .env
+.env.*
+!.env.example
+
+# Credentials and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# Large binary files
+*.deb

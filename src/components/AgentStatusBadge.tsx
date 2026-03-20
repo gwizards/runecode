@@ -40,7 +40,7 @@ function formatElapsed(ms: number): string {
 export const AgentStatusBadge: React.FC<AgentStatusBadgeProps> = ({ onAgentClick }) => {
   const liveAgents = useAgentStore((state) => state.liveAgents);
 
-  const agents = Array.from(liveAgents.values());
+  const agents = Object.values(liveAgents);
   const runningCount = agents.filter(
     (a) => a.status === 'running' || a.status === 'thinking'
   ).length;

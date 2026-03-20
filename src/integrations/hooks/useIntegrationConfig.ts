@@ -27,7 +27,13 @@ export function useIntegrationConfig() {
 
   const { mutate: updateConfig } = useMutation({
     mutationFn: async (updates: Partial<IntegrationConfig>) => {
-      const merged = { ...config, ...updates };
+      // Deep merge — preserve nested fields that aren't being updated
+      const merged: IntegrationConfig = {
+        compute: { ...config.compute, ...(updates.compute || {}) },
+        security: { ...config.security, ...(updates.security || {}) },
+        intelligence: { ...config.intelligence, ...(updates.intelligence || {}) },
+        observability: { ...config.observability, ...(updates.observability || {}) },
+      };
       await fetch('/api/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

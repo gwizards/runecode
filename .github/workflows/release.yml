@@ -19,16 +19,19 @@ jobs:
   build-linux:
     uses: ./.github/workflows/build-linux.yml
     secrets: inherit
-  
+
   build-macos:
     uses: ./.github/workflows/build-macos.yml
     secrets: inherit
-  
+
+  build-windows:
+    uses: ./.github/workflows/build-windows.yml
+    secrets: inherit
 
   # Create release after all builds complete
   create-release:
     name: Create Release
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     
     steps:
@@ -64,6 +67,12 @@ jobs:
           if [ -d "artifacts/macos-universal" ]; then
             cp artifacts/macos-universal/runecode.dmg release-assets/runecode_${{ steps.version.outputs.version }}_macos_universal.dmg || true
             cp artifacts/macos-universal/runecode.app.zip release-assets/runecode_${{ steps.version.outputs.version }}_macos_universal.app.tar.gz || true
+          fi
+
+          # Windows artifacts
+          if [ -d "artifacts/windows-x86_64" ]; then
+            cp artifacts/windows-x86_64/*.msi release-assets/runecode_${{ steps.version.outputs.version }}_windows_x86_64.msi || true
+            cp artifacts/windows-x86_64/*.exe release-assets/runecode_${{ steps.version.outputs.version }}_windows_x86_64_setup.exe || true
           fi
           
           # Create source code archives
@@ -111,10 +120,12 @@ jobs:
             ### Downloads
 
             - macOS: `.dmg`, `.app.tar.gz` (Universal: Apple Silicon + Intel)
+            - Windows: `.msi`, `.exe` installer
             - Linux: `.AppImage`, `.deb`
 
             ### Installation
 
             - macOS: Open the `.dmg` and drag RuneCode to Applications.
+            - Windows: Run the `.msi` or `.exe` installer.
             - Linux: `chmod +x` the `.AppImage` and run it, or install the `.deb` on Debian/Ubuntu.
             

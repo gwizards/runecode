@@ -470,11 +470,24 @@ impl ProcessRegistry {
 
     /// Append to live output for a process
     pub fn append_live_output(&self, run_id: i64, output: &str) -> Result<(), String> {
+        const MAX_LIVE_OUTPUT_BYTES: usize = 1024 * 1024; // 1 MB cap
+
         let processes = self.processes.lock().map_err(|e| e.to_string())?;
         if let Some(handle) = processes.get(&run_id) {
             let mut live_output = handle.live_output.lock().map_err(|e| e.to_string())?;
             live_output.push_str(output);
             live_output.push('\n');
+
+            // Truncate from the front if the buffer exceeds the cap
+            if live_output.len() > MAX_LIVE_OUTPUT_BYTES {
+                let drain_to = live_output.len() - MAX_LIVE_OUTPUT_BYTES;
+                // Find the next newline after the drain point to keep lines intact
+                let cut = live_output[drain_to..]
+                    .find('\n')
+                    .map(|i| drain_to + i + 1)
+                    .unwrap_or(drain_to);
+                live_output.drain(..cut);
+            }
         }
         Ok(())
     }

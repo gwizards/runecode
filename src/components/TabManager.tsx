@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
-import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown, Cpu, LayoutGrid, Monitor, PanelRightClose, PanelRightOpen, FolderOpen, TerminalSquare } from 'lucide-react';
+import { X, Plus, MessageSquare, Bot, AlertCircle, Folder, BarChart, Server, Settings, FileText, ChevronDown, Cpu, LayoutGrid, Monitor, PanelRightClose, PanelRightOpen, FolderOpen, TerminalSquare, Globe } from 'lucide-react';
 import { RuneSpinner } from './RuneCodeLogo';
 import { useTabState } from '@/hooks/useTabState';
 import { Tab, useTabContext } from '@/contexts/TabContext';
@@ -36,16 +36,17 @@ interface TabItemProps {
   isActive: boolean;
   onClose: (id: string) => void;
   onClick: (id: string) => void;
+  onDoubleClick?: (id: string) => void;
   isDragging?: boolean;
   setDraggedTabId?: (id: string | null) => void;
   agentStatus?: AgentStatus;
 }
 
-const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDragging = false, setDraggedTabId, agentStatus }) => {
+const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, onDoubleClick, isDragging = false, setDraggedTabId, agentStatus }) => {
   const [isHovered, setIsHovered] = useState(false);
   
   const getIcon = () => {
-    if (tab.id === '__grid__') return LayoutGrid;
+    if (tab.id.startsWith('__project__')) return LayoutGrid;
     switch (tab.type) {
       case 'chat':
         return MessageSquare;
@@ -71,6 +72,8 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
         return Cpu;
       case 'claude-terminal':
         return TerminalSquare;
+      case 'browser':
+        return Globe;
       default:
         return MessageSquare;
     }
@@ -110,6 +113,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onClick(tab.id)}
+      onDoubleClick={() => onDoubleClick?.(tab.id)}
       onDragStart={() => setDraggedTabId?.(tab.id)}
       onDragEnd={() => setDraggedTabId?.(null)}
     >
@@ -154,7 +158,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, isDr
           "flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-sm",
           "transition-all duration-100 hover:bg-destructive/20 hover:text-destructive",
           "focus:outline-none focus:ring-1 focus:ring-destructive/50",
-          tab.id === '__grid__' ? "hidden" : (isHovered || isActive) ? "opacity-100" : "opacity-0"
+          tab.id.startsWith('__project__') ? "hidden" : (isHovered || isActive) ? "opacity-100" : "opacity-0"
         )}
         title={`Close ${tab.title}`}
         tabIndex={-1}
@@ -170,6 +174,18 @@ interface TabManagerProps {
   className?: string;
 }
 
+const GRID_NAMES_KEY = 'runecode-grid-names';
+
+function loadGridNames(): Record<string, string> {
+  try { const s = localStorage.getItem(GRID_NAMES_KEY); return s ? JSON.parse(s) : {}; } catch { return {}; }
+}
+
+function saveGridName(gridKey: string, name: string) {
+  const names = loadGridNames();
+  names[gridKey] = name;
+  try { localStorage.setItem(GRID_NAMES_KEY, JSON.stringify(names)); } catch {}
+}
+
 export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const {
     tabs,
@@ -178,16 +194,37 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     createProjectsTab,
     createSettingsTab,
     createAgentsTab,
-    createTerminalTab,
+    createBrowserTab,
     closeTab,
     switchToTab,
     canAddTab,
     layoutMode,
     setLayoutMode,
+    activeProjectPath,
+    setActiveProjectPath,
   } = useTabState();
 
-  // Access reorderTabs from context
   const { reorderTabs } = useTabContext();
+
+  // Grid rename state
+  const [gridNames, setGridNames] = useState(loadGridNames);
+  const [renamingGrid, setRenamingGrid] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Listen for terminal URL clicks — open in browser panel (stable ref to avoid re-registering)
+  const browserHandlerRef = useRef<(e: CustomEvent) => void>(undefined);
+  browserHandlerRef.current = (e: CustomEvent) => {
+    const url = e.detail?.url;
+    if (!url) return;
+    // Always create a new browser tab for URL clicks from terminal
+    createBrowserTab(url);
+  };
+  useEffect(() => {
+    const handler = (e: Event) => browserHandlerRef.current?.(e as CustomEvent);
+    window.addEventListener('runecode:open-url-in-browser', handler);
+    return () => window.removeEventListener('runecode:open-url-in-browser', handler);
+  }, []);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftScroll, setShowLeftScroll] = useState(false);
@@ -215,7 +252,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const getAgentStatusForTab = (tab: Tab): AgentStatus | undefined => {
     if (tab.type !== 'agent-execution') return undefined;
     // Find live agent associated with this tab
-    for (const agent of liveAgents.values()) {
+    for (const agent of Object.values(liveAgents)) {
       if (agent.tabId === tab.id) return agent.status;
     }
     return undefined;
@@ -225,18 +262,38 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const MAX_AGENT_TABS = 6;
   const { visibleTabs, overflowAgentTabs } = useMemo(() => {
     if (layoutMode === 'grid') {
-      // In grid mode: Grid pseudo-tab for projects + individual tabs for non-grid windows
-      const gridTypes = new Set(['chat', 'agent-execution', 'claude-terminal']);
-      const gridCount = tabs.filter(t => gridTypes.has(t.type)).length;
+      const gridTypes = new Set(['chat', 'agent-execution', 'claude-terminal', 'browser']);
       const nonGridInBar = tabs.filter(t => !gridTypes.has(t.type));
 
+      // Group grid tabs by projectPath (grid group key) — one pseudo-tab per grid
+      const projectMap = new Map<string, Tab[]>();
+      for (const t of tabs) {
+        if (!gridTypes.has(t.type)) continue;
+        const pp = t.projectPath || t.initialProjectPath || '__ungrouped__';
+        if (!projectMap.has(pp)) projectMap.set(pp, []);
+        projectMap.get(pp)!.push(t);
+      }
+
       const pseudoTabs: Tab[] = [];
-      if (gridCount > 0) {
+      for (const [pp, projectTabs] of projectMap) {
+        // Collect distinct project names in this grid (supports multi-project grids)
+        const projectNames = new Set<string>();
+        for (const t of projectTabs) {
+          const realPath = t.initialProjectPath || t.projectPath;
+          if (realPath) projectNames.add(realPath.split('/').pop() || realPath);
+        }
+        const autoName = pp === '__ungrouped__'
+          ? 'Ungrouped'
+          : projectNames.size > 0
+            ? Array.from(projectNames).join(' + ')
+            : pp.split('/').pop() || pp;
+        const name = gridNames[pp] || autoName;
         pseudoTabs.push({
-          id: '__grid__',
+          id: `__project__${pp}`,
           type: 'chat',
-          title: `Grid (${gridCount})`,
-          status: tabs.some(t => gridTypes.has(t.type) && t.status === 'running') ? 'running' : 'idle',
+          title: `${name} (${projectTabs.length})`,
+          projectPath: pp === '__ungrouped__' ? undefined : pp,
+          status: projectTabs.some(t => t.status === 'running') ? 'running' : 'idle',
           hasUnsavedChanges: false,
           order: -1,
           createdAt: new Date(),
@@ -258,7 +315,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     const visible = [...nonAgentTabs, ...agentTabs.slice(0, MAX_AGENT_TABS)];
     const overflow = agentTabs.slice(MAX_AGENT_TABS);
     return { visibleTabs: visible, overflowAgentTabs: overflow };
-  }, [tabs, layoutMode]);
+  }, [tabs, layoutMode, gridNames]);
 
   // Listen for tab switch events
   useEffect(() => {
@@ -364,8 +421,8 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   }, [tabs]);
 
   const handleReorder = (newOrder: Tab[]) => {
-    // Find the positions that changed
-    const oldOrder = tabs.map(tab => tab.id);
+    // Find the positions that changed — use visibleTabs since that's what Reorder.Group renders
+    const oldOrder = visibleTabs.map(tab => tab.id);
     const newOrderIds = newOrder.map(tab => tab.id);
     
     // Find what moved
@@ -390,7 +447,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     const tab = tabs.find(t => t.id === id);
     if (tab && tab.type === 'agent-execution') {
       // Check if agent is running
-      for (const agent of liveAgents.values()) {
+      for (const agent of Object.values(liveAgents)) {
         if (agent.tabId === id && (agent.status === 'running' || agent.status === 'thinking')) {
           const confirmed = window.confirm('Agent is still running. Stop it?');
           if (!confirmed) return;
@@ -465,31 +522,79 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
         <div className="flex items-stretch h-8">
           <Reorder.Group
             axis="x"
-            values={tabs}
+            values={visibleTabs}
             onReorder={handleReorder}
             className="flex items-stretch"
             layoutScroll={false}
           >
             {visibleTabs.map((tab) => {
-              const isGridPseudo = tab.id === '__grid__';
-              const gridTypes = new Set(['chat', 'agent-execution', 'claude-terminal']);
-              // Grid pseudo-tab is active when the active tab is a grid-type tab
-              const isActive = isGridPseudo
-                ? !!activeTabId && gridTypes.has(tabs.find(t => t.id === activeTabId)?.type || '')
+              const isProjectPseudo = tab.id.startsWith('__project__');
+              const pseudoProjectPath = isProjectPseudo ? tab.id.replace('__project__', '') : null;
+              // Project pseudo-tab is active when it matches the activeProjectPath and a grid-type tab is active
+              const gridTypes = new Set(['chat', 'agent-execution', 'claude-terminal', 'browser']);
+              const isActive = isProjectPseudo
+                ? activeProjectPath === (pseudoProjectPath === '__ungrouped__' ? null : pseudoProjectPath)
+                  && !!activeTabId && gridTypes.has(tabs.find(t => t.id === activeTabId)?.type || '')
                 : tab.id === activeTabId;
+
+              // Renaming inline for project pseudo-tabs
+              if (isProjectPseudo && renamingGrid === pseudoProjectPath) {
+                return (
+                  <div key={tab.id} className="flex items-center px-1 h-8">
+                    <input
+                      ref={renameInputRef}
+                      value={renameValue}
+                      onChange={e => setRenameValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          const pp = pseudoProjectPath!;
+                          if (renameValue.trim()) {
+                            saveGridName(pp, renameValue.trim());
+                            setGridNames(loadGridNames());
+                          }
+                          setRenamingGrid(null);
+                        }
+                        if (e.key === 'Escape') setRenamingGrid(null);
+                      }}
+                      onBlur={() => {
+                        const pp = pseudoProjectPath!;
+                        if (renameValue.trim()) {
+                          saveGridName(pp, renameValue.trim());
+                          setGridNames(loadGridNames());
+                        }
+                        setRenamingGrid(null);
+                      }}
+                      className="h-6 px-2 text-xs font-medium bg-background border border-primary/40 rounded outline-none w-32"
+                      autoFocus
+                    />
+                  </div>
+                );
+              }
 
               return (
                 <TabItem
                   key={tab.id}
                   tab={tab}
                   isActive={isActive}
-                  onClose={isGridPseudo ? (_id: string) => {} : handleCloseTab}
-                  onClick={isGridPseudo
+                  onClose={isProjectPseudo ? (_id: string) => {} : handleCloseTab}
+                  onClick={isProjectPseudo
                     ? (_id: string) => {
-                        const firstGrid = tabs.find(t => gridTypes.has(t.type));
-                        if (firstGrid) switchToTab(firstGrid.id);
+                        const pp = pseudoProjectPath === '__ungrouped__' ? null : pseudoProjectPath;
+                        setActiveProjectPath(pp);
+                        const firstTab = tabs.find(t => gridTypes.has(t.type) &&
+                          (t.projectPath || t.initialProjectPath || null) === pp);
+                        if (firstTab) switchToTab(firstTab.id);
                       }
                     : switchToTab
+                  }
+                  onDoubleClick={isProjectPseudo
+                    ? (_id: string) => {
+                        setRenamingGrid(pseudoProjectPath);
+                        // Strip the count "(N)" from the title to get just the name
+                        setRenameValue(tab.title.replace(/\s*\(\d+\)$/, ''));
+                        setTimeout(() => renameInputRef.current?.select(), 0);
+                      }
+                    : undefined
                   }
                   isDragging={draggedTabId === tab.id}
                   setDraggedTabId={setDraggedTabId}
@@ -553,30 +658,6 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
             <Plus className="w-4 h-4" />
           </motion.button>
 
-          {/* Shell terminal button — opens in active project directory */}
-          <motion.button
-            onClick={() => {
-              if (canAddTab()) {
-                const activeTab = tabs.find(t => t.id === activeTabId);
-                const projectPath = activeTab?.projectPath || activeTab?.initialProjectPath || undefined;
-                createTerminalTab(undefined, projectPath, ['--shell']);
-                trackEvent.tabCreated('claude-terminal');
-              }
-            }}
-            disabled={!canAddTab()}
-            whileTap={canAddTab() ? { scale: 0.97 } : {}}
-            transition={{ duration: 0.15 }}
-            className={cn(
-              "px-2 rounded-md flex items-center justify-center flex-shrink-0",
-              "bg-background/50 backdrop-blur-sm h-8",
-              canAddTab()
-                ? "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
-                : "opacity-50 cursor-not-allowed text-muted-foreground"
-            )}
-            title={canAddTab() ? "Open Shell" : "Maximum tabs reached"}
-          >
-            <TerminalSquare className="w-4 h-4" />
-          </motion.button>
         </div>
       </div>
 
@@ -690,7 +771,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
       {/* Agent status badge */}
       <AgentStatusBadge
         onAgentClick={(agentId) => {
-          const agent = liveAgents.get(agentId);
+          const agent = liveAgents[agentId];
           if (agent?.tabId) {
             switchToTab(agent.tabId);
           }

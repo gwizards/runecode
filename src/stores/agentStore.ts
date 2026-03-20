@@ -16,7 +16,8 @@ export interface LiveAgent {
 
 interface AgentState {
   // Live agent tracking (active WebSocket sessions)
-  liveAgents: Map<string, LiveAgent>;
+  // Uses Record instead of Map for Zustand shallow equality compatibility
+  liveAgents: Record<string, LiveAgent>;
 
   // UI state
   error: string | null;
@@ -34,32 +35,29 @@ const agentStore: StateCreator<
   [['zustand/subscribeWithSelector', never]],
   AgentState
 > = (set) => ({
-    liveAgents: new Map(),
+    liveAgents: {},
     error: null,
 
     addLiveAgent: (agent: LiveAgent) => {
-      set((state) => {
-        const next = new Map(state.liveAgents);
-        next.set(agent.id, agent);
-        return { liveAgents: next };
-      });
+      set((state) => ({
+        liveAgents: { ...state.liveAgents, [agent.id]: agent },
+      }));
     },
 
     updateLiveAgent: (id: string, updates: Partial<LiveAgent>) => {
       set((state) => {
-        const existing = state.liveAgents.get(id);
+        const existing = state.liveAgents[id];
         if (!existing) return state;
-        const next = new Map(state.liveAgents);
-        next.set(id, { ...existing, ...updates });
-        return { liveAgents: next };
+        return {
+          liveAgents: { ...state.liveAgents, [id]: { ...existing, ...updates } },
+        };
       });
     },
 
     removeLiveAgent: (id: string) => {
       set((state) => {
-        const next = new Map(state.liveAgents);
-        next.delete(id);
-        return { liveAgents: next };
+        const { [id]: _, ...rest } = state.liveAgents;
+        return { liveAgents: rest };
       });
     },
 

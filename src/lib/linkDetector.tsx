@@ -47,10 +47,11 @@ export function detectLinks(text: string): DetectedLink[] {
     let fullUrl = url;
     if (!url.match(/^https?:\/\//)) {
       // Default to http for localhost, https for others
+      LOCALHOST_REGEX.lastIndex = 0;
       const isLocalhost = LOCALHOST_REGEX.test(url);
       fullUrl = `${isLocalhost ? 'http' : 'https'}://${url}`;
     }
-    
+
     // Validate the URL
     try {
       new URL(fullUrl);
@@ -58,7 +59,8 @@ export function detectLinks(text: string): DetectedLink[] {
       // Invalid URL, skip
       continue;
     }
-    
+
+    LOCALHOST_REGEX.lastIndex = 0;
     links.push({
       url,
       fullUrl,

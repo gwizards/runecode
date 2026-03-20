@@ -3,7 +3,7 @@ use anyhow::Result;
 use rusqlite::{params, types::ValueRef, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value as JsonValue};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tauri::{AppHandle, Manager, State};
 
 /// Represents metadata about a database table
@@ -69,14 +69,16 @@ pub async fn storage_list_tables(db: State<'_, AgentDb>) -> Result<Vec<TableInfo
     for table_name in table_names {
         // Get row count
         let row_count: i64 = conn
-            .query_row(&format!("SELECT COUNT(*) FROM {}", table_name), [], |row| {
-                row.get(0)
-            })
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {}", quote_identifier(&table_name)),
+                [],
+                |row| row.get(0),
+            )
             .unwrap_or(0);
 
         // Get column information
         let mut pragma_stmt = conn
-            .prepare(&format!("PRAGMA table_info({})", table_name))
+            .prepare(&format!("PRAGMA table_info({})", quote_identifier(&table_name)))
             .map_err(|e| e.to_string())?;
 
         let columns: Vec<ColumnInfo> = pragma_stmt
@@ -123,7 +125,7 @@ pub async fn storage_read_table(
 
     // Get column information
     let mut pragma_stmt = conn
-        .prepare(&format!("PRAGMA table_info({})", tableName))
+        .prepare(&format!("PRAGMA table_info({})", quote_identifier(&tableName)))
         .map_err(|e| e.to_string())?;
 
     let columns: Vec<ColumnInfo> = pragma_stmt
@@ -143,51 +145,89 @@ pub async fn storage_read_table(
 
     drop(pragma_stmt);
 
-    // Build query with optional search
-    let (query, count_query) = if let Some(search) = &searchQuery {
-        // Create search conditions for all text columns
-        let search_conditions: Vec<String> = columns
-            .iter()
-            .filter(|col| col.type_name.contains("TEXT") || col.type_name.contains("VARCHAR"))
-            .map(|col| format!("{} LIKE '%{}%'", col.name, search.replace("'", "''")))
-            .collect();
+    let quoted_table = quote_identifier(&tableName);
 
-        if search_conditions.is_empty() {
-            (
-                format!("SELECT * FROM {} LIMIT ? OFFSET ?", tableName),
-                format!("SELECT COUNT(*) FROM {}", tableName),
-            )
-        } else {
-            let where_clause = search_conditions.join(" OR ");
-            (
-                format!(
-                    "SELECT * FROM {} WHERE {} LIMIT ? OFFSET ?",
-                    tableName, where_clause
-                ),
-                format!("SELECT COUNT(*) FROM {} WHERE {}", tableName, where_clause),
-            )
-        }
+    // Build query with optional search using parameterized queries
+    let search_columns: Vec<String> = columns
+        .iter()
+        .filter(|col| col.type_name.contains("TEXT") || col.type_name.contains("VARCHAR"))
+        .map(|col| quote_identifier(&col.name))
+        .collect();
+
+    let has_search = searchQuery.is_some() && !search_columns.is_empty();
+    // Escape LIKE wildcard characters to prevent unintended matches
+    let search_pattern = searchQuery.as_ref().map(|s| {
+        let escaped = s
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        format!("%{}%", escaped)
+    });
+
+    let (query, count_query) = if has_search {
+        // Use parameterized LIKE with one param per column
+        let search_conditions: Vec<String> = search_columns
+            .iter()
+            .enumerate()
+            .map(|(i, col)| format!("{} LIKE ?{} ESCAPE '\\'", col, i + 1))
+            .collect();
+        let where_clause = search_conditions.join(" OR ");
+        let param_offset = search_columns.len();
+        (
+            format!(
+                "SELECT * FROM {} WHERE {} LIMIT ?{} OFFSET ?{}",
+                quoted_table, where_clause, param_offset + 1, param_offset + 2
+            ),
+            format!(
+                "SELECT COUNT(*) FROM {} WHERE {}",
+                quoted_table, where_clause
+            ),
+        )
     } else {
         (
-            format!("SELECT * FROM {} LIMIT ? OFFSET ?", tableName),
-            format!("SELECT COUNT(*) FROM {}", tableName),
+            format!("SELECT * FROM {} LIMIT ?1 OFFSET ?2", quoted_table),
+            format!("SELECT COUNT(*) FROM {}", quoted_table),
         )
     };
 
     // Get total row count
-    let total_rows: i64 = conn
-        .query_row(&count_query, [], |row| row.get(0))
-        .unwrap_or(0);
+    let total_rows: i64 = if has_search {
+        let mut count_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        for _ in &search_columns {
+            count_params.push(Box::new(search_pattern.clone().unwrap_or_default()));
+        }
+        let mut count_stmt = conn.prepare(&count_query).map_err(|e| e.to_string())?;
+        count_stmt
+            .query_row(
+                rusqlite::params_from_iter(count_params.iter().map(|p| p.as_ref())),
+                |row| row.get(0),
+            )
+            .unwrap_or(0)
+    } else {
+        conn.query_row(&count_query, [], |row| row.get(0))
+            .unwrap_or(0)
+    };
 
     // Calculate pagination
     let offset = (page - 1) * pageSize;
     let total_pages = (total_rows as f64 / pageSize as f64).ceil() as i64;
 
-    // Query data
+    // Query data with parameterized search
     let mut data_stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
 
+    let mut data_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    if has_search {
+        for _ in &search_columns {
+            data_params.push(Box::new(search_pattern.clone().unwrap_or_default()));
+        }
+    }
+    data_params.push(Box::new(pageSize));
+    data_params.push(Box::new(offset));
+
     let rows: Vec<Map<String, JsonValue>> = data_stmt
-        .query_map(params![pageSize, offset], |row| {
+        .query_map(
+            rusqlite::params_from_iter(data_params.iter().map(|p| p.as_ref())),
+            |row| {
             let mut row_map = Map::new();
 
             for (idx, col) in columns.iter().enumerate() {
@@ -243,36 +283,44 @@ pub async fn storage_update_row(
         return Err("Invalid table name".to_string());
     }
 
-    // Build UPDATE query
-    let set_clauses: Vec<String> = updates
-        .keys()
+    // Validate column names to prevent SQL injection
+    let valid_columns = get_valid_columns(&conn, &tableName)?;
+    validate_column_names(&valid_columns, updates.keys())?;
+    validate_column_names(&valid_columns, primaryKeyValues.keys())?;
+
+    // Collect key-value pairs into Vecs to guarantee consistent ordering
+    // (HashMap::keys() and ::values() are not guaranteed to match across separate iterations)
+    let update_pairs: Vec<(&String, &JsonValue)> = updates.iter().collect();
+    let pk_pairs: Vec<(&String, &JsonValue)> = primaryKeyValues.iter().collect();
+
+    // Build UPDATE query with quoted identifiers
+    let set_clauses: Vec<String> = update_pairs
+        .iter()
         .enumerate()
-        .map(|(idx, key)| format!("{} = ?{}", key, idx + 1))
+        .map(|(idx, (key, _))| format!("{} = ?{}", quote_identifier(key), idx + 1))
         .collect();
 
-    let where_clauses: Vec<String> = primaryKeyValues
-        .keys()
+    let where_clauses: Vec<String> = pk_pairs
+        .iter()
         .enumerate()
-        .map(|(idx, key)| format!("{} = ?{}", key, idx + updates.len() + 1))
+        .map(|(idx, (key, _))| format!("{} = ?{}", quote_identifier(key), idx + update_pairs.len() + 1))
         .collect();
 
     let query = format!(
         "UPDATE {} SET {} WHERE {}",
-        tableName,
+        quote_identifier(&tableName),
         set_clauses.join(", "),
         where_clauses.join(" AND ")
     );
 
-    // Prepare parameters
+    // Prepare parameters in the same order as the clauses
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    // Add update values
-    for value in updates.values() {
+    for (_, value) in &update_pairs {
         params.push(json_to_sql_value(value)?);
     }
 
-    // Add where clause values
-    for value in primaryKeyValues.values() {
+    for (_, value) in &pk_pairs {
         params.push(json_to_sql_value(value)?);
     }
 
@@ -301,16 +349,20 @@ pub async fn storage_delete_row(
         return Err("Invalid table name".to_string());
     }
 
-    // Build DELETE query
+    // Validate column names to prevent SQL injection
+    let valid_columns = get_valid_columns(&conn, &tableName)?;
+    validate_column_names(&valid_columns, primaryKeyValues.keys())?;
+
+    // Build DELETE query with quoted identifiers
     let where_clauses: Vec<String> = primaryKeyValues
         .keys()
         .enumerate()
-        .map(|(idx, key)| format!("{} = ?{}", key, idx + 1))
+        .map(|(idx, key)| format!("{} = ?{}", quote_identifier(key), idx + 1))
         .collect();
 
     let query = format!(
         "DELETE FROM {} WHERE {}",
-        tableName,
+        quote_identifier(&tableName),
         where_clauses.join(" AND ")
     );
 
@@ -345,16 +397,20 @@ pub async fn storage_insert_row(
         return Err("Invalid table name".to_string());
     }
 
-    // Build INSERT query
+    // Validate column names to prevent SQL injection
+    let valid_columns = get_valid_columns(&conn, &tableName)?;
+    validate_column_names(&valid_columns, values.keys())?;
+
+    // Build INSERT query with quoted identifiers
     let columns: Vec<&String> = values.keys().collect();
     let placeholders: Vec<String> = (1..=columns.len()).map(|i| format!("?{}", i)).collect();
 
     let query = format!(
         "INSERT INTO {} ({}) VALUES ({})",
-        tableName,
+        quote_identifier(&tableName),
         columns
             .iter()
-            .map(|c| c.as_str())
+            .map(|c| quote_identifier(c))
             .collect::<Vec<_>>()
             .join(", "),
         placeholders.join(", ")
@@ -376,7 +432,7 @@ pub async fn storage_insert_row(
     Ok(conn.last_insert_rowid())
 }
 
-/// Execute a raw SQL query
+/// Execute a read-only SQL query (SELECT only)
 #[tauri::command]
 pub async fn storage_execute_sql(
     db: State<'_, AgentDb>,
@@ -384,67 +440,71 @@ pub async fn storage_execute_sql(
 ) -> Result<QueryResult, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
 
-    // Check if it's a SELECT query
-    let is_select = query.trim().to_uppercase().starts_with("SELECT");
-
-    if is_select {
-        // Handle SELECT queries
-        let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-        let column_count = stmt.column_count();
-
-        // Get column names
-        let columns: Vec<String> = (0..column_count)
-            .map(|i| stmt.column_name(i).unwrap_or("").to_string())
-            .collect();
-
-        // Execute query and collect results
-        let rows: Vec<Vec<JsonValue>> = stmt
-            .query_map([], |row| {
-                let mut row_values = Vec::new();
-                for i in 0..column_count {
-                    let value = match row.get_ref(i)? {
-                        ValueRef::Null => JsonValue::Null,
-                        ValueRef::Integer(n) => JsonValue::Number(serde_json::Number::from(n)),
-                        ValueRef::Real(f) => {
-                            if let Some(n) = serde_json::Number::from_f64(f) {
-                                JsonValue::Number(n)
-                            } else {
-                                JsonValue::String(f.to_string())
-                            }
-                        }
-                        ValueRef::Text(s) => {
-                            JsonValue::String(String::from_utf8_lossy(s).to_string())
-                        }
-                        ValueRef::Blob(b) => JsonValue::String(base64::Engine::encode(
-                            &base64::engine::general_purpose::STANDARD,
-                            b,
-                        )),
-                    };
-                    row_values.push(value);
-                }
-                Ok(row_values)
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<SqliteResult<Vec<_>>>()
-            .map_err(|e| e.to_string())?;
-
-        Ok(QueryResult {
-            columns,
-            rows,
-            rows_affected: None,
-            last_insert_rowid: None,
-        })
-    } else {
-        // Handle non-SELECT queries (INSERT, UPDATE, DELETE, etc.)
-        let rows_affected = conn.execute(&query, []).map_err(|e| e.to_string())?;
-
-        Ok(QueryResult {
-            columns: vec![],
-            rows: vec![],
-            rows_affected: Some(rows_affected as i64),
-            last_insert_rowid: Some(conn.last_insert_rowid()),
-        })
+    // Only allow SELECT queries to prevent arbitrary database modification
+    let trimmed = query.trim().to_uppercase();
+    if !trimmed.starts_with("SELECT") && !trimmed.starts_with("PRAGMA TABLE_INFO")
+        && !trimmed.starts_with("PRAGMA INDEX_LIST")
+    {
+        return Err(
+            "Only SELECT and read-only PRAGMA queries are allowed. Use the dedicated update/insert/delete commands for modifications."
+                .to_string(),
+        );
     }
+
+    // Reject dangerous patterns even in SELECT queries
+    let forbidden_patterns = ["ATTACH", "DETACH", "LOAD_EXTENSION"];
+    for pattern in &forbidden_patterns {
+        if trimmed.contains(pattern) {
+            return Err(format!("Query contains forbidden keyword: {}", pattern));
+        }
+    }
+
+    // Handle SELECT/PRAGMA queries
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let column_count = stmt.column_count();
+
+    // Get column names
+    let columns: Vec<String> = (0..column_count)
+        .map(|i| stmt.column_name(i).unwrap_or("").to_string())
+        .collect();
+
+    // Execute query and collect results
+    let rows: Vec<Vec<JsonValue>> = stmt
+        .query_map([], |row| {
+            let mut row_values = Vec::new();
+            for i in 0..column_count {
+                let value = match row.get_ref(i)? {
+                    ValueRef::Null => JsonValue::Null,
+                    ValueRef::Integer(n) => JsonValue::Number(serde_json::Number::from(n)),
+                    ValueRef::Real(f) => {
+                        if let Some(n) = serde_json::Number::from_f64(f) {
+                            JsonValue::Number(n)
+                        } else {
+                            JsonValue::String(f.to_string())
+                        }
+                    }
+                    ValueRef::Text(s) => {
+                        JsonValue::String(String::from_utf8_lossy(s).to_string())
+                    }
+                    ValueRef::Blob(b) => JsonValue::String(base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        b,
+                    )),
+                };
+                row_values.push(value);
+            }
+            Ok(row_values)
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<SqliteResult<Vec<_>>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(QueryResult {
+        columns,
+        rows,
+        rows_affected: None,
+        last_insert_rowid: None,
+    })
 }
 
 /// Reset the entire database (with confirmation)
@@ -505,6 +565,43 @@ fn is_valid_table_name(conn: &Connection, table_name: &str) -> Result<bool, Stri
         .map_err(|e| e.to_string())?;
 
     Ok(count > 0)
+}
+
+/// Get the set of valid column names for a table (prevents SQL injection via column names)
+fn get_valid_columns(conn: &Connection, table_name: &str) -> Result<HashSet<String>, String> {
+    let mut stmt = conn
+        .prepare(&format!(
+            "PRAGMA table_info(\"{}\")",
+            table_name.replace('"', "\"\"")
+        ))
+        .map_err(|e| e.to_string())?;
+
+    let columns: HashSet<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| e.to_string())?
+        .collect::<SqliteResult<HashSet<_>>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(columns)
+}
+
+/// Validate that all provided column names exist in the table
+fn validate_column_names(
+    valid_columns: &HashSet<String>,
+    provided_keys: impl Iterator<Item = impl AsRef<str>>,
+) -> Result<(), String> {
+    for key in provided_keys {
+        let key_ref = key.as_ref();
+        if !valid_columns.contains(key_ref) {
+            return Err(format!("Invalid column name: {}", key_ref));
+        }
+    }
+    Ok(())
+}
+
+/// Quote a SQL identifier with double quotes to prevent injection
+fn quote_identifier(name: &str) -> String {
+    format!("\"{}\"", name.replace('"', "\"\""))
 }
 
 /// Helper function to convert JSON value to SQL value

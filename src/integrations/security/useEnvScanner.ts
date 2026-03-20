@@ -56,12 +56,22 @@ export function useEnvScanner(projectPath: string): EnvScanResult {
   // Strategy 1: Scan session outputs for .env file references
   const sessionOutputs = useSessionStore((state) => state.sessionOutputs);
 
+  // Track the previous project path to detect switches
+  const prevProjectPathRef = useRef<string>('');
+
   useEffect(() => {
     if (!projectPath) {
       foundFilesRef.current.clear();
       setResult({ hasEnvFiles: false, envFiles: [] });
+      prevProjectPathRef.current = '';
       return;
     }
+
+    // Clear accumulated files when switching to a different project
+    if (prevProjectPathRef.current && prevProjectPathRef.current !== projectPath) {
+      foundFilesRef.current.clear();
+    }
+    prevProjectPathRef.current = projectPath;
 
     let changed = false;
 

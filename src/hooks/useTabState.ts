@@ -26,7 +26,9 @@ interface UseTabStateReturn {
   createImportAgentTab: () => string;
   createResourceDetailsTab: () => string;
   createTerminalTab: (sessionId?: string, projectPath?: string, flags?: string[]) => string;
-  createLoopDetailTab: (loopId: string, loopName: string) => string;
+  createBrowserTab: (url?: string, projectPath?: string) => string;
+  activeProjectPath: string | null;
+  setActiveProjectPath: (path: string | null) => void;
   closeTab: (id: string, force?: boolean) => Promise<boolean>;
   closeCurrentTab: () => Promise<boolean>;
   switchToTab: (id: string) => void;
@@ -61,22 +63,23 @@ export const useTabState = (): UseTabStateReturn => {
     setGridRows,
     setGridOrder,
     setGridSpan,
+    activeProjectPath,
+    setActiveProjectPath,
     addTab,
     removeTab,
     updateTab,
     setActiveTab,
     getTabById,
-    getTabsByType
   } = useTabContext();
 
-  const activeTab = useMemo(() => 
-    activeTabId ? getTabById(activeTabId) : undefined,
-    [activeTabId, getTabById]
+  const activeTab = useMemo(() =>
+    activeTabId ? tabs.find(t => t.id === activeTabId) : undefined,
+    [activeTabId, tabs]
   );
 
   const tabCount = tabs.length;
-  const chatTabCount = useMemo(() => getTabsByType('chat').length, [getTabsByType]);
-  const agentTabCount = useMemo(() => getTabsByType('agent').length, [getTabsByType]);
+  const chatTabCount = useMemo(() => tabs.filter(t => t.type === 'chat').length, [tabs]);
+  const agentTabCount = useMemo(() => tabs.filter(t => t.type === 'agent').length, [tabs]);
 
   const createChatTab = useCallback((projectId?: string, title?: string, projectPath?: string): string => {
     const tabTitle = title || `Chat ${chatTabCount + 1}`;
@@ -286,7 +289,9 @@ export const useTabState = (): UseTabStateReturn => {
   }, [addTab, tabs, setActiveTab]);
 
   const createTerminalTab = useCallback((sessionId?: string, projectPath?: string, flags?: string[]): string => {
-    const name = projectPath?.split('/').pop() || (sessionId ? sessionId.slice(0, 8) : 'Terminal');
+    const baseName = projectPath?.split('/').pop() || (sessionId ? sessionId.slice(0, 8) : 'Terminal');
+    const isShell = flags?.includes('--shell');
+    const name = isShell ? `⬛ ${baseName}` : `🔮 ${baseName}`;
     return addTab({
       type: 'claude-terminal',
       title: name,
@@ -299,23 +304,22 @@ export const useTabState = (): UseTabStateReturn => {
     });
   }, [addTab]);
 
-  const createLoopDetailTab = useCallback((loopId: string, loopName: string): string => {
-    // Check if tab already exists for this loop
-    const existingTab = tabs.find(tab => tab.type === 'loop-detail' && tab.loopId === loopId);
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
+  const createBrowserTab = useCallback((url?: string, projectPath?: string): string => {
+    // Resolve project path: explicit > activeProjectPath > active tab's project
+    const resolvedProject = projectPath || activeProjectPath ||
+      (activeTab ? (activeTab.projectPath || activeTab.initialProjectPath) : null) || undefined;
 
+    // Always create a new browser tab (allow multiple per project)
     return addTab({
-      type: 'loop-detail',
-      title: `Loop: ${loopName}`,
-      loopId,
+      type: 'browser',
+      title: 'Browser',
+      browserUrl: url,
+      projectPath: resolvedProject,
       status: 'active',
       hasUnsavedChanges: false,
-      icon: 'rotate-ccw'
+      icon: 'globe'
     });
-  }, [addTab, tabs, setActiveTab]);
+  }, [addTab, activeProjectPath, activeTab]);
 
   const closeTab = useCallback(async (id: string, force: boolean = false): Promise<boolean> => {
     const tab = getTabById(id);
@@ -411,7 +415,7 @@ export const useTabState = (): UseTabStateReturn => {
     createImportAgentTab,
     createResourceDetailsTab,
     createTerminalTab,
-    createLoopDetailTab,
+    createBrowserTab,
     closeTab,
     closeCurrentTab,
     switchToTab: setActiveTab,
@@ -433,5 +437,7 @@ export const useTabState = (): UseTabStateReturn => {
     setGridRows,
     setGridOrder,
     setGridSpan,
+    activeProjectPath,
+    setActiveProjectPath,
   };
 };

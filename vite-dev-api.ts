@@ -47,7 +47,6 @@ const INIT_CACHE_TTL = 60_000; // 1 minute cache
 let cachedRateLimitInfo: any = null;
 
 // Autocomplete: limit to one in-flight request at a time
-let _autocompleteAbort: AbortController | null = null;
 let windowResetsAt = 0; // track when to reset accumulator
 
 function createEmptyUsage() {
@@ -176,202 +175,6 @@ function invalidateSessionsCache() {
 }
 
 // ---------------------------------------------------------------------------
-// Loop Manager — runs Claude Code repeatedly to complete a plan autonomously
-// ---------------------------------------------------------------------------
-
-interface LoopIteration {
-  index: number;
-  startTime: number;
-  endTime: number;
-  outputPreview: string;
-  exitCode: number;
-}
-
-interface LoopState {
-  id: string;
-  projectPath: string;
-  status: 'running' | 'paused' | 'completed' | 'failed' | 'stopped' | 'rate_limited';
-  iterations: number;
-  maxIterations: number;
-  prompt: string;
-  lastOutput: string;
-  startTime: number;
-  elapsedMs: number;
-  error?: string;
-  model?: string;
-  history: LoopIteration[];
-  pauseBetweenMs: number;
-  completionMarkers: string[];
-  rateLimitWaitsCount: number;
-  noProgressCount: number;
-}
-
-const activeLoops = new Map<string, { state: LoopState; abort: AbortController; child?: any }>();
-
-// Rate limit detection patterns (inspired by ralph-claude-code)
-const RATE_LIMIT_PATTERNS = [
-  'rate limit', 'rate_limit', 'too many requests', '429',
-  'overloaded', 'capacity', 'try again later', 'exceeded your',
-];
-
-function detectRateLimit(output: string, exitCode: number): boolean {
-  if (exitCode === 124) return true; // timeout = likely rate limited
-  const lower = output.toLowerCase();
-  return RATE_LIMIT_PATTERNS.some(p => lower.includes(p));
-}
-
-function detectNoProgress(output: string): boolean {
-  // Short output or empty response likely means no useful work done
-  const stripped = output.replace(/\s+/g, '').length;
-  return stripped < 50;
-}
-
-async function runLoop(loopId: string) {
-  const entry = activeLoops.get(loopId);
-  if (!entry) return;
-  const { state, abort } = entry;
-
-  let noProgressCount = 0;
-  let sameErrorCount = 0;
-  let lastErrorSig = '';
-
-  while (state.iterations < state.maxIterations && state.status === 'running') {
-    if (abort.signal.aborted) { state.status = 'stopped'; break; }
-
-    // Pause support
-    while (state.status === 'paused') {
-      await new Promise(r => setTimeout(r, 500));
-      if (abort.signal.aborted) { state.status = 'stopped'; return; }
-    }
-
-    state.iterations++;
-    const iterStart = Date.now();
-    console.log(`[loop] ${loopId} iteration ${state.iterations}/${state.maxIterations}`);
-
-    try {
-      const claudeArgs = ['-p', '--continue', '--dangerously-skip-permissions'];
-      if (state.model) claudeArgs.push('--model', state.model);
-
-      // First iteration uses custom prompt; subsequent use continuation
-      const iterPrompt = state.iterations === 1 && state.prompt
-        ? state.prompt
-        : 'Continue working on the current task. Review what has been done so far and continue with the next steps. If everything is complete and there is nothing left to do, respond with exactly: LOOP_COMPLETE';
-
-      const child = spawn('claude', claudeArgs, {
-        cwd: state.projectPath,
-        env: { ...process.env, TERM: 'dumb' },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      entry.child = child;
-
-      child.stdin?.write(iterPrompt);
-      child.stdin?.end();
-
-      let output = '';
-      child.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
-      child.stderr?.on('data', (data: Buffer) => { output += data.toString(); });
-
-      const exitCode = await new Promise<number>((resolve) => {
-        child.on('exit', (code: number | null) => resolve(code ?? 1));
-        setTimeout(() => { try { child.kill('SIGTERM'); } catch {} resolve(1); }, 600_000);
-      });
-
-      entry.child = null;
-      const iterEnd = Date.now();
-      state.lastOutput = output.slice(-2000);
-      state.elapsedMs = Date.now() - state.startTime;
-
-      // Save iteration to history
-      state.history.push({
-        index: state.iterations,
-        startTime: iterStart,
-        endTime: iterEnd,
-        outputPreview: output.slice(-300),
-        exitCode,
-      });
-      if (state.history.length > 50) state.history = state.history.slice(-50);
-
-      // ── Rate limit detection & auto-wait (inspired by Ralph) ──
-      if (detectRateLimit(output, exitCode)) {
-        state.rateLimitWaitsCount++;
-        const waitMinutes = Math.min(5 * state.rateLimitWaitsCount, 30); // Exponential backoff, max 30m
-        state.error = `Rate limited — auto-waiting ${waitMinutes}m (attempt ${state.rateLimitWaitsCount})`;
-        state.status = 'rate_limited';
-        console.log(`[loop] ${loopId} rate limited, waiting ${waitMinutes}m (attempt ${state.rateLimitWaitsCount})`);
-
-        // Wait in 30s chunks so we can be aborted
-        const waitEnd = Date.now() + waitMinutes * 60 * 1000;
-        while (Date.now() < waitEnd) {
-          if (abort.signal.aborted) { state.status = 'stopped'; break; }
-          await new Promise(r => setTimeout(r, 30_000));
-          state.elapsedMs = Date.now() - state.startTime;
-        }
-        if (abort.signal.aborted) break;
-
-        state.status = 'running';
-        state.error = undefined;
-        state.iterations--; // Don't count the rate-limited attempt
-        continue;
-      }
-
-      // ── Circuit breaker: stuck loop detection ──
-      if (detectNoProgress(output)) {
-        noProgressCount++;
-        if (noProgressCount >= 3) {
-          state.error = `Circuit breaker: ${noProgressCount} iterations with no progress — stopping`;
-          state.status = 'failed';
-          console.log(`[loop] ${loopId} circuit breaker: no progress`);
-          break;
-        }
-      } else {
-        noProgressCount = 0;
-      }
-
-      // Same-error detection
-      const errorSig = output.slice(-200).replace(/\s+/g, ' ').trim();
-      if (exitCode !== 0 && errorSig === lastErrorSig) {
-        sameErrorCount++;
-        if (sameErrorCount >= 3) {
-          state.error = `Circuit breaker: same error repeated ${sameErrorCount} times — stopping`;
-          state.status = 'failed';
-          console.log(`[loop] ${loopId} circuit breaker: same error`);
-          break;
-        }
-      } else {
-        sameErrorCount = 0;
-      }
-      lastErrorSig = exitCode !== 0 ? errorSig : '';
-
-      // ── Completion detection (dual-condition inspired by Ralph) ──
-      const lowerOutput = output.toLowerCase();
-      const markerHit = state.completionMarkers.some(m => lowerOutput.includes(m.toLowerCase()));
-      if (markerHit) {
-        state.status = 'completed';
-        console.log(`[loop] ${loopId} completed after ${state.iterations} iterations`);
-        break;
-      }
-
-      if (exitCode !== 0) {
-        state.error = `Iteration ${state.iterations}: exit code ${exitCode}`;
-      }
-
-      // Pause between iterations
-      await new Promise(r => setTimeout(r, state.pauseBetweenMs));
-
-    } catch (err: any) {
-      if (abort.signal.aborted) { state.status = 'stopped'; break; }
-      state.error = err.message;
-      state.status = 'failed';
-      break;
-    }
-  }
-
-  if (state.status === 'running') {
-    state.status = state.iterations >= state.maxIterations ? 'completed' : 'stopped';
-  }
-  state.elapsedMs = Date.now() - state.startTime;
-  console.log(`[loop] ${loopId} finished: ${state.status}, ${state.iterations} iterations, ${(state.elapsedMs / 1000).toFixed(0)}s`);
-}
 
 async function listProjects(): Promise<ProjectEntry[]> {
   const allSessions = await cachedListSessions();
@@ -504,23 +307,6 @@ export function devApiPlugin(): Plugin {
         console.error("[dev-api] Failed to load Claude Agent SDK:", err.message);
       });
 
-      // Auto-start local model server if enabled
-      try {
-        const lsKey = 'runecode-ai-autocomplete-enabled';
-        const providerKey = 'runecode-ai-autocomplete-provider';
-        // Read from localStorage is not available server-side — check a file-based flag instead
-        const flagFile = path.join(os.homedir(), '.runecode', 'autocomplete-local-enabled');
-        if (fs.existsSync(flagFile)) {
-          import('./src/lib/localModelManager').then(({ startServer }) => {
-            startServer().then(() => {
-              console.log("[dev-api] Local autocomplete model auto-started");
-            }).catch((err) => {
-              console.log("[dev-api] Local autocomplete model failed to auto-start:", err.message);
-            });
-          });
-        }
-      } catch { /* ignore */ }
-
       // REST API middleware
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith("/api/")) return next();
@@ -529,106 +315,161 @@ export function devApiPlugin(): Plugin {
         res.setHeader("Access-Control-Allow-Origin", "*");
 
         try {
-          // ---- Account Management ----
-
-          // GET /api/accounts — list all account profiles
+          // ---- Account Management (disabled — accountManager removed) ----
           if (req.url === "/api/accounts" && req.method === "GET") {
-            try {
-              const { listAccounts, ensureCurrentProfileSaved } = await import('./src/lib/accountManager');
-              // Only create a profile if one doesn't exist yet — never overwrite
-              // credentials on list requests (that would poison profiles after a switch)
-              try {
-                ensureCurrentProfileSaved();
-              } catch { /* ignore — SDK may not be ready */ }
-              res.end(JSON.stringify(listAccounts()));
-            } catch (err: any) {
-              res.end(JSON.stringify({ accounts: [], activeId: null, error: err.message }));
-            }
+            res.end(JSON.stringify({ accounts: [], activeId: null }));
+            return;
+          }
+          if (req.url?.startsWith("/api/accounts/") || req.url === "/api/accounts/switch" || req.url === "/api/accounts/save-current") {
+            res.end(JSON.stringify({ success: false, error: "Account management disabled" }));
             return;
           }
 
-          // POST /api/accounts/switch — switch active account
-          if (req.url === "/api/accounts/switch" && req.method === "POST") {
+
+          // GET /api/docker/status — check if Docker is running and list containers
+          if (req.url?.startsWith("/api/docker/status")) {
+            const { exec } = await import('child_process');
+            exec('docker info --format "{{.ServerVersion}}" 2>/dev/null', { timeout: 5000 }, (err, version) => {
+              if (err || !version?.trim()) {
+                res.end(JSON.stringify({ running: false, containers: [] }));
+                return;
+              }
+              exec('docker ps -a --format \'{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}"}\' 2>/dev/null', { timeout: 5000 }, (_err2, stdout) => {
+                const containers = (stdout || '').trim().split('\n').filter(Boolean).map(line => {
+                  try { return JSON.parse(line); } catch { return null; }
+                }).filter(Boolean);
+                res.end(JSON.stringify({ running: true, version: version.trim(), containers }));
+              });
+            });
+            return;
+          }
+
+          // POST /api/docker/create — create a new Docker container and install Claude Code
+          if (req.url === "/api/docker/create" && req.method === "POST") {
+            const chunks: Buffer[] = [];
+            req.on("data", (c: Buffer) => chunks.push(c));
+            req.on("end", () => {
+              try {
+                const { name, image, startDirectory } = JSON.parse(Buffer.concat(chunks).toString());
+                if (!name || !image) { res.statusCode = 400; res.end(JSON.stringify({ error: 'name and image required' })); return; }
+                const safeName = String(name).replace(/[^a-zA-Z0-9_-]/g, '');
+                const safeImage = String(image).replace(/[;&|`$(){}]/g, '');
+                const volFlag = startDirectory ? `-v "${String(startDirectory).replace(/[;&|`$(){}]/g, '')}":/workspace` : '';
+                const cmd = `docker run -d --name ${safeName} ${volFlag} ${safeImage} tail -f /dev/null`;
+                const { exec } = require('child_process');
+                exec(cmd, { timeout: 60000 }, (err: any, stdout: string, stderr: string) => {
+                  if (err) {
+                    res.statusCode = 500;
+                    res.end(JSON.stringify({ success: false, error: stderr?.trim() || err.message }));
+                    return;
+                  }
+                  // Container created — now install Claude Code inside it
+                  console.log(`[docker] Container ${safeName} created, installing Claude Code...`);
+                  const installCmd = `docker exec ${safeName} sh -c 'apt-get update -qq && apt-get install -y -qq curl >/dev/null 2>&1; curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash - >/dev/null 2>&1; apt-get install -y -qq nodejs >/dev/null 2>&1; npm install -g @anthropic-ai/claude-code >/dev/null 2>&1 && claude --version 2>/dev/null || echo "install_failed"'`;
+                  exec(installCmd, { timeout: 180000 }, (installErr: any, installOut: string) => {
+                    const output = installOut?.toString().trim() || '';
+                    const installed = !installErr && !output.includes('install_failed');
+                    console.log(`[docker] Claude Code install in ${safeName}:`, installed ? 'OK' : 'FAILED', output.slice(-100));
+                    res.end(JSON.stringify({
+                      success: true,
+                      containerId: stdout?.trim(),
+                      name: safeName,
+                      claudeInstalled: installed,
+                      installOutput: installed ? undefined : output.slice(-200),
+                    }));
+                  });
+                });
+              } catch (err: any) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, error: err.message }));
+              }
+            });
+            return;
+          }
+
+          // POST /api/docker/install-claude — install Claude Code in an existing container
+          if (req.url === "/api/docker/install-claude" && req.method === "POST") {
+            const chunks: Buffer[] = [];
+            req.on("data", (c: Buffer) => chunks.push(c));
+            req.on("end", () => {
+              try {
+                const { container } = JSON.parse(Buffer.concat(chunks).toString());
+                if (!container) { res.statusCode = 400; res.end(JSON.stringify({ error: 'container required' })); return; }
+                const safe = String(container).replace(/[;&|`$(){}]/g, '');
+                // Check if claude is already installed
+                const { exec } = require('child_process');
+                exec(`docker exec ${safe} claude --version 2>/dev/null`, { timeout: 10000 }, (checkErr: any, checkOut: string) => {
+                  if (!checkErr && checkOut?.trim()) {
+                    res.end(JSON.stringify({ success: true, alreadyInstalled: true, version: checkOut.trim() }));
+                    return;
+                  }
+                  // Not installed — install it
+                  console.log(`[docker] Installing Claude Code in ${safe}...`);
+                  const installCmd = `docker exec ${safe} sh -c 'apt-get update -qq 2>/dev/null; apt-get install -y -qq curl 2>/dev/null; curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash - 2>/dev/null; apt-get install -y -qq nodejs 2>/dev/null; npm install -g @anthropic-ai/claude-code 2>/dev/null && claude --version'`;
+                  exec(installCmd, { timeout: 180000 }, (installErr: any, installOut: string, installStderr: string) => {
+                    const output = installOut?.toString().trim() || '';
+                    const installed = !installErr && output.length > 0;
+                    res.end(JSON.stringify({
+                      success: installed,
+                      version: installed ? output : undefined,
+                      error: !installed ? (installStderr?.trim() || 'Installation failed').slice(0, 200) : undefined,
+                    }));
+                  });
+                });
+              } catch (err: any) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, error: err.message }));
+              }
+            });
+            return;
+          }
+
+          // POST /api/environments/test — test SSH/WSL/Docker connectivity
+          if (req.url === "/api/environments/test" && req.method === "POST") {
             const chunks: Buffer[] = [];
             req.on("data", (chunk: Buffer) => chunks.push(chunk));
             req.on("end", async () => {
               try {
-                const { accountId } = JSON.parse(Buffer.concat(chunks).toString());
-                const { switchAccount } = await import('./src/lib/accountManager');
-                const success = switchAccount(accountId);
-                if (success) {
-                  // Invalidate ALL SDK caches so next request uses new credentials
-                  cachedInitData = null;
-                  _sessionsCache = null;
-                  _initDataPending = null;
+                const env = JSON.parse(Buffer.concat(chunks).toString());
+                // Build a safe test command based on environment type
+                let testCmd: string;
+                if (env.type === 'ssh' && env.sshHost) {
+                  const host = String(env.sshHost).replace(/[;&|`$(){}]/g, '');
+                  const port = parseInt(env.sshPort) || 22;
+                  const portFlag = port !== 22 ? `-p ${port}` : '';
+                  // StrictHostKeyChecking=no auto-accepts host keys (avoids interactive prompt)
+                  const sshOpts = '-o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
+                  if (env.sshAuthMethod === 'password') {
+                    // Password auth: check SSH port reachability (auth is interactive in terminal)
+                    const hostOnly = host.includes('@') ? host.split('@')[1] : host;
+                    testCmd = `bash -c '(echo >/dev/tcp/${hostOnly}/${port}) 2>/dev/null && echo ok || (nc -z -w 3 ${hostOnly} ${port} 2>/dev/null && echo ok || echo fail)'`;
+                  } else {
+                    const keyFlag = env.sshIdentityFile ? `-i ${String(env.sshIdentityFile).replace(/[;&|`$(){}]/g, '')}` : '';
+                    testCmd = `ssh ${sshOpts} -o BatchMode=yes ${portFlag} ${keyFlag} ${host} "echo ok"`;
+                  }
+                } else if (env.type === 'wsl') {
+                  const distro = env.wslDistro ? `-d ${String(env.wslDistro).replace(/[;&|`$(){}]/g, '')}` : '';
+                  testCmd = `wsl ${distro} -- echo ok`;
+                } else if (env.type === 'docker' && env.dockerContainer) {
+                  const container = String(env.dockerContainer).replace(/[;&|`$(){}]/g, '');
+                  testCmd = `docker exec ${container} echo ok`;
+                } else {
+                  res.statusCode = 400;
+                  res.end(JSON.stringify({ success: false, error: 'Invalid environment type' }));
+                  return;
                 }
-                res.end(JSON.stringify({ success }));
+                const { exec } = await import('child_process');
+                exec(testCmd, { timeout: 8000 }, (err, stdout, stderr) => {
+                  const output = stdout?.toString().trim() || '';
+                  const success = !err && output === 'ok';
+                  const error = !success ? (stderr?.toString().trim() || err?.message || 'Connection timed out').slice(0, 200) : undefined;
+                  res.end(JSON.stringify({ success, error }));
+                });
               } catch (err: any) {
                 res.statusCode = 500;
-                res.end(JSON.stringify({ error: err.message }));
+                res.end(JSON.stringify({ success: false, error: err.message }));
               }
             });
-            return;
-          }
-
-          // POST /api/accounts/save-current — save current credentials as a profile
-          // Enriches with email/org from SDK accountInfo (not in creds file)
-          if (req.url === "/api/accounts/save-current" && req.method === "POST") {
-            try {
-              const { saveCurrentAsProfile } = await import('./src/lib/accountManager');
-              // Force fresh SDK probe to get the correct account identity
-              cachedInitData = null;
-              _initDataPending = null;
-              let sdkEmail: string | undefined;
-              let sdkOrg: string | undefined;
-              let sdkSub: string | undefined;
-              let sdkOrgId: string | undefined;
-              try {
-                const initData = await getInitData();
-                sdkEmail = initData.account?.email;
-                sdkOrg = initData.account?.organization;
-                sdkSub = initData.account?.subscriptionType;
-                sdkOrgId = initData.account?.orgId;
-              } catch { /* ignore */ }
-              const profile = saveCurrentAsProfile(sdkEmail, sdkOrg, sdkSub, sdkOrgId);
-              res.end(JSON.stringify({ success: !!profile, profile }));
-            } catch (err: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: err.message }));
-            }
-            return;
-          }
-
-          // PUT /api/accounts/{id} — update account profile
-          const accountUpdateMatch = req.url?.match(/^\/api\/accounts\/([^/]+)$/);
-          if (accountUpdateMatch && req.method === "PUT") {
-            const chunks: Buffer[] = [];
-            req.on("data", (chunk: Buffer) => chunks.push(chunk));
-            req.on("end", async () => {
-              try {
-                const updates = JSON.parse(Buffer.concat(chunks).toString());
-                const { updateProfile } = await import('./src/lib/accountManager');
-                const profile = updateProfile(decodeURIComponent(accountUpdateMatch[1]), updates);
-                res.end(JSON.stringify({ success: !!profile, profile }));
-              } catch (err: any) {
-                res.statusCode = 500;
-                res.end(JSON.stringify({ error: err.message }));
-              }
-            });
-            return;
-          }
-
-          // DELETE /api/accounts/{id} — remove an account profile
-          const accountDeleteMatch = req.url?.match(/^\/api\/accounts\/([^/]+)$/);
-          if (accountDeleteMatch && req.method === "DELETE") {
-            try {
-              const { removeAccount } = await import('./src/lib/accountManager');
-              const success = removeAccount(decodeURIComponent(accountDeleteMatch[1]));
-              res.end(JSON.stringify({ success }));
-            } catch (err: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: err.message }));
-            }
             return;
           }
 
@@ -744,18 +585,16 @@ export function devApiPlugin(): Plugin {
                     });
                   }
 
-                  // Save the new account profile
-                  const { saveCurrentAsProfile } = await import('./src/lib/accountManager');
+                  // Account profile saving disabled (accountManager removed)
                   try {
                     const result = execSync('claude auth status --json', { encoding: 'utf-8', timeout: 10000 });
                     const status = JSON.parse(result);
-                    console.log(`[accounts] Login success: email=${status.email}, org=${status.orgName}, orgId=${status.orgId}`);
-                    const profile = saveCurrentAsProfile(status.email, status.orgName, status.subscriptionType, status.orgId);
+                    console.log(`[accounts] Login success: email=${status.email}, org=${status.orgName}`);
                     cachedInitData = null;
                     _sessionsCache = null;
                     (global as any).__loginProc = null;
                     (global as any).__loginMeta = null;
-                    res.end(JSON.stringify({ success: true, profile }));
+                    res.end(JSON.stringify({ success: true }));
                   } catch (statusErr: any) {
                     console.log(`[accounts] auth status failed after success redirect: ${statusErr.message}`);
                     res.end(JSON.stringify({ success: false, error: 'Login appeared to succeed but credentials not found. Try again.' }));
@@ -1093,15 +932,21 @@ export function devApiPlugin(): Plugin {
             const settingsPath = path.join(os.homedir(), ".claude", "settings.json");
 
             if (req.method === "POST" || req.method === "PUT") {
-              // Save settings
+              // Save settings — merge with existing to avoid losing fields set by other tools
               const chunks: Buffer[] = [];
               req.on("data", (chunk: Buffer) => chunks.push(chunk));
               req.on("end", () => {
                 try {
                   const body = JSON.parse(Buffer.concat(chunks).toString());
-                  // apiCall wraps payload as { settings: {...} } — unwrap if present
                   const settingsData = body.settings || body;
-                  fs.writeFileSync(settingsPath, JSON.stringify(settingsData, null, 2), "utf-8");
+                  let existing: any = {};
+                  try {
+                    if (fs.existsSync(settingsPath)) {
+                      existing = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+                    }
+                  } catch { /* start fresh */ }
+                  const merged = { ...existing, ...settingsData };
+                  fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2), "utf-8");
                   res.end(JSON.stringify({ success: true }));
                 } catch (err: any) {
                   res.statusCode = 400;
@@ -1647,7 +1492,7 @@ export function devApiPlugin(): Plugin {
                   // Determine config file path based on scope
                   const configPath = scope === 'project' && params.projectPath
                     ? path.join(params.projectPath, '.mcp.json')
-                    : path.join(os.homedir(), '.claude', '.mcp.json');
+                    : path.join(os.homedir(), '.claude.json');
 
                   // Read existing config
                   let config: Record<string, any> = {};
@@ -1710,7 +1555,7 @@ export function devApiPlugin(): Plugin {
 
                   const configPath = scope === 'project' && params.projectPath
                     ? path.join(params.projectPath, '.mcp.json')
-                    : path.join(os.homedir(), '.claude', '.mcp.json');
+                    : path.join(os.homedir(), '.claude.json');
 
                   let config: Record<string, any> = {};
                   try {
@@ -1743,7 +1588,7 @@ export function devApiPlugin(): Plugin {
               const handleRemove = async (serverName: string) => {
                 try {
                   // Try removing from user config
-                  const userConfigPath = path.join(os.homedir(), '.claude', '.mcp.json');
+                  const userConfigPath = path.join(os.homedir(), '.claude.json');
                   let removed = false;
 
                   if (fs.existsSync(userConfigPath)) {
@@ -1801,7 +1646,7 @@ export function devApiPlugin(): Plugin {
               return {};
             };
 
-            const userConfigPath = path.join(os.homedir(), ".claude", ".mcp.json");
+            const userConfigPath = path.join(os.homedir(), ".claude.json");
             const userServers = readMcpConfig(userConfigPath);
 
             const projectPath = urlObj.searchParams.get("project") || "";
@@ -1868,8 +1713,38 @@ export function devApiPlugin(): Plugin {
             res.end(JSON.stringify([]));
             return;
           }
-          // GET /api/hooks/config — extract hooks from ~/.claude/settings.json
+          // GET /api/hooks/config — read hooks from settings file
+          // POST /api/hooks/config — write hooks to settings file
           if (req.url?.startsWith("/api/hooks/config")) {
+            if (req.method === "POST") {
+              const chunks: Buffer[] = [];
+              req.on("data", (chunk: Buffer) => chunks.push(chunk));
+              req.on("end", () => {
+                try {
+                  const { scope, hooks } = JSON.parse(Buffer.concat(chunks).toString());
+                  const settingsPath = scope === 'user'
+                    ? path.join(os.homedir(), ".claude", "settings.json")
+                    : path.join(process.cwd(), ".claude", "settings.json");
+                  let existing: any = {};
+                  try {
+                    if (fs.existsSync(settingsPath)) {
+                      existing = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+                    }
+                  } catch { /* start fresh */ }
+                  existing.hooks = hooks;
+                  const dir = path.dirname(settingsPath);
+                  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                  fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
+                  console.log(`[dev-api] Hooks saved to ${settingsPath}`);
+                  res.end(JSON.stringify({ success: true }));
+                } catch (err: any) {
+                  res.statusCode = 500;
+                  res.end(JSON.stringify({ error: err.message }));
+                }
+              });
+              return;
+            }
+            // GET
             const settingsPath = path.join(os.homedir(), ".claude", "settings.json");
             try {
               if (fs.existsSync(settingsPath)) {
@@ -1885,6 +1760,95 @@ export function devApiPlugin(): Plugin {
             return;
           }
           if (req.url?.startsWith("/api/hooks/")) { res.end(JSON.stringify({})); return; }
+
+          // GET /api/plugins/list — list installed plugins with full metadata
+          if (req.url?.startsWith("/api/plugins/list")) {
+            try {
+              const registryPath = path.join(os.homedir(), ".claude", "plugins", "installed_plugins.json");
+              const pluginsCacheDir = path.join(os.homedir(), ".claude", "plugins", "cache");
+              const results: any[] = [];
+
+              if (fs.existsSync(registryPath)) {
+                const registry = JSON.parse(fs.readFileSync(registryPath, "utf-8"));
+                const pluginsMap = registry.plugins || {};
+
+                for (const [key, installs] of Object.entries(pluginsMap)) {
+                  const [pluginName, marketplace] = key.includes('@') ? key.split('@') : [key, 'unknown'];
+                  const install = Array.isArray(installs) ? (installs as any[])[0] : installs;
+                  const installPath = install?.installPath || '';
+
+                  // Try to read plugin.json for metadata
+                  let meta: any = {};
+                  const pluginJsonPaths = [
+                    path.join(installPath, '.claude-plugin', 'plugin.json'),
+                    path.join(installPath, 'plugin.json'),
+                  ];
+                  for (const p of pluginJsonPaths) {
+                    try {
+                      if (fs.existsSync(p)) { meta = JSON.parse(fs.readFileSync(p, 'utf-8')); break; }
+                    } catch {}
+                  }
+
+                  // Read skills from skills/ directory
+                  const skills: any[] = [];
+                  const skillsDir = path.join(installPath, 'skills');
+                  try {
+                    if (fs.existsSync(skillsDir)) {
+                      const walkSkills = (dir: string) => {
+                        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                          if (entry.isDirectory()) walkSkills(path.join(dir, entry.name));
+                          else if (entry.name.endsWith('.md')) {
+                            try {
+                              const content = fs.readFileSync(path.join(dir, entry.name), 'utf-8');
+                              const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+                              let name = entry.name.replace('.md', '');
+                              let description = '';
+                              if (fmMatch) {
+                                const nameMatch = fmMatch[1].match(/name:\s*(.+)/);
+                                const descMatch = fmMatch[1].match(/description:\s*(.+)/);
+                                if (nameMatch) name = nameMatch[1].trim().replace(/^["']|["']$/g, '');
+                                if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, '');
+                              }
+                              skills.push({ name, description });
+                            } catch {}
+                          }
+                        }
+                      };
+                      walkSkills(skillsDir);
+                    }
+                  } catch {}
+
+                  // Also add skills from plugin.json if present
+                  if (meta.skills && Array.isArray(meta.skills)) {
+                    for (const s of meta.skills) {
+                      if (s.name && !skills.find((sk: any) => sk.name === s.name)) {
+                        skills.push({ name: s.name, description: s.description || '' });
+                      }
+                    }
+                  }
+
+                  const displayName = meta.name || pluginName;
+                  results.push({
+                    name: pluginName,
+                    displayName: displayName.charAt(0).toUpperCase() + displayName.slice(1),
+                    marketplace,
+                    description: meta.description || undefined,
+                    version: install?.version || meta.version || undefined,
+                    author: meta.author?.name || meta.author || undefined,
+                    homepage: meta.homepage || undefined,
+                    skills,
+                    installPath,
+                    installedAt: install?.installedAt || undefined,
+                  });
+                }
+              }
+
+              res.end(JSON.stringify(results));
+            } catch (err: any) {
+              res.end(JSON.stringify([]));
+            }
+            return;
+          }
 
           // GET /api/skills — list installed plugins from ~/.claude/plugins/cache/
           // Structure: cache/{repo-name}/{hash}/.claude-plugin/plugin.json
@@ -1937,6 +1901,42 @@ export function devApiPlugin(): Plugin {
             return;
           }
 
+          // GET /api/github/actions?path=/path/to/repo — list recent GitHub Actions runs
+          if (req.url?.startsWith("/api/github/actions")) {
+            const urlObj = new URL(req.url, "http://localhost");
+            const repoPath = urlObj.searchParams.get("path") || process.cwd();
+            try {
+              // Get git remote to find repo
+              const remote = execSync("git remote get-url origin 2>/dev/null", { cwd: repoPath, encoding: "utf-8", timeout: 3000 }).trim();
+              if (!remote) { res.end(JSON.stringify({ runs: [], error: "No git remote" })); return; }
+
+              // Extract owner/repo from remote URL
+              const match = remote.match(/github\.com[/:]([^/]+\/[^/.]+)/);
+              if (!match) { res.end(JSON.stringify({ runs: [], error: "Not a GitHub repo" })); return; }
+              const repo = match[1].replace(/\.git$/, '');
+
+              const runsJson = execSync(
+                `gh run list --repo ${repo} --limit 10 --json "databaseId,status,conclusion,workflowName,headBranch,event,createdAt,updatedAt,url,name" 2>/dev/null`,
+                { encoding: "utf-8", timeout: 10000 }
+              );
+              const runs = JSON.parse(runsJson || "[]");
+
+              // Calculate duration for in-progress runs
+              for (const run of runs) {
+                if (run.status === 'in_progress' || run.status === 'queued') {
+                  run.elapsedSeconds = Math.floor((Date.now() - new Date(run.createdAt).getTime()) / 1000);
+                } else if (run.updatedAt && run.createdAt) {
+                  run.durationSeconds = Math.floor((new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime()) / 1000);
+                }
+              }
+
+              res.end(JSON.stringify({ runs, repo }));
+            } catch (err: any) {
+              res.end(JSON.stringify({ runs: [], error: err.message?.slice(0, 100) }));
+            }
+            return;
+          }
+
           // GET /api/resources/processes — top processes by CPU/memory with cwd
           if (req.url?.startsWith("/api/resources/processes")) {
             try {
@@ -1956,7 +1956,7 @@ export function devApiPlugin(): Plugin {
                   const optMatch = cwd.match(/\/opt\/([^/]+)/);
                   project = homeMatch ? homeMatch[1] : optMatch ? optMatch[1] : "";
                 }
-                return { user: parts[0], pid, cpu: parseFloat(parts[2]), mem: parseFloat(parts[3]), rss: Math.round(parseInt(parts[5]) / 1024), command: cmd, cwd, project };
+                return { user: parts[0], pid, cpu: parseFloat(parts[2]) / os.cpus().length, mem: parseFloat(parts[3]), rss: Math.round(parseInt(parts[5]) / 1024), command: cmd, cwd, project };
               }).filter(p => p.cpu > 0.1 || p.mem > 0.5);
               res.end(JSON.stringify({ processes }));
             } catch {
@@ -2014,12 +2014,39 @@ export function devApiPlugin(): Plugin {
 
           // GET /api/resources — system resource info
           if (req.url?.startsWith("/api/resources")) {
-            const cpus = os.cpus().length;
-            const loadAvg = os.loadavg()[0];
             const totalMem = os.totalmem();
             const freeMem = os.freemem();
+            // Get actual CPU usage from /proc/stat (Linux) or fallback to load average
+            let cpuPercent = 0;
+            try {
+              // Read two snapshots 200ms apart for accurate measurement
+              const readCpuStat = () => {
+                const line = fs.readFileSync('/proc/stat', 'utf-8').split('\n')[0];
+                const parts = line.split(/\s+/).slice(1).map(Number);
+                const idle = parts[3] + (parts[4] || 0); // idle + iowait
+                const total = parts.reduce((a, b) => a + b, 0);
+                return { idle, total };
+              };
+              const s1 = readCpuStat();
+              // Use cached previous snapshot if available, otherwise use load average as fallback
+              if ((global as any).__prevCpuStat) {
+                const s0 = (global as any).__prevCpuStat;
+                const idleDelta = s1.idle - s0.idle;
+                const totalDelta = s1.total - s0.total;
+                cpuPercent = totalDelta > 0 ? ((1 - idleDelta / totalDelta) * 100) : 0;
+              } else {
+                // First call — use load average as approximation
+                const cpus = os.cpus().length;
+                cpuPercent = Math.min((os.loadavg()[0] / cpus) * 100, 100);
+              }
+              (global as any).__prevCpuStat = s1;
+            } catch {
+              // Fallback (macOS or /proc not available)
+              const cpus = os.cpus().length;
+              cpuPercent = Math.min((os.loadavg()[0] / cpus) * 100, 100);
+            }
             const result: Record<string, any> = {
-              cpuPercent: (loadAvg / cpus) * 100,
+              cpuPercent: Math.round(cpuPercent * 10) / 10,
               ramPercent: ((1 - freeMem / totalMem) * 100),
               ramUsedGb: (totalMem - freeMem) / (1024 ** 3),
               ramTotalGb: totalMem / (1024 ** 3),
@@ -2163,152 +2190,6 @@ export function devApiPlugin(): Plugin {
             return;
           }
 
-          // POST /api/local-model/auto-start-flag — set/clear auto-start on launch
-          if (req.url === "/api/local-model/auto-start-flag" && req.method === "POST") {
-            const chunks: Buffer[] = [];
-            req.on("data", (chunk: Buffer) => chunks.push(chunk));
-            req.on("end", () => {
-              try {
-                const body = JSON.parse(Buffer.concat(chunks).toString());
-                const flagFile = path.join(os.homedir(), '.runecode', 'autocomplete-local-enabled');
-                const dir = path.dirname(flagFile);
-                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                if (body.enabled) {
-                  fs.writeFileSync(flagFile, '1');
-                } else {
-                  try { fs.unlinkSync(flagFile); } catch {}
-                }
-                res.end(JSON.stringify({ success: true }));
-              } catch (err: any) {
-                res.end(JSON.stringify({ error: err.message }));
-              }
-            });
-            return;
-          }
-
-          // GET /api/local-model/status — check if local model server is running + stats
-          if (req.url === "/api/local-model/status") {
-            try {
-              const { isServerRunning, getServerUrl, getProcessStats } = await import('./src/lib/localModelManager');
-              const running = isServerRunning();
-              const stats = running ? await getProcessStats() : null;
-              res.end(JSON.stringify({
-                running,
-                url: running ? getServerUrl() : null,
-                pid: stats?.pid || null,
-                cpuPercent: stats?.cpuPercent || 0,
-                memMb: stats?.memMb || 0,
-              }));
-            } catch {
-              res.end(JSON.stringify({ running: false, url: null, pid: null, cpuPercent: 0, memMb: 0 }));
-            }
-            return;
-          }
-
-          // POST /api/local-model/start — download model + start server
-          if (req.url === "/api/local-model/start" && req.method === "POST") {
-            try {
-              const { startServer } = await import('./src/lib/localModelManager');
-              const url = await startServer();
-              res.end(JSON.stringify({ success: true, url }));
-            } catch (err: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: err.message }));
-            }
-            return;
-          }
-
-          // POST /api/local-model/stop — stop the server
-          if (req.url === "/api/local-model/stop" && req.method === "POST") {
-            try {
-              const { stopServer } = await import('./src/lib/localModelManager');
-              stopServer();
-              res.end(JSON.stringify({ success: true }));
-            } catch (err: any) {
-              res.end(JSON.stringify({ success: false, error: err.message }));
-            }
-            return;
-          }
-
-          // POST /api/autocomplete — completion via SDK (haiku) or local model
-          if (req.url === "/api/autocomplete" && req.method === "POST") {
-            const chunks: Buffer[] = [];
-            req.on("data", (chunk: Buffer) => chunks.push(chunk));
-            req.on("end", async () => {
-              try {
-                const body = JSON.parse(Buffer.concat(chunks).toString());
-                const { prefix, suffix, projectPath, provider } = body;
-                if (!prefix) { res.statusCode = 400; res.end(JSON.stringify({ error: "prefix required" })); return; }
-
-                // Local model provider — fast, no SDK overhead
-                if (provider === 'local') {
-                  try {
-                    const { localComplete, isServerRunning } = await import('./src/lib/localModelManager');
-                    if (!isServerRunning()) {
-                      res.end(JSON.stringify({ choices: [{ text: '' }], error: 'Local model not running. Start it from Settings.' }));
-                      return;
-                    }
-                    const text = await localComplete(prefix, suffix);
-                    res.end(JSON.stringify({ choices: [{ text }] }));
-                  } catch (err: any) {
-                    res.end(JSON.stringify({ choices: [{ text: '' }], error: err.message }));
-                  }
-                  return;
-                }
-
-                // Cancel any previous in-flight autocomplete
-                if (_autocompleteAbort) { try { _autocompleteAbort.abort(); } catch {} }
-                const abort = new AbortController();
-                _autocompleteAbort = abort;
-
-                // Build context-aware prompt
-                const contextParts: string[] = [];
-                if (body.conversationContext) {
-                  contextParts.push(`Recent conversation:\n${body.conversationContext}`);
-                }
-                if (body.availableCommands && prefix.startsWith('/')) {
-                  contextParts.push(`Available commands: ${body.availableCommands}`);
-                }
-                const contextBlock = contextParts.length > 0 ? contextParts.join('\n\n') + '\n\n' : '';
-                const prompt = `${contextBlock}Complete this text: "${prefix}"${suffix ? ` [cursor] "${suffix}"` : ''}`;
-
-                const q = sdkQuery({
-                  prompt,
-                  options: {
-                    maxTurns: 1,
-                    model: 'haiku',
-                    systemPrompt: 'You are an autocomplete engine for a Claude Code IDE. Output ONLY the completion text — no quotes, no formatting, no explanation. Under 20 words. If the user is typing a slash command (/), suggest the matching command name.',
-                    tools: [], // empty = no tools available, forces pure text response
-                    settingSources: [],
-                    permissionMode: 'auto',
-                    abortController: abort,
-                    cwd: projectPath || os.homedir(),
-                  },
-                });
-
-                let result = '';
-                const timeout = setTimeout(() => { try { abort.abort(); } catch {} }, 6000);
-
-                for await (const msg of q) {
-                  if (abort.signal.aborted) break;
-                  const m = msg as any;
-                  if (m?.message?.content && Array.isArray(m.message.content)) {
-                    for (const b of m.message.content) { if (b.type === 'text') result += b.text; }
-                    if (result) { clearTimeout(timeout); try { q.close(); } catch {} break; }
-                  }
-                }
-                clearTimeout(timeout);
-
-                result = result.replace(/^["']|["']$/g, '').trim().split('\n')[0];
-                if (_autocompleteAbort === abort) _autocompleteAbort = null;
-                res.end(JSON.stringify({ choices: [{ text: result }] }));
-              } catch (err: any) {
-                if (err.name !== 'AbortError') console.debug('[autocomplete] Error:', err.message);
-                res.end(JSON.stringify({ choices: [{ text: '' }] }));
-              }
-            });
-            return;
-          }
 
           // GET /api/check/tmux — check if tmux is installed
           if (req.url?.startsWith("/api/check/tmux")) {
@@ -2381,117 +2262,6 @@ export function devApiPlugin(): Plugin {
             return;
           }
 
-          // ─── Loop Manager ───
-
-          // POST /api/loops/start
-          if (req.url === "/api/loops/start" && req.method === "POST") {
-            let body = '';
-            req.on('data', (chunk: Buffer) => body += chunk.toString());
-            req.on('end', async () => {
-              try {
-                const params = JSON.parse(body);
-                const { projectPath, prompt, maxIterations = 25, model, pauseBetweenMs = 3000, completionMarkers } = params;
-
-                const loopId = `loop_${Date.now()}`;
-                const abort = new AbortController();
-                const defaultMarkers = ['LOOP_COMPLETE', 'nothing left to do', 'all tasks are complete', 'plan is complete', 'all done'];
-
-                const state: LoopState = {
-                  id: loopId,
-                  projectPath,
-                  status: 'running',
-                  iterations: 0,
-                  maxIterations,
-                  prompt: prompt || '',
-                  lastOutput: '',
-                  startTime: Date.now(),
-                  elapsedMs: 0,
-                  model: model || undefined,
-                  history: [],
-                  pauseBetweenMs,
-                  completionMarkers: completionMarkers || defaultMarkers,
-                  rateLimitWaitsCount: 0,
-                  noProgressCount: 0,
-                };
-
-                activeLoops.set(loopId, { state, abort });
-                runLoop(loopId);
-
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: true, loopId, state }));
-              } catch (err: any) {
-                res.statusCode = 500;
-                res.end(JSON.stringify({ success: false, message: err.message }));
-              }
-            });
-            return;
-          }
-
-          // POST /api/loops/stop
-          if (req.url === "/api/loops/stop" && req.method === "POST") {
-            let body = '';
-            req.on('data', (chunk: Buffer) => body += chunk.toString());
-            req.on('end', () => {
-              try {
-                const { loopId } = JSON.parse(body);
-                const loop = activeLoops.get(loopId);
-                if (loop) {
-                  loop.abort.abort();
-                  loop.state.status = 'stopped';
-                  loop.state.elapsedMs = Date.now() - loop.state.startTime;
-                  if (loop.child) { try { loop.child.kill('SIGTERM'); } catch {} }
-                }
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: true }));
-              } catch (err: any) {
-                res.end(JSON.stringify({ success: false, message: err.message }));
-              }
-            });
-            return;
-          }
-
-          // POST /api/loops/pause — toggle pause/resume
-          if (req.url === "/api/loops/pause" && req.method === "POST") {
-            let body = '';
-            req.on('data', (chunk: Buffer) => body += chunk.toString());
-            req.on('end', () => {
-              try {
-                const { loopId } = JSON.parse(body);
-                const loop = activeLoops.get(loopId);
-                if (loop && loop.state.status === 'running') {
-                  loop.state.status = 'paused';
-                } else if (loop && loop.state.status === 'paused') {
-                  loop.state.status = 'running';
-                }
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: true, status: loop?.state.status }));
-              } catch (err: any) {
-                res.end(JSON.stringify({ success: false, message: err.message }));
-              }
-            });
-            return;
-          }
-
-          // GET /api/loops/status
-          if (req.url?.startsWith("/api/loops/status")) {
-            const states = Array.from(activeLoops.values()).map(l => ({
-              ...l.state,
-              elapsedMs: l.state.status === 'running' ? Date.now() - l.state.startTime : l.state.elapsedMs,
-            }));
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(states));
-            return;
-          }
-
-          // DELETE /api/loops/{id}
-          if (req.method === "DELETE" && req.url?.startsWith("/api/loops/")) {
-            const loopId = decodeURIComponent(req.url.split("/api/loops/")[1]);
-            activeLoops.delete(loopId);
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true }));
-            return;
-          }
-
           // Catch-all
           res.end(JSON.stringify({}));
         } catch (err: any) {
@@ -2503,6 +2273,7 @@ export function devApiPlugin(): Plugin {
       // -----------------------------------------------------------------------
       // WebSocket — Claude Agent SDK streaming
       // -----------------------------------------------------------------------
+
 
       const wss = new WebSocketServer({ noServer: true });
 
@@ -2520,6 +2291,13 @@ export function devApiPlugin(): Plugin {
         const cols = parseInt(url.searchParams.get("cols") || "120", 10);
         const rows = parseInt(url.searchParams.get("rows") || "40", 10);
 
+        // Parse environment config for remote connections
+        let envConfig: any = null;
+        try {
+          const envParam = url.searchParams.get("environment");
+          if (envParam) envConfig = JSON.parse(envParam);
+        } catch {}
+
         // Parse extra CLI flags from query param (comma-separated)
         const flagsParam = url.searchParams.get("flags") || "";
         const extraFlags = flagsParam ? flagsParam.split(",").map(f => f.trim()).filter(Boolean) : [];
@@ -2528,20 +2306,17 @@ export function devApiPlugin(): Plugin {
         // Build command: plain shell or claude with flags
         let termCmd: string;
         if (isShellOnly) {
-          // Plain shell — user's default shell
           const userShell = process.env.SHELL || "/bin/bash";
           termCmd = userShell;
           console.log("[dev-api] Terminal spawn: shell", userShell, "cwd:", projectPath);
         } else {
           const claudeArgs: string[] = [];
           if (sessionId) {
-            // Verify the session file exists before using --resume
             const projectId = projectPath.replace(/\//g, '-');
             const sessionFile = path.join(os.homedir(), ".claude", "projects", projectId, `${sessionId}.jsonl`);
             if (fs.existsSync(sessionFile)) {
               claudeArgs.push("--resume", sessionId);
             } else {
-              // Session not on disk — use --continue to resume most recent, or start fresh
               console.log("[dev-api] Session file not found:", sessionFile, "— using --continue");
               claudeArgs.push("--continue");
             }
@@ -2553,25 +2328,72 @@ export function devApiPlugin(): Plugin {
           console.log("[dev-api] Terminal spawn:", termCmd, "cwd:", projectPath);
         }
 
-        // Use `script` to allocate a real PTY (Linux vs macOS syntax)
-        // Prepend stty to set PTY dimensions (script doesn't inherit them from env)
-        // Wrap with stdbuf to minimize output buffering latency
         const isLinux = process.platform === "linux";
         const sizeCmd = `stty cols ${cols} rows ${rows}`;
-        const innerCmd = `${sizeCmd}; ${termCmd}`;
 
-        console.log("[dev-api] Terminal dimensions:", cols, "x", rows);
+        // Determine spawn command based on environment
         let child;
-        if (isLinux) {
-          child = spawn("stdbuf", ["-o0", "script", "-qfec", innerCmd, "/dev/null"], {
-            cwd: projectPath,
+        if (envConfig && envConfig.type === 'ssh' && envConfig.sshHost) {
+          // SSH environment — connect to remote host and run command there
+          const host = String(envConfig.sshHost).replace(/[;&|`$(){}]/g, '');
+          const portFlag = envConfig.sshPort && envConfig.sshPort !== 22 ? `-p ${parseInt(envConfig.sshPort)}` : '';
+          const dirCmd = envConfig.startDirectory ? `cd ${envConfig.startDirectory} 2>/dev/null;` : '';
+          const remoteCmd = `${dirCmd} ${sizeCmd}; ${termCmd}`;
+
+          {
+            // Build SSH command — auto-accept host keys, password auth is interactive, key auth uses -i flag
+            const keyFlag = envConfig.sshAuthMethod !== 'password' && envConfig.sshIdentityFile ? `-i ${String(envConfig.sshIdentityFile).replace(/[;&|`$(){}]/g, '')}` : '';
+            const sshCmd = `ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${portFlag} ${keyFlag} ${host} '${remoteCmd}'`.replace(/\s+/g, ' ').trim();
+            console.log("[dev-api] Terminal SSH:", host, envConfig.sshAuthMethod === 'password' ? '(password, interactive)' : '(key)');
+            if (isLinux) {
+              child = spawn("stdbuf", ["-o0", "script", "-qfec", sshCmd, "/dev/null"], {
+                env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+              });
+            } else {
+              child = spawn("script", ["-q", "/dev/null", "sh", "-c", sshCmd], {
+                env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+              });
+            }
+          }
+        } else if (envConfig && envConfig.type === 'docker' && envConfig.dockerContainer) {
+          // Docker environment — exec into container
+          const container = String(envConfig.dockerContainer).replace(/[;&|`$(){}]/g, '');
+          const dirCmd = envConfig.startDirectory ? `cd ${envConfig.startDirectory} 2>/dev/null;` : '';
+          const dockerCmd = `docker exec -it ${container} sh -c '${dirCmd} ${sizeCmd}; ${termCmd}'`;
+          console.log("[dev-api] Terminal Docker:", container);
+          if (isLinux) {
+            child = spawn("stdbuf", ["-o0", "script", "-qfec", dockerCmd, "/dev/null"], {
+              env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+            });
+          } else {
+            child = spawn("script", ["-q", "/dev/null", "sh", "-c", dockerCmd], {
+              env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+            });
+          }
+        } else if (envConfig && envConfig.type === 'wsl') {
+          // WSL environment
+          const distro = envConfig.wslDistro ? `-d ${String(envConfig.wslDistro).replace(/[;&|`$(){}]/g, '')}` : '';
+          const dirCmd = envConfig.startDirectory ? `cd ${envConfig.startDirectory} 2>/dev/null;` : '';
+          const wslCmd = `wsl ${distro} -- sh -c '${dirCmd} ${sizeCmd}; ${termCmd}'`;
+          console.log("[dev-api] Terminal WSL:", envConfig.wslDistro || 'default');
+          child = spawn("sh", ["-c", wslCmd], {
             env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
           });
         } else {
-          child = spawn("script", ["-q", "/dev/null", "sh", "-c", innerCmd], {
-            cwd: projectPath,
-            env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
-          });
+          // Local environment (default)
+          const innerCmd = `${sizeCmd}; ${termCmd}`;
+          console.log("[dev-api] Terminal dimensions:", cols, "x", rows);
+          if (isLinux) {
+            child = spawn("stdbuf", ["-o0", "script", "-qfec", innerCmd, "/dev/null"], {
+              cwd: projectPath,
+              env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+            });
+          } else {
+            child = spawn("script", ["-q", "/dev/null", "sh", "-c", innerCmd], {
+              cwd: projectPath,
+              env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+            });
+          }
         }
 
         terminalChildren.set(ws, child);
@@ -2789,10 +2611,10 @@ export function devApiPlugin(): Plugin {
             ...(req.teams_enabled !== false ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1" } : {}),
           },
 
-          // Permission mode — default to 'bypassPermissions' (auto-approve everything)
-          permissionMode: req.permission_mode || "bypassPermissions",
-          // Required for bypassPermissions mode
-          ...((!req.permission_mode || req.permission_mode === 'bypassPermissions') ? { allowDangerouslySkipPermissions: true } : {}),
+          // Permission mode — respect user's explicit choice
+          permissionMode: req.permission_mode || "default",
+          // Only enable dangerous skip when explicitly requested
+          ...(req.permission_mode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
         };
 
         // Map thinking mode to SDK thinking config

@@ -83,7 +83,7 @@ export function highlightCode(highlighter: Highlighter, code: string, lang: stri
     return highlighter.codeToHtml(code, { lang: actualLang, theme });
   } catch {
     // Fallback: return escaped HTML
-    return `<pre><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+    return `<pre><code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</code></pre>`;
   }
 }
 

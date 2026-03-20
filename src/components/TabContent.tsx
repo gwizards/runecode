@@ -1,8 +1,9 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { useTabState } from '@/hooks/useTabState';
 import { useScreenTracking } from '@/hooks/useAnalytics';
-import { Tab } from '@/contexts/TabContext';
-import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical, TerminalSquare, Globe } from 'lucide-react';
+import { Tab, getTabProjectPath } from '@/contexts/TabContext';
+import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical, TerminalSquare, Globe, Ungroup, LayoutGrid, Monitor, Server, Container, RefreshCw } from 'lucide-react';
+import type { RemoteEnvironment } from '@/components/settings/EnvironmentsSettings';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
 import { ProjectList } from '@/components/ProjectList';
 import { CreateProjectDialog } from '@/components/CreateProjectDialog';
@@ -19,10 +20,10 @@ const UsageDashboard = lazy(() => import('@/components/UsageDashboard').then(m =
 const ResourceDetails = lazy(() => import('@/integrations/compute/ResourceDetails').then(m => ({ default: m.ResourceDetails })));
 const MCPManager = lazy(() => import('@/components/MCPManager').then(m => ({ default: m.MCPManager })));
 const Settings = lazy(() => import('@/components/Settings').then(m => ({ default: m.Settings })));
-const LoopDetailView = lazy(() => import('@/components/LoopDetailView').then(m => ({ default: m.LoopDetailView })));
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })));
 const ClaudeFileEditor = lazy(() => import('@/components/ClaudeFileEditor').then(m => ({ default: m.ClaudeFileEditor })));
 const EmbeddedTerminal = lazy(() => import('@/components/EmbeddedTerminal').then(m => ({ default: m.EmbeddedTerminal })));
+const BrowserPanel = lazy(() => import('@/components/BrowserPanel').then(m => ({ default: m.BrowserPanel })));
 
 // Import non-lazy components for projects view
 
@@ -34,21 +35,123 @@ interface TabPanelProps {
 }
 
 /* ─── Project Session View — launch config + session list ─── */
-function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunch, onEditClaudeFile }: {
+/** Remote environment — enter project path manually */
+function RemoteProjectEntry({ envName, onSelectPath }: { envName: string; onSelectPath: (path: string) => void }) {
+  const [path, setPath] = React.useState('');
+  const [recentPaths] = React.useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('runecode-remote-recent-paths');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
+  const handleGo = () => {
+    const trimmed = path.trim();
+    if (!trimmed) return;
+    // Save to recent paths
+    try {
+      const recent = [trimmed, ...recentPaths.filter(p => p !== trimmed)].slice(0, 10);
+      localStorage.setItem('runecode-remote-recent-paths', JSON.stringify(recent));
+    } catch {}
+    onSelectPath(trimmed);
+  };
+
+  return (
+    <div className="px-6 space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold">Open project on {envName}</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Enter the absolute path to the project directory on the remote machine.
+        </p>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={path}
+          onChange={e => setPath(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleGo()}
+          placeholder="/home/user/project"
+          className="flex-1 px-3 py-2 rounded-lg border border-border/50 bg-background text-sm font-mono focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20"
+          autoFocus
+        />
+        <Button onClick={handleGo} disabled={!path.trim()}>
+          Open
+        </Button>
+      </div>
+
+      {/* Common paths */}
+      <div className="space-y-1">
+        {['/home', '/root', '/var/www', '/opt', '/srv'].map(p => (
+          <button
+            key={p}
+            onClick={() => setPath(p)}
+            className="text-[11px] font-mono text-muted-foreground/40 hover:text-muted-foreground px-2 py-0.5 rounded hover:bg-muted/30 transition-colors"
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+
+      {/* Recent paths */}
+      {recentPaths.length > 0 && (
+        <div className="space-y-1">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/40">Recent</span>
+          {recentPaths.map(p => (
+            <button
+              key={p}
+              onClick={() => onSelectPath(p)}
+              className="w-full text-left px-3 py-2 rounded-md border border-border/20 bg-muted/5 hover:bg-muted/15 transition-colors text-xs font-mono"
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <p className="text-[10px] text-muted-foreground/30">
+        Claude Code will open in this directory. Ensure the path exists on the remote machine.
+      </p>
+    </div>
+  );
+}
+
+function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunch, onEditClaudeFile, existingProjectPaths, selectedEnvId }: {
   project: Project;
   sessions: Session[];
   loading: boolean;
   error: string | null;
   onBack: () => void;
-  onLaunch: (session: Session | null, mode: 'terminal' | 'web', flags: string[]) => void;
+  onLaunch: (session: Session | null, mode: 'terminal' | 'web', flags: string[], gridTarget: string, environmentId?: string) => void;
   onEditClaudeFile: (file: ClaudeMdFile) => void;
+  existingProjectPaths: string[];
+  /** Environment ID from the environment picker — read-only display */
+  selectedEnvId?: string | null;
 }) {
   const [launchMode, setLaunchMode] = React.useState<'terminal' | 'web'>('terminal');
-  const [skipPermissions, setSkipPermissions] = React.useState(true);
+  const [skipPermissions, setSkipPermissions] = React.useState(false);
   const [teammateMode, setTeammateMode] = React.useState(true);
   const [worktree, setWorktree] = React.useState(false);
   const [customModel, setCustomModel] = React.useState('');
   const [tmuxInstalled, setTmuxInstalled] = React.useState<boolean | null>(null);
+  // Default to joining the first existing grid (if any), not creating a new one
+  const [gridTarget, setGridTarget] = React.useState<string>('own');
+  const gridTargetInitialized = React.useRef(false);
+  React.useEffect(() => {
+    if (!gridTargetInitialized.current && existingProjectPaths.length > 0) {
+      gridTargetInitialized.current = true;
+      // Default to the first existing grid that isn't this project
+      const other = existingProjectPaths.find(p => p !== project.path);
+      if (other) setGridTarget(other);
+    }
+  }, [existingProjectPaths, project.path]);
+  // Environment is set by the environment picker step — passed as selectedEnvId prop
+  const [environments] = React.useState<RemoteEnvironment[]>(() => {
+    try {
+      const stored = localStorage.getItem('runecode-remote-environments');
+      return stored ? JSON.parse(stored).filter((e: RemoteEnvironment) => e.enabled) : [];
+    } catch { return []; }
+  });
 
   React.useEffect(() => {
     fetch('/api/check/tmux').then(r => r.json()).then(d => {
@@ -92,6 +195,22 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
           <h3 className="text-sm font-semibold flex items-center gap-2">
             Launch Configuration
           </h3>
+
+          {/* Environment (read-only — hidden when environments feature is disabled) */}
+          {selectedEnvId && (() => {
+            const env = environments.find(e => e.id === selectedEnvId);
+            if (!env) return null;
+            const EnvIcon = env.type === 'ssh' ? Server : env.type === 'docker' ? Container : Monitor;
+            const colors = env.type === 'ssh' ? 'bg-blue-500/5 border-blue-500/15 text-blue-400/70' : env.type === 'docker' ? 'bg-cyan-500/5 border-cyan-500/15 text-cyan-400/70' : 'bg-purple-500/5 border-purple-500/15 text-purple-400/70';
+            return (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-md border text-xs ${colors}`}>
+                <EnvIcon className="h-3.5 w-3.5" />
+                <span className="font-medium">{env.name}</span>
+                <span className="text-[9px] opacity-50 uppercase">{env.type}</span>
+                {env.type === 'ssh' && env.sshHost && <span className="font-mono text-[9px] opacity-50">{env.sshHost}</span>}
+              </div>
+            );
+          })()}
 
           {/* Mode selector */}
           <div className="flex gap-2">
@@ -193,9 +312,50 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
             </div>
           )}
 
+          {/* Grid destination — choose which grid to add this project to */}
+          {existingProjectPaths.length > 0 && (
+            <div className="pt-1 space-y-2">
+              <h4 className="text-xs font-medium text-muted-foreground">Grid Destination</h4>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setGridTarget('own')}
+                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${
+                    gridTarget === 'own'
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border/30 text-muted-foreground hover:border-border/50 hover:bg-muted/30'
+                  }`}
+                >
+                  Own Grid
+                </button>
+                {existingProjectPaths
+                  .filter(pp => pp !== project.path)
+                  .map(pp => (
+                    <button
+                      key={pp}
+                      onClick={() => setGridTarget(pp)}
+                      className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${
+                        gridTarget === pp
+                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                          : 'border-border/30 text-muted-foreground hover:border-border/50 hover:bg-muted/30'
+                      }`}
+                    >
+                      + {pp.split('/').pop()}
+                    </button>
+                  ))
+                }
+              </div>
+              <p className="text-[10px] text-muted-foreground/40">
+                {gridTarget === 'own'
+                  ? 'Opens in its own grid — switch between projects in the tab bar'
+                  : `Adds to ${gridTarget.split('/').pop()}'s grid as a multi-project workspace`
+                }
+              </p>
+            </div>
+          )}
+
           {/* Launch new session button */}
           <Button
-            onClick={() => onLaunch(null, launchMode, buildFlags())}
+            onClick={() => onLaunch(null, launchMode, buildFlags(), gridTarget, selectedEnvId || undefined)}
             size="default"
             className="w-full"
           >
@@ -227,7 +387,7 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
             <SessionList
               sessions={sessions}
               projectPath={project.path}
-              onSessionClick={(session) => onLaunch(session, launchMode, buildFlags())}
+              onSessionClick={(session) => onLaunch(session, launchMode, buildFlags(), gridTarget, selectedEnvId || undefined)}
               onEditClaudeFile={onEditClaudeFile}
             />
           </div>
@@ -244,7 +404,7 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
 }
 
 const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFooter }) => {
-  const { updateTab } = useTabState();
+  const { updateTab, tabs: allTabs, setActiveProjectPath, switchToTab } = useTabState();
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
   const [sessions, setSessions] = React.useState<Session[]>([]);
@@ -254,17 +414,68 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
   useScreenTracking(isActive ? tab.type : undefined, isActive ? tab.id : undefined);
   const [error, setError] = React.useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
-  
+
+  // Environment selection step — first step when opening a new project
+  // Environment step disabled for now — skip straight to projects (local)
+  // To re-enable: change initial state to 'pick-env'
+  const [envStep, setEnvStep] = React.useState<'pick-env' | 'check-claude' | 'projects'>('projects');
+  const [pickedEnvId, setPickedEnvId] = React.useState<string | null>(null);
+  const [envs, setEnvs] = React.useState<RemoteEnvironment[]>([]);
+  const [claudeCheck, setClaudeCheck] = React.useState<{ checking: boolean; found: boolean; error?: string }>({ checking: false, found: false });
+  const [showFixTerminal, setShowFixTerminal] = React.useState(false);
+
+  // Load environments from localStorage
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('runecode-remote-environments');
+      if (stored) setEnvs(JSON.parse(stored).filter((e: RemoteEnvironment) => e.enabled));
+    } catch {}
+  }, []);
+
   // Load projects when tab becomes active and is of type 'projects'
-  // Load projects on first activation only — not on every tab switch
   const hasLoadedProjects = React.useRef(false);
   useEffect(() => {
-    if (isActive && tab.type === 'projects' && !hasLoadedProjects.current) {
+    if (isActive && tab.type === 'projects' && envStep === 'projects' && !hasLoadedProjects.current) {
       hasLoadedProjects.current = true;
       loadProjects();
     }
-  }, [isActive, tab.type]);
+  }, [isActive, tab.type, envStep]);
   
+  const handlePickEnvironment = async (envId: string | null) => {
+    setPickedEnvId(envId);
+    if (!envId) {
+      // Local — skip Claude check, go straight to projects
+      setEnvStep('projects');
+      hasLoadedProjects.current = false;
+      loadProjects();
+      return;
+    }
+    // Remote — check if Claude Code is installed
+    setEnvStep('check-claude');
+    setClaudeCheck({ checking: true, found: false });
+    try {
+      const env = envs.find(e => e.id === envId);
+      if (!env) { setClaudeCheck({ checking: false, found: false, error: 'Environment not found' }); return; }
+      const res = await fetch('/api/environments/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(env),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setClaudeCheck({ checking: false, found: true });
+        setEnvStep('projects');
+        hasLoadedProjects.current = false;
+        loadProjects();
+      } else {
+        const detail = data.error || '';
+        setClaudeCheck({ checking: false, found: false, error: `Connection failed${detail ? ': ' + detail : ''}. Check host, credentials, and that the environment is reachable.` });
+      }
+    } catch (err: any) {
+      setClaudeCheck({ checking: false, found: false, error: `Connection error: ${err.message}. The host may be unreachable or the request timed out.` });
+    }
+  };
+
   const loadProjects = async () => {
     try {
       setLoading(true);
@@ -345,7 +556,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
         sessionData: undefined,
         projectPath: project.path,
         initialProjectPath: project.path,
-        terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
+        terminalFlags: ['--teammate-mode', 'tmux'],
       });
     } catch (err) {
       console.error('Failed to create project:', err);
@@ -357,7 +568,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
         sessionData: undefined,
         projectPath: projectPath,
         initialProjectPath: projectPath,
-        terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
+        terminalFlags: ['--teammate-mode', 'tmux'],
       });
     }
   };
@@ -374,61 +585,270 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
       case 'projects':
         return (
           <div className="h-full">
-              {/* Content based on selection */}
-              {selectedProject ? (
+              {/* Step 1: Environment selection */}
+              {envStep === 'pick-env' && (
+                <div className="h-full overflow-y-auto">
+                  <div className="max-w-2xl mx-auto p-6 space-y-6">
+                    <div>
+                      <h1 className="text-2xl font-bold tracking-tight">Choose Environment</h1>
+                      <p className="text-sm text-muted-foreground mt-1">Where do you want to run Claude Code?</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {/* Local */}
+                      <button
+                        onClick={() => handlePickEnvironment(null)}
+                        className="w-full flex items-center gap-3 p-4 rounded-lg border border-border/30 bg-muted/5 hover:bg-muted/15 hover:border-primary/30 transition-all text-left"
+                      >
+                        <Monitor className="w-6 h-6 text-emerald-400 flex-shrink-0" />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">Local Machine</div>
+                          <p className="text-[11px] text-muted-foreground/60">Run Claude Code on this computer</p>
+                        </div>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">Ready</span>
+                      </button>
+
+                      {/* Remote environments */}
+                      {envs.map(env => {
+                        const EnvIcon = env.type === 'ssh' ? Server : env.type === 'docker' ? Container : Monitor;
+                        const colors = env.type === 'ssh' ? 'text-blue-400' : env.type === 'docker' ? 'text-cyan-400' : 'text-purple-400';
+                        return (
+                          <button
+                            key={env.id}
+                            onClick={() => handlePickEnvironment(env.id)}
+                            className="w-full flex items-center gap-3 p-4 rounded-lg border border-border/30 bg-muted/5 hover:bg-muted/15 hover:border-primary/30 transition-all text-left"
+                          >
+                            <EnvIcon className={`w-6 h-6 ${colors} flex-shrink-0`} />
+                            <div className="flex-1">
+                              <div className="text-sm font-medium">{env.name}</div>
+                              <p className="text-[11px] text-muted-foreground/60 font-mono">
+                                {env.type === 'ssh' && env.sshHost}
+                                {env.type === 'docker' && env.dockerContainer}
+                                {env.type === 'wsl' && (env.wslDistro || 'default')}
+                              </p>
+                            </div>
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-muted-foreground/10 text-muted-foreground/50 uppercase">{env.type}</span>
+                          </button>
+                        );
+                      })}
+
+                      {envs.length === 0 && (
+                        <p className="text-center text-xs text-muted-foreground/40 py-4">
+                          No remote environments configured. <button onClick={() => window.dispatchEvent(new CustomEvent('runecode:open-settings', { detail: { section: 'environments' } }))} className="text-primary/60 hover:text-primary underline">Add one in Settings</button>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Claude Code detection on remote environment */}
+              {envStep === 'check-claude' && (
+                <div className="h-full flex flex-col">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-border/30 flex-shrink-0">
+                    <Button variant="ghost" size="icon" onClick={() => { setEnvStep('pick-env'); setShowFixTerminal(false); }} className="h-8 w-8 -ml-2">
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="flex-1">
+                      <h1 className="text-lg font-bold tracking-tight">
+                        {claudeCheck.checking ? 'Connecting...' : claudeCheck.found ? 'Connected!' : 'Setup Required'}
+                      </h1>
+                      <p className="text-xs text-muted-foreground">
+                        {envs.find(e => e.id === pickedEnvId)?.name || 'Remote environment'}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => handlePickEnvironment(pickedEnvId)} disabled={claudeCheck.checking} className="text-xs h-7">
+                        <RefreshCw className={`h-3 w-3 mr-1 ${claudeCheck.checking ? 'animate-spin' : ''}`} /> Retry
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setEnvStep('projects');
+                        hasLoadedProjects.current = false;
+                        loadProjects();
+                      }} className="text-xs h-7 text-muted-foreground">
+                        Skip
+                      </Button>
+                    </div>
+                  </div>
+
+                  {claudeCheck.checking && (
+                    <div className="flex-1 flex items-center justify-center gap-3 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Checking connection and Claude Code availability...</span>
+                    </div>
+                  )}
+
+                  {!claudeCheck.checking && claudeCheck.found && (
+                    <div className="flex-1 flex items-center justify-center gap-3 text-emerald-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                      Connected! Loading projects...
+                    </div>
+                  )}
+
+                  {!claudeCheck.checking && !claudeCheck.found && claudeCheck.error && (
+                    <div className="flex-1 flex min-h-0">
+                      {/* Left: Instructions */}
+                      <div className="w-80 flex-shrink-0 border-r border-border/30 overflow-y-auto p-4 space-y-4">
+                        <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-xs text-red-400">
+                          {claudeCheck.error}
+                        </div>
+
+                        <div className="space-y-3">
+                          <h3 className="text-sm font-semibold">Install Claude Code</h3>
+                          <div className="space-y-2 text-[11px] text-muted-foreground/70">
+                            <div>
+                              <p className="font-medium text-muted-foreground/90 mb-1">1. Install</p>
+                              <code className="block bg-muted px-2.5 py-1.5 rounded font-mono text-[10px] select-all cursor-pointer">
+                                npm install -g @anthropic-ai/claude-code
+                              </code>
+                            </div>
+                            <div>
+                              <p className="font-medium text-muted-foreground/90 mb-1">2. Login</p>
+                              <code className="block bg-muted px-2.5 py-1.5 rounded font-mono text-[10px] select-all cursor-pointer">
+                                claude auth login
+                              </code>
+                            </div>
+                            <div>
+                              <p className="font-medium text-muted-foreground/90 mb-1">3. Verify</p>
+                              <code className="block bg-muted px-2.5 py-1.5 rounded font-mono text-[10px] select-all cursor-pointer">
+                                claude --version
+                              </code>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-muted-foreground/40">
+                          Run these commands in the terminal on the right. Once installed, click Retry above.
+                        </p>
+
+                        {!showFixTerminal && (
+                          <Button variant="outline" size="sm" onClick={() => setShowFixTerminal(true)} className="w-full text-xs">
+                            <TerminalSquare className="h-3 w-3 mr-1" /> Open Terminal
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Right: Embedded terminal */}
+                      <div className="flex-1 min-w-0">
+                        {showFixTerminal ? (
+                          <EmbeddedTerminal
+                            flags={['--shell']}
+                            environmentId={pickedEnvId || undefined}
+                            tabId={`fix-${tab.id}`}
+                          />
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-muted-foreground/30">
+                            <div className="text-center space-y-2">
+                              <TerminalSquare className="w-8 h-8 mx-auto opacity-30" />
+                              <p className="text-xs">Click "Open Terminal" to connect</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 3: Project selection */}
+              {envStep === 'projects' && selectedProject ? (
                 <ProjectSessionView
                   project={selectedProject}
                   sessions={sessions}
                   loading={loading}
                   error={error}
+                  selectedEnvId={pickedEnvId}
                   onBack={() => {
                     setSelectedProject(null);
                     setSessions([]);
                     updateTab(tab.id, { title: 'Projects' });
                   }}
-                  onLaunch={(session, mode, flags) => {
-                    const title = selectedProject.path.split('/').pop() || 'Session';
+                  existingProjectPaths={(() => {
+                    const gTypes = new Set(['chat', 'agent-execution', 'claude-terminal', 'browser']);
+                    const paths = new Set<string>();
+                    for (const t of allTabs) {
+                      if (gTypes.has(t.type)) {
+                        const pp = getTabProjectPath(t);
+                        if (pp) paths.add(pp);
+                      }
+                    }
+                    return Array.from(paths);
+                  })()}
+                  onLaunch={(session, mode, flags, gridTarget, _environmentId) => {
+                    const baseName = selectedProject.path.split('/').pop() || 'Session';
+                    const effectiveProjectPath = gridTarget !== 'own' ? gridTarget : selectedProject.path;
+                    // Use the environment picked in step 1 (overrides ProjectSessionView's selector)
+                    const environmentId = pickedEnvId || _environmentId;
                     if (mode === 'terminal') {
+                      const isShell = flags.includes('--shell');
                       updateTab(tab.id, {
                         type: 'claude-terminal',
-                        title,
+                        title: isShell ? `⬛ ${baseName}` : `🔮 ${baseName}`,
                         sessionId: session?.id,
                         sessionData: session,
-                        projectPath: selectedProject.path,
+                        projectPath: effectiveProjectPath,
                         initialProjectPath: selectedProject.path,
                         terminalFlags: flags,
+                        environmentId,
                       });
                     } else {
                       updateTab(tab.id, {
                         type: 'chat',
-                        title,
+                        title: `🔮 ${baseName}`,
                         sessionId: session?.id,
                         sessionData: session,
+                        projectPath: effectiveProjectPath,
                         initialProjectPath: selectedProject.path,
+                        environmentId,
                       });
                     }
+                    // Switch to the target grid
+                    setActiveProjectPath(effectiveProjectPath);
                   }}
                   onEditClaudeFile={(file: ClaudeMdFile) => {
                     window.dispatchEvent(new CustomEvent('open-claude-file', { detail: { file } }));
                   }}
                 />
-              ) : (
+              ) : envStep === 'projects' ? (
                 /* Projects List View */
                 <>
-                  <ProjectList
-                    projects={projects}
-                    onProjectClick={handleProjectClick}
-                    onOpenProject={handleOpenProject}
-                    onNewProject={() => setShowCreateDialog(true)}
-                    loading={loading}
-                  />
-                  <CreateProjectDialog
-                    open={showCreateDialog}
-                    onClose={() => setShowCreateDialog(false)}
-                    onProjectCreated={handleNewProjectCreated}
-                  />
+                  {/* Remote environment: manual project path entry (disabled when env feature off) */}
+                  {pickedEnvId && (
+                    <RemoteProjectEntry
+                      envName={envs.find(e => e.id === pickedEnvId)?.name || 'Remote'}
+                      onSelectPath={(remotePath) => {
+                        // Create a fake project object for the remote path
+                        const project: Project = {
+                          id: remotePath.replace(/\//g, '-'),
+                          path: remotePath,
+                          sessions: [],
+                          created_at: Date.now(),
+                        };
+                        handleProjectClick(project);
+                      }}
+                    />
+                  )}
+
+                  {/* Local environment: normal project list */}
+                  {!pickedEnvId && (
+                    <>
+                      <ProjectList
+                        projects={projects}
+                        onProjectClick={handleProjectClick}
+                        onOpenProject={handleOpenProject}
+                        onNewProject={() => setShowCreateDialog(true)}
+                        loading={loading}
+                      />
+                      <CreateProjectDialog
+                        open={showCreateDialog}
+                        onClose={() => setShowCreateDialog(false)}
+                        onProjectCreated={handleNewProjectCreated}
+                      />
+                    </>
+                  )}
                 </>
-              )}
+              ) : null}
           </div>
         );
       
@@ -580,20 +1000,23 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
           <div className="h-full w-full min-w-0 min-h-0">
             <EmbeddedTerminal
               sessionId={tab.sessionId}
-              projectPath={tab.projectPath || tab.initialProjectPath}
+              projectPath={tab.initialProjectPath || tab.projectPath}
               flags={tab.terminalFlags}
               tabId={tab.id}
+              environmentId={tab.environmentId}
             />
           </div>
         );
 
-      case 'loop-detail':
-        if (!tab.loopId) {
-          return <div className="p-4">No loop ID specified</div>;
-        }
+      case 'browser':
         return (
-          <div className="h-full">
-            <LoopDetailView loopId={tab.loopId} />
+          <div className="h-full w-full min-w-0 min-h-0">
+            <BrowserPanel
+              tabId={tab.id}
+              initialUrl={tab.browserUrl}
+              projectName={(tab.initialProjectPath || tab.projectPath)?.split('/').pop()}
+              onActivate={() => switchToTab(tab.id)}
+            />
           </div>
         );
 
@@ -647,7 +1070,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
 });
 
 export const TabContent: React.FC = () => {
-  const { tabs, activeTabId, layoutMode, setLayoutMode, gridConfig, setGridColumns, setGridRows, setGridOrder, setGridSpan, createChatTab, createProjectsTab, createSettingsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, createTerminalTab, closeTab, updateTab, switchToTab } = useTabState();
+  const { tabs, activeTabId, layoutMode, setLayoutMode, gridConfig, setGridColumns, setGridRows, setGridOrder, setGridSpan, createChatTab, createProjectsTab, createSettingsTab, findTabBySessionId, createClaudeFileTab, createAgentExecutionTab, createCreateAgentTab, createImportAgentTab, createResourceDetailsTab, createTerminalTab, createBrowserTab, closeTab, updateTab, switchToTab, activeProjectPath, setActiveProjectPath, canAddTab } = useTabState();
   
   // Listen for events to open sessions in tabs
   useEffect(() => {
@@ -664,7 +1087,7 @@ export const TabContent: React.FC = () => {
         window.dispatchEvent(new CustomEvent('switch-to-tab', { detail: { tabId: existingTab.id } }));
       } else if (mode === 'web') {
         // Web mode (experimental) — uses SDK-based streaming UI
-        const projectName = session.project_path.split('/').pop() || 'Session';
+        const projectName = `🔮 ${session.project_path.split('/').pop() || 'Session'}`;
         const newTabId = createChatTab(session.id, projectName, session.project_path);
         updateTab(newTabId, {
           sessionData: session,
@@ -672,7 +1095,7 @@ export const TabContent: React.FC = () => {
         });
       } else {
         // Terminal mode (default) — full Claude Code TUI
-        const defaultFlags = ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'];
+        const defaultFlags = ['--teammate-mode', 'tmux'];
         createTerminalTab(session.id, session.project_path, defaultFlags);
       }
     };
@@ -723,35 +1146,37 @@ export const TabContent: React.FC = () => {
         window.dispatchEvent(new CustomEvent('switch-to-tab', { detail: { tabId: existingTab.id } }));
       } else if (mode === 'web') {
         // Web mode (experimental) — SDK-based streaming UI
+        const baseName = session.project_path.split('/').pop() || 'Session';
         const currentTab = tabs.find(t => t.id === activeTabId);
         if (currentTab && currentTab.type === 'projects') {
           updateTab(currentTab.id, {
             type: 'chat',
-            title: session.project_path.split('/').pop() || 'Session',
+            title: `🔮 ${baseName}`,
             sessionId: session.id,
             sessionData: session,
             initialProjectPath: session.project_path,
           });
         } else {
-          const projectName = session.project_path.split('/').pop() || 'Session';
-          const newTabId = createChatTab(session.id, projectName, session.project_path);
+          const newTabId = createChatTab(session.id, `🔮 ${baseName}`, session.project_path);
           updateTab(newTabId, { sessionData: session, initialProjectPath: session.project_path });
         }
       } else {
         // Terminal mode (default) — full Claude Code TUI
+        const baseName = session.project_path.split('/').pop() || 'Session';
+        const defaultFlags = ['--teammate-mode', 'tmux'];
         const currentTab = tabs.find(t => t.id === activeTabId);
         if (currentTab && currentTab.type === 'projects') {
           updateTab(currentTab.id, {
             type: 'claude-terminal',
-            title: session.project_path.split('/').pop() || 'Session',
+            title: `🔮 ${baseName}`,
             sessionId: session.id,
             sessionData: session,
             projectPath: session.project_path,
             initialProjectPath: session.project_path,
-            terminalFlags: ['--dangerously-skip-permissions', '--teammate-mode', 'tmux'],
+            terminalFlags: defaultFlags,
           });
         } else {
-          createTerminalTab(session.id, session.project_path, ['--dangerously-skip-permissions', '--teammate-mode', 'tmux']);
+          createTerminalTab(session.id, session.project_path, defaultFlags);
         }
       }
     };
@@ -787,18 +1212,44 @@ export const TabContent: React.FC = () => {
   
   // Grid mode — only project/session tabs go into the grid.
   // Settings, agents, processes, etc. stay as single-panel windows.
-  const gridTypes = React.useMemo(() => new Set(['chat', 'agent-execution', 'claude-terminal']), []);
+  const gridTypes = React.useMemo(() => new Set(['chat', 'agent-execution', 'claude-terminal', 'browser']), []);
 
-  const gridTabs = React.useMemo(() =>
+  // Environment lookup for grid cell badges
+  const envMap = React.useMemo(() => {
+    try {
+      const stored = localStorage.getItem('runecode-remote-environments');
+      if (!stored) return new Map<string, RemoteEnvironment>();
+      const envs: RemoteEnvironment[] = JSON.parse(stored);
+      return new Map(envs.map(e => [e.id, e]));
+    } catch { return new Map<string, RemoteEnvironment>(); }
+  }, []);
+
+  // Auto-set activeProjectPath from the active tab if not set
+  React.useEffect(() => {
+    if (layoutMode !== 'grid' || activeProjectPath) return;
+    const active = activeTabId ? tabs.find(t => t.id === activeTabId) : null;
+    const pp = active ? getTabProjectPath(active) : null;
+    if (pp) setActiveProjectPath(pp);
+  }, [layoutMode, activeProjectPath, activeTabId, tabs, setActiveProjectPath]);
+
+  // All grid-capable tabs (all projects)
+  const allGridTabs = React.useMemo(() =>
     layoutMode === 'grid' ? tabs.filter(t => gridTypes.has(t.type)) : [],
     [tabs, layoutMode, gridTypes]
   );
+
+  // Active project's grid tabs only (for ordering, footer, empty state)
+  const gridTabs = React.useMemo(() =>
+    allGridTabs.filter(t => getTabProjectPath(t) === activeProjectPath),
+    [allGridTabs, activeProjectPath]
+  );
+
   const nonGridTabs = React.useMemo(() =>
     layoutMode === 'grid' ? tabs.filter(t => !gridTypes.has(t.type)) : [],
     [tabs, layoutMode, gridTypes]
   );
 
-  // Ordered grid tabs — respects user drag order, syncs new/removed tabs
+  // Ordered grid tabs for active project — respects user drag order, syncs new/removed tabs
   const orderedGridTabs = React.useMemo(() => {
     if (gridTabs.length === 0) return [];
     const tabMap = new Map(gridTabs.map(t => [t.id, t]));
@@ -867,41 +1318,74 @@ export const TabContent: React.FC = () => {
     setFooterDragOverId(null);
   }, [footerDragId, orderedGridTabs, setGridOrder]);
 
+  // State for "move to grid" popover (used in both grid and single mode)
+  const [moveToGridTabId, setMoveToGridTabId] = React.useState<string | null>(null);
+
+  // Distinct real project paths in the active grid (for "Separate" button logic)
+  const gridProjectPaths = React.useMemo(() => {
+    const paths = new Set<string>();
+    for (const t of gridTabs) {
+      const ip = t.initialProjectPath;
+      if (ip) paths.add(ip);
+    }
+    return paths;
+  }, [gridTabs]);
+
+  // All distinct grid group keys (for "Join grid" menu)
+  const allGridGroupKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    for (const t of allGridTabs) {
+      const pp = t.projectPath || t.initialProjectPath;
+      if (pp) keys.add(pp);
+    }
+    return Array.from(keys);
+  }, [allGridTabs]);
+
+  // Stable refs for keyboard handler to avoid stale closures
+  const activeTabIdRef = React.useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
+  const orderedGridTabsRef = React.useRef(orderedGridTabs);
+  orderedGridTabsRef.current = orderedGridTabs;
+
   // Tab cycles grid focus, Shift+Tab goes backward, Ctrl+1..9 jumps to specific grid tab
   React.useEffect(() => {
-    if (layoutMode !== 'grid' || orderedGridTabs.length === 0) return;
+    if (layoutMode !== 'grid') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const gridTabs = orderedGridTabsRef.current;
+      if (gridTabs.length === 0) return;
+
       // Tab cycles focus forward through grid cells, Shift+Tab cycles backward
-      if (e.key === 'Tab' && !e.altKey && !e.metaKey) {
+      if (e.key === 'Tab' && !e.altKey && !e.metaKey && !e.ctrlKey) {
         // Skip if focus is in a regular text input (not terminal)
         const target = e.target as HTMLElement;
         const isTextInput = (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && !target.closest('.xterm');
         if (isTextInput) return;
 
         e.preventDefault();
-        e.stopPropagation();
-        const currentIdx = orderedGridTabs.findIndex(t => t.id === activeTabId);
+        e.stopImmediatePropagation();
+        const currentIdx = gridTabs.findIndex(t => t.id === activeTabIdRef.current);
         const delta = e.shiftKey ? -1 : 1;
-        const nextIdx = (currentIdx + delta + orderedGridTabs.length) % orderedGridTabs.length;
-        const nextTabId = orderedGridTabs[nextIdx].id;
+        const nextIdx = (currentIdx + delta + gridTabs.length) % gridTabs.length;
+        const nextTabId = gridTabs[nextIdx].id;
         switchToTab(nextTabId);
         setTimeout(() => window.dispatchEvent(new CustomEvent('runecode:focus-prompt', { detail: { tabId: nextTabId } })), 50);
         return;
       }
-      // Ctrl+1..9 jumps to specific grid tab
+      // Ctrl+1..9 jumps to specific grid tab — always consume in grid mode
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         const idx = parseInt(e.key) - 1;
-        if (idx < orderedGridTabs.length) {
-          e.preventDefault();
-          switchToTab(orderedGridTabs[idx].id);
+        if (idx < gridTabs.length) {
+          switchToTab(gridTabs[idx].id);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [layoutMode, orderedGridTabs, activeTabId, switchToTab]);
+  }, [layoutMode, switchToTab]);
 
   // Ctrl+1..9 in single mode — jump to tab by index
   React.useEffect(() => {
@@ -919,10 +1403,29 @@ export const TabContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [layoutMode, tabs, switchToTab]);
 
+  // Tabs from other projects — kept alive but hidden so terminals/browsers don't reload
+  const inactiveProjectTabs = React.useMemo(() =>
+    allGridTabs.filter(t => getTabProjectPath(t) !== activeProjectPath),
+    [allGridTabs, activeProjectPath]
+  );
+
+  // These must be before any early returns to keep hook count stable
+  const gridTypesSet = React.useMemo(() => new Set(['chat', 'agent-execution', 'claude-terminal', 'browser']), []);
+  const activeTabSingle = activeTabId ? tabs.find(t => t.id === activeTabId) : null;
+  const showGridActions = activeTabSingle && gridTypesSet.has(activeTabSingle.type);
+
   if (layoutMode === 'grid' && orderedGridTabs.length === 0) {
     const hasNonGrid = nonGridTabs.some(t => t.id === activeTabId);
     return (
       <div className="flex-1 h-full relative flex flex-col">
+        {/* Keep inactive project tabs alive */}
+        {inactiveProjectTabs.length > 0 && (
+          <div style={{ display: 'none' }}>
+            {inactiveProjectTabs.map(tab => (
+              <TabPanel key={tab.id} tab={tab} isActive={false} />
+            ))}
+          </div>
+        )}
         {/* Show active non-grid tab (projects, settings) if one is selected */}
         {hasNonGrid ? (
           nonGridTabs.map((tab) => (
@@ -950,6 +1453,14 @@ export const TabContent: React.FC = () => {
 
     return (
       <div className="flex-1 h-full relative flex flex-col">
+        {/* Hidden container for inactive project tabs — keeps them mounted */}
+        <div style={{ display: 'none' }}>
+          {inactiveProjectTabs.map(tab => (
+            <TabPanel key={tab.id} tab={tab} isActive={false} />
+          ))}
+        </div>
+
+        {/* Environment lookup for badges */}
         {/* Grid of tabs — drop target for adding tabs from tab bar */}
         <div
           className="flex-1 min-h-0"
@@ -970,8 +1481,11 @@ export const TabContent: React.FC = () => {
             const isDragTarget = dragOverId === tab.id && dragId !== tab.id;
             const cellNumber = gridIdx + 1;
             return (
-              <div
+              <GridCell
                 key={tab.id}
+                tabId={tab.id}
+                isFocused={isFocused}
+                switchToTab={switchToTab}
                 className="relative bg-background overflow-hidden cursor-pointer transition-[filter,opacity] duration-300"
                 style={{
                   gridColumn: colSpan > 1 ? `span ${Math.min(colSpan, cols)}` : undefined,
@@ -1014,6 +1528,19 @@ export const TabContent: React.FC = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
+                    {/* Environment badge — only shown for remote environments */}
+                    {tab.environmentId && (() => {
+                      const env = envMap.get(tab.environmentId);
+                      if (!env) return null;
+                      const EnvIcon = env.type === 'ssh' ? Server : env.type === 'docker' ? Container : Monitor;
+                      const colors = env.type === 'ssh' ? 'bg-blue-500/10 text-blue-400/60' : env.type === 'docker' ? 'bg-cyan-500/10 text-cyan-400/60' : 'bg-purple-500/10 text-purple-400/60';
+                      return (
+                        <span className={`text-[8px] px-1 py-0.5 rounded flex items-center gap-0.5 flex-shrink-0 ${colors}`} title={`${env.type.toUpperCase()}: ${env.name}`}>
+                          <EnvIcon className="w-2.5 h-2.5" />
+                          <span className="max-w-[60px] truncate">{env.name}</span>
+                        </span>
+                      );
+                    })()}
                     {/* Size picker */}
                     <div className="relative">
                       <button
@@ -1078,13 +1605,68 @@ export const TabContent: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <button
-                      className="text-muted-foreground hover:text-foreground p-0.5 relative z-20"
-                      onClick={(e) => { e.stopPropagation(); setLayoutMode('single'); switchToTab(tab.id); }}
-                      title="Pop out to single view"
-                    >
-                      <Minimize2 className="w-3 h-3" />
-                    </button>
+                    {/* Open shell for this window's project — inserts next to this cell */}
+                    {canAddTab() && (
+                      <button
+                        className="text-muted-foreground/50 hover:text-foreground p-0.5 relative z-20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const realProject = tab.initialProjectPath || tab.projectPath;
+                          const gridKey = tab.projectPath || tab.initialProjectPath;
+                          // Create shell in the REAL project dir, then assign to the grid group
+                          const newId = createTerminalTab(undefined, realProject, ['--shell']);
+                          updateTab(newId, { projectPath: gridKey, initialProjectPath: realProject });
+                          const order = [...gridConfig.order];
+                          const idx = order.indexOf(tab.id);
+                          if (idx >= 0) {
+                            order.splice(idx + 1, 0, newId);
+                            setGridOrder(order);
+                          }
+                        }}
+                        title="Open shell for this project"
+                      >
+                        <TerminalSquare className="w-3 h-3" />
+                      </button>
+                    )}
+                    {/* Open browser for this window's project — inserts next to this cell */}
+                    {canAddTab() && (
+                      <button
+                        className="text-muted-foreground/50 hover:text-foreground p-0.5 relative z-20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const realProject = tab.initialProjectPath || tab.projectPath;
+                          const gridKey = tab.projectPath || tab.initialProjectPath;
+                          const newId = createBrowserTab(undefined, gridKey);
+                          // Set initialProjectPath so the browser knows the real project
+                          updateTab(newId, { initialProjectPath: realProject });
+                          // Insert in grid order right after this tab
+                          const order = [...gridConfig.order];
+                          const idx = order.indexOf(tab.id);
+                          if (idx >= 0) {
+                            order.splice(idx + 1, 0, newId);
+                            setGridOrder(order);
+                          }
+                        }}
+                        title="Open browser for this project"
+                      >
+                        <Globe className="w-3 h-3" />
+                      </button>
+                    )}
+                    {/* Separate from grid — only when grid has multiple real projects */}
+                    {gridProjectPaths.size > 1 && tab.initialProjectPath && tab.initialProjectPath !== tab.projectPath && (
+                      <button
+                        className="text-muted-foreground/50 hover:text-amber-400 p-0.5 relative z-20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Move this tab to its own grid (set projectPath = initialProjectPath)
+                          updateTab(tab.id, { projectPath: tab.initialProjectPath });
+                          setActiveProjectPath(tab.initialProjectPath!);
+                        }}
+                        title="Separate to own grid"
+                      >
+                        <Ungroup className="w-3 h-3" />
+                      </button>
+                    )}
                     <button
                       className="text-muted-foreground hover:text-foreground p-0.5 relative z-20"
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
@@ -1097,7 +1679,7 @@ export const TabContent: React.FC = () => {
                 <div className="h-[calc(100%-28px)] overflow-hidden">
                   <TabPanel tab={tab} isActive={!activeIsNonGrid} ownsFooter={isFocused} />
                 </div>
-              </div>
+              </GridCell>
             );
           })}
         </div>
@@ -1211,6 +1793,68 @@ export const TabContent: React.FC = () => {
   // Single mode (default)
   return (
     <div className="flex-1 h-full relative">
+      {/* Grid actions bar for grid-type tabs in single mode */}
+      {showGridActions && activeTabSingle && (
+        <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
+          {/* New grid */}
+          <button
+            onClick={() => {
+              setLayoutMode('grid');
+              const pp = getTabProjectPath(activeTabSingle);
+              if (pp) setActiveProjectPath(pp);
+            }}
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-background/90 border border-border/40 text-[10px] text-muted-foreground hover:text-foreground hover:border-border/60 backdrop-blur-sm transition-colors"
+            title="Convert to grid view"
+          >
+            <LayoutGrid className="w-3 h-3" />
+            Grid
+          </button>
+
+          {/* Join existing grid — show dropdown if there are grids to join */}
+          {allGridGroupKeys.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setMoveToGridTabId(prev => prev === activeTabSingle.id ? null : activeTabSingle.id)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-background/90 border border-border/40 text-[10px] text-muted-foreground hover:text-foreground hover:border-border/60 backdrop-blur-sm transition-colors"
+                title="Join existing grid"
+              >
+                <Plus className="w-3 h-3" />
+                Join Grid
+              </button>
+              {moveToGridTabId === activeTabSingle.id && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-xl p-1.5 min-w-[160px]">
+                  <div className="text-[9px] text-muted-foreground/60 font-semibold uppercase tracking-wider mb-1 px-2">Join grid</div>
+                  {allGridGroupKeys.map(key => {
+                    const name = key.split('/').pop() || key;
+                    const isSelf = key === getTabProjectPath(activeTabSingle);
+                    return (
+                      <button
+                        key={key}
+                        disabled={isSelf}
+                        onClick={() => {
+                          updateTab(activeTabSingle.id, { projectPath: key });
+                          setLayoutMode('grid');
+                          setActiveProjectPath(key);
+                          setMoveToGridTabId(null);
+                        }}
+                        className={`w-full text-left px-2 py-1 rounded text-xs transition-colors ${
+                          isSelf
+                            ? 'text-muted-foreground/30 cursor-not-allowed'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                        }`}
+                      >
+                        {name}
+                        {isSelf && <span className="ml-1 text-[9px] opacity-50">(current)</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {tabs.map((tab) => (
         <TabPanel
           key={tab.id}
@@ -1233,5 +1877,71 @@ export const TabContent: React.FC = () => {
     </div>
   );
 };
+
+/**
+ * Grid cell wrapper that detects when embedded content (terminals, iframes)
+ * receives focus via click. Terminals and iframes swallow mouse events,
+ * so we poll for focus changes while the mouse hovers over the cell.
+ */
+function GridCell({ tabId, isFocused, switchToTab, children, ...props }: {
+  tabId: string;
+  isFocused: boolean;
+  switchToTab: (id: string) => void;
+  children: React.ReactNode;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const hoveringRef = React.useRef(false);
+  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const switchRef = React.useRef(switchToTab);
+  switchRef.current = switchToTab;
+  const tabIdRef = React.useRef(tabId);
+  tabIdRef.current = tabId;
+  const isFocusedRef = React.useRef(isFocused);
+  isFocusedRef.current = isFocused;
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const checkFocus = () => {
+      // If already focused, nothing to do
+      if (isFocusedRef.current) return;
+      // Check if any focused element (iframe, xterm canvas, etc.) is inside this cell
+      const active = document.activeElement;
+      if (active && active !== document.body && el.contains(active)) {
+        switchRef.current(tabIdRef.current);
+      }
+    };
+
+    const startPoll = () => {
+      hoveringRef.current = true;
+      if (!pollRef.current) {
+        pollRef.current = setInterval(checkFocus, 80);
+      }
+    };
+    const stopPoll = () => {
+      hoveringRef.current = false;
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+
+    // Also catch initial focus steal via window.blur
+    const handleBlur = () => {
+      if (hoveringRef.current) setTimeout(checkFocus, 0);
+    };
+
+    el.addEventListener('mouseenter', startPoll);
+    el.addEventListener('mouseleave', stopPoll);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      el.removeEventListener('mouseenter', startPoll);
+      el.removeEventListener('mouseleave', stopPoll);
+      window.removeEventListener('blur', handleBlur);
+      stopPoll();
+    };
+  }, []);
+
+  return <div ref={ref} {...props}>{children}</div>;
+}
 
 export default TabContent;

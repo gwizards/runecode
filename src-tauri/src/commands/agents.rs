@@ -218,8 +218,9 @@ pub fn init_database(app: &AppHandle) -> SqliteResult<Connection> {
     let app_dir = app
         .path()
         .app_data_dir()
-        .expect("Failed to get app data dir");
-    std::fs::create_dir_all(&app_dir).expect("Failed to create app data dir");
+        .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to get app data dir: {}", e)))?;
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to create app data dir: {}", e)))?;
 
     let db_path = app_dir.join("agents.db");
     let conn = Connection::open(db_path)?;
@@ -684,6 +685,7 @@ pub async fn execute_agent(
     project_path: String,
     task: String,
     model: Option<String>,
+    permission_mode: Option<String>,
     db: State<'_, AgentDb>,
     registry: State<'_, crate::process::ProcessRegistryState>,
 ) -> Result<i64, String> {
@@ -754,7 +756,7 @@ pub async fn execute_agent(
     };
 
     // Build arguments
-    let args = vec![
+    let mut args = vec![
         "-p".to_string(),
         task.clone(),
         "--system-prompt".to_string(),
@@ -764,8 +766,10 @@ pub async fn execute_agent(
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
     ];
+    if permission_mode.as_deref() == Some("bypassPermissions") {
+        args.push("--dangerously-skip-permissions".to_string());
+    }
 
     // Always use system binary execution (sidecar removed)
     spawn_agent_system(

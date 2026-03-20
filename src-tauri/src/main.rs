@@ -154,34 +154,37 @@ fn main() {
             // Apply window vibrancy with rounded corners on macOS
             #[cfg(target_os = "macos")]
             {
-                let window = app.get_webview_window("main").unwrap();
-
-                // Try different vibrancy materials that support rounded corners
-                let materials = [
-                    NSVisualEffectMaterial::UnderWindowBackground,
-                    NSVisualEffectMaterial::WindowBackground,
-                    NSVisualEffectMaterial::Popover,
-                    NSVisualEffectMaterial::Menu,
-                    NSVisualEffectMaterial::Sidebar,
-                ];
-
-                let mut applied = false;
-                for material in materials.iter() {
-                    if apply_vibrancy(&window, *material, None, Some(12.0)).is_ok() {
-                        applied = true;
-                        break;
-                    }
-                }
-
-                if !applied {
-                    // Fallback without rounded corners
-                    apply_vibrancy(
-                        &window,
+                if let Some(window) = app.get_webview_window("main") {
+                    // Try different vibrancy materials that support rounded corners
+                    let materials = [
+                        NSVisualEffectMaterial::UnderWindowBackground,
                         NSVisualEffectMaterial::WindowBackground,
-                        None,
-                        None,
-                    )
-                    .expect("Failed to apply any window vibrancy");
+                        NSVisualEffectMaterial::Popover,
+                        NSVisualEffectMaterial::Menu,
+                        NSVisualEffectMaterial::Sidebar,
+                    ];
+
+                    let mut applied = false;
+                    for material in materials.iter() {
+                        if apply_vibrancy(&window, *material, None, Some(12.0)).is_ok() {
+                            applied = true;
+                            break;
+                        }
+                    }
+
+                    if !applied {
+                        // Fallback without rounded corners
+                        if let Err(e) = apply_vibrancy(
+                            &window,
+                            NSVisualEffectMaterial::WindowBackground,
+                            None,
+                            None,
+                        ) {
+                            log::warn!("Failed to apply window vibrancy: {}", e);
+                        }
+                    }
+                } else {
+                    log::warn!("Main window not found — skipping vibrancy setup");
                 }
             }
 

@@ -104,10 +104,30 @@ impl CheckpointManager {
         Ok(())
     }
 
-    /// Track a file modification
+    /// Track a file modification (with path traversal protection)
     pub async fn track_file_modification(&self, file_path: &str) -> Result<()> {
         let mut tracker = self.file_tracker.write().await;
         let full_path = self.project_path.join(file_path);
+
+        // Prevent path traversal
+        if let Ok(canonical_project) = self.project_path.canonicalize() {
+            let check_path = if full_path.exists() {
+                full_path.canonicalize().ok()
+            } else {
+                full_path.parent().and_then(|p| p.canonicalize().ok()).map(|p| p.join(full_path.file_name().unwrap_or_default()))
+            };
+            match check_path {
+                Some(resolved) => {
+                    if !resolved.starts_with(&canonical_project) {
+                        anyhow::bail!("Path traversal detected — refusing to track file outside project: {}", file_path);
+                    }
+                }
+                None => {
+                    // Cannot resolve path — reject to prevent traversal via deeply nested nonexistent dirs
+                    anyhow::bail!("Cannot resolve path — refusing to track unresolvable file: {}", file_path);
+                }
+            }
+        }
 
         // Read current file state
         let (hash, exists, _size, modified) = if full_path.exists() {
@@ -598,9 +618,45 @@ impl CheckpointManager {
         })
     }
 
-    /// Restore a single file from snapshot
+    /// Restore a single file from snapshot (with path traversal protection)
     async fn restore_file_snapshot(&self, snapshot: &FileSnapshot) -> Result<()> {
         let full_path = self.project_path.join(&snapshot.file_path);
+
+        // Prevent path traversal — resolved path must stay within project directory
+        let canonical_project = self
+            .project_path
+            .canonicalize()
+            .context("Failed to canonicalize project path")?;
+        // For new files the full_path may not exist yet, so canonicalize the parent
+        let check_path = if full_path.exists() {
+            full_path
+                .canonicalize()
+                .context("Failed to canonicalize file path")?
+        } else if let Some(parent) = full_path.parent() {
+            if parent.exists() {
+                let canon_parent = parent
+                    .canonicalize()
+                    .context("Failed to canonicalize parent path")?;
+                canon_parent.join(full_path.file_name().unwrap_or_default())
+            } else {
+                anyhow::bail!(
+                    "Cannot restore file outside project: {}",
+                    snapshot.file_path.display()
+                );
+            }
+        } else {
+            anyhow::bail!(
+                "Cannot restore file outside project: {}",
+                snapshot.file_path.display()
+            );
+        };
+
+        if !check_path.starts_with(&canonical_project) {
+            anyhow::bail!(
+                "Path traversal detected — refusing to restore file outside project: {}",
+                snapshot.file_path.display()
+            );
+        }
 
         if snapshot.is_deleted {
             // Delete the file if it exists

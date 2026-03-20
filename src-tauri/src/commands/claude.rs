@@ -232,10 +232,6 @@ fn extract_first_user_message(jsonl_path: &PathBuf) -> (Option<String>, Option<S
 /// Helper function to create a tokio Command with proper environment variables
 /// This ensures commands like Claude can find Node.js and other dependencies
 fn create_command_with_env(program: &str) -> Command {
-    // Convert std::process::Command to tokio::process::Command
-    let _std_cmd = crate::claude_binary::create_command_with_env(program);
-
-    // Create a new tokio Command from the program path
     let mut tokio_cmd = Command::new(program);
 
     // Copy over all environment variables
@@ -846,12 +842,75 @@ fn find_claude_md_recursive(
     Ok(())
 }
 
+/// Validate that a file path points to a CLAUDE.md-like file within the user's home directory
+fn validate_claude_md_path(file_path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(file_path);
+
+    // Validate filename
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+
+    if !file_name.eq_ignore_ascii_case("CLAUDE.md")
+        && !file_name.eq_ignore_ascii_case("AGENTS.md")
+        && !file_name.eq_ignore_ascii_case("GEMINI.md")
+    {
+        return Err(
+            "Only CLAUDE.md, AGENTS.md, and GEMINI.md files can be accessed through this command"
+                .to_string(),
+        );
+    }
+
+    // For reads, canonicalize and check. For writes, canonicalize the parent.
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+
+    if home.is_empty() {
+        return Err("Cannot determine home directory".to_string());
+    }
+
+    // Resolve the path to prevent TOCTOU symlink races — return canonical path
+    if let Some(parent) = path.parent() {
+        if parent.exists() {
+            let canonical_parent =
+                parent.canonicalize().map_err(|e| format!("Failed to resolve path: {}", e))?;
+            if !canonical_parent.starts_with(&home) {
+                return Err("File path must be within the user's home directory".to_string());
+            }
+            // Return the canonical path to prevent symlink race between check and use
+            Ok(canonical_parent.join(file_name))
+        } else {
+            // For new files, walk up to find an existing ancestor
+            let mut ancestor = parent.to_path_buf();
+            while !ancestor.exists() {
+                ancestor = match ancestor.parent() {
+                    Some(p) => p.to_path_buf(),
+                    None => return Err("Cannot resolve path ancestry".to_string()),
+                };
+            }
+            let canonical_ancestor = ancestor
+                .canonicalize()
+                .map_err(|e| format!("Failed to resolve path: {}", e))?;
+            if !canonical_ancestor.starts_with(&home) {
+                return Err("File path must be within the user's home directory".to_string());
+            }
+            // Rebuild the full path from the canonical ancestor
+            let remaining = parent.strip_prefix(&ancestor).unwrap_or(parent);
+            Ok(canonical_ancestor.join(remaining).join(file_name))
+        }
+    } else {
+        Err("Invalid file path".to_string())
+    }
+}
+
 /// Reads a specific CLAUDE.md file by its absolute path
 #[tauri::command]
 pub async fn read_claude_md_file(file_path: String) -> Result<String, String> {
     log::info!("Reading CLAUDE.md file: {}", file_path);
 
-    let path = PathBuf::from(&file_path);
+    let path = validate_claude_md_path(&file_path)?;
     if !path.exists() {
         return Err(format!("File does not exist: {}", file_path));
     }
@@ -864,7 +923,7 @@ pub async fn read_claude_md_file(file_path: String) -> Result<String, String> {
 pub async fn save_claude_md_file(file_path: String, content: String) -> Result<String, String> {
     log::info!("Saving CLAUDE.md file: {}", file_path);
 
-    let path = PathBuf::from(&file_path);
+    let path = validate_claude_md_path(&file_path)?;
 
     // Ensure the parent directory exists
     if let Some(parent) = path.parent() {
@@ -916,6 +975,13 @@ pub async fn load_session_history(
     Ok(messages)
 }
 
+/// Conditionally append --dangerously-skip-permissions if the user opted in
+fn maybe_add_bypass_flag(args: &mut Vec<String>, permission_mode: &str) {
+    if permission_mode == "bypassPermissions" {
+        args.push("--dangerously-skip-permissions".to_string());
+    }
+}
+
 /// Execute a new interactive Claude Code session with streaming output
 #[tauri::command]
 pub async fn execute_claude_code(
@@ -923,6 +989,7 @@ pub async fn execute_claude_code(
     project_path: String,
     prompt: String,
     model: String,
+    permission_mode: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "Starting new Claude Code session in: {} with model: {}",
@@ -932,7 +999,7 @@ pub async fn execute_claude_code(
 
     let claude_path = find_claude_binary(&app)?;
 
-    let args = vec![
+    let mut args = vec![
         "-p".to_string(),
         prompt.clone(),
         "--model".to_string(),
@@ -940,8 +1007,8 @@ pub async fn execute_claude_code(
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
     ];
+    maybe_add_bypass_flag(&mut args, permission_mode.as_deref().unwrap_or("default"));
 
     let cmd = create_system_command(&claude_path, args, &project_path);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
@@ -954,6 +1021,7 @@ pub async fn continue_claude_code(
     project_path: String,
     prompt: String,
     model: String,
+    permission_mode: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "Continuing Claude Code conversation in: {} with model: {}",
@@ -963,7 +1031,7 @@ pub async fn continue_claude_code(
 
     let claude_path = find_claude_binary(&app)?;
 
-    let args = vec![
+    let mut args = vec![
         "-c".to_string(), // Continue flag
         "-p".to_string(),
         prompt.clone(),
@@ -972,8 +1040,8 @@ pub async fn continue_claude_code(
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
     ];
+    maybe_add_bypass_flag(&mut args, permission_mode.as_deref().unwrap_or("default"));
 
     let cmd = create_system_command(&claude_path, args, &project_path);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
@@ -987,6 +1055,7 @@ pub async fn resume_claude_code(
     session_id: String,
     prompt: String,
     model: String,
+    permission_mode: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "Resuming Claude Code session: {} in: {} with model: {}",
@@ -997,7 +1066,7 @@ pub async fn resume_claude_code(
 
     let claude_path = find_claude_binary(&app)?;
 
-    let args = vec![
+    let mut args = vec![
         "--resume".to_string(),
         session_id.clone(),
         "-p".to_string(),
@@ -1007,8 +1076,8 @@ pub async fn resume_claude_code(
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
     ];
+    maybe_add_bypass_flag(&mut args, permission_mode.as_deref().unwrap_or("default"));
 
     let cmd = create_system_command(&claude_path, args, &project_path);
     spawn_claude_process(app, cmd, prompt, model, project_path).await
@@ -1339,7 +1408,7 @@ async fn spawn_claude_process(
     Ok(())
 }
 
-/// Lists files and directories in a given path
+/// Lists files and directories in a given path (restricted to user's home directory)
 #[tauri::command]
 pub async fn list_directory_contents(directory_path: String) -> Result<Vec<FileEntry>, String> {
     log::info!("Listing directory contents: '{}'", directory_path);
@@ -1351,6 +1420,19 @@ pub async fn list_directory_contents(directory_path: String) -> Result<Vec<FileE
     }
 
     let path = PathBuf::from(&directory_path);
+
+    // Validate path is within the user's home directory to prevent arbitrary filesystem enumeration
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    if !home.is_empty() {
+        let canonical = path
+            .canonicalize()
+            .map_err(|e| format!("Failed to resolve path: {}", e))?;
+        if !canonical.starts_with(&home) && !canonical.starts_with("/tmp") {
+            return Err("Directory listing is restricted to the user's home directory".to_string());
+        }
+    }
     log::debug!("Resolved path: {:?}", path);
 
     if !path.exists() {

@@ -61,7 +61,9 @@
       "rpm",
       "appimage",
       "app",
-      "dmg"
+      "dmg",
+      "msi",
+      "nsis"
     ],
     "icon": [
       "icons/32x32.png",
@@ -85,6 +87,14 @@
       },
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      }
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "nsis": {
+        "installMode": "currentUser"
       }
     },
     "macOS": {

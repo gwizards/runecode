@@ -129,14 +129,14 @@ pub fn apply_proxy_settings(settings: &ProxySettings) {
     // Set proxy environment variables (uppercase is standard)
     if let Some(http_proxy) = &settings.http_proxy {
         if !http_proxy.is_empty() {
-            log::info!("Setting HTTP_PROXY={}", http_proxy);
+            log::info!("Setting HTTP_PROXY=[redacted]");
             std::env::set_var("HTTP_PROXY", http_proxy);
         }
     }
 
     if let Some(https_proxy) = &settings.https_proxy {
         if !https_proxy.is_empty() {
-            log::info!("Setting HTTPS_PROXY={}", https_proxy);
+            log::info!("Setting HTTPS_PROXY=[redacted]");
             std::env::set_var("HTTPS_PROXY", https_proxy);
         }
     }

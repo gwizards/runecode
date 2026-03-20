@@ -61,14 +61,18 @@ interface OutputCacheProviderProps {
 export function OutputCacheProvider({ children }: OutputCacheProviderProps) {
   const [cache, setCache] = useState<Map<number, CachedSessionOutput>>(new Map());
   const [isPolling, setIsPolling] = useState(false);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const getCachedOutput = useCallback((sessionId: number): CachedSessionOutput | null => {
     return cache.get(sessionId) || null;
   }, [cache]);
 
   const setCachedOutput = useCallback((sessionId: number, data: CachedSessionOutput) => {
-    setCache(prev => new Map(prev.set(sessionId, data)));
+    setCache(prev => {
+      const next = new Map(prev);
+      next.set(sessionId, data);
+      return next;
+    });
   }, []);
 
   const updateSessionStatus = useCallback((sessionId: number, status: string) => {
@@ -167,20 +171,19 @@ export function OutputCacheProvider({ children }: OutputCacheProviderProps) {
   }, [updateSessionCache]);
 
   const startBackgroundPolling = useCallback(() => {
-    if (pollingInterval) return;
+    if (pollingIntervalRef.current) return;
 
     setIsPolling(true);
-    const interval = setInterval(pollRunningSessions, 15000); // Poll every 15 seconds
-    setPollingInterval(interval);
-  }, [pollingInterval, pollRunningSessions]);
+    pollingIntervalRef.current = setInterval(pollRunningSessions, 15000); // Poll every 15 seconds
+  }, [pollRunningSessions]);
 
   const stopBackgroundPolling = useCallback(() => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
     setIsPolling(false);
-  }, [pollingInterval]);
+  }, []);
 
   // Auto-start polling when provider mounts
   useEffect(() => {

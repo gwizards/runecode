@@ -220,8 +220,12 @@ export class HooksManager {
       }
     }
 
-    // Check for unescaped variables that could lead to code injection
-    if (command.includes('$') && !command.includes('"$')) {
+    // Check for unescaped shell variables outside of quotes
+    // Match $ followed by a word character, but not inside single or double quotes
+    const unquotedVarRegex = /(?:^|[^'"\\])\$\w/;
+    // Simple heuristic: strip quoted strings, then check for bare $VAR
+    const stripped = command.replace(/"[^"]*"/g, '').replace(/'[^']*'/g, '');
+    if (unquotedVarRegex.test(stripped)) {
       warnings.push('Unquoted shell variable detected - potential code injection risk');
     }
 
@@ -244,6 +248,6 @@ export class HooksManager {
    * Generate a unique ID for hooks/matchers/commands
    */
   static generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 } 

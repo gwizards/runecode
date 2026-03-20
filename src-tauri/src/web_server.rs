@@ -104,6 +104,7 @@ pub struct ClaudeExecutionRequest {
     pub model: Option<String>,
     pub session_id: Option<String>,
     pub command_type: String, // "execute", "continue", or "resume"
+    pub permission_mode: Option<String>, // "default", "acceptEdits", "bypassPermissions", "plan"
 }
 
 #[allow(dead_code)]
@@ -1029,6 +1030,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                         );
                         tokio::spawn(async move {
                             println!("[TRACE] Task started for command execution");
+                            let bypass = request.permission_mode.as_deref() == Some("bypassPermissions");
                             let result = match request.command_type.as_str() {
                                 "execute" => {
                                     println!("[TRACE] Calling execute_claude_command");
@@ -1036,6 +1038,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                                         request.project_path,
                                         request.prompt,
                                         request.model.unwrap_or_default(),
+                                        bypass,
                                         session_id_clone.clone(),
                                         state_clone.clone(),
                                     )
@@ -1047,6 +1050,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                                         request.project_path,
                                         request.prompt,
                                         request.model.unwrap_or_default(),
+                                        bypass,
                                         session_id_clone.clone(),
                                         state_clone.clone(),
                                     )
@@ -1059,6 +1063,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                                         request.session_id.unwrap_or_default(),
                                         request.prompt,
                                         request.model.unwrap_or_default(),
+                                        bypass,
                                         session_id_clone.clone(),
                                         state_clone.clone(),
                                     )
@@ -1151,6 +1156,7 @@ async fn execute_claude_command(
     project_path: String,
     prompt: String,
     model: String,
+    bypass_permissions: bool,
     session_id: String,
     state: AppState,
 ) -> Result<(), String> {
@@ -1197,8 +1203,10 @@ async fn execute_claude_command(
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
     ]);
+    if bypass_permissions {
+        args.push("--dangerously-skip-permissions".to_string());
+    }
     cmd.args(&args);
     cmd.current_dir(&project_path);
     cmd.stdout(std::process::Stdio::piped());
@@ -1298,6 +1306,7 @@ async fn continue_claude_command(
     project_path: String,
     prompt: String,
     model: String,
+    bypass_permissions: bool,
     session_id: String,
     state: AppState,
 ) -> Result<(), String> {
@@ -1333,8 +1342,10 @@ async fn continue_claude_command(
         "--output-format",
         "stream-json",
         "--verbose",
-        "--dangerously-skip-permissions",
     ]);
+    if bypass_permissions {
+        args.push("--dangerously-skip-permissions");
+    }
     cmd.args(&args);
     cmd.current_dir(&project_path);
     cmd.stdout(std::process::Stdio::piped());
@@ -1380,6 +1391,7 @@ async fn resume_claude_command(
     claude_session_id: String,
     prompt: String,
     model: String,
+    bypass_permissions: bool,
     session_id: String,
     state: AppState,
 ) -> Result<(), String> {
@@ -1421,8 +1433,10 @@ async fn resume_claude_command(
         "--output-format",
         "stream-json",
         "--verbose",
-        "--dangerously-skip-permissions",
     ]);
+    if bypass_permissions {
+        args.push("--dangerously-skip-permissions");
+    }
     cmd.args(&args);
     cmd.current_dir(&project_path);
     cmd.stdout(std::process::Stdio::piped());
@@ -1599,7 +1613,7 @@ async fn find_claude_md_files(
     }))
 }
 
-/// Read a CLAUDE.md file
+/// Read a CLAUDE.md file (restricted to CLAUDE.md files only)
 async fn read_claude_md_file(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<String>> {
@@ -1608,7 +1622,37 @@ async fn read_claude_md_file(
         .or(params.get("file_path"))
         .cloned()
         .unwrap_or_default();
-    match std::fs::read_to_string(&file_path) {
+
+    // Validate the file path to prevent arbitrary file reads
+    let path = std::path::Path::new(&file_path);
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+
+    if !file_name.eq_ignore_ascii_case("CLAUDE.md")
+        && !file_name.eq_ignore_ascii_case("AGENTS.md")
+        && !file_name.eq_ignore_ascii_case("GEMINI.md")
+    {
+        return Json(ApiResponse::error(
+            "Only CLAUDE.md, AGENTS.md, and GEMINI.md files can be read through this endpoint"
+                .to_string(),
+        ));
+    }
+
+    // Resolve symlinks and validate the canonical path doesn't escape expected dirs
+    let canonical = match std::fs::canonicalize(&file_path) {
+        Ok(p) => p,
+        Err(e) => return Json(ApiResponse::error(format!("Failed to resolve path: {}", e))),
+    };
+    let home = std::env::var("HOME").unwrap_or_default();
+    if !canonical.starts_with(&home) {
+        return Json(ApiResponse::error(
+            "File path must be within the user's home directory".to_string(),
+        ));
+    }
+
+    match std::fs::read_to_string(&canonical) {
         Ok(content) => Json(ApiResponse::success(content)),
         Err(e) => Json(ApiResponse::error(format!("Failed to read file: {}", e))),
     }
@@ -2563,12 +2607,19 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         checkpoint_state,
     };
 
-    // CORS layer to allow requests from phone browsers and local network devices.
-    // NOTE: Allow-all origins is acceptable for local/development use (LAN access from
-    // phones/tablets). For production or internet-exposed deployments, restrict origins
-    // to specific allowed domains to prevent unauthorized cross-origin requests.
+    // CORS layer — restrict to localhost origins to prevent cross-origin attacks.
+    // LAN devices should access via the host IP directly (same-origin), not via CORS.
+    let localhost_origins = [
+        "http://localhost".parse().unwrap(),
+        "http://localhost:1420".parse().unwrap(),
+        "http://localhost:5173".parse().unwrap(),
+        "http://127.0.0.1".parse().unwrap(),
+        "http://127.0.0.1:1420".parse().unwrap(),
+        "http://127.0.0.1:5173".parse().unwrap(),
+        "tauri://localhost".parse().unwrap(),
+    ];
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(localhost_origins)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers(Any);
 
@@ -2790,9 +2841,10 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .layer(cors)
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    println!("🌐 Web server running on http://0.0.0.0:{}", port);
-    println!("📱 Access from phone: http://YOUR_PC_IP:{}", port);
+    // Bind to localhost only by default to prevent unauthenticated LAN access.
+    // To expose on the network, use a reverse proxy with authentication.
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    println!("🌐 Web server running on http://127.0.0.1:{}", port);
 
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

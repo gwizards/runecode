@@ -22,10 +22,10 @@ export class ConsentManager {
       if (stored) {
         this.settings = JSON.parse(stored);
       } else {
-        // Initialize with default settings
+        // Initialize with opt-out defaults — require explicit user consent
         this.settings = {
-          enabled: true,
-          hasConsented: true,
+          enabled: false,
+          hasConsented: false,
         };
       }
       
@@ -46,10 +46,10 @@ export class ConsentManager {
       };
     } catch (error) {
       console.error('Failed to initialize consent manager:', error);
-      // Return default settings on error
+      // Return safe defaults on error — analytics disabled
       return {
-        enabled: true,
-        hasConsented: true,
+        enabled: false,
+        hasConsented: false,
       };
     }
   }
@@ -79,15 +79,15 @@ export class ConsentManager {
   async deleteAllData(): Promise<void> {
     // Clear local storage
     localStorage.removeItem(ANALYTICS_STORAGE_KEY);
-    
-    // Reset settings with new anonymous ID
+
+    // Reset settings — analytics disabled after data deletion
     this.settings = {
-      enabled: true,
-      hasConsented: true,
+      enabled: false,
+      hasConsented: false,
       userId: this.generateAnonymousId(),
       sessionId: this.generateSessionId(),
     };
-    
+
     await this.saveSettings();
   }
   
@@ -132,6 +132,6 @@ export class ConsentManager {
   
   private generateSessionId(): string {
     // Simple session ID based on timestamp and random value
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${crypto.randomUUID()}`;
   }
 }

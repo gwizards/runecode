@@ -65,6 +65,12 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTrackEvent, useComponentMetrics, useWorkflowTracking } from "@/hooks";
 import { SessionPersistenceService } from "@/services/sessionPersistence";
 
+// Module-scope constant for stable reference — avoids recreating Set on every render
+const TOOLS_WITH_WIDGETS = new Set([
+  'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read',
+  'glob', 'bash', 'write', 'grep'
+]);
+
 interface ClaudeCodeSessionProps {
   /**
    * Optional session to resume (when clicking from SessionList)
@@ -487,10 +493,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     return map;
   }, [messages]);
 
-  const toolsWithWidgets = new Set([
-    'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read',
-    'glob', 'bash', 'write', 'grep'
-  ]);
+  // toolsWithWidgets is defined at module scope (TOOLS_WITH_WIDGETS) for stable reference
 
   // Filter out messages that shouldn't be displayed
   const allDisplayableMessages = useMemo(() => {
@@ -545,7 +548,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               if (content.tool_use_id) {
                 // O(1) lookup via pre-built map instead of backward scan
                 const toolName = toolUseNameMap.get(content.tool_use_id);
-                if (toolName && (toolsWithWidgets.has(toolName.toLowerCase()) || toolName.startsWith('mcp__'))) {
+                if (toolName && (TOOLS_WITH_WIDGETS.has(toolName.toLowerCase()) || toolName.startsWith('mcp__'))) {
                   willBeSkipped = true;
                 }
               }
@@ -579,11 +582,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     estimateSize: () => 150, // Estimate, will be dynamically measured
     overscan: 2, // minimal overscan to reduce measurement work
   });
-
-  // Debug logging
-  useEffect(() => {
-    // State tracking (debug only)
-  }, [projectPath, session, extractedSessionInfo, effectiveSession, messages.length, isLoading]);
 
   // Load session history if resuming — keyed on session ID, not object reference,
   // so closing other tabs (which creates new tab objects) doesn't trigger a reload.
@@ -853,7 +851,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // Project path selection handled by parent tab controls
 
-  const handleSendPrompt = async (prompt: string, model: string, thinkingMode: string = "auto", effort: string = "high", permissionMode: string = "bypassPermissions") => {
+  const handleSendPrompt = async (prompt: string, model: string, thinkingMode: string = "auto", effort: string = "high", permissionMode: string = "default") => {
 
     // Intercept built-in Claude CLI commands that don't work in -p mode
     const trimmed = prompt.trim();
@@ -894,7 +892,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     // If already loading, queue the prompt
     if (isLoading) {
       const newPrompt = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: crypto.randomUUID(),
         prompt,
         model,
         thinkingMode,
@@ -1186,7 +1184,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             
             // Small delay to ensure UI updates
             setTimeout(() => {
-              handleSendPrompt(nextPrompt.prompt, nextPrompt.model, nextPrompt.thinkingMode || "auto", nextPrompt.effort || "high", nextPrompt.permissionMode || "bypassPermissions");
+              handleSendPrompt(nextPrompt.prompt, nextPrompt.model, nextPrompt.thinkingMode || "auto", nextPrompt.effort || "high", nextPrompt.permissionMode || "default");
             }, 100);
           }
         };
@@ -1277,12 +1275,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
         const agentConfig = {
           teamsEnabled: sessionConfig.teamsEnabled,
-          subAgentDefaultModel: sessionConfig.subAgentDefaultModel,
-          subAgentDefaultPermissionMode: sessionConfig.subAgentDefaultPermissionMode,
-          subAgentProgressSummaries: sessionConfig.subAgentProgressSummaries,
-          subAgentMaxTurns: sessionConfig.subAgentMaxTurns,
-          teamMaxConcurrent: sessionConfig.teamMaxConcurrentAgents,
-          teamDefaultModel: sessionConfig.teamDefaultModel,
           environment: environmentConfig,
         };
 
@@ -1525,7 +1517,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       setIsLoading(true);
       setError(null);
       
-      const newSessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const newSessionId = crypto.randomUUID();
       await api.forkFromCheckpoint(
         forkCheckpointId,
         effectiveSession.id,
@@ -1549,27 +1541,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       setIsLoading(false);
     }
   };
-
-  // Handle URL detection from terminal output
-  // Build compact conversation context for AI autocomplete (last 5 messages, max 800 chars)
-  const conversationContext = useMemo(() => {
-    const recent = displayableMessages.slice(-5);
-    const parts: string[] = [];
-    for (const msg of recent) {
-      if (msg.type === 'user' && msg.message?.content) {
-        const text = Array.isArray(msg.message.content)
-          ? msg.message.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ')
-          : String(msg.message.content);
-        if (text.trim()) parts.push(`User: ${text.trim().slice(0, 150)}`);
-      } else if (msg.type === 'assistant' && msg.message?.content) {
-        const text = Array.isArray(msg.message.content)
-          ? msg.message.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ')
-          : '';
-        if (text.trim()) parts.push(`Assistant: ${text.trim().slice(0, 150)}`);
-      }
-    }
-    return parts.join('\n').slice(-800) || undefined;
-  }, [displayableMessages]);
 
   const handleLinkDetected = useCallback((url: string) => {
     setPreviewUrl(prev => {
@@ -1970,7 +1941,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                   projectId={effectiveSession?.project_id}
                   onCopyMarkdown={() => handleCopyAsMarkdown()}
                   onCopyJsonl={() => handleCopyAsJsonl()}
-                  conversationContext={conversationContext}
                 />
               </div>,
               footerEl,

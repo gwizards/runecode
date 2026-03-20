@@ -60,12 +60,6 @@ async function initSession(params: {
   effort?: string;
   resumeAt?: string;
   teamsEnabled?: boolean;
-  subAgentDefaultModel?: string;
-  subAgentDefaultPermissionMode?: string;
-  subAgentProgressSummaries?: boolean;
-  subAgentMaxTurns?: number;
-  teamMaxConcurrent?: number;
-  teamDefaultModel?: string;
   environment?: {
     type: string;
     sshHost?: string;
@@ -76,7 +70,7 @@ async function initSession(params: {
     dockerContainer?: string;
   };
 }): Promise<string> {
-  const connectionId = `conn_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const connectionId = `conn_${Date.now()}_${crypto.randomUUID()}`;
   const ws = getOrCreateSocket(connectionId);
 
   return new Promise((resolve, reject) => {
@@ -100,16 +94,10 @@ async function initSession(params: {
         model: params.model || 'sonnet',
         session_id: params.sessionId,
         thinking_mode: params.thinkingMode || 'auto',
-        permission_mode: params.permissionMode || 'bypassPermissions',
+        permission_mode: params.permissionMode || 'default',
         effort: params.effort || 'high',
         resume_at: params.resumeAt,
         teams_enabled: params.teamsEnabled,
-        subagent_default_model: params.subAgentDefaultModel,
-        subagent_default_permission_mode: params.subAgentDefaultPermissionMode,
-        subagent_progress_summaries: params.subAgentProgressSummaries,
-        subagent_max_turns: params.subAgentMaxTurns,
-        team_max_concurrent: params.teamMaxConcurrent,
-        team_default_model: params.teamDefaultModel,
         environment: params.environment,
       }));
     };
@@ -442,12 +430,6 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
       effort: params?.effort,
       resumeAt: params?.resumeAt,
       teamsEnabled: params?.teamsEnabled,
-      subAgentDefaultModel: params?.subAgentDefaultModel,
-      subAgentDefaultPermissionMode: params?.subAgentDefaultPermissionMode,
-      subAgentProgressSummaries: params?.subAgentProgressSummaries,
-      subAgentMaxTurns: params?.subAgentMaxTurns,
-      teamMaxConcurrent: params?.teamMaxConcurrent,
-      teamDefaultModel: params?.teamDefaultModel,
       environment: params?.environment,
     });
     // Return the connectionId so the caller can use it for follow-up prompts
@@ -720,12 +702,6 @@ async function initAgentSession(params: {
   permissionMode?: string;
   effort?: string;
   teamsEnabled?: boolean;
-  subAgentDefaultModel?: string;
-  subAgentDefaultPermissionMode?: string;
-  subAgentProgressSummaries?: boolean;
-  subAgentMaxTurns?: number;
-  teamMaxConcurrent?: number;
-  teamDefaultModel?: string;
   environment?: {
     type: string;
     sshHost?: string;
@@ -736,7 +712,7 @@ async function initAgentSession(params: {
     dockerContainer?: string;
   };
 }): Promise<string> {
-  const connectionId = `conn_agent_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const connectionId = `conn_agent_${Date.now()}_${crypto.randomUUID()}`;
   const ws = getOrCreateSocket(connectionId);
 
   return new Promise((resolve, reject) => {
@@ -761,15 +737,9 @@ async function initAgentSession(params: {
           text: params.prompt,
           model: params.model || 'sonnet',
           thinking_mode: params.thinkingMode || 'auto',
-          permission_mode: params.permissionMode || 'bypassPermissions',
+          permission_mode: params.permissionMode || 'default',
           effort: params.effort || 'high',
           teams_enabled: params.teamsEnabled,
-          subagent_default_model: params.subAgentDefaultModel,
-          subagent_default_permission_mode: params.subAgentDefaultPermissionMode,
-          subagent_progress_summaries: params.subAgentProgressSummaries,
-          subagent_max_turns: params.subAgentMaxTurns,
-          team_max_concurrent: params.teamMaxConcurrent,
-          team_default_model: params.teamDefaultModel,
           environment: params.environment,
         }));
       } catch (err) {

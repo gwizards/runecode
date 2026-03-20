@@ -26,8 +26,8 @@ interface SessionState {
   deleteSession: (sessionId: string, projectId: string) => Promise<void>;
   clearError: () => void;
   
-  // Active skills tracking
-  activeSkills: Set<string>;
+  // Active skills tracking (array for Zustand shallow equality compatibility)
+  activeSkills: string[];
   addActiveSkill: (name: string) => void;
   removeActiveSkill: (name: string) => void;
 
@@ -65,7 +65,7 @@ const sessionStore: StateCreator<
     isLoadingSessions: false,
     isLoadingOutputs: false,
     error: null,
-    activeSkills: new Set<string>(),
+    activeSkills: [] as string[],
     
     // Fetch all projects
     fetchProjects: async () => {
@@ -140,30 +140,21 @@ const sessionStore: StateCreator<
       }
     },
     
-    // Delete session
+    // Delete session (local-only — removes from UI state, does not delete backend data)
     deleteSession: async (sessionId: string, projectId: string) => {
-      try {
-        // Note: API doesn't have a deleteSession method, so this is a placeholder
-        console.warn('deleteSession not implemented in API');
-        
-        // Update local state
-        set((state) => ({
-          sessions: {
-            ...state.sessions,
-            [projectId]: state.sessions[projectId]?.filter((s) => s.id !== sessionId) || []
-          },
-          currentSessionId: state.currentSessionId === sessionId ? null : state.currentSessionId,
-          currentSession: state.currentSession?.id === sessionId ? null : state.currentSession,
-          sessionOutputs: Object.fromEntries(
-            Object.entries(state.sessionOutputs).filter(([id]) => id !== sessionId)
-          )
-        }));
-      } catch (error) {
-        set({ 
-          error: error instanceof Error ? error.message : 'Failed to delete session'
-        });
-        throw error;
-      }
+      // Note: Backend API does not support session deletion yet.
+      // This only removes the session from local UI state; it will reappear on refresh.
+      set((state) => ({
+        sessions: {
+          ...state.sessions,
+          [projectId]: state.sessions[projectId]?.filter((s) => s.id !== sessionId) || []
+        },
+        currentSessionId: state.currentSessionId === sessionId ? null : state.currentSessionId,
+        currentSession: state.currentSession?.id === sessionId ? null : state.currentSession,
+        sessionOutputs: Object.fromEntries(
+          Object.entries(state.sessionOutputs).filter(([id]) => id !== sessionId)
+        )
+      }));
     },
     
     // Clear error
@@ -172,15 +163,14 @@ const sessionStore: StateCreator<
     // Active skills
     addActiveSkill: (name: string) => {
       set((state) => {
-        const next = new Set(state.activeSkills);
-        next.add(name);
-        return { activeSkills: next };
+        if (state.activeSkills.includes(name)) return state;
+        return { activeSkills: [...state.activeSkills, name] };
       });
     },
     removeActiveSkill: (name: string) => {
       set((state) => {
-        const next = new Set(state.activeSkills);
-        next.delete(name);
+        const next = state.activeSkills.filter(s => s !== name);
+        if (next.length === state.activeSkills.length) return state;
         return { activeSkills: next };
       });
     },

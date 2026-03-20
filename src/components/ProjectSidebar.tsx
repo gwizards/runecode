@@ -1,16 +1,15 @@
 import { Component, type ReactNode, useState, useEffect, useRef, useCallback } from "react";
 import { RuneCodeLogo } from "./RuneCodeLogo";
 import { ProjectInfoSection } from "./sidebar/ProjectInfoSection";
-import { LiveContextSection } from "./sidebar/LiveContextSection";
 import { PlanUsagePanel } from "./sidebar/PlanUsagePanel";
-import { EnvironmentSelector } from "./sidebar/EnvironmentSelector";
-import { RecentFiles } from "./sidebar/RecentFiles";
 import { SidebarBookmarks } from "./sidebar/SidebarBookmarks";
 import { ResourcesSection } from "../integrations/compute/ResourcesSection";
 import { DockerSection } from "../integrations/compute/DockerSection";
-import { SecurityWarning } from "../integrations/security/SecurityWarning";
-import { useEnvScanner } from "../integrations/security/useEnvScanner";
-import { LoopsSection } from "./sidebar/LoopsSection";
+import { ProjectStatsSection } from "../integrations/compute/ProjectStatsSection";
+import { GitHubActionsSection } from "./sidebar/GitHubActionsSection";
+// Affiliate referral integrations hidden for now
+// import { SecurityWarning } from "../integrations/security/SecurityWarning";
+// import { useEnvScanner } from "../integrations/security/useEnvScanner";
 
 const LS_KEY_WIDTH = "runecode-sidebar-width";
 const LS_KEY_OPEN = "runecode-sidebar-open";
@@ -65,7 +64,6 @@ class SectionErrorBoundary extends Component<
 export function ProjectSidebar({
   projectPath = "",
 }: ProjectSidebarProps) {
-  const envScan = useEnvScanner(projectPath);
   const [isOpen, setIsOpen] = useState(() => {
     try {
       const stored = localStorage.getItem(LS_KEY_OPEN);
@@ -221,10 +219,7 @@ export function ProjectSidebar({
                   {/* Close sidebar */}
                 </div>
 
-                {/* Plan & Usage — always visible at top */}
-                {/* Account selector — switch between Claude accounts */}
-                <EnvironmentSelector />
-
+                {/* Plan & Usage */}
                 <PlanUsagePanel />
 
                 {/* Sections */}
@@ -239,40 +234,16 @@ export function ProjectSidebar({
                     </SectionErrorBoundary>
                   </div>
 
-                  <div ref={(el) => { sectionRefs.current["context"] = el; }}>
-                    <SectionErrorBoundary>
-                      <LiveContextSection
-                        projectPath={projectPath}
-                        envFilesDetected={envScan.envFiles}
-                      />
-                    </SectionErrorBoundary>
-                  </div>
-
                   <SectionDivider />
 
-                  {/* ═══════ WORKSPACE ═══════ */}
-
-
-
-
-                  <SectionDivider />
-
-                  {/* ═══════ ACTIVITY ═══════ */}
-                  <GroupLabel>Activity</GroupLabel>
-
+                  {/* ═══════ CI/CD ═══════ */}
                   <SectionErrorBoundary>
-                    <RecentFiles projectPath={projectPath} />
+                    <GitHubActionsSection projectPath={projectPath} />
                   </SectionErrorBoundary>
 
                   <SectionErrorBoundary>
                     <SidebarBookmarks />
                   </SectionErrorBoundary>
-
-                  <SectionErrorBoundary>
-                    <LoopsSection projectPath={projectPath} />
-                  </SectionErrorBoundary>
-
-                  <SectionDivider />
 
                   {/* ═══════ SYSTEM ═══════ */}
                   <GroupLabel>System</GroupLabel>
@@ -287,11 +258,13 @@ export function ProjectSidebar({
                     <DockerSection />
                   </SectionErrorBoundary>
 
+                  <SectionErrorBoundary>
+                    <ProjectStatsSection />
+                  </SectionErrorBoundary>
 
                 </div>
 
-                {/* Security warning (side-effect only, renders nothing) */}
-                <SecurityWarning hasEnvFiles={envScan.hasEnvFiles} envFiles={envScan.envFiles} />
+                {/* Affiliate referral integrations hidden for now */}
               </div>
       </div>
     </div>
