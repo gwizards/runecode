@@ -2270,6 +2270,190 @@ pub async fn validate_hook_command(command: String) -> Result<serde_json::Value,
     }
 }
 
+/// Checks if Node.js is installed and returns version info
+#[tauri::command]
+pub fn check_node_installed() -> serde_json::Value {
+    let node_bin = if cfg!(target_os = "windows") {
+        "node.exe"
+    } else {
+        "node"
+    };
+
+    match std::process::Command::new(node_bin)
+        .arg("--version")
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let major: u32 = version_str
+                .trim_start_matches('v')
+                .split('.')
+                .next()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+            serde_json::json!({
+                "installed": true,
+                "version": version_str,
+                "major": major,
+                "meets_minimum": major >= 18
+            })
+        }
+        _ => serde_json::json!({
+            "installed": false,
+            "version": null,
+            "major": 0,
+            "meets_minimum": false
+        }),
+    }
+}
+
+/// Installs Node.js in a platform-aware manner
+#[tauri::command]
+pub async fn install_node(app: AppHandle) -> Result<String, String> {
+    log::info!("Installing Node.js");
+
+    #[cfg(target_os = "windows")]
+    {
+        open::that("https://nodejs.org/en/download/")
+            .map_err(|e| format!("Failed to open browser: {}", e))?;
+        Ok("Opened Node.js download page in browser. Please install Node.js and restart RuneCode.".to_string())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut child = tokio::process::Command::new("sh")
+            .arg("-c")
+            .arg(r#"curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm install 22"#)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start install: {}", e))?;
+
+        let mut output_lines = Vec::new();
+
+        if let Some(stdout) = child.stdout.take() {
+            let reader = tokio::io::BufReader::new(stdout);
+            let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+                output_lines.push(line);
+            }
+        }
+
+        if let Some(stderr) = child.stderr.take() {
+            let reader = tokio::io::BufReader::new(stderr);
+            let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+                output_lines.push(line);
+            }
+        }
+
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| format!("Failed to wait for install: {}", e))?;
+
+        if status.success() {
+            Ok(output_lines.join("\n"))
+        } else {
+            Err(format!("Node.js installation failed with exit code: {:?}", status.code()))
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut child = tokio::process::Command::new("sh")
+            .arg("-c")
+            .arg("curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start install: {}", e))?;
+
+        let mut output_lines = Vec::new();
+
+        if let Some(stdout) = child.stdout.take() {
+            let reader = tokio::io::BufReader::new(stdout);
+            let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+                output_lines.push(line);
+            }
+        }
+
+        if let Some(stderr) = child.stderr.take() {
+            let reader = tokio::io::BufReader::new(stderr);
+            let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+                output_lines.push(line);
+            }
+        }
+
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| format!("Failed to wait for install: {}", e))?;
+
+        if status.success() {
+            Ok(output_lines.join("\n"))
+        } else {
+            Err(format!("Node.js installation failed with exit code: {:?}", status.code()))
+        }
+    }
+}
+
+/// Installs Claude Code globally via npm
+#[tauri::command]
+pub async fn install_claude_code(app: AppHandle) -> Result<String, String> {
+    log::info!("Installing Claude Code via npm");
+
+    let npm_bin = if cfg!(target_os = "windows") {
+        "npm.cmd"
+    } else {
+        "npm"
+    };
+
+    let mut child = tokio::process::Command::new(npm_bin)
+        .args(["install", "-g", "@anthropic-ai/claude-code"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start npm install: {}", e))?;
+
+    let mut output_lines = Vec::new();
+
+    if let Some(stdout) = child.stdout.take() {
+        let reader = tokio::io::BufReader::new(stdout);
+        let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+            output_lines.push(line);
+        }
+    }
+
+    if let Some(stderr) = child.stderr.take() {
+        let reader = tokio::io::BufReader::new(stderr);
+        let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+            output_lines.push(line);
+        }
+    }
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for npm install: {}", e))?;
+
+    if status.success() {
+        Ok(output_lines.join("\n"))
+    } else {
+        Err(format!("Claude Code installation failed with exit code: {:?}", status.code()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
