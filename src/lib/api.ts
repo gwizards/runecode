@@ -949,12 +949,6 @@ export const api = {
     permissionMode?: string,
     agentConfig?: {
       teamsEnabled?: boolean;
-      subAgentDefaultModel?: string;
-      subAgentDefaultPermissionMode?: string;
-      subAgentProgressSummaries?: boolean;
-      subAgentMaxTurns?: number;
-      teamMaxConcurrent?: number;
-      teamDefaultModel?: string;
       environment?: {
         type: string;
         sshHost?: string;

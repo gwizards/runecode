@@ -47,6 +47,9 @@ export function EnvironmentSettings({
             <p className="text-sm text-muted-foreground mt-1">
               Environment variables applied to every Claude Code session
             </p>
+            <p className="text-[11px] text-emerald-400/60 mt-1">
+              Saved to <code className="font-mono bg-muted px-1 py-0.5 rounded text-[10px]">~/.claude/settings.json</code> — applies to both Terminal and Web mode.
+            </p>
           </div>
           <Button
             variant="outline"

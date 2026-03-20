@@ -22,7 +22,6 @@ import { api, type FileEntry, type SlashCommand } from "@/lib/api";
 import { ConfigPill } from '@/components/ConfigPill';
 import { ConfigPanel } from '@/components/ConfigPanel';
 import { useSessionConfig, type ModelId, type ThinkingMode, type PermissionMode } from '@/hooks/useSessionConfig';
-import { useAiAutocomplete } from '@/hooks/useAiAutocomplete';
 import type { RemoteEnvironment } from '@/components/settings/EnvironmentsSettings';
 
 // Read the selected environment atomically from localStorage
@@ -106,10 +105,6 @@ interface FloatingPromptInputProps {
    * Callback to copy conversation as JSONL
    */
   onCopyJsonl?: () => void;
-  /**
-   * Recent conversation context for AI autocomplete (last few messages)
-   */
-  conversationContext?: string;
 }
 
 export interface FloatingPromptInputRef {
@@ -140,7 +135,6 @@ const FloatingPromptInputInner = (
     onCancel,
     onCopyMarkdown: _onCopyMarkdown,
     onCopyJsonl: _onCopyJsonl,
-    conversationContext,
   }: FloatingPromptInputProps,
   ref: React.Ref<FloatingPromptInputRef>,
 ) => {
@@ -174,21 +168,6 @@ const FloatingPromptInputInner = (
   const [embeddedImages, setEmbeddedImages] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-
-  // Available commands context for autocomplete when typing /
-  const commandsContext = React.useMemo(() =>
-    '/help /clear /compact /review /init /config /cost /doctor /memory /model /permissions /status /undo /pr-comments /bug /login /logout /fast /think /listen /vim /terminal-setup',
-    []
-  );
-
-  // AI autocomplete ghost text
-  const autocomplete = useAiAutocomplete({
-    text: prompt,
-    cursorPos: cursorPosition,
-    projectPath,
-    conversationContext,
-    availableCommands: commandsContext,
-  });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const expandedTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -430,6 +409,21 @@ const FloatingPromptInputInner = (
     };
     window.addEventListener('runecode:focus-prompt', handler);
     return () => window.removeEventListener('runecode:focus-prompt', handler);
+  }, [isExpanded]);
+
+  // Listen for insert-to-conversation events (e.g. from Browser DevTools)
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.text) {
+        setPrompt(prev => prev ? prev + '\n' + e.detail.text : e.detail.text);
+        requestAnimationFrame(() => {
+          const target = isExpanded ? expandedTextareaRef.current : textareaRef.current;
+          target?.focus();
+        });
+      }
+    };
+    window.addEventListener('runecode:insert-to-conversation', handler as EventListener);
+    return () => window.removeEventListener('runecode:insert-to-conversation', handler as EventListener);
   }, [isExpanded]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -688,26 +682,6 @@ const FloatingPromptInputInner = (
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Tab accepts ghost text autocomplete
-    if (e.key === 'Tab' && !e.shiftKey && !showFilePicker && !showSlashCommandPicker && autocomplete.ghostText) {
-      e.preventDefault();
-      const accepted = autocomplete.acceptGhostText();
-      if (accepted) {
-        const before = prompt.slice(0, cursorPosition);
-        const after = prompt.slice(cursorPosition);
-        const newText = before + accepted + after;
-        setPrompt(newText);
-        const newPos = cursorPosition + accepted.length;
-        setCursorPosition(newPos);
-        // Move cursor in textarea
-        requestAnimationFrame(() => {
-          const ta = textareaRef.current;
-          if (ta) { ta.selectionStart = ta.selectionEnd = newPos; }
-        });
-      }
-      return;
-    }
-
     if (showFilePicker && e.key === 'Escape') {
       e.preventDefault();
       setShowFilePicker(false);
@@ -987,23 +961,6 @@ const FloatingPromptInputInner = (
             <div className="flex items-center gap-2">
               {/* Input area — takes most space */}
               <div className="flex-1 relative">
-                {/* Ghost text overlay for AI autocomplete */}
-                {autocomplete.ghostText && (
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 pl-3 pr-12 py-2.5 pointer-events-none overflow-hidden whitespace-pre-wrap break-words text-sm leading-[1.5]"
-                    style={{ fontFamily: 'inherit', zIndex: 1 }}
-                  >
-                    <span className="invisible">{prompt.slice(0, cursorPosition)}</span>
-                    <span className="text-muted-foreground/40">{autocomplete.ghostText}</span>
-                  </div>
-                )}
-                {/* Loading indicator for autocomplete */}
-                {autocomplete.isLoading && !autocomplete.ghostText && autocomplete.enabled && prompt.trim().length >= 5 && (
-                  <div className="absolute right-14 top-1/2 -translate-y-1/2 z-[3] pointer-events-none">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" />
-                  </div>
-                )}
                 <Textarea
                   ref={textareaRef}
                   value={prompt}
@@ -1026,7 +983,6 @@ const FloatingPromptInputInner = (
                   style={{
                     height: `${textareaHeight}px`,
                     overflowY: textareaHeight >= 240 ? 'auto' : 'hidden',
-                    ...(autocomplete.ghostText ? { backgroundColor: 'transparent' } : {}),
                   }}
                 />
 

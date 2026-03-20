@@ -73,7 +73,8 @@ function AppContent() {
   const { activeTab, createSettingsTab: _createSettingsTab, createUsageTab: _createUsageTab, createAgentsTab: _createAgentsTab } = useTabState();
 
   // Wire sidebar to active tab's project path
-  const projectPath = activeTab?.projectPath || activeTab?.initialProjectPath || '';
+  // Use initialProjectPath (real project) for sidebar context, not projectPath (grid group key)
+  const projectPath = activeTab?.initialProjectPath || activeTab?.projectPath || '';
 
   // Listen for agent lifecycle events
   useAgentLifecycle();
@@ -186,8 +187,10 @@ function AppContent() {
             }
             break;
           default:
-            // Ctrl/Cmd + 1-9: switch to tab by index
+            // Ctrl/Cmd + 1-9: switch to tab by index (skip in grid mode — TabContent handles it)
             if (e.key >= '1' && e.key <= '9') {
+              const gridMode = localStorage.getItem('runecode-layout-mode');
+              if (gridMode === 'grid') break; // Grid mode has its own handler
               e.preventDefault();
               const index = parseInt(e.key) - 1;
               window.dispatchEvent(new CustomEvent('switch-to-tab-by-index', { detail: { index } }));

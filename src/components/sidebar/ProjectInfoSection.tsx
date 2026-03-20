@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
 import { Code2, ExternalLink, GitBranch, FileText } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 interface ProjectInfo {
   name: string;
@@ -19,51 +19,33 @@ interface ProjectInfoSectionProps {
 }
 
 export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
-  const [info, setInfo] = useState<ProjectInfo | null>(null);
-  const [error, setError] = useState(false);
+  const { data: info } = useQuery<ProjectInfo | null>({
+    queryKey: ['project-info', projectPath],
+    queryFn: async () => {
+      if (!projectPath) return null;
+      const res = await fetch(`/api/project-info?path=${encodeURIComponent(projectPath)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        name: data.name || "",
+        description: data.description,
+        techStack: data.techStack || data.tech_stack || [],
+        repoUrl: data.repoUrl || data.repo_url,
+        gitBranch: data.gitBranch || data.git_branch,
+        lastCommit: data.last_commit || data.lastCommit,
+        uncommittedCount: data.uncommitted_count ?? data.uncommittedCount,
+        hasClaudeMd: data.has_claude_md ?? data.hasClaudeMd,
+        fileCount: data.file_count ?? data.fileCount,
+        diskUsageMb: data.disk_usage_mb ?? data.diskUsageMb,
+      };
+    },
+    enabled: !!projectPath,
+    staleTime: 30000,       // Reuse cached data for 30s — project info doesn't change often
+    refetchInterval: 60000, // Refresh every 60s in background
+    placeholderData: (prev: any) => prev, // Keep previous project's data while loading
+  });
 
-  useEffect(() => {
-    if (!projectPath) {
-      setError(true);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function fetchInfo() {
-      try {
-        const res = await fetch(
-          `/api/project-info?path=${encodeURIComponent(projectPath)}`
-        );
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
-        if (!cancelled) {
-          setInfo({
-            name: data.name || "",
-            description: data.description,
-            techStack: data.techStack || data.tech_stack || [],
-            repoUrl: data.repoUrl || data.repo_url,
-            gitBranch: data.gitBranch || data.git_branch,
-            lastCommit: data.last_commit || data.lastCommit,
-            uncommittedCount: data.uncommitted_count ?? data.uncommittedCount,
-            hasClaudeMd: data.has_claude_md ?? data.hasClaudeMd,
-            fileCount: data.file_count ?? data.fileCount,
-            diskUsageMb: data.disk_usage_mb ?? data.diskUsageMb,
-          });
-          setError(false);
-        }
-      } catch {
-        if (!cancelled) setError(true);
-      }
-    }
-
-    fetchInfo();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath]);
-
-  if (error || !info) return null;
+  if (!info) return null;
 
   return (
     <div className="px-4 py-2 space-y-1.5">

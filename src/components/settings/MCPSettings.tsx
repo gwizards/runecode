@@ -11,13 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-interface MCPSettingsProps {
-  projectPath?: string;
-}
-
 type ViewMode = 'list' | 'add' | 'browse';
 
-export function MCPSettings({ projectPath: _projectPath }: MCPSettingsProps) {
+export function MCPSettings() {
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,16 +155,23 @@ export function MCPSettings({ projectPath: _projectPath }: MCPSettingsProps) {
 
       {/* Content area */}
       {viewMode === 'list' && (
-        <ServerList
-          servers={servers}
-          loading={loading}
-          expandedServer={expandedServer}
-          onToggleExpand={(name) => setExpandedServer(expandedServer === name ? null : name)}
-          onRemove={handleRemove}
-          onTest={handleTest}
-          onImportClaudeDesktop={handleImportClaudeDesktop}
-          liveStatus={liveStatus}
-        />
+        <>
+          <RecommendedServers
+            installedNames={new Set(servers.map(s => s.name))}
+            onInstalled={() => { loadServers(); loadLiveStatus(); }}
+            setToast={setToast}
+          />
+          <ServerList
+            servers={servers}
+            loading={loading}
+            expandedServer={expandedServer}
+            onToggleExpand={(name) => setExpandedServer(expandedServer === name ? null : name)}
+            onRemove={handleRemove}
+            onTest={handleTest}
+            onImportClaudeDesktop={handleImportClaudeDesktop}
+            liveStatus={liveStatus}
+          />
+        </>
       )}
 
       {viewMode === 'add' && (
@@ -181,6 +184,7 @@ export function MCPSettings({ projectPath: _projectPath }: MCPSettingsProps) {
 
       {viewMode === 'browse' && (
         <MCPDirectory
+          installedNames={new Set(servers.map(s => s.name))}
           onInstall={(name) => {
             loadServers();
             setViewMode('list');
@@ -206,6 +210,75 @@ export function MCPSettings({ projectPath: _projectPath }: MCPSettingsProps) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─── Recommended Servers (shown at top of My Servers) ─── */
+function RecommendedServers({ installedNames, onInstalled, setToast }: {
+  installedNames: Set<string>;
+  onInstalled: () => void;
+  setToast: (t: { message: string; type: 'success' | 'error' }) => void;
+}) {
+  const [installing, setInstalling] = useState<string | null>(null);
+  const recommended = POPULAR_MCP_SERVERS.filter(s => (s as any).recommended && !installedNames.has(s.name));
+
+  if (recommended.length === 0) return null;
+
+  const handleInstall = async (server: typeof POPULAR_MCP_SERVERS[0]) => {
+    try {
+      setInstalling(server.name);
+      const envObj = server.env || {};
+      await api.mcpAdd(server.name, 'stdio', server.command, server.args, envObj, undefined, 'user');
+      onInstalled();
+      setToast({ message: `Added "${server.name}"`, type: 'success' });
+    } catch {
+      setToast({ message: `Failed to add "${server.name}"`, type: 'error' });
+    } finally {
+      setInstalling(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2 mb-4">
+      <h3 className="text-[10px] uppercase tracking-wider font-semibold text-primary/50 px-1">
+        Recommended
+      </h3>
+      <div className="space-y-1">
+        {recommended.map(server => (
+          <div key={server.name} className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-primary/15 bg-primary/[0.02] hover:bg-primary/[0.05] transition-colors">
+            <Plug className="w-3.5 h-3.5 text-primary/50 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium">{server.name}</span>
+                {(server as any).tokens && (
+                  <span className="text-[8px] text-cyan-400/40 font-mono">{(server as any).tokens}</span>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground/50 truncate">{server.description}</p>
+            </div>
+            {server.env && Object.keys(server.env).length > 0 && (
+              <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400/50 flex-shrink-0">API key</span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleInstall(server)}
+              disabled={installing === server.name}
+              className="text-[10px] h-6 px-2 shrink-0"
+            >
+              {installing === server.name ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <Plus className="h-3 w-3 mr-0.5" />
+                  Add
+                </>
+              )}
+            </Button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -662,114 +735,129 @@ function AddServerForm({ onAdded, onCancel, setToast }: {
 
 /* ─── MCP Directory (Popular servers) ─── */
 const POPULAR_MCP_SERVERS = [
-  {
-    name: 'filesystem',
-    description: 'Read, write, and manage files on the local filesystem',
-    package: '@modelcontextprotocol/server-filesystem',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/dir'],
-    category: 'Files',
-  },
+  // ── Recommended ──
   {
     name: 'github',
-    description: 'Interact with GitHub repositories, issues, PRs, and more',
+    description: 'GitHub integration — repos, issues, PRs, code search, actions. Essential for any project on GitHub.',
     package: '@modelcontextprotocol/server-github',
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-github'],
     env: { GITHUB_PERSONAL_ACCESS_TOKEN: '' },
-    category: 'Dev Tools',
+    category: 'Recommended',
+    tokens: '~500 per tool call',
+    recommended: true,
   },
   {
+    name: 'jcodemunch',
+    description: 'Code intelligence — symbol search, dependency graphs, blast radius analysis, class hierarchy. Deep codebase understanding without reading every file.',
+    package: 'jcodemunch-mcp (uvx)',
+    command: 'uvx',
+    args: ['jcodemunch-mcp'],
+    category: 'Recommended',
+    tokens: '~200-800 per query (indexed, very efficient)',
+    recommended: true,
+  },
+  {
+    name: 'context7',
+    description: 'Up-to-date documentation for any library. Pulls latest docs so Claude never uses outdated APIs. Dramatically reduces hallucinated function calls.',
+    package: '@upstash/context7-mcp',
+    command: 'npx',
+    args: ['-y', '@upstash/context7-mcp'],
+    category: 'Recommended',
+    tokens: '~1000-3000 per doc lookup (returns relevant sections)',
+    recommended: true,
+  },
+  {
+    name: 'memory',
+    description: 'Persistent knowledge graph — Claude remembers facts, decisions, and context across sessions. Builds a project knowledge base over time.',
+    package: '@modelcontextprotocol/server-memory',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-memory'],
+    category: 'Recommended',
+    tokens: '~100-500 per read/write (lightweight)',
+    recommended: true,
+  },
+  // ── Code Analysis ──
+  {
+    name: 'sequential-thinking',
+    description: 'Step-by-step reasoning — forces Claude to think through complex problems methodically before acting.',
+    package: '@modelcontextprotocol/server-sequential-thinking',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+    category: 'Code Analysis',
+    tokens: '~200-400 per step (minimal overhead)',
+  },
+  // ── Databases ──
+  {
     name: 'postgres',
-    description: 'Query and manage PostgreSQL databases',
+    description: 'Query and manage PostgreSQL — schema inspection, SQL execution, data analysis.',
     package: '@modelcontextprotocol/server-postgres',
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-postgres', 'postgresql://localhost/mydb'],
     category: 'Databases',
+    tokens: '~200-2000 per query (depends on result size)',
   },
-  {
-    name: 'sqlite',
-    description: 'Read and query SQLite databases',
-    package: '@modelcontextprotocol/server-sqlite',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-sqlite', '/path/to/db.sqlite'],
-    category: 'Databases',
-  },
+  // ── Web & Search ──
   {
     name: 'brave-search',
-    description: 'Web search via Brave Search API',
+    description: 'Web search via Brave API — Claude can search the internet for current information, docs, and solutions.',
     package: '@modelcontextprotocol/server-brave-search',
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-brave-search'],
     env: { BRAVE_API_KEY: '' },
-    category: 'Search',
+    category: 'Web & Search',
+    tokens: '~500-1500 per search (results summary)',
   },
   {
     name: 'puppeteer',
-    description: 'Browser automation -- navigate, screenshot, interact with web pages',
+    description: 'Browser automation — navigate pages, take screenshots, fill forms, scrape content.',
     package: '@modelcontextprotocol/server-puppeteer',
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-puppeteer'],
-    category: 'Web',
+    category: 'Web & Search',
+    tokens: '~1000-5000 per action (screenshots are large)',
   },
+  // ── Communication ──
   {
     name: 'slack',
-    description: 'Send messages, read channels, manage Slack workspaces',
+    description: 'Slack integration — send messages, read channels, search conversations.',
     package: '@modelcontextprotocol/server-slack',
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-slack'],
     env: { SLACK_BOT_TOKEN: '', SLACK_TEAM_ID: '' },
     category: 'Communication',
+    tokens: '~300-1000 per message/search',
   },
+  // ── Infrastructure ──
   {
-    name: 'memory',
-    description: 'Persistent knowledge graph memory for Claude',
-    package: '@modelcontextprotocol/server-memory',
+    name: 'filesystem',
+    description: 'Sandboxed file access — read, write, search files in a specific directory. Useful for restricting Claude to a sandbox.',
+    package: '@modelcontextprotocol/server-filesystem',
     command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-memory'],
-    category: 'Memory',
-  },
-  {
-    name: 'fetch',
-    description: 'Fetch and extract content from URLs',
-    package: '@modelcontextprotocol/server-fetch',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-fetch'],
-    category: 'Web',
-  },
-  {
-    name: 'sequential-thinking',
-    description: 'Step-by-step reasoning and analysis tool',
-    package: '@modelcontextprotocol/server-sequential-thinking',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
-    category: 'Reasoning',
-  },
-  {
-    name: 'everything',
-    description: 'Demo server with all MCP features -- tools, resources, prompts',
-    package: '@modelcontextprotocol/server-everything',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-everything'],
-    category: 'Demo',
+    args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/dir'],
+    category: 'Infrastructure',
+    tokens: '~100-2000 per operation (file-size dependent)',
   },
   {
     name: 'google-maps',
-    description: 'Geocoding, directions, and place search via Google Maps',
+    description: 'Geocoding, directions, and place search via Google Maps API.',
     package: '@modelcontextprotocol/server-google-maps',
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-google-maps'],
     env: { GOOGLE_MAPS_API_KEY: '' },
-    category: 'Maps',
+    category: 'Infrastructure',
+    tokens: '~300-800 per query',
   },
 ];
 
-function MCPDirectory({ onInstall, setToast }: {
+function MCPDirectory({ installedNames, onInstall, setToast }: {
+  installedNames: Set<string>;
   onInstall: (name: string, config: any) => void;
   setToast: (t: { message: string; type: 'success' | 'error' }) => void;
 }) {
   const [search, setSearch] = useState('');
   const [installing, setInstalling] = useState<string | null>(null);
+  const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
 
   const filtered = POPULAR_MCP_SERVERS.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -782,6 +870,7 @@ function MCPDirectory({ onInstall, setToast }: {
       setInstalling(server.name);
       const envObj = server.env || {};
       await api.mcpAdd(server.name, 'stdio', server.command, server.args, envObj, undefined, 'user');
+      setJustAdded(prev => new Set([...prev, server.name]));
       onInstall(server.name, server);
     } catch {
       setToast({ message: `Failed to add "${server.name}"`, type: 'error' });
@@ -790,12 +879,18 @@ function MCPDirectory({ onInstall, setToast }: {
     }
   };
 
+  const isAdded = (name: string) => installedNames.has(name) || justAdded.has(name);
+
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-medium mb-1">MCP Server Directory</h3>
         <p className="text-[11px] text-muted-foreground/60">
-          Popular MCP servers from the official <code className="text-[10px] bg-muted px-1 rounded font-mono">@modelcontextprotocol</code> collection. One-click install.
+          Extend Claude's capabilities with MCP servers. Each server adds tools that Claude can use in terminal sessions.
+          Token estimates show approximate context usage per tool call — more tokens means more of your context window is used.
+        </p>
+        <p className="text-[10px] text-emerald-400/50 mt-1">
+          Saved to <code className="font-mono bg-muted px-0.5 rounded">~/.claude.json</code> — works in all Claude Code sessions.
         </p>
       </div>
 
@@ -813,35 +908,61 @@ function MCPDirectory({ onInstall, setToast }: {
       {/* Server cards */}
       <div className="space-y-1.5">
         {filtered.map(server => (
-          <div key={server.name} className="flex items-start gap-3 p-3 rounded-lg border border-border/20 bg-muted/5 hover:bg-muted/10 transition-colors">
-            <Terminal className="h-4 w-4 text-amber-400/50 mt-0.5 flex-shrink-0" />
+          <div key={server.name} className={cn(
+            "flex items-start gap-3 p-3 rounded-lg border transition-colors",
+            (server as any).recommended
+              ? "border-primary/20 bg-primary/[0.02] hover:bg-primary/[0.05]"
+              : "border-border/20 bg-muted/5 hover:bg-muted/10"
+          )}>
+            <Terminal className={cn("h-4 w-4 mt-0.5 flex-shrink-0", (server as any).recommended ? "text-primary/60" : "text-amber-400/50")} />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-medium">{server.name}</span>
+                {(server as any).recommended && (
+                  <span className="text-[8px] px-1 py-0.5 rounded bg-primary/15 text-primary font-semibold uppercase tracking-wider">Recommended</span>
+                )}
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted-foreground/10 text-muted-foreground/40">{server.category}</span>
               </div>
               <p className="text-[10px] text-muted-foreground/60 mt-0.5">{server.description}</p>
-              <p className="text-[9px] font-mono text-muted-foreground/30 mt-0.5">{server.package}</p>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <span className="text-[9px] font-mono text-muted-foreground/30">{server.package}</span>
+                {(server as any).tokens && (
+                  <span className="text-[9px] text-cyan-400/40" title="Estimated tokens per tool call">
+                    {(server as any).tokens}
+                  </span>
+                )}
+              </div>
               {server.env && Object.keys(server.env).length > 0 && (
                 <p className="text-[9px] text-amber-400/50 mt-0.5">Requires: {Object.keys(server.env).join(', ')}</p>
               )}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleInstall(server)}
-              disabled={installing === server.name}
-              className="text-[10px] h-7 px-2.5 shrink-0"
-            >
-              {installing === server.name ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <>
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add
-                </>
+              {(server as any).note && (
+                <a href={(server as any).note} target="_blank" rel="noopener noreferrer" className="text-[9px] text-primary/40 hover:text-primary/60 mt-0.5 inline-flex items-center gap-0.5">
+                  <ExternalLink className="h-2.5 w-2.5" /> More info
+                </a>
               )}
-            </Button>
+            </div>
+            {isAdded(server.name) ? (
+              <span className="text-[10px] px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400/70 border border-emerald-500/20 shrink-0">
+                Added
+              </span>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleInstall(server)}
+                disabled={installing === server.name}
+                className="text-[10px] h-7 px-2.5 shrink-0"
+              >
+                {installing === server.name ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         ))}
       </div>

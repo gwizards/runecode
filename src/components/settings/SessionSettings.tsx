@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { api } from '@/lib/api';
 import { useTrackEvent } from '@/hooks';
 import { TabPersistenceService } from '@/services/tabPersistence';
+import { SettingRow } from './shared';
 
 interface SessionSettingsProps {
   settings: any;
@@ -19,22 +18,21 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
     return localStorage.getItem('runecode-reduced-effects') === 'true';
   });
 
-
   // Tab persistence preference
   const [tabPersistenceEnabled, setTabPersistenceEnabled] = useState(() => {
     return TabPersistenceService.isEnabled();
   });
 
-  // Startup intro preference (API-backed)
-  const [startupIntroEnabled, setStartupIntroEnabled] = useState(true);
+  // Startup intro preference (localStorage-backed)
+  const [startupIntroEnabled, setStartupIntroEnabled] = useState(() => {
+    const stored = localStorage.getItem('runecode-startup-intro-enabled');
+    return stored === null ? true : stored === 'true';
+  });
 
-  // Load startup intro setting from API on mount
-  useEffect(() => {
-    (async () => {
-      const pref = await api.getSetting('startup_intro_enabled');
-      setStartupIntroEnabled(pref === null ? true : pref === 'true');
-    })();
-  }, []);
+  // Terminal links open in browser panel (default: on)
+  const [terminalLinksInBrowser, setTerminalLinksInBrowser] = useState(() => {
+    return localStorage.getItem('runecode-terminal-links-in-browser') !== 'false';
+  });
 
   // Apply reduced effects class on mount
   useEffect(() => {
@@ -50,9 +48,10 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         <p className="text-sm text-muted-foreground mb-4">Configure session behavior and preferences</p>
       </div>
 
-      {/* Include Co-Authored-By */}
+      {/* ─── CLI settings (saved to ~/.claude/settings.json) ─── */}
+
       <SettingRow
-        label='Include "Co-Authored-By"'
+        label={<>Include "Co-Authored-By"</>}
         description="Add Claude attribution to git commits and pull requests"
       >
         <Switch
@@ -61,10 +60,9 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         />
       </SettingRow>
 
-      {/* Verbose Output */}
       <SettingRow
-        label="Verbose Output"
-        description="Show full bash and command outputs"
+        label={<>Verbose Output</>}
+        description="Show full bash and command outputs in Claude Code sessions"
       >
         <Switch
           checked={settings?.verbose === true}
@@ -72,9 +70,8 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         />
       </SettingRow>
 
-      {/* Chat Transcript Retention */}
       <SettingRow
-        label="Chat Transcript Retention (days)"
+        label={<>Chat Transcript Retention (days)</>}
         description="How long to retain chat transcripts locally (default: 30 days)"
       >
         <Input
@@ -90,9 +87,10 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         />
       </SettingRow>
 
-      {/* Tab Persistence */}
+      {/* ─── Web-only settings (localStorage) ─── */}
+
       <SettingRow
-        label="Remember Open Tabs"
+        label={<>Remember Open Tabs</>}
         description="Restore your tabs when you restart the app"
       >
         <Switch
@@ -105,28 +103,22 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         />
       </SettingRow>
 
-      {/* Startup Intro */}
       <SettingRow
-        label="Show Welcome Intro on Startup"
+        label={<>Show Welcome Intro on Startup</>}
         description="Display a brief welcome animation when the app launches"
       >
         <Switch
           checked={startupIntroEnabled}
-          onCheckedChange={async (v) => {
+          onCheckedChange={(v) => {
             setStartupIntroEnabled(v);
-            try {
-              await api.saveSetting('startup_intro_enabled', v ? 'true' : 'false');
-              trackEvent.settingsChanged('startup_intro_enabled', v);
-            } catch {
-              // Silently handle save failure
-            }
+            localStorage.setItem('runecode-startup-intro-enabled', String(v));
+            trackEvent.settingsChanged('startup_intro_enabled', v);
           }}
         />
       </SettingRow>
 
-      {/* Reduce Visual Effects */}
       <SettingRow
-        label="Reduce visual effects"
+        label={<>Reduce visual effects</>}
         description="Disable blur and glow effects for performance"
       >
         <Switch
@@ -139,25 +131,20 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
         />
       </SettingRow>
 
+      <SettingRow
+        label={<>Open terminal links in Browser panel</>}
+        description="Clicking URLs in the terminal opens them in the built-in browser instead of an external browser"
+      >
+        <Switch
+          checked={terminalLinksInBrowser}
+          onCheckedChange={(v) => {
+            localStorage.setItem('runecode-terminal-links-in-browser', String(v));
+            setTerminalLinksInBrowser(v);
+          }}
+        />
+      </SettingRow>
+
+
     </div>
   );
 }
-
-/** Reusable setting row component for consistent layout across settings sections */
-function SettingRow({ label, description, children }: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-border/20">
-      <div className="space-y-0.5">
-        <Label className="text-sm font-medium">{label}</Label>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-export { SettingRow };

@@ -61,8 +61,11 @@ export function PermissionsSettings({
       <div className="space-y-6">
         <div>
           <h3 className="text-heading-4 mb-2">Permission Rules</h3>
-          <p className="text-body-small text-muted-foreground mb-4">
+          <p className="text-body-small text-muted-foreground mb-2">
             Control which tools Claude Code can use without manual approval
+          </p>
+          <p className="text-[11px] text-emerald-400/60 mb-4">
+            Saved to <code className="font-mono bg-muted px-1 py-0.5 rounded text-[10px]">~/.claude/settings.json</code> — applies to both Terminal and Web mode sessions.
           </p>
         </div>
 

@@ -2,14 +2,24 @@ import {
   Palette, Settings2, Puzzle,
   Timer, Shield, Variable,
   Terminal,
-  Sparkles, Globe, Database, Wand2, Users, Bot, Cpu, Plug, Server, FolderOpen
+  Sparkles, Globe, Database, Plug, FolderOpen, Blocks
 } from 'lucide-react';
+
+type SettingsMode = 'both' | 'web';
+
+interface SettingsItem {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  mode?: SettingsMode; // 'web' = web mode only, 'both' or undefined = both modes
+}
 
 interface SettingsSection {
   id: string;
   label: string;
   icon: React.ElementType;
-  items: { id: string; label: string; icon: React.ElementType }[];
+  items: SettingsItem[];
+  mode?: SettingsMode;
 }
 
 const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -34,21 +44,10 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'General',
     icon: Settings2,
     items: [
-      { id: 'environments', label: 'Environments', icon: Server },
       { id: 'session', label: 'Session', icon: Timer },
-      { id: 'ai-autocomplete', label: 'AI Autocomplete', icon: Wand2 },
       { id: 'permissions', label: 'Permissions', icon: Shield },
       { id: 'environment', label: 'Environment', icon: Variable },
       { id: 'commands-hooks', label: 'Commands & Hooks', icon: Terminal },
-    ],
-  },
-  {
-    id: 'agents',
-    label: 'Agents & Teams',
-    icon: Bot,
-    items: [
-      { id: 'subagent-defaults', label: 'Sub-Agents', icon: Cpu },
-      { id: 'team-settings', label: 'Agent Teams', icon: Users },
     ],
   },
   {
@@ -57,6 +56,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Puzzle,
     items: [
       { id: 'partner-stack', label: 'Integrations', icon: Sparkles },
+      { id: 'plugins', label: 'Plugins', icon: Blocks },
       { id: 'mcp-servers', label: 'MCP Servers', icon: Plug },
       { id: 'network', label: 'Proxy & Network', icon: Globe },
       { id: 'storage', label: 'Storage', icon: Database },
@@ -68,6 +68,15 @@ interface SettingsLayoutProps {
   activeSection: string;
   onSectionChange: (sectionId: string) => void;
   children: React.ReactNode;
+}
+
+function ModeBadge({ mode }: { mode?: SettingsMode }) {
+  if (!mode || mode === 'both') return null;
+  return (
+    <span className="ml-auto px-1 py-0.5 rounded text-[8px] font-medium tracking-wide uppercase flex-shrink-0 bg-cyan-500/10 text-cyan-400/70 border border-cyan-500/15">
+      Web
+    </span>
+  );
 }
 
 export function SettingsLayout({ activeSection, onSectionChange, children }: SettingsLayoutProps) {
@@ -103,6 +112,7 @@ export function SettingsLayout({ activeSection, onSectionChange, children }: Set
                 >
                   <section.icon className="h-3.5 w-3.5" />
                   {section.label}
+                  <ModeBadge mode={item.mode || section.mode} />
                 </button>
               </div>
             );
@@ -119,6 +129,7 @@ export function SettingsLayout({ activeSection, onSectionChange, children }: Set
               >
                 <section.icon className="h-3.5 w-3.5" />
                 {section.label}
+                <ModeBadge mode={section.mode} />
               </button>
 
               {/* Sub-items */}
@@ -143,6 +154,8 @@ export function SettingsLayout({ activeSection, onSectionChange, children }: Set
                     >
                       <item.icon className="h-3.5 w-3.5" />
                       {item.label}
+                      {/* Only show item badge if group doesn't already have one */}
+                      {!section.mode && <ModeBadge mode={item.mode} />}
                     </button>
                   );
                 })}
@@ -177,5 +190,14 @@ export function getSectionGroup(sectionId: string): string {
   return '';
 }
 
+/** Returns 'web' if the section only applies to web mode, undefined otherwise */
+export function getSettingsMode(sectionId: string): SettingsMode | undefined {
+  for (const section of SETTINGS_SECTIONS) {
+    const item = section.items.find(i => i.id === sectionId);
+    if (item) return item.mode || section.mode;
+  }
+  return undefined;
+}
+
 export { SETTINGS_SECTIONS };
-export type { SettingsSection };
+export type { SettingsSection, SettingsMode };

@@ -17,11 +17,8 @@ import { EnvironmentSettings, type EnvironmentVariable } from "./settings/Enviro
 import { IntegrationsSettings } from "./settings/IntegrationsSettings";
 import { CommandsHooksSettings } from "./settings/CommandsHooksSettings";
 import { NetworkSettings } from "./settings/NetworkSettings";
-import { AiAutocompleteSettings } from "./settings/AiAutocompleteSettings";
-import { EnvironmentsSettings } from "./settings/EnvironmentsSettings";
-import { SubAgentSettings } from "./settings/SubAgentSettings";
-import { TeamSettings } from "./settings/TeamSettings";
 import { MCPSettings } from "./settings/MCPSettings";
+import { PluginsSettings } from "./settings/PluginsSettings";
 import { ProjectExplorer } from "./settings/ProjectExplorer";
 
 interface SettingsProps {
@@ -185,12 +182,8 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
         return <AppearanceSettings />;
 
       // General group
-      case 'environments':
-        return <EnvironmentsSettings />;
       case 'session':
         return <SessionSettings settings={settings} onSettingsChange={updateSetting} />;
-      case 'ai-autocomplete':
-        return <AiAutocompleteSettings />;
       case 'permissions':
         return (
           <PermissionsSettings
@@ -204,10 +197,6 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
         return <EnvironmentSettings envVars={envVars} onEnvVarsChange={setEnvVars} />;
 
       // Agents & Teams group
-      case 'subagent-defaults':
-        return <SubAgentSettings />;
-      case 'team-settings':
-        return <TeamSettings />;
 
       case 'commands-hooks':
         return (
@@ -222,13 +211,13 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
       // Integrations group
       case 'partner-stack':
         return <IntegrationsSettings />;
+      case 'plugins':
+        return <PluginsSettings />;
       case 'mcp-servers':
         return <MCPSettings />;
       case 'network':
         return (
           <NetworkSettings
-            settings={settings}
-            onSettingsChange={updateSetting}
             setToast={setToast}
             onProxyChange={(hasChanges, _getSettings, save) => {
               setProxySettingsChanged(hasChanges);
