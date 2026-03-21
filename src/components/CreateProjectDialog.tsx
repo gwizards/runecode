@@ -44,6 +44,23 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
     try {
       // Initialize the project via backend
       await api.initializeProject(projectPath, name);
+
+      // Fire-and-forget RuFlo init (non-blocking)
+      void (async () => {
+        try {
+          const rufloStatus = await api.checkRufloInstalled();
+          if (rufloStatus.installed) {
+            const autoInit = localStorage.getItem('runecode-ruflo-auto-init') !== 'false';
+            if (autoInit) {
+              await api.initRufloProject(projectPath);
+              await api.createRufloSlashCommand();
+            }
+          }
+        } catch (err) {
+          console.warn('[RuFlo] Background init skipped:', err);
+        }
+      })();
+
       onProjectCreated(projectPath, name);
       // Reset state
       setProjectPath('');
