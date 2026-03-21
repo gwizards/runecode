@@ -448,6 +448,33 @@ export interface ImportServerResult {
   error?: string;
 }
 
+export interface RuFloStatus {
+  installed: boolean;
+  version: string | null;
+  mcp_active: boolean;
+  slash_command_exists: boolean;
+}
+
+export interface RuFloProjectStatus {
+  initialized: boolean;
+  pending: number;
+  completed: number;
+  blocked: number;
+}
+
+export interface RuFloAgent {
+  id: string;
+  name: string;
+  agent_type: string;
+  status: string;
+}
+
+export interface RuFloSwarmStatus {
+  swarm_active: boolean;
+  agents: RuFloAgent[];
+  memory_entries: number;
+}
+
 /**
  * API client for interacting with the Rust backend
  */
@@ -1886,6 +1913,78 @@ export const api = {
       return await apiCall<string>("slash_command_delete", { commandId, projectPath });
     } catch (error) {
       console.error("Failed to delete slash command:", error);
+      throw error;
+    }
+  },
+
+  async checkRufloInstalled(): Promise<RuFloStatus> {
+    try {
+      return await apiCall<RuFloStatus>("check_ruflo_installed");
+    } catch (error) {
+      console.error("Failed to check RuFlo installation:", error);
+      throw error;
+    }
+  },
+
+  async installRuflo(): Promise<string> {
+    try {
+      return await apiCall<string>("install_ruflo");
+    } catch (error) {
+      console.error("Failed to install RuFlo:", error);
+      throw error;
+    }
+  },
+
+  async activateRufloMcp(): Promise<string> {
+    try {
+      return await apiCall<string>("activate_ruflo_mcp");
+    } catch (error) {
+      console.error("Failed to activate RuFlo MCP:", error);
+      throw error;
+    }
+  },
+
+  async deactivateRufloMcp(): Promise<string> {
+    try {
+      return await apiCall<string>("deactivate_ruflo_mcp");
+    } catch (error) {
+      console.error("Failed to deactivate RuFlo MCP:", error);
+      throw error;
+    }
+  },
+
+  async createRufloSlashCommand(): Promise<string> {
+    try {
+      return await apiCall<string>("create_ruflo_slash_command");
+    } catch (error) {
+      console.error("Failed to create RuFlo slash command:", error);
+      throw error;
+    }
+  },
+
+  async initRufloProject(path: string): Promise<string> {
+    try {
+      return await apiCall<string>("init_ruflo_project", { path });
+    } catch (error) {
+      console.error("Failed to initialize RuFlo project:", error);
+      throw error;
+    }
+  },
+
+  async getRufloProjectStatus(path: string): Promise<RuFloProjectStatus> {
+    try {
+      return await apiCall<RuFloProjectStatus>("get_ruflo_project_status", { path });
+    } catch (error) {
+      console.error("Failed to get RuFlo project status:", error);
+      throw error;
+    }
+  },
+
+  async getRufloSwarmStatus(): Promise<RuFloSwarmStatus> {
+    try {
+      return await apiCall<RuFloSwarmStatus>("get_ruflo_swarm_status");
+    } catch (error) {
+      console.error("Failed to get RuFlo swarm status:", error);
       throw error;
     }
   },
