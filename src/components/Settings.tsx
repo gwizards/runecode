@@ -20,6 +20,7 @@ import { NetworkSettings } from "./settings/NetworkSettings";
 import { MCPSettings } from "./settings/MCPSettings";
 import { PluginsSettings } from "./settings/PluginsSettings";
 import { ProjectExplorer } from "./settings/ProjectExplorer";
+import { RuFloSettings } from "./settings/RuFloSettings";
 
 interface SettingsProps {
   onBack: () => void;
@@ -227,6 +228,8 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
         );
       case 'storage':
         return <StorageTab />;
+      case 'ruflo':
+        return <RuFloSettings />;
 
       default:
         return <AppearanceSettings />;

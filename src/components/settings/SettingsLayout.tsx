@@ -2,7 +2,7 @@ import {
   Palette, Settings2, Puzzle,
   Timer, Shield, Variable,
   Terminal,
-  Sparkles, Globe, Database, Plug, FolderOpen, Blocks
+  Sparkles, Globe, Database, Plug, FolderOpen, Blocks, Zap
 } from 'lucide-react';
 
 type SettingsMode = 'both' | 'web';
@@ -60,6 +60,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
       { id: 'mcp-servers', label: 'MCP Servers', icon: Plug },
       { id: 'network', label: 'Proxy & Network', icon: Globe },
       { id: 'storage', label: 'Storage', icon: Database },
+      { id: 'ruflo', label: 'RuFlo', icon: Zap },
     ],
   },
 ];

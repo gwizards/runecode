@@ -7,6 +7,7 @@ import { ResourcesSection } from "../integrations/compute/ResourcesSection";
 import { DockerSection } from "../integrations/compute/DockerSection";
 import { ProjectStatsSection } from "../integrations/compute/ProjectStatsSection";
 import { GitHubActionsSection } from "./sidebar/GitHubActionsSection";
+import { RuFloSection } from "./sidebar/RuFloSection";
 // Affiliate referral integrations hidden for now
 // import { SecurityWarning } from "../integrations/security/SecurityWarning";
 // import { useEnvScanner } from "../integrations/security/useEnvScanner";
@@ -239,6 +240,11 @@ export function ProjectSidebar({
                   {/* ═══════ CI/CD ═══════ */}
                   <SectionErrorBoundary>
                     <GitHubActionsSection projectPath={projectPath} />
+                  </SectionErrorBoundary>
+
+                  <SectionDivider />
+                  <SectionErrorBoundary>
+                    <RuFloSection projectPath={projectPath} />
                   </SectionErrorBoundary>
 
                   <SectionErrorBoundary>

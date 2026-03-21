@@ -1,0 +1,172 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Zap } from 'lucide-react';
+import { api, type RuFloProjectStatus, type RuFloSwarmStatus, type RuFloAgent } from '@/lib/api';
+
+interface RuFloSectionProps {
+  projectPath: string;
+}
+
+const AGENT_EMOJI: Record<string, string> = {
+  coder: '🧠', reviewer: '🔍', tester: '🧪', planner: '📋',
+  researcher: '🔬', default: '🤖',
+};
+
+function agentEmoji(type: string) {
+  return AGENT_EMOJI[type] ?? AGENT_EMOJI.default;
+}
+
+function StatusDot({ active }: { active: boolean }) {
+  return (
+    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? 'bg-green-400' : 'bg-zinc-500'}`} />
+  );
+}
+
+export function RuFloSection({ projectPath }: RuFloSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [projectStatus, setProjectStatus] = useState<RuFloProjectStatus | null>(null);
+  const [swarmStatus, setSwarmStatus] = useState<RuFloSwarmStatus | null>(null);
+  const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchData = useCallback(async () => {
+    if (!projectPath) return;
+    try {
+      const [proj, swarm] = await Promise.all([
+        api.getRufloProjectStatus(projectPath),
+        api.getRufloSwarmStatus(),
+      ]);
+      setProjectStatus(proj);
+      setSwarmStatus(swarm);
+      setIsStale(false);
+    } catch {
+      setIsStale(true);
+    }
+  }, [projectPath]);
+
+  // Check install status once on mount
+  useEffect(() => {
+    api.checkRufloInstalled()
+      .then((s) => setIsInstalled(s.installed))
+      .catch(() => setIsInstalled(false));
+  }, []);
+
+  // Fetch + poll only when expanded
+  useEffect(() => {
+    if (!isExpanded) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    fetchData();
+    intervalRef.current = setInterval(fetchData, 15_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isExpanded, fetchData]);
+
+  const totalTasks = (projectStatus?.pending ?? 0) + (projectStatus?.completed ?? 0) + (projectStatus?.blocked ?? 0);
+  const agentCount = swarmStatus?.agents.length ?? 0;
+
+  if (isInstalled === false) {
+    return (
+      <div className="px-4 py-2">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-2">RuFlo</div>
+        <div className="text-xs text-muted-foreground/60 bg-white/5 rounded-lg px-3 py-2">
+          RuFlo not installed
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-1">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50 px-1 pb-1">RuFlo</div>
+
+      {/* Collapsible header */}
+      <button
+        onClick={() => setIsExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/8 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <StatusDot active={swarmStatus?.swarm_active ?? false} />
+          <span className="text-xs font-medium">
+            <Zap className="inline w-3 h-3 text-purple-400 mr-1" />
+            RuFlo
+          </span>
+          <span className="text-[10px] text-muted-foreground/50">
+            {agentCount} agent{agentCount !== 1 ? 's' : ''} · {totalTasks} task{totalTasks !== 1 ? 's' : ''}
+          </span>
+          {isStale && <span className="text-[9px] text-yellow-500/70">• stale</span>}
+        </div>
+        <span className="text-muted-foreground/40 text-[10px]">{isExpanded ? '▴' : '▾'}</span>
+      </button>
+
+      {/* Expanded body */}
+      {isExpanded && (
+        <div className="mt-2 flex flex-col gap-2">
+          {/* Stat grid */}
+          <div className="grid grid-cols-3 gap-1">
+            {[
+              { label: 'Pending', value: projectStatus?.pending ?? 0, color: 'text-yellow-400' },
+              { label: 'Done', value: projectStatus?.completed ?? 0, color: 'text-green-400' },
+              { label: 'Blocked', value: projectStatus?.blocked ?? 0, color: 'text-red-400' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="text-center bg-white/5 rounded-md py-1.5">
+                <div className={`text-sm font-semibold ${color}`}>{value}</div>
+                <div className="text-[9px] text-muted-foreground/50">{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Active agents */}
+          {(swarmStatus?.agents.length ?? 0) > 0 && (
+            <div className="flex flex-col gap-1">
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/40 px-1">Active Agents</div>
+              {swarmStatus!.agents.map((agent: RuFloAgent) => (
+                <div key={agent.id} className="flex items-center justify-between bg-white/5 rounded-lg px-2 py-1.5">
+                  <span className="text-xs">{agentEmoji(agent.agent_type)} {agent.name}</span>
+                  <span className={`text-[10px] ${agent.status === 'running' ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {agent.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Memory bar */}
+          {(swarmStatus?.memory_entries ?? 0) > 0 && (
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-[9px] text-muted-foreground/50 w-12 flex-shrink-0">Memory</span>
+              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500/60 rounded-full"
+                  style={{ width: `${Math.min(100, ((swarmStatus?.memory_entries ?? 0) / 100) * 100)}%` }}
+                />
+              </div>
+              <span className="text-[9px] text-purple-400/70">{swarmStatus?.memory_entries}</span>
+            </div>
+          )}
+
+          {/* Quick actions */}
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => api.initRufloProject(projectPath).catch(console.warn)}
+              className="flex-1 py-1 text-[10px] bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400 hover:bg-purple-500/20 transition-colors"
+            >
+              Run Init
+            </button>
+            <button
+              onClick={() => {
+                const logPath = `${projectPath}/logs/swarm_log.txt`;
+                window.dispatchEvent(new CustomEvent('runecode:open-file', { detail: { path: logPath } }));
+              }}
+              className="flex-1 py-1 text-[10px] bg-white/5 rounded-md text-muted-foreground/60 hover:bg-white/10 transition-colors"
+            >
+              View Log
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
