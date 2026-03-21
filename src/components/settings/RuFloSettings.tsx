@@ -24,18 +24,24 @@ export function RuFloSettings() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   // Swarm defaults from localStorage
   const [topology, setTopology] = useState(() => localStorage.getItem('runecode-ruflo-topology') ?? 'hierarchical');
-  const [maxAgents, setMaxAgents] = useState(() => parseInt(localStorage.getItem('runecode-ruflo-max-agents') ?? '8', 10));
+  const [maxAgents, setMaxAgents] = useState(() => {
+    const v = parseInt(localStorage.getItem('runecode-ruflo-max-agents') ?? '8', 10);
+    return isNaN(v) ? 8 : v;
+  });
   const [autoInit, setAutoInit] = useState(() => localStorage.getItem('runecode-ruflo-auto-init') !== 'false');
 
   const refresh = useCallback(async () => {
+    setRefreshError(null);
     try {
       const s = await api.checkRufloInstalled();
       setStatus(s);
-    } catch {
-      setStatus(null);
+    } catch (e) {
+      setRefreshError(String(e));
+      // keep stale status rather than resetting to null
     } finally {
       setLoading(false);
     }
@@ -76,6 +82,11 @@ export function RuFloSettings() {
           {error}
         </div>
       )}
+      {refreshError && (
+        <div className="text-sm text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
+          Status check failed: {refreshError}
+        </div>
+      )}
 
       {/* Card 1: Install Status */}
       <Card>
@@ -95,10 +106,11 @@ export function RuFloSettings() {
               <button
                 onClick={() => {
                   if (window.confirm('Uninstall RuFlo? This removes the global CLI.')) {
-                    runAction('uninstall', () => api.installRuflo());
+                    runAction('uninstall', () => api.uninstallRuflo());
                   }
                 }}
-                className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20 transition-colors"
+                disabled={actionLoading !== null}
+                className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20 transition-colors disabled:opacity-50"
               >
                 Uninstall
               </button>
@@ -180,7 +192,13 @@ export function RuFloSettings() {
               min={1}
               max={15}
               value={maxAgents}
-              onChange={(e) => { const v = parseInt(e.target.value, 10); setMaxAgents(v); localStorage.setItem('runecode-ruflo-max-agents', String(v)); }}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (!isNaN(v) && v >= 1 && v <= 15) {
+                  setMaxAgents(v);
+                  localStorage.setItem('runecode-ruflo-max-agents', String(v));
+                }
+              }}
               className="w-16 bg-black/40 border border-white/10 rounded text-xs text-white px-2 py-1 text-center focus:outline-none focus:border-purple-500/50"
             />
           </div>
@@ -188,6 +206,9 @@ export function RuFloSettings() {
             <span className="text-xs text-white/60">Auto-init on project create</span>
             <button
               onClick={() => { const next = !autoInit; setAutoInit(next); localStorage.setItem('runecode-ruflo-auto-init', String(next)); }}
+              role="switch"
+              aria-checked={autoInit}
+              aria-label="Auto-init on project create"
               className={`w-9 h-5 rounded-full transition-colors relative ${autoInit ? 'bg-purple-600' : 'bg-zinc-700'}`}
             >
               <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${autoInit ? 'translate-x-4' : 'translate-x-0.5'}`} />

@@ -27,6 +27,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
   const [swarmStatus, setSwarmStatus] = useState<RuFloSwarmStatus | null>(null);
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
   const [isStale, setIsStale] = useState(false);
+  const [isIniting, setIsIniting] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -67,6 +68,15 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
   const totalTasks = (projectStatus?.pending ?? 0) + (projectStatus?.completed ?? 0) + (projectStatus?.blocked ?? 0);
   const agentCount = swarmStatus?.agents.length ?? 0;
 
+  if (isInstalled === null) {
+    return (
+      <div className="px-4 py-2">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-2">RuFlo</div>
+        <div className="h-8 bg-white/5 rounded-lg animate-pulse" />
+      </div>
+    );
+  }
+
   if (isInstalled === false) {
     return (
       <div className="px-4 py-2">
@@ -85,6 +95,8 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
       {/* Collapsible header */}
       <button
         onClick={() => setIsExpanded((v) => !v)}
+        aria-expanded={isExpanded}
+        aria-label="Toggle RuFlo panel"
         className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/8 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
@@ -122,7 +134,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
           {(swarmStatus?.agents.length ?? 0) > 0 && (
             <div className="flex flex-col gap-1">
               <div className="text-[9px] uppercase tracking-wider text-muted-foreground/40 px-1">Active Agents</div>
-              {swarmStatus!.agents.map((agent: RuFloAgent) => (
+              {(swarmStatus?.agents ?? []).map((agent: RuFloAgent) => (
                 <div key={agent.id} className="flex items-center justify-between bg-white/5 rounded-lg px-2 py-1.5">
                   <span className="text-xs">{agentEmoji(agent.agent_type)} {agent.name}</span>
                   <span className={`text-[10px] ${agent.status === 'running' ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -150,15 +162,32 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
           {/* Quick actions */}
           <div className="flex gap-1.5">
             <button
-              onClick={() => api.initRufloProject(projectPath).catch(console.warn)}
-              className="flex-1 py-1 text-[10px] bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400 hover:bg-purple-500/20 transition-colors"
+              onClick={async () => {
+                setIsIniting(true);
+                try {
+                  await api.initRufloProject(projectPath);
+                  await fetchData();
+                } catch (e) {
+                  console.warn('RuFlo init failed:', e);
+                } finally {
+                  setIsIniting(false);
+                }
+              }}
+              disabled={isIniting}
+              className="flex-1 py-1 text-[10px] bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
             >
-              Run Init
+              {isIniting ? '...' : 'Run Init'}
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 const logPath = `${projectPath}/logs/swarm_log.txt`;
-                window.dispatchEvent(new CustomEvent('runecode:open-file', { detail: { path: logPath } }));
+                try {
+                  const { open } = await import('@tauri-apps/plugin-shell');
+                  await open(logPath);
+                } catch {
+                  // fallback: copy path to clipboard
+                  await navigator.clipboard.writeText(logPath).catch(() => {});
+                }
               }}
               className="flex-1 py-1 text-[10px] bg-white/5 rounded-md text-muted-foreground/60 hover:bg-white/10 transition-colors"
             >
