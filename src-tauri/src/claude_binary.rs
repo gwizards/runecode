@@ -655,6 +655,11 @@ pub fn create_command_with_env(program: &str) -> Command {
             || key == "HTTPS_PROXY"
             || key == "NO_PROXY"
             || key == "ALL_PROXY"
+            // Windows-specific paths (no-op on non-Windows)
+            || key == "USERPROFILE"
+            || key == "APPDATA"
+            || key == "LOCALAPPDATA"
+            || key == "SYSTEMROOT"
         {
             debug!("Inheriting env var: {}={}", key, value);
             cmd.env(&key, &value);
