@@ -28,7 +28,9 @@
       "assetProtocol": {
         "enable": true,
         "scope": [
-          "**"
+          "$APPDATA/**",
+          "$HOME/.claude/**",
+          "$HOME/Library/Application Support/com.runecode.app/**"
         ]
       }
     }
@@ -51,7 +53,7 @@
       ]
     },
     "shell": {
-      "open": true
+      "open": "^(https?://|file://)"
     }
   },
   "bundle": {
