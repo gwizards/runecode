@@ -46,6 +46,11 @@ use commands::storage::{
     storage_delete_row, storage_execute_sql, storage_insert_row, storage_list_tables,
     storage_read_table, storage_reset_database, storage_update_row,
 };
+use commands::ruflo::{
+    check_ruflo_installed, install_ruflo, activate_ruflo_mcp, deactivate_ruflo_mcp,
+    create_ruflo_slash_command, init_ruflo_project, get_ruflo_project_status,
+    get_ruflo_swarm_status,
+};
 use commands::usage::{
     get_session_stats, get_usage_by_date_range, get_usage_details, get_usage_stats,
 };
@@ -311,6 +316,15 @@ fn main() {
             initialize_project,
             // Helicone
             post_to_helicone,
+            // RuFlo
+            check_ruflo_installed,
+            install_ruflo,
+            activate_ruflo_mcp,
+            deactivate_ruflo_mcp,
+            create_ruflo_slash_command,
+            init_ruflo_project,
+            get_ruflo_project_status,
+            get_ruflo_swarm_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
