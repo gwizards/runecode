@@ -33,36 +33,46 @@ pub struct RuFloSwarmStatus {
 
 #[tauri::command]
 pub fn check_ruflo_installed() -> RuFloStatus {
-    // Check if claude-flow CLI is installed
-    let installed = crate::claude_binary::silent_command("npx")
-        .args(["--yes", "@claude-flow/cli@latest", "--version"])
+    // Single npx call: --no-install means "don't download if not cached"
+    // Use create_command_with_env to inherit PATH/NVM
+    let output = crate::claude_binary::create_command_with_env("npx")
+        .args(["--no-install", "@claude-flow/cli", "--version"])
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
+        .ok();
 
-    // Try to get version
+    let installed = output.as_ref().map(|o| o.status.success()).unwrap_or(false);
+
     let version = if installed {
-        crate::claude_binary::silent_command("npx")
-            .args(["@claude-flow/cli@latest", "--version"])
-            .output()
-            .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
+        output
+            .as_ref()
+            .and_then(|o| {
+                // Strip UTF-8 BOM if present, then trim
+                String::from_utf8_lossy(&o.stdout)
+                    .trim_start_matches('\u{FEFF}')
+                    .trim()
+                    .to_string()
+                    .into()
+            })
+            .filter(|s: &String| !s.is_empty())
     } else {
         None
     };
 
-    // Check if MCP is active: look for "claude-flow" in `claude mcp list`
-    let mcp_active = crate::claude_binary::silent_command("claude")
+    // Check if MCP is active — use create_command_with_env for PATH/NVM
+    let mcp_active = crate::claude_binary::create_command_with_env("claude")
         .args(["mcp", "list"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.contains("claude-flow"))
+        .map(|s| {
+            // Check for "claude-flow" as a standalone server name (not just substring)
+            s.lines().any(|line| {
+                let trimmed = line.trim();
+                trimmed == "claude-flow" || trimmed.starts_with("claude-flow ") || trimmed.starts_with("claude-flow\t")
+            })
+        })
         .unwrap_or(false);
 
-    // Check if slash command file exists
     let slash_command_exists = dirs::home_dir()
         .map(|h| h.join(".claude").join("commands").join("setup-ruflo.md").exists())
         .unwrap_or(false);
@@ -73,17 +83,34 @@ pub fn check_ruflo_installed() -> RuFloStatus {
 #[tauri::command]
 pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Emitter;
+    use std::io::BufRead;
 
-    let npm_bin = if cfg!(target_os = "windows") { "npm.cmd" } else { "npm" };
-    let mut child = crate::claude_binary::silent_command(npm_bin)
+    // Use npm directly — create_command_with_env inherits PATH which resolves npm on all platforms
+    let mut child = crate::claude_binary::create_command_with_env("npm")
         .args(["install", "-g", "@claude-flow/cli@latest"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("Failed to start npm: {e}"))?;
 
+    // Drain stderr in a separate thread to prevent deadlock
+    let stderr_handle = if let Some(stderr) = child.stderr.take() {
+        let app_clone = app.clone();
+        Some(std::thread::spawn(move || {
+            let reader = std::io::BufReader::new(stderr);
+            let mut lines_vec = Vec::new();
+            for line in reader.lines().flatten() {
+                let _ = app_clone.emit("ruflo-install-progress", format!("[err] {}", &line));
+                lines_vec.push(line);
+            }
+            lines_vec
+        }))
+    } else {
+        None
+    };
+
+    // Stream stdout progress
     if let Some(stdout) = child.stdout.take() {
-        use std::io::BufRead;
         let reader = std::io::BufReader::new(stdout);
         for line in reader.lines().flatten() {
             let _ = app.emit("ruflo-install-progress", &line);
@@ -91,8 +118,17 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
     }
 
     let status = child.wait().map_err(|e| format!("npm wait failed: {e}"))?;
+
+    // Collect stderr output for error messages
+    let stderr_output = stderr_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default()
+        .join("\n");
+
     if status.success() {
         Ok("RuFlo installed successfully".to_string())
+    } else if !stderr_output.is_empty() {
+        Err(format!("npm install failed: {}", stderr_output))
     } else {
         Err("npm install failed — check terminal output".to_string())
     }
@@ -100,7 +136,7 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn activate_ruflo_mcp() -> Result<String, String> {
-    let output = crate::claude_binary::silent_command("claude")
+    let output = crate::claude_binary::create_command_with_env("claude")
         .args(["mcp", "add", "claude-flow", "--", "npx", "-y", "@claude-flow/cli@latest"])
         .output()
         .map_err(|e| format!("Failed to run claude mcp add: {e}"))?;
@@ -115,7 +151,7 @@ pub async fn activate_ruflo_mcp() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn deactivate_ruflo_mcp() -> Result<String, String> {
-    let output = crate::claude_binary::silent_command("claude")
+    let output = crate::claude_binary::create_command_with_env("claude")
         .args(["mcp", "remove", "claude-flow"])
         .output()
         .map_err(|e| format!("Failed to run claude mcp remove: {e}"))?;
@@ -158,7 +194,7 @@ Format this document beautifully with clear headings, bullet points, and bold te
     std::fs::write(&path, content)
         .map_err(|e| format!("Failed to write setup-ruflo.md: {e}"))?;
 
-    Ok(format!("Created {:?}", path))
+    Ok(format!("Created {}", path.display()))
 }
 
 #[tauri::command]
@@ -166,7 +202,9 @@ pub fn get_ruflo_project_status(path: String) -> RuFloProjectStatus {
     let base = std::path::Path::new(&path);
     let tasks_dir = base.join("tasks");
 
-    let initialized = tasks_dir.exists();
+    let initialized = tasks_dir.join("pending").exists()
+        && tasks_dir.join("completed").exists()
+        && tasks_dir.join("blocked").exists();
 
     let count_md = |subdir: &str| -> usize {
         std::fs::read_dir(tasks_dir.join(subdir))
@@ -191,33 +229,52 @@ pub fn get_ruflo_project_status(path: String) -> RuFloProjectStatus {
 
 #[tauri::command]
 pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
-    // Try to get agent list as JSON
-    let agents_output = crate::claude_binary::silent_command("npx")
-        .args(["@claude-flow/cli@latest", "agent", "list", "--json"])
+    let agents_output = crate::claude_binary::create_command_with_env("npx")
+        .args(["@claude-flow/cli", "agent", "list", "--json"])
         .output()
         .ok();
 
-    let agents: Vec<RuFloAgent> = agents_output
-        .as_ref()
-        .and_then(|o| String::from_utf8(o.stdout.clone()).ok())
-        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-        .and_then(|v| v.as_array().cloned())
-        .unwrap_or_default()
-        .iter()
-        .map(|a| RuFloAgent {
-            id: a["id"].as_str().unwrap_or("").to_string(),
-            name: a["name"].as_str().unwrap_or("agent").to_string(),
-            agent_type: a["type"].as_str().unwrap_or("agent").to_string(),
-            status: a["status"].as_str().unwrap_or("idle").to_string(),
-        })
-        .collect();
+    let (agents, parse_error) = match agents_output.as_ref() {
+        Some(o) if o.status.success() => {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            match serde_json::from_str::<serde_json::Value>(stdout.trim()) {
+                Ok(v) => {
+                    let agents = v.as_array()
+                        .cloned()
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|a| RuFloAgent {
+                            id: a["id"].as_str().unwrap_or("").to_string(),
+                            name: a["name"].as_str().unwrap_or("agent").to_string(),
+                            agent_type: a["type"].as_str().unwrap_or("agent").to_string(),
+                            status: a["status"].as_str().unwrap_or("idle").to_string(),
+                        })
+                        .collect::<Vec<_>>();
+                    (agents, None)
+                }
+                Err(e) => {
+                    log::warn!("Failed to parse agent list JSON: {}", e);
+                    (vec![], Some(format!("parse error: {}", e)))
+                }
+            }
+        }
+        Some(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            log::warn!("agent list command failed: {}", stderr);
+            (vec![], Some(stderr.to_string()))
+        }
+        None => (vec![], Some("command not found".to_string())),
+    };
+
+    let _ = parse_error; // logged above; callers see empty agents
 
     let swarm_active = !agents.is_empty()
-        && agents.iter().any(|a| a.status == "running" || a.status == "waiting");
+        && agents.iter().any(|a| {
+            matches!(a.status.as_str(), "running" | "waiting" | "active" | "busy" | "initializing")
+        });
 
-    // Try to count memory entries
-    let memory_entries = crate::claude_binary::silent_command("npx")
-        .args(["@claude-flow/cli@latest", "memory", "list", "--json"])
+    let memory_entries = crate::claude_binary::create_command_with_env("npx")
+        .args(["@claude-flow/cli", "memory", "list", "--json"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -230,9 +287,17 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
 
 #[tauri::command]
 pub async fn init_ruflo_project(path: String) -> Result<String, String> {
-    let output = crate::claude_binary::silent_command("npx")
-        .args(["@claude-flow/cli@latest", "init"])
-        .current_dir(&path)
+    let project_path = std::path::Path::new(&path);
+    if !project_path.exists() {
+        return Err(format!("Project path does not exist: {}", project_path.display()));
+    }
+    if !project_path.is_dir() {
+        return Err(format!("Project path is not a directory: {}", project_path.display()));
+    }
+
+    let output = crate::claude_binary::create_command_with_env("npx")
+        .args(["@claude-flow/cli", "init"])
+        .current_dir(project_path)
         .output()
         .map_err(|e| format!("Failed to run ruflo init: {e}"))?;
 
@@ -241,5 +306,20 @@ pub async fn init_ruflo_project(path: String) -> Result<String, String> {
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         Err(format!("ruflo init failed: {stderr}"))
+    }
+}
+
+#[tauri::command]
+pub async fn uninstall_ruflo() -> Result<String, String> {
+    let output = crate::claude_binary::create_command_with_env("npm")
+        .args(["uninstall", "-g", "@claude-flow/cli"])
+        .output()
+        .map_err(|e| format!("Failed to run npm uninstall: {e}"))?;
+
+    if output.status.success() {
+        Ok("RuFlo uninstalled successfully".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("npm uninstall failed: {stderr}"))
     }
 }

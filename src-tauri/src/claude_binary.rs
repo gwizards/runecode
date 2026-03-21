@@ -660,6 +660,18 @@ pub fn create_command_with_env(program: &str) -> Command {
             || key == "APPDATA"
             || key == "LOCALAPPDATA"
             || key == "SYSTEMROOT"
+            // Additional Windows env vars needed for npm/npx/Node.js
+            || key == "COMSPEC"
+            || key == "TEMP"
+            || key == "TMP"
+            || key == "SystemDrive"
+            || key == "USERNAME"
+            || key == "PATHEXT"
+            // Lowercase proxy vars (Linux/macOS convention)
+            || key == "http_proxy"
+            || key == "https_proxy"
+            || key == "no_proxy"
+            || key == "all_proxy"
         {
             debug!("Inheriting env var: {}={}", key, value);
             cmd.env(&key, &value);

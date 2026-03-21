@@ -49,7 +49,7 @@ use commands::storage::{
 use commands::ruflo::{
     check_ruflo_installed, install_ruflo, activate_ruflo_mcp, deactivate_ruflo_mcp,
     create_ruflo_slash_command, init_ruflo_project, get_ruflo_project_status,
-    get_ruflo_swarm_status,
+    get_ruflo_swarm_status, uninstall_ruflo,
 };
 use commands::usage::{
     get_session_stats, get_usage_by_date_range, get_usage_details, get_usage_stats,
@@ -319,6 +319,7 @@ fn main() {
             // RuFlo
             check_ruflo_installed,
             install_ruflo,
+            uninstall_ruflo,
             activate_ruflo_mcp,
             deactivate_ruflo_mcp,
             create_ruflo_slash_command,
