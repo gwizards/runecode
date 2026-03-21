@@ -52,6 +52,17 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
       .catch(() => setIsInstalled(false));
   }, []);
 
+  // Re-check install status when Settings triggers a ruflo status change
+  useEffect(() => {
+    const handler = () => {
+      api.checkRufloInstalled()
+        .then((s) => setIsInstalled(s.installed))
+        .catch(() => setIsInstalled(false));
+    };
+    window.addEventListener('runecode:ruflo-status-changed', handler);
+    return () => window.removeEventListener('runecode:ruflo-status-changed', handler);
+  }, []);
+
   // Fetch + poll only when expanded
   useEffect(() => {
     if (!isExpanded) {

@@ -178,8 +178,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       await checkRuflo();
     } catch (err) {
       setRufloLines((prev) => [...prev, `✗ Error: ${String(err)}`]);
-      // Refresh actual install state so re-entry shows correct state
-      await checkRuflo();
+      // Re-check actual install state; if still not installed, show the failed state
+      try {
+        const s = await api.checkRufloInstalled();
+        if (s.installed) {
+          setStatus(4, 'passed');
+        } else {
+          setStatus(4, 'failed');
+        }
+      } catch {
+        setStatus(4, 'failed');
+      }
     } finally {
       unlisten?.();
       setRufloInstalling(false);

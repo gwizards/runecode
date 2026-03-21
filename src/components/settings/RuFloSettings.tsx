@@ -39,6 +39,7 @@ export function RuFloSettings() {
     try {
       const s = await api.checkRufloInstalled();
       setStatus(s);
+      window.dispatchEvent(new CustomEvent('runecode:ruflo-status-changed'));
     } catch (e) {
       setRefreshError(String(e));
       // keep stale status rather than resetting to null
