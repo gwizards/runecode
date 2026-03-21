@@ -17,7 +17,7 @@ import { useSessionConfig } from '@/hooks/useSessionConfig';
 import { ConsentManager } from '@/lib/analytics/consent';
 import type { PermissionMode } from '@/hooks/useSessionConfig';
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 9;
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -33,6 +33,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<'dark' | 'light' | 'system'>('dark');
   const [selectedPermission, setSelectedPermission] = useState<PermissionMode>('default');
+  const [rufloStatus, setRufloStatus] = useState<import('@/lib/api').RuFloStatus | null>(null);
+  const [rufloInstalling, setRufloInstalling] = useState(false);
+  const [rufloLines, setRufloLines] = useState<string[]>([]);
 
   const { setPermissionMode } = useSessionConfig();
 
@@ -61,6 +64,23 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       mounted = false;
       unlisten?.();
     };
+  }, []);
+
+  // Listen for ruflo-install-progress events
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const fn = await listen<string>('ruflo-install-progress', (event) => {
+          if (!mounted) return;
+          setRufloLines((prev) => [...prev, event.payload]);
+        });
+        unlisten = fn;
+      } catch { /* web mode */ }
+    })();
+    return () => { mounted = false; unlisten?.(); };
   }, []);
 
   // Fetch home directory for default project path
@@ -133,6 +153,41 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       checkClaude(3);
     }
   }, [currentStep, statuses, checkClaude]);
+
+  const checkRuflo = useCallback(async () => {
+    try {
+      const result = await api.checkRufloInstalled();
+      setRufloStatus(result);
+      if (result.installed) setStatus(4, 'passed');
+    } catch {
+      setRufloStatus({ installed: false, version: null, mcp_active: false, slash_command_exists: false });
+    }
+  }, [setStatus]);
+
+  useEffect(() => {
+    if (currentStep === 4 && !statuses[4]) {
+      checkRuflo();
+    }
+  }, [currentStep, statuses, checkRuflo]);
+
+  const handleInstallRuflo = async () => {
+    setRufloInstalling(true);
+    setRufloLines([]);
+    try {
+      await api.installRuflo();
+      setRufloLines((prev) => [...prev, '✓ CLI installed']);
+      await api.activateRufloMcp();
+      setRufloLines((prev) => [...prev, '✓ MCP server activated in Claude Code']);
+      await api.createRufloSlashCommand();
+      setRufloLines((prev) => [...prev, '✓ /setup-ruflo slash command created']);
+      await checkRuflo();
+    } catch (err) {
+      setRufloLines((prev) => [...prev, `✗ Error: ${String(err)}`]);
+      setStatus(4, 'failed');
+    } finally {
+      setRufloInstalling(false);
+    }
+  };
 
   const handleInstallNode = async () => {
     const confirmed = window.confirm(
@@ -333,19 +388,80 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           </StepCard>
         );
 
-      // Step 4: Default Project Directory
+      // Step 4: RuFlo — AI Swarm Manager
       case 4:
         return (
           <StepCard
             key="step-4"
             step={4}
             totalSteps={TOTAL_STEPS}
+            title="RuFlo — AI Swarm Manager"
+            description="Supercharge your projects with autonomous AI agents and hierarchical swarms."
+            icon={Sparkles}
+            status={statuses[4] ?? 'pending'}
+            onNext={nextStep}
+            nextDisabled={statuses[4] !== 'passed'}
+            onSkip={() => {
+              localStorage.setItem('runecode-ruflo-skipped', 'true');
+              skipStep();
+            }}
+            canSkip
+          >
+            {rufloStatus?.installed ? (
+              <div className="text-sm text-green-400">
+                RuFlo {rufloStatus.version} already installed ✓
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <ul className="flex flex-col gap-2">
+                  {[
+                    'Hierarchical swarms with 15+ agent types',
+                    'Autonomous task execution pipeline',
+                    'Claude Code MCP integration — activated automatically',
+                    '/setup-ruflo slash command available in all projects',
+                  ].map((item) => (
+                    <li key={item} className="flex gap-2 text-sm text-white/70">
+                      <span className="text-purple-400">✦</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                {statuses[4] !== 'failed' && (
+                  <button
+                    onClick={handleInstallRuflo}
+                    disabled={rufloInstalling}
+                    className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {rufloInstalling ? 'Installing...' : 'Install RuFlo'}
+                  </button>
+                )}
+                {statuses[4] === 'failed' && (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm text-red-400">Installation failed</div>
+                    <button onClick={handleInstallRuflo} className="text-sm text-white/50 hover:text-white/80">
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            <TerminalOutput lines={rufloLines} />
+          </StepCard>
+        );
+
+      // Step 5: Default Project Directory
+      case 5:
+        return (
+          <StepCard
+            key="step-5"
+            step={5}
+            totalSteps={TOTAL_STEPS}
             title="Default Project Directory"
             description="Choose where new projects will be created by default."
             icon={FolderOpen}
-            status={statuses[4] ?? 'pending'}
+            status={statuses[5] ?? 'pending'}
             onNext={() => {
-              setStatus(4, 'passed');
+              setStatus(5, 'passed');
               nextStep();
             }}
             onSkip={skipStep}
@@ -361,8 +477,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           </StepCard>
         );
 
-      // Step 5: Permission Mode
-      case 5: {
+      // Step 6: Permission Mode
+      case 6: {
         const permissionOptions: { mode: PermissionMode; label: string; desc: string; recommended?: boolean }[] = [
           { mode: 'default', label: 'Ask Me', desc: 'Prompt for permission on file edits and commands', recommended: true },
           { mode: 'acceptEdits', label: 'Accept Edits', desc: 'Auto-approve file edits, prompt for commands' },
@@ -370,16 +486,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         ];
         return (
           <StepCard
-            key="step-5"
-            step={5}
+            key="step-6"
+            step={6}
             totalSteps={TOTAL_STEPS}
             title="Permission Mode"
             description="Control how much autonomy Claude has when modifying your project."
             icon={Shield}
-            status={statuses[5] ?? 'pending'}
+            status={statuses[6] ?? 'pending'}
             onNext={() => {
               setPermissionMode(selectedPermission);
-              setStatus(5, 'passed');
+              setStatus(6, 'passed');
               nextStep();
             }}
             onSkip={skipStep}
@@ -419,19 +535,19 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         );
       }
 
-      // Step 6: Analytics
-      case 6:
+      // Step 7: Analytics
+      case 7:
         return (
           <StepCard
-            key="step-6"
-            step={6}
+            key="step-7"
+            step={7}
             totalSteps={TOTAL_STEPS}
             title="Analytics"
             description="Help improve RuneCode by sharing anonymous usage data."
             icon={BarChart3}
-            status={statuses[6] ?? 'pending'}
+            status={statuses[7] ?? 'pending'}
             onNext={() => {
-              setStatus(6, 'passed');
+              setStatus(7, 'passed');
               nextStep();
             }}
             onSkip={skipStep}
@@ -453,8 +569,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           </StepCard>
         );
 
-      // Step 7: Appearance
-      case 7: {
+      // Step 8: Appearance
+      case 8: {
         const themeOptions: { value: 'dark' | 'light' | 'system'; label: string }[] = [
           { value: 'dark', label: 'Dark' },
           { value: 'light', label: 'Light' },
@@ -462,16 +578,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         ];
         return (
           <StepCard
-            key="step-7"
-            step={7}
+            key="step-8"
+            step={8}
             totalSteps={TOTAL_STEPS}
             title="Appearance"
             description="Choose your preferred color theme."
             icon={Palette}
-            status={statuses[7] ?? 'pending'}
+            status={statuses[8] ?? 'pending'}
             onNext={() => {
               localStorage.setItem('runecode-theme', selectedTheme);
-              setStatus(7, 'passed');
+              setStatus(8, 'passed');
               nextStep();
             }}
             onSkip={skipStep}
@@ -496,17 +612,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         );
       }
 
-      // Step 8: Quick Tour
-      case 8:
+      // Step 9: Quick Tour
+      case 9:
         return (
           <StepCard
-            key="step-8"
-            step={8}
+            key="step-9"
+            step={9}
             totalSteps={TOTAL_STEPS}
             title="Quick Tour"
             description="A few things to get you started with RuneCode."
             icon={Sparkles}
-            status={statuses[8] ?? 'pending'}
+            status={statuses[9] ?? 'pending'}
             onNext={finishOnboarding}
             nextLabel="Get Started"
           >
