@@ -8,7 +8,7 @@ pub struct RuFloStatus {
     pub slash_command_exists: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuFloProjectStatus {
     pub initialized: bool,
     pub pending: usize,
@@ -199,7 +199,20 @@ Format this document beautifully with clear headings, bullet points, and bold te
 
 #[tauri::command]
 pub fn get_ruflo_project_status(path: String) -> RuFloProjectStatus {
-    let base = std::path::Path::new(&path);
+    let raw_path = std::path::Path::new(&path);
+    let base = match std::fs::canonicalize(raw_path) {
+        Ok(p) => p,
+        Err(_) => return RuFloProjectStatus::default(),
+    };
+    // Verify within home directory
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return RuFloProjectStatus::default(),
+    };
+    if !base.starts_with(&home) {
+        log::warn!("get_ruflo_project_status: path {} is outside home dir", base.display());
+        return RuFloProjectStatus::default();
+    }
     let tasks_dir = base.join("tasks");
 
     let initialized = tasks_dir.join("pending").exists()
@@ -230,7 +243,7 @@ pub fn get_ruflo_project_status(path: String) -> RuFloProjectStatus {
 #[tauri::command]
 pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
     let agents_output = crate::claude_binary::create_command_with_env("npx")
-        .args(["@claude-flow/cli", "agent", "list", "--json"])
+        .args(["--no-install", "@claude-flow/cli", "agent", "list", "--json"])
         .output()
         .ok();
 
@@ -274,7 +287,7 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
         });
 
     let memory_entries = crate::claude_binary::create_command_with_env("npx")
-        .args(["@claude-flow/cli", "memory", "list", "--json"])
+        .args(["--no-install", "@claude-flow/cli", "memory", "list", "--json"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -295,9 +308,19 @@ pub async fn init_ruflo_project(path: String) -> Result<String, String> {
         return Err(format!("Project path is not a directory: {}", project_path.display()));
     }
 
+    let project_path = match std::fs::canonicalize(project_path) {
+        Ok(p) => p,
+        Err(e) => return Err(format!("Cannot resolve project path: {}", e)),
+    };
+    // Verify within home directory
+    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    if !project_path.starts_with(&home) {
+        return Err("Project path must be within the home directory".to_string());
+    }
+
     let output = crate::claude_binary::create_command_with_env("npx")
         .args(["@claude-flow/cli", "init"])
-        .current_dir(project_path)
+        .current_dir(&project_path)
         .output()
         .map_err(|e| format!("Failed to run ruflo init: {e}"))?;
 
