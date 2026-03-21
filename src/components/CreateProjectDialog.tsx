@@ -53,7 +53,10 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
             const autoInit = localStorage.getItem('runecode-ruflo-auto-init') !== 'false';
             if (autoInit) {
               await api.initRufloProject(projectPath);
-              await api.createRufloSlashCommand();
+              // Only create slash command if it doesn't already exist (preserve user customizations)
+              if (!rufloStatus.slash_command_exists) {
+                await api.createRufloSlashCommand();
+              }
             }
           }
         } catch (err) {

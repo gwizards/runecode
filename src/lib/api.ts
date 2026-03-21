@@ -1917,6 +1917,7 @@ export const api = {
     }
   },
 
+  /** Checks whether the RuFlo CLI is installed and returns its status. */
   async checkRufloInstalled(): Promise<RuFloStatus> {
     try {
       return await apiCall<RuFloStatus>("check_ruflo_installed");
@@ -1926,6 +1927,7 @@ export const api = {
     }
   },
 
+  /** Installs the RuFlo CLI via npm. Streams progress via the ruflo-install-progress event. */
   async installRuflo(): Promise<string> {
     try {
       return await apiCall<string>("install_ruflo");
@@ -1935,6 +1937,7 @@ export const api = {
     }
   },
 
+  /** Activates the RuFlo MCP server in Claude Code's configuration. */
   async activateRufloMcp(): Promise<string> {
     try {
       return await apiCall<string>("activate_ruflo_mcp");
@@ -1944,6 +1947,7 @@ export const api = {
     }
   },
 
+  /** Deactivates the RuFlo MCP server from Claude Code's configuration. */
   async deactivateRufloMcp(): Promise<string> {
     try {
       return await apiCall<string>("deactivate_ruflo_mcp");
@@ -1953,6 +1957,7 @@ export const api = {
     }
   },
 
+  /** Creates the /setup-ruflo slash command in Claude Code's global commands. */
   async createRufloSlashCommand(): Promise<string> {
     try {
       return await apiCall<string>("create_ruflo_slash_command");
@@ -1962,6 +1967,7 @@ export const api = {
     }
   },
 
+  /** Initializes a project directory with RuFlo configuration files. */
   async initRufloProject(path: string): Promise<string> {
     try {
       return await apiCall<string>("init_ruflo_project", { path });
@@ -1971,6 +1977,7 @@ export const api = {
     }
   },
 
+  /** Returns the RuFlo initialization status of a specific project directory. */
   async getRufloProjectStatus(path: string): Promise<RuFloProjectStatus> {
     try {
       return await apiCall<RuFloProjectStatus>("get_ruflo_project_status", { path });
@@ -1980,6 +1987,7 @@ export const api = {
     }
   },
 
+  /** Returns the current swarm status including active agents and tasks. */
   async getRufloSwarmStatus(): Promise<RuFloSwarmStatus> {
     try {
       return await apiCall<RuFloSwarmStatus>("get_ruflo_swarm_status");
@@ -1988,5 +1996,9 @@ export const api = {
       throw error;
     }
   },
+
+  /** Uninstalls the RuFlo CLI and removes its configuration. */
+  uninstallRuflo: (): Promise<string> =>
+    apiCall('uninstall_ruflo'),
 
 };

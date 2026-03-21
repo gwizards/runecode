@@ -66,22 +66,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     };
   }, []);
 
-  // Listen for ruflo-install-progress events
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let mounted = true;
-    (async () => {
-      try {
-        const { listen } = await import('@tauri-apps/api/event');
-        const fn = await listen<string>('ruflo-install-progress', (event) => {
-          if (!mounted) return;
-          setRufloLines((prev) => [...prev, event.payload]);
-        });
-        unlisten = fn;
-      } catch { /* web mode */ }
-    })();
-    return () => { mounted = false; unlisten?.(); };
-  }, []);
 
   // Fetch home directory for default project path
   useEffect(() => {
@@ -155,6 +139,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [currentStep, statuses, checkClaude]);
 
   const checkRuflo = useCallback(async () => {
+    setStatus(4, 'checking');
     try {
       const result = await api.checkRufloInstalled();
       setRufloStatus(result);
@@ -173,6 +158,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const handleInstallRuflo = async () => {
     setRufloInstalling(true);
     setRufloLines([]);
+
+    // Set up progress listener before starting install to avoid race condition
+    let unlisten: (() => void) | undefined;
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlisten = await listen<string>('ruflo-install-progress', (event) => {
+        setRufloLines((prev) => [...prev, event.payload]);
+      });
+    } catch { /* web mode */ }
+
     try {
       await api.installRuflo();
       setRufloLines((prev) => [...prev, '✓ CLI installed']);
@@ -183,8 +178,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       await checkRuflo();
     } catch (err) {
       setRufloLines((prev) => [...prev, `✗ Error: ${String(err)}`]);
-      setStatus(4, 'failed');
+      // Refresh actual install state so re-entry shows correct state
+      await checkRuflo();
     } finally {
+      unlisten?.();
       setRufloInstalling(false);
     }
   };
@@ -400,7 +397,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             icon={Sparkles}
             status={statuses[4] ?? 'pending'}
             onNext={nextStep}
-            nextDisabled={statuses[4] !== 'passed'}
+            nextDisabled={statuses[4] !== 'passed' && statuses[4] !== 'skipped'}
             onSkip={() => {
               localStorage.setItem('runecode-ruflo-skipped', 'true');
               skipStep();
