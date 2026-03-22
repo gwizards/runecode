@@ -11,8 +11,7 @@ import type { DomainEvent } from '../shared/event-bus';
 import { SessionApplicationService } from './service';
 import { InMemorySessionRepository } from './repository';
 import { SESSION_EVENT_TYPES } from './events';
-import { toSessionId, toProjectId, TokenUsage, SessionIdVO } from './types';
-import { unwrap } from '../shared/result';
+import { TokenUsage, SessionIdVO } from './types';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 

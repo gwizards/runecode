@@ -15,7 +15,7 @@ import type { WorkspaceId, TabId } from './types';
 import { toTabId, toWorkspaceId } from './types';
 import { unwrap } from '../shared/result';
 import { SessionId } from '../session/types';
-import type { ProjectId } from '../project/types';
+import { ProjectId } from '../project/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ function uniqueSessionId(): SessionId {
 
 function uniqueProjectId(): ProjectId {
   _counter += 1;
-  return `project-ws-${Date.now()}-${_counter}` as ProjectId;
+  return ProjectId.generate();
 }
 
 // ─── createWorkspace ──────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ describe('WorkspaceApplicationService.createWorkspace()', () => {
     expect(getResult.ok).toBe(true);
     if (!getResult.ok) return;
     expect(getResult.value.sessionId).toBe(sessionId.toString());
-    expect(getResult.value.projectId).toBe(projectId);
+    expect(getResult.value.projectId).toBe(projectId.toString());
   });
 
   it('dispatches no events on workspace creation', async () => {
@@ -540,7 +540,7 @@ describe('WorkspaceApplicationService.getWorkspace()', () => {
     if (!result.ok) return;
     expect(result.value.id).toBe(createResult.value.toString());
     expect(result.value.sessionId).toBe(sessionId.toString());
-    expect(result.value.projectId).toBe(projectId);
+    expect(result.value.projectId).toBe(projectId.toString());
   });
 
   it('returns Err for an unknown workspaceId', async () => {

@@ -65,7 +65,7 @@ describe('ProjectApplicationService — createProject', () => {
     const result = await svc.createProject('proj-1', VALID_PATH, 'My Project');
     expect(result.ok).toBe(true);
     const project = unwrap(result);
-    expect(project.id).toBe('proj-1');
+    expect(project.id.toString()).toBe('proj-1');
     expect(project.path).toBe(VALID_PATH);
     expect(project.name).toBe('My Project');
   });
@@ -296,7 +296,7 @@ describe('ProjectApplicationService — getProject', () => {
     const result = await svc.getProject('get-1');
     expect(result.ok).toBe(true);
     const project = unwrap(result);
-    expect(project.id).toBe('get-1');
+    expect(project.id.toString()).toBe('get-1');
     expect(project.name).toBe('Readable');
     expect(project.path).toBe(VALID_PATH);
   });
@@ -330,7 +330,7 @@ describe('ProjectApplicationService — listProjects', () => {
     expect(result.ok).toBe(true);
     const projects = unwrap(result);
     expect(projects).toHaveLength(3);
-    const ids = projects.map((p) => p.id).sort();
+    const ids = projects.map((p) => p.id.toString()).sort();
     expect(ids).toEqual(['list-1', 'list-2', 'list-3']);
   });
 
@@ -343,6 +343,6 @@ describe('ProjectApplicationService — listProjects', () => {
     const result = await svc.listProjects();
     const projects = unwrap(result);
     expect(projects).toHaveLength(1);
-    expect(projects[0].id).toBe('keep-1');
+    expect(projects[0].id.toString()).toBe('keep-1');
   });
 });

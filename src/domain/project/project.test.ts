@@ -100,7 +100,7 @@ describe('ProjectAggregate.create()', () => {
     const agg = unwrap(ProjectAggregate.create('proj-2', '/tmp/workspace', 'Workspace'));
     expect(agg.path).toBe('/tmp/workspace');
     expect(agg.name).toBe('Workspace');
-    expect(agg.id).toBe('proj-2');
+    expect(agg.id.toString()).toBe('proj-2');
   });
 });
 
@@ -162,7 +162,7 @@ describe('InMemoryProjectRepository', () => {
     const found = await repo.getProject(unwrap(toProjectId('proj-r1')));
 
     expect(found).not.toBeNull();
-    expect(found?.id).toBe('proj-r1');
+    expect(found?.id.toString()).toBe('proj-r1');
     expect(found?.path).toBe('/home/user/roundtrip');
     expect(found?.name).toBe('RoundTrip');
   });
@@ -176,7 +176,7 @@ describe('InMemoryProjectRepository', () => {
     repo.seed(other);
 
     const found = await repo.findByPath('/var/code/alpha');
-    expect(found?.id).toBe('proj-r2');
+    expect(found?.id.toString()).toBe('proj-r2');
 
     const missing = await repo.findByPath('/nonexistent');
     expect(missing).toBeNull();

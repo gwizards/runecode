@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DomainEventBus } from '../shared/event-bus';
 import type { DomainEvent } from '../shared/event-bus';
-import { UsageLedger, toLedgerId, UserId } from './types';
+import { UsageLedger, UserId } from './types';
 import type { RawUsageRecord } from './types';
 import { USAGE_EVENT_TYPES } from './events';
 import { InMemoryUsageLedgerRepository } from './repository';
