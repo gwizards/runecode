@@ -7,24 +7,30 @@ import type {
   RuFloProjectStatus as ApiProjectStatus,
 } from './ports/IRuFloApiPort';
 
-// ─── Branded / Newtype IDs ────────────────────────────────────────────────────
+// ─── Value Object IDs ─────────────────────────────────────────────────────────
 
-declare const _agentId: unique symbol;
-/** Branded type for agent identifiers — prevents mixing with other string IDs */
-export type AgentId = string & { readonly [_agentId]: true };
-
-declare const _swarmId: unique symbol;
-/** Branded type for swarm identifiers */
-export type SwarmId = string & { readonly [_swarmId]: true };
-
-export function toAgentId(raw: string): Result<AgentId> {
-  if (!raw || !raw.trim()) return Err('AgentId cannot be empty');
-  return Ok(raw as AgentId);
+/** Class VO for agent identifiers in the ruflo bounded context. */
+export class AgentId {
+  private constructor(readonly value: string) {}
+  static create(raw: string): Result<AgentId> {
+    if (!raw?.trim()) return Err('AgentId cannot be empty');
+    return Ok(new AgentId(raw.trim()));
+  }
+  static generate(): AgentId { return new AgentId(crypto.randomUUID()); }
+  equals(other: AgentId): boolean { return this.value === other.value; }
+  toString(): string { return this.value; }
 }
 
-export function toSwarmId(raw: string): Result<SwarmId> {
-  if (!raw || !raw.trim()) return Err('SwarmId cannot be empty');
-  return Ok(raw as SwarmId);
+/** Class VO for swarm identifiers in the ruflo bounded context. */
+export class SwarmId {
+  private constructor(readonly value: string) {}
+  static create(raw: string): Result<SwarmId> {
+    if (!raw?.trim()) return Err('SwarmId cannot be empty');
+    return Ok(new SwarmId(raw.trim()));
+  }
+  static generate(): SwarmId { return new SwarmId(crypto.randomUUID()); }
+  equals(other: SwarmId): boolean { return this.value === other.value; }
+  toString(): string { return this.value; }
 }
 
 export type AgentStatus =
@@ -115,9 +121,9 @@ export function toRuFloInstallation(raw: RuFloStatus): RuFloInstallation {
 
 export function toRuFloAgent(raw: ApiAgent): RuFloAgent {
   const status = (raw.status as AgentStatus) ?? 'unknown';
-  const agentIdResult = toAgentId(raw.id);
+  const agentIdResult = AgentId.create(raw.id ?? '');
   return {
-    id: agentIdResult.ok ? agentIdResult.value : (raw.id as AgentId),
+    id: agentIdResult.ok ? agentIdResult.value : AgentId.generate(),
     name: raw.name,
     agentType: raw.agent_type,
     status,

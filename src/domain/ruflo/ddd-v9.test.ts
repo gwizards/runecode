@@ -18,14 +18,14 @@ import { RuFloInstallationAggregate } from './aggregates/installation.aggregate'
 import { DOMAIN_EVENT_TYPES } from './domain-events';
 import { InMemoryRuFloRepository } from './application/ruflo.repository';
 import type { RuFloAgent } from './types';
-import { toAgentId } from './types';
+import { AgentId } from './types';
 import { unwrap } from '../shared/result';
 
 // ─── Shared Test Fixtures ─────────────────────────────────────────────────────
 
 function makeAgent(id: string): RuFloAgent {
   return {
-    id: unwrap(toAgentId(id)),
+    id: unwrap(AgentId.create(id)),
     name: `agent-${id}`,
     agentType: 'coder',
     status: 'running',
@@ -205,7 +205,7 @@ describe('RuFloSwarmAggregate', () => {
     unwrap(swarm.addAgent(agent));
     swarm.clearEvents();
 
-    unwrap(swarm.removeAgent(agent.id));
+    unwrap(swarm.removeAgent(agent.id.toString()));
 
     expect(swarm.events).toHaveLength(1);
     expect(swarm.events[0].type).toBe(DOMAIN_EVENT_TYPES.SWARM_AGENT_REMOVED);
@@ -328,7 +328,7 @@ describe('InMemoryRuFloRepository', () => {
 
     const retrieved = await repo.getSwarm();
     expect(retrieved).not.toBeNull();
-    expect(retrieved!.id).toBe('swarm-seed');
+    expect(retrieved!.id.toString()).toBe('swarm-seed');
     expect(retrieved!.topology).toBe('mesh');
     expect(retrieved!.maxAgents).toBe(3);
   });

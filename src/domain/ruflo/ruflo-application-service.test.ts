@@ -26,14 +26,14 @@ import { RuFloInstallationAggregate } from './aggregates/installation.aggregate'
 import { RuFloSwarmAggregate } from './aggregates/swarm.aggregate';
 import { RUFLO_EVENT_TYPES } from './domain-events';
 import type { RuFloAgent } from './types';
-import { toAgentId } from './types';
+import { AgentId } from './types';
 import { unwrap } from '../shared/result';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 function makeAgent(id: string, overrides: Partial<RuFloAgent> = {}): RuFloAgent {
   return {
-    id: unwrap(toAgentId(id)),
+    id: unwrap(AgentId.create(id)),
     name: `agent-${id}`,
     agentType: 'coder',
     status: 'running',
@@ -317,7 +317,7 @@ describe('RuFloApplicationService.addAgentToSwarm', () => {
 
     const stored = await repo.getSwarm();
     expect(stored?.agents).toHaveLength(1);
-    expect(stored?.agents[0].id).toBe(unwrap(toAgentId('coder-1')));
+    expect(stored?.agents[0].id.toString()).toBe('coder-1');
   });
 
   it('dispatches SwarmAgentAddedEvent to the event bus', async () => {
@@ -330,7 +330,7 @@ describe('RuFloApplicationService.addAgentToSwarm', () => {
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0]).toMatchObject({
       type: RUFLO_EVENT_TYPES.SWARM_AGENT_ADDED,
-      agentId: unwrap(toAgentId('coder-1')),
+      agentId: 'coder-1',
       agentType: 'coder',
     });
   });
@@ -370,7 +370,7 @@ describe('RuFloApplicationService.removeAgentFromSwarm', () => {
     await svc.initializeSwarm({ id: 'swarm-1', topology: 'hierarchical', maxAgents: 5 });
     await svc.addAgentToSwarm(makeAgent('to-remove'));
 
-    const result = await svc.removeAgentFromSwarm(unwrap(toAgentId('to-remove')));
+    const result = await svc.removeAgentFromSwarm('to-remove');
 
     expect(result.ok).toBe(true);
   });
@@ -379,7 +379,7 @@ describe('RuFloApplicationService.removeAgentFromSwarm', () => {
     await svc.initializeSwarm({ id: 'swarm-1', topology: 'hierarchical', maxAgents: 5 });
     await svc.addAgentToSwarm(makeAgent('to-remove'));
 
-    await svc.removeAgentFromSwarm(unwrap(toAgentId('to-remove')));
+    await svc.removeAgentFromSwarm('to-remove');
 
     const stored = await repo.getSwarm();
     expect(stored?.agents).toHaveLength(0);
@@ -391,12 +391,12 @@ describe('RuFloApplicationService.removeAgentFromSwarm', () => {
     const handler = vi.fn();
     bus.on(RUFLO_EVENT_TYPES.SWARM_AGENT_REMOVED, handler);
 
-    await svc.removeAgentFromSwarm(unwrap(toAgentId('to-remove')));
+    await svc.removeAgentFromSwarm('to-remove');
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0]).toMatchObject({
       type: RUFLO_EVENT_TYPES.SWARM_AGENT_REMOVED,
-      agentId: unwrap(toAgentId('to-remove')),
+      agentId: 'to-remove',
     });
   });
 
