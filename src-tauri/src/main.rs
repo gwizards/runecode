@@ -55,6 +55,7 @@ use commands::ruflo::{
 };
 use commands::usage::{
     get_session_stats, get_usage_by_date_range, get_usage_details, get_usage_stats,
+    load_usage_ledgers, persist_usage_ledger,
 };
 use process::ProcessRegistryState;
 use std::sync::Mutex;
@@ -281,6 +282,8 @@ fn main() {
             get_usage_by_date_range,
             get_usage_details,
             get_session_stats,
+            persist_usage_ledger,
+            load_usage_ledgers,
             // MCP (Model Context Protocol)
             mcp_add,
             mcp_list,

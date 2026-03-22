@@ -670,7 +670,7 @@ describe('UsageApplicationService.recordTokenUsage()', () => {
   });
 
   it('returns Ok with the updated UsageLedger aggregate', async () => {
-    const result = await svc.recordTokenUsage('sess-rtu-001', 100, 0.002);
+    const result = await svc.recordTokenUsage('sess-rtu-001', 100, 0.002, 'claude-sonnet-4-5');
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -679,7 +679,7 @@ describe('UsageApplicationService.recordTokenUsage()', () => {
   });
 
   it('splits tokens evenly between input and output', async () => {
-    const result = await svc.recordTokenUsage('sess-rtu-001', 100, 0.001);
+    const result = await svc.recordTokenUsage('sess-rtu-001', 100, 0.001, 'claude-sonnet-4-5');
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -688,8 +688,8 @@ describe('UsageApplicationService.recordTokenUsage()', () => {
   });
 
   it('accumulates cost across multiple calls', async () => {
-    await svc.recordTokenUsage('sess-rtu-001', 100, 0.001);
-    const result = await svc.recordTokenUsage('sess-rtu-001', 200, 0.002);
+    await svc.recordTokenUsage('sess-rtu-001', 100, 0.001, 'claude-sonnet-4-5');
+    const result = await svc.recordTokenUsage('sess-rtu-001', 200, 0.002, 'claude-sonnet-4-5');
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -697,7 +697,7 @@ describe('UsageApplicationService.recordTokenUsage()', () => {
   });
 
   it('returns Err when no open ledger exists for the session', async () => {
-    const result = await svc.recordTokenUsage('ghost-session', 50, 0.001);
+    const result = await svc.recordTokenUsage('ghost-session', 50, 0.001, 'claude-sonnet-4-5');
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -705,7 +705,7 @@ describe('UsageApplicationService.recordTokenUsage()', () => {
   });
 
   it('returns Err when sessionId is empty', async () => {
-    const result = await svc.recordTokenUsage('', 50, 0.001);
+    const result = await svc.recordTokenUsage('', 50, 0.001, 'claude-sonnet-4-5');
 
     expect(result.ok).toBe(false);
   });
@@ -721,7 +721,7 @@ describe('UsageApplicationService.getLedger()', () => {
     repo = new InMemoryUsageLedgerRepository();
     svc = new UsageApplicationService(repo, new DomainEventBus());
     await svc.openLedger({ id: 'ledger-gl-001', sessionId: 'sess-gl-001', projectId: 'proj-gl', userId: 'user-gl' });
-    await svc.recordTokenUsage('sess-gl-001', 80, 0.0015);
+    await svc.recordTokenUsage('sess-gl-001', 80, 0.0015, 'claude-sonnet-4-5');
   });
 
   it('returns Ok with a UsageLedger instance', async () => {

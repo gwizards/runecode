@@ -6,18 +6,80 @@
  *
  * Does NOT contain any business logic — all domain rules live in
  * UsageLedger and UsageApplicationService.
+ *
+ * Persistence strategy:
+ *   - InMemoryUsageLedgerRepository is the fast in-memory cache.
+ *   - After every mutation (save), the Tauri SQLite commands are called
+ *     as a write-through so data survives app restarts.
+ *   - On first import the store triggers a one-time rehydration from SQLite.
  */
 
 import { create } from 'zustand';
 import { globalEventBus } from '../shared/event-bus';
 import type { UsageSummary, RawUsageRecord } from './types';
+import { LedgerId, UsageLedger } from './types';
+import type { UsageLedger as UsageLedgerType } from './types';
 import { InMemoryUsageLedgerRepository } from './repository';
 import { UsageApplicationService } from './service';
+import { persistUsageLedger, loadUsageLedgers } from '@/infrastructure/tauri/usage-client';
 
 // ─── Service singleton ─────────────────────────────────────────────────────
 
 const _repo    = new InMemoryUsageLedgerRepository();
 const _service = new UsageApplicationService(_repo, globalEventBus);
+
+// ─── Write-through helper ─────────────────────────────────────────────────
+
+/**
+ * Persist a ledger to SQLite after an in-memory save.
+ * Computes the integer micro-dollar total from the aggregate's records
+ * so the Rust layer never needs to parse costUsd floats.
+ */
+async function writeThrough(ledger: UsageLedgerType): Promise<void> {
+  const snapshot = ledger.toSnapshot();
+  const totalCostMicroUsd = ledger.records.reduce((sum, r) => sum + r.costMicroUsd, 0);
+  await persistUsageLedger(snapshot, totalCostMicroUsd);
+}
+
+// ─── Boot-time rehydration ────────────────────────────────────────────────
+
+/**
+ * Load persisted ledgers from SQLite and seed the in-memory repository.
+ * Runs once at module import time; errors are logged and swallowed so a
+ * missing or empty database does not prevent the app from starting.
+ */
+async function rehydrateFromSqlite(): Promise<void> {
+  try {
+    const rows = await loadUsageLedgers();
+    for (const row of rows) {
+      let records: unknown[];
+      try {
+        records = JSON.parse(row.recordsJson);
+      } catch {
+        continue; // skip malformed rows
+      }
+      const snapshotResult = UsageLedger.fromSnapshot({
+        id:        row.id,
+        sessionId: row.sessionId ?? '',
+        projectId: row.projectId,
+        userId:    '', // userId not stored at row level; fromSnapshot falls back to generated UUID
+        records:   records as never,
+        sealed:    false,
+        openedAt:  row.createdAt,
+        sealedAt:  null,
+      });
+      if (snapshotResult.ok) {
+        _repo.seed(snapshotResult.value);
+      }
+    }
+  } catch (err) {
+    console.error('[usage-store] rehydrateFromSqlite failed:', err);
+  }
+}
+
+// Fire-and-forget on module load.  The store is usable immediately from
+// the in-memory cache; rehydration backfills it asynchronously.
+rehydrateFromSqlite();
 
 // ─── Store shape ───────────────────────────────────────────────────────────
 
@@ -52,6 +114,8 @@ export const useUsageDomainStore = create<UsageDomainState>((set) => ({
       set({ loading: false, error: result.error });
       return;
     }
+    // Write-through: persist the new ledger to SQLite after in-memory save.
+    await writeThrough(result.value);
     set({ loading: false, currentSummary: result.value.summary() });
   },
 
@@ -62,6 +126,11 @@ export const useUsageDomainStore = create<UsageDomainState>((set) => ({
       set({ loading: false, error: result.error });
       return;
     }
+    // Write-through: fetch the updated aggregate and persist it.
+    const ledgerResult = await _service.getLedger(cmd.sessionId);
+    if (ledgerResult.ok) {
+      await writeThrough(ledgerResult.value);
+    }
     set({ loading: false, currentSummary: result.value });
   },
 
@@ -71,6 +140,15 @@ export const useUsageDomainStore = create<UsageDomainState>((set) => ({
     if (!result.ok) {
       set({ loading: false, error: result.error });
       return;
+    }
+    // Write-through: the sealed ledger is still in the repo by its id.
+    // getBySession skips sealed ledgers, so fetch directly via LedgerId.
+    const lidResult = LedgerId.create(result.value.ledgerId);
+    if (lidResult.ok) {
+      const sealedLedger = await _repo.getById(lidResult.value);
+      if (sealedLedger) {
+        await writeThrough(sealedLedger);
+      }
     }
     set({ loading: false, currentSummary: result.value });
   },

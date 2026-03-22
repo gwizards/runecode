@@ -8,6 +8,8 @@ mod claude_binary;
 mod commands;
 #[allow(dead_code)]
 mod process;
+mod path_guard;
+mod ws_types;
 mod web_server;
 
 #[derive(Parser)]

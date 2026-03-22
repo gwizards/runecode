@@ -123,7 +123,7 @@ describe('toRuFloAgent', () => {
   it('maps raw agent to domain agent', () => {
     const raw = { id: 'agent-1', name: 'coder-01', agent_type: 'coder', status: 'running' };
     const agent = toRuFloAgent(raw as any);
-    expect(agent.id).toBe('agent-1');
+    expect(agent.id.toString()).toBe('agent-1');
     expect(agent.name).toBe('coder-01');
     expect(agent.agentType).toBe('coder');
     expect(agent.status).toBe('running');

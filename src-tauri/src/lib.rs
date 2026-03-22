@@ -4,8 +4,10 @@
 pub mod checkpoint;
 pub mod claude_binary;
 pub mod commands;
+pub mod path_guard;
 pub mod process;
 pub mod web_server;
+pub mod ws_types;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

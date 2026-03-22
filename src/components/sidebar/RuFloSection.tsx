@@ -168,7 +168,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
             <div className="flex flex-col gap-1">
               <div className="text-[9px] uppercase tracking-wider text-muted-foreground/40 px-1">Active Agents</div>
               {(swarmStatus?.agents ?? []).map((agent: RuFloAgent) => (
-                <div key={agent.id} className="flex items-center justify-between bg-white/5 rounded-lg px-2 py-1.5">
+                <div key={agent.id.toString()} className="flex items-center justify-between bg-white/5 rounded-lg px-2 py-1.5">
                   <span className="text-xs">{agentEmoji(agent.agentType)} {agent.name}</span>
                   <span className={`text-[10px] ${agent.status === 'running' ? 'text-green-400' : 'text-yellow-400'}`}>
                     {agent.status}

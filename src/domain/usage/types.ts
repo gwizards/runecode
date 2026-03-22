@@ -87,13 +87,22 @@ export function unsafeProjectId(id: string): ProjectId { return ProjectId.fromTr
 
 // ─── Value Object: UsageRecord ─────────────────────────────────────────────
 
-/** Fully-validated, immutable record of a single API call's token usage. */
+/**
+ * Fully-validated, immutable record of a single API call's token usage.
+ *
+ * Cost is stored as integer micro-dollars (1 micro-dollar = 0.000001 USD)
+ * to avoid IEEE-754 float accumulation drift.  The display-only `costUsd`
+ * field is derived from `costMicroUsd` and must never be used for arithmetic.
+ */
 export interface UsageRecord {
   readonly model: string;
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly cacheCreationTokens: number;
   readonly cacheReadTokens: number;
+  /** Integer micro-dollars.  1_000_000 micro-USD = 1 USD.  Use for all arithmetic. */
+  readonly costMicroUsd: number;
+  /** Display-only.  Equals costMicroUsd / 1_000_000.  Never accumulate this field. */
   readonly costUsd: number;
   readonly recordedAt: number;
 }
@@ -111,6 +120,8 @@ export interface RawUsageRecord {
 
 /**
  * Validate and construct an immutable UsageRecord.
+ * Converts the caller-supplied `costUsd` to integer micro-dollars at the
+ * domain boundary so all internal arithmetic stays integer-clean.
  * Returns Err with a descriptive message if any field is invalid.
  */
 export function makeUsageRecord(raw: RawUsageRecord): Result<UsageRecord> {
@@ -137,13 +148,17 @@ export function makeUsageRecord(raw: RawUsageRecord): Result<UsageRecord> {
     return Err(`UsageRecord.cacheReadTokens must be >= 0, got ${cacheReadTokens}`);
   }
 
+  // Convert to integer micro-dollars at the domain boundary.
+  const costMicroUsd = Math.round(raw.costUsd * 1_000_000);
+
   return Ok({
     model: raw.model.trim(),
     inputTokens: raw.inputTokens,
     outputTokens: raw.outputTokens,
     cacheCreationTokens,
     cacheReadTokens,
-    costUsd: raw.costUsd,
+    costMicroUsd,
+    costUsd: costMicroUsd / 1_000_000, // display-only, derived from integer
     recordedAt: raw.recordedAt ?? Date.now(),
   });
 }
@@ -293,15 +308,19 @@ export class UsageLedger {
     let totalOutputTokens         = 0;
     let totalCacheCreationTokens  = 0;
     let totalCacheReadTokens      = 0;
-    let totalCostUsd              = 0;
+    // Accumulate as integer micro-dollars to avoid IEEE-754 drift.
+    let totalCostMicroUsd         = 0;
 
     for (const r of this._records) {
       totalInputTokens         += r.inputTokens;
       totalOutputTokens        += r.outputTokens;
       totalCacheCreationTokens += r.cacheCreationTokens;
       totalCacheReadTokens     += r.cacheReadTokens;
-      totalCostUsd             += r.costUsd;
+      totalCostMicroUsd        += r.costMicroUsd;
     }
+
+    // Convert to USD only at the display boundary.
+    const totalCostUsd = totalCostMicroUsd / 1_000_000;
 
     return {
       ledgerId:                  this._id.value,

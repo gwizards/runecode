@@ -181,18 +181,21 @@ export class UsageApplicationService {
 
   /**
    * Simplified facade: record token usage for a session without requiring
-   * a full RawUsageRecord. Derives a minimal record from the three scalar
+   * a full RawUsageRecord. Derives a minimal record from the supplied
    * parameters and delegates to the existing open ledger for the session.
    *
    * @param sessionId - identifies the open ledger
    * @param tokens    - total tokens (split evenly between input and output)
    * @param costUsd   - cost in US dollars for this call
+   * @param model     - model identifier (e.g. 'claude-sonnet-4'); required to
+   *                    avoid storing anonymous 'unknown' records in the ledger
    * @returns the updated UsageLedger aggregate
    */
   async recordTokenUsage(
     sessionId: string,
     tokens: number,
     costUsd: number,
+    model: string,
   ): Promise<Result<UsageLedger>> {
     try {
       const sidResult = SessionId.create(sessionId);
@@ -203,7 +206,7 @@ export class UsageApplicationService {
       }
       const half = Math.floor(tokens / 2);
       const addResult = ledger.addRecord({
-        model:        'unknown',
+        model:        model,
         inputTokens:  half,
         outputTokens: tokens - half,
         costUsd,
@@ -240,14 +243,20 @@ export class UsageApplicationService {
   /**
    * Compute the sum of totalCostUsd across ALL persisted ledgers.
    * Delegates to listByDateRange with no bounds to retrieve every ledger.
+   * Accumulates in integer micro-dollars to avoid float drift, then converts
+   * to USD only for the final return value.
    *
    * @returns total cost in USD as a number
    */
   async getTotalCost(): Promise<Result<number>> {
     try {
       const ledgers = await this.repo.listByDateRange();
-      const total   = ledgers.reduce((sum, l) => sum + l.summary().totalCostUsd, 0);
-      return Ok(total);
+      // Accumulate as integer micro-dollars across all ledgers.
+      const totalMicroUsd = ledgers.reduce((sum, l) => {
+        const records = l.records;
+        return sum + records.reduce((s, r) => s + r.costMicroUsd, 0);
+      }, 0);
+      return Ok(totalMicroUsd / 1_000_000);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
     }

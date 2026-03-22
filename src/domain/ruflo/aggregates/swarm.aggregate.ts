@@ -12,7 +12,7 @@
 
 import type { DomainEvent } from '../../shared/event-bus';
 import type { RuFloAgent, AgentCapability } from '../types';
-import { type SwarmId, toSwarmId } from '../types';
+import { SwarmId } from '../types';
 import type { Result } from '../../shared/result';
 import { Ok, Err } from '../../shared/result';
 import {
@@ -56,7 +56,7 @@ export class RuFloSwarmAggregate {
     if (maxAgents < 1) return Err('maxAgents must be at least 1');
 
     const agents = params.agents ?? [];
-    const swarmIdResult = toSwarmId(params.id);
+    const swarmIdResult = SwarmId.create(params.id);
     if (!swarmIdResult.ok) return Err(swarmIdResult.error);
     const swarmId = swarmIdResult.value;
     const swarm = new RuFloSwarmAggregate(
@@ -68,7 +68,7 @@ export class RuFloSwarmAggregate {
     );
 
     swarm._events.push(
-      makeSwarmInitialized(swarmId, topologyResult.value.toString(), agents.length, maxAgents),
+      makeSwarmInitialized(swarmId.toString(), topologyResult.value.toString(), agents.length, maxAgents),
     );
     return Ok(swarm);
   }
@@ -89,8 +89,8 @@ export class RuFloSwarmAggregate {
     // breaking snapshot rehydration when topology names evolve.
     const fallback = SwarmTopology.create('hierarchical') as { ok: true; value: SwarmTopology };
     const topology = topologyResult.ok ? topologyResult.value : fallback.value;
-    const swarmIdFallback = toSwarmId(params.id);
-    const swarmId = swarmIdFallback.ok ? swarmIdFallback.value : (params.id as SwarmId);
+    const swarmIdResult = SwarmId.create(params.id);
+    const swarmId = swarmIdResult.ok ? swarmIdResult.value : SwarmId.generate();
     return new RuFloSwarmAggregate(
       swarmId,
       topology,
@@ -121,7 +121,7 @@ export class RuFloSwarmAggregate {
   }
 
   findAgentById(id: string): RuFloAgent | undefined {
-    return this._agents.find(a => a.id === id);
+    return this._agents.find(a => a.id.toString() === id);
   }
 
   hasAgentWithCapability(cap: AgentCapability): boolean {
@@ -138,13 +138,13 @@ export class RuFloSwarmAggregate {
     if (this.isAtCapacity) {
       return Err(`Swarm at capacity: ${this._agents.length}/${this._maxAgents} agents`);
     }
-    if (!agent.id.trim()) return Err('Agent ID must not be empty');
-    if (this.findAgentById(agent.id)) {
-      return Err(`Agent ${agent.id} already exists in swarm`);
+    if (!agent.id.toString().trim()) return Err('Agent ID must not be empty');
+    if (this.findAgentById(agent.id.toString())) {
+      return Err(`Agent ${agent.id.toString()} already exists in swarm`);
     }
     this._agents = [...this._agents, agent];
     this._events.push(
-      makeSwarmAgentAdded(this._id, agent.id, agent.agentType),
+      makeSwarmAgentAdded(this._id.toString(), agent.id.toString(), agent.agentType),
     );
     return Ok(undefined);
   }
@@ -154,10 +154,10 @@ export class RuFloSwarmAggregate {
    * Returns Err if agent not found.
    */
   removeAgent(agentId: string): Result<void> {
-    const idx = this._agents.findIndex(a => a.id === agentId);
+    const idx = this._agents.findIndex(a => a.id.toString() === agentId);
     if (idx === -1) return Err(`Agent ${agentId} not found in swarm`);
-    this._agents = this._agents.filter(a => a.id !== agentId);
-    this._events.push(makeSwarmAgentRemoved(this._id, agentId));
+    this._agents = this._agents.filter(a => a.id.toString() !== agentId);
+    this._events.push(makeSwarmAgentRemoved(this._id.toString(), agentId));
     return Ok(undefined);
   }
 
@@ -180,7 +180,7 @@ export class RuFloSwarmAggregate {
     agents: RuFloAgent[];
   } {
     return {
-      id: this._id,
+      id: this._id.toString(),
       topology: this._topology.toString(),
       maxAgents: this._maxAgents,
       memoryNamespace: this._memoryNamespace,

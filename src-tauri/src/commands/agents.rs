@@ -334,14 +334,17 @@ pub fn init_database(app: &AppHandle) -> SqliteResult<Connection> {
 
     // Create trigger to update the updated_at timestamp
     conn.execute(
-        "CREATE TRIGGER IF NOT EXISTS update_app_settings_timestamp 
-         AFTER UPDATE ON app_settings 
+        "CREATE TRIGGER IF NOT EXISTS update_app_settings_timestamp
+         AFTER UPDATE ON app_settings
          FOR EACH ROW
          BEGIN
              UPDATE app_settings SET updated_at = CURRENT_TIMESTAMP WHERE key = NEW.key;
          END",
         [],
     )?;
+
+    // Migrate usage_ledgers table (idempotent — safe to call on existing databases).
+    super::usage::migrate_usage_ledgers_table(&conn)?;
 
     Ok(conn)
 }

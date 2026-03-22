@@ -1,10 +1,13 @@
 use chrono::{DateTime, Local, NaiveDate};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
-use tauri::command;
+use tauri::{command, State};
+
+use super::agents::AgentDb;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UsageEntry {
@@ -14,6 +17,9 @@ pub struct UsageEntry {
     output_tokens: u64,
     cache_creation_tokens: u64,
     cache_read_tokens: u64,
+    /// Integer micro-dollars (1_000_000 = $1.00).  Use for all arithmetic.
+    cost_micro_usd: i64,
+    /// Display-only field: cost_micro_usd / 1_000_000.  Never accumulate this.
     cost: f64,
     session_id: String,
     project_path: String,
@@ -101,13 +107,16 @@ struct UsageData {
     cache_read_input_tokens: Option<u64>,
 }
 
-fn calculate_cost(model: &str, usage: &UsageData) -> f64 {
+/// Calculate cost in integer micro-dollars (1_000_000 = $1.00) from token
+/// counts and model-based pricing.  Using integer arithmetic here prevents
+/// IEEE-754 accumulation drift when summing many entries.
+fn calculate_cost_micro_usd(model: &str, usage: &UsageData) -> i64 {
     let input_tokens = usage.input_tokens.unwrap_or(0) as f64;
     let output_tokens = usage.output_tokens.unwrap_or(0) as f64;
     let cache_creation_tokens = usage.cache_creation_input_tokens.unwrap_or(0) as f64;
     let cache_read_tokens = usage.cache_read_input_tokens.unwrap_or(0) as f64;
 
-    // Calculate cost based on model
+    // Select per-million-token prices based on model.
     let (input_price, output_price, cache_write_price, cache_read_price) =
         if model.contains("opus-4") || model.contains("claude-opus-4") {
             (
@@ -128,13 +137,14 @@ fn calculate_cost(model: &str, usage: &UsageData) -> f64 {
             (0.0, 0.0, 0.0, 0.0)
         };
 
-    // Calculate cost (prices are per million tokens)
-    let cost = (input_tokens * input_price / 1_000_000.0)
+    // Compute cost in USD as f64 (single multiply-accumulate, then round once).
+    let cost_usd = (input_tokens * input_price / 1_000_000.0)
         + (output_tokens * output_price / 1_000_000.0)
         + (cache_creation_tokens * cache_write_price / 1_000_000.0)
         + (cache_read_tokens * cache_read_price / 1_000_000.0);
 
-    cost
+    // Round to nearest micro-dollar; integer storage prevents drift on summation.
+    (cost_usd * 1_000_000.0).round() as i64
 }
 
 fn parse_jsonl_file(
@@ -189,13 +199,17 @@ fn parse_jsonl_file(
                                 continue;
                             }
 
-                            let cost = entry.cost_usd.unwrap_or_else(|| {
-                                if let Some(model_str) = &message.model {
-                                    calculate_cost(model_str, usage)
-                                } else {
-                                    0.0
-                                }
-                            });
+                            // Determine cost as integer micro-dollars.
+                            // If the JSONL entry already carries a pre-computed
+                            // costUSD float, convert it once via round(); otherwise
+                            // derive from token counts using integer math.
+                            let cost_micro_usd: i64 = if let Some(c) = entry.cost_usd {
+                                (c * 1_000_000.0).round() as i64
+                            } else if let Some(model_str) = &message.model {
+                                calculate_cost_micro_usd(model_str, usage)
+                            } else {
+                                0
+                            };
 
                             // Use actual project path if found, otherwise use encoded name
                             let project_path = actual_project_path
@@ -214,7 +228,8 @@ fn parse_jsonl_file(
                                     .cache_creation_input_tokens
                                     .unwrap_or(0),
                                 cache_read_tokens: usage.cache_read_input_tokens.unwrap_or(0),
-                                cost,
+                                cost_micro_usd,
+                                cost: cost_micro_usd as f64 / 1_000_000.0,
                                 session_id: entry.session_id.unwrap_or_else(|| session_id.clone()),
                                 project_path,
                             });
@@ -328,26 +343,34 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
         all_entries
     };
 
-    // Calculate aggregated stats
-    let mut total_cost = 0.0;
+    // Calculate aggregated stats.
+    // Costs are accumulated as integer micro-dollars (i64) to prevent
+    // IEEE-754 float drift; they are converted to f64 only at output time.
+    let mut total_cost_micro: i64 = 0;
     let mut total_input_tokens = 0u64;
     let mut total_output_tokens = 0u64;
     let mut total_cache_creation_tokens = 0u64;
     let mut total_cache_read_tokens = 0u64;
+
+    // Integer micro-dollar accumulators per group (parallel to the f64 display maps).
+    let mut model_cost_micro: HashMap<String, i64> = HashMap::new();
+    let mut daily_cost_micro: HashMap<String, i64> = HashMap::new();
+    let mut project_cost_micro: HashMap<String, i64> = HashMap::new();
 
     let mut model_stats: HashMap<String, ModelUsage> = HashMap::new();
     let mut daily_stats: HashMap<String, DailyUsage> = HashMap::new();
     let mut project_stats: HashMap<String, ProjectUsage> = HashMap::new();
 
     for entry in &filtered_entries {
-        // Update totals
-        total_cost += entry.cost;
+        // Update totals (integer accumulation for cost).
+        total_cost_micro += entry.cost_micro_usd;
         total_input_tokens += entry.input_tokens;
         total_output_tokens += entry.output_tokens;
         total_cache_creation_tokens += entry.cache_creation_tokens;
         total_cache_read_tokens += entry.cache_read_tokens;
 
-        // Update model stats
+        // Update model stats (accumulate cost in integer shadow map).
+        *model_cost_micro.entry(entry.model.clone()).or_insert(0) += entry.cost_micro_usd;
         let model_stat = model_stats
             .entry(entry.model.clone())
             .or_insert(ModelUsage {
@@ -360,7 +383,6 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
                 cache_read_tokens: 0,
                 session_count: 0,
             });
-        model_stat.total_cost += entry.cost;
         model_stat.input_tokens += entry.input_tokens;
         model_stat.output_tokens += entry.output_tokens;
         model_stat.cache_creation_tokens += entry.cache_creation_tokens;
@@ -368,20 +390,20 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
         model_stat.total_tokens = model_stat.input_tokens + model_stat.output_tokens;
         model_stat.session_count += 1;
 
-        // Update daily stats
+        // Update daily stats.
         let date = entry
             .timestamp
             .split('T')
             .next()
             .unwrap_or(&entry.timestamp)
             .to_string();
+        *daily_cost_micro.entry(date.clone()).or_insert(0) += entry.cost_micro_usd;
         let daily_stat = daily_stats.entry(date.clone()).or_insert(DailyUsage {
             date,
             total_cost: 0.0,
             total_tokens: 0,
             models_used: vec![],
         });
-        daily_stat.total_cost += entry.cost;
         daily_stat.total_tokens += entry.input_tokens
             + entry.output_tokens
             + entry.cache_creation_tokens
@@ -390,7 +412,8 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
             daily_stat.models_used.push(entry.model.clone());
         }
 
-        // Update project stats
+        // Update project stats.
+        *project_cost_micro.entry(entry.project_path.clone()).or_insert(0) += entry.cost_micro_usd;
         let project_stat =
             project_stats
                 .entry(entry.project_path.clone())
@@ -407,7 +430,6 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
                     session_count: 0,
                     last_used: entry.timestamp.clone(),
                 });
-        project_stat.total_cost += entry.cost;
         project_stat.total_tokens += entry.input_tokens
             + entry.output_tokens
             + entry.cache_creation_tokens
@@ -418,6 +440,18 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
         }
     }
 
+    // Assign display costs (convert integer micro-USD → f64 once per group).
+    for (model, stat) in model_stats.iter_mut() {
+        stat.total_cost = model_cost_micro.get(model).copied().unwrap_or(0) as f64 / 1_000_000.0;
+    }
+    for (date, stat) in daily_stats.iter_mut() {
+        stat.total_cost = daily_cost_micro.get(date).copied().unwrap_or(0) as f64 / 1_000_000.0;
+    }
+    for (path, stat) in project_stats.iter_mut() {
+        stat.total_cost = project_cost_micro.get(path).copied().unwrap_or(0) as f64 / 1_000_000.0;
+    }
+
+    let total_cost = total_cost_micro as f64 / 1_000_000.0;
     let total_tokens = total_input_tokens
         + total_output_tokens
         + total_cache_creation_tokens
@@ -498,26 +532,33 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
         });
     }
 
-    // Calculate aggregated stats (same logic as get_usage_stats)
-    let mut total_cost = 0.0;
+    // Calculate aggregated stats (same logic as get_usage_stats).
+    // Costs are accumulated as integer micro-dollars (i64) to prevent
+    // IEEE-754 float drift; they are converted to f64 only at output time.
+    let mut total_cost_micro: i64 = 0;
     let mut total_input_tokens = 0u64;
     let mut total_output_tokens = 0u64;
     let mut total_cache_creation_tokens = 0u64;
     let mut total_cache_read_tokens = 0u64;
+
+    let mut model_cost_micro: HashMap<String, i64> = HashMap::new();
+    let mut daily_cost_micro: HashMap<String, i64> = HashMap::new();
+    let mut project_cost_micro: HashMap<String, i64> = HashMap::new();
 
     let mut model_stats: HashMap<String, ModelUsage> = HashMap::new();
     let mut daily_stats: HashMap<String, DailyUsage> = HashMap::new();
     let mut project_stats: HashMap<String, ProjectUsage> = HashMap::new();
 
     for entry in &filtered_entries {
-        // Update totals
-        total_cost += entry.cost;
+        // Update totals (integer accumulation for cost).
+        total_cost_micro += entry.cost_micro_usd;
         total_input_tokens += entry.input_tokens;
         total_output_tokens += entry.output_tokens;
         total_cache_creation_tokens += entry.cache_creation_tokens;
         total_cache_read_tokens += entry.cache_read_tokens;
 
-        // Update model stats
+        // Update model stats.
+        *model_cost_micro.entry(entry.model.clone()).or_insert(0) += entry.cost_micro_usd;
         let model_stat = model_stats
             .entry(entry.model.clone())
             .or_insert(ModelUsage {
@@ -530,7 +571,6 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
                 cache_read_tokens: 0,
                 session_count: 0,
             });
-        model_stat.total_cost += entry.cost;
         model_stat.input_tokens += entry.input_tokens;
         model_stat.output_tokens += entry.output_tokens;
         model_stat.cache_creation_tokens += entry.cache_creation_tokens;
@@ -538,20 +578,20 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
         model_stat.total_tokens = model_stat.input_tokens + model_stat.output_tokens;
         model_stat.session_count += 1;
 
-        // Update daily stats
+        // Update daily stats.
         let date = entry
             .timestamp
             .split('T')
             .next()
             .unwrap_or(&entry.timestamp)
             .to_string();
+        *daily_cost_micro.entry(date.clone()).or_insert(0) += entry.cost_micro_usd;
         let daily_stat = daily_stats.entry(date.clone()).or_insert(DailyUsage {
             date,
             total_cost: 0.0,
             total_tokens: 0,
             models_used: vec![],
         });
-        daily_stat.total_cost += entry.cost;
         daily_stat.total_tokens += entry.input_tokens
             + entry.output_tokens
             + entry.cache_creation_tokens
@@ -560,7 +600,8 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
             daily_stat.models_used.push(entry.model.clone());
         }
 
-        // Update project stats
+        // Update project stats.
+        *project_cost_micro.entry(entry.project_path.clone()).or_insert(0) += entry.cost_micro_usd;
         let project_stat =
             project_stats
                 .entry(entry.project_path.clone())
@@ -577,7 +618,6 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
                     session_count: 0,
                     last_used: entry.timestamp.clone(),
                 });
-        project_stat.total_cost += entry.cost;
         project_stat.total_tokens += entry.input_tokens
             + entry.output_tokens
             + entry.cache_creation_tokens
@@ -588,6 +628,18 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
         }
     }
 
+    // Assign display costs (convert integer micro-USD → f64 once per group).
+    for (model, stat) in model_stats.iter_mut() {
+        stat.total_cost = model_cost_micro.get(model).copied().unwrap_or(0) as f64 / 1_000_000.0;
+    }
+    for (date, stat) in daily_stats.iter_mut() {
+        stat.total_cost = daily_cost_micro.get(date).copied().unwrap_or(0) as f64 / 1_000_000.0;
+    }
+    for (path, stat) in project_stats.iter_mut() {
+        stat.total_cost = project_cost_micro.get(path).copied().unwrap_or(0) as f64 / 1_000_000.0;
+    }
+
+    let total_cost = total_cost_micro as f64 / 1_000_000.0;
     let total_tokens = total_input_tokens
         + total_output_tokens
         + total_cache_creation_tokens
@@ -671,9 +723,12 @@ pub fn get_session_stats(
         })
         .collect();
 
+    // Accumulate cost as integer micro-dollars per session to avoid float drift.
+    let mut session_cost_micro: HashMap<String, i64> = HashMap::new();
     let mut session_stats: HashMap<String, ProjectUsage> = HashMap::new();
     for entry in &filtered_entries {
         let session_key = format!("{}/{}", entry.project_path, entry.session_id);
+        *session_cost_micro.entry(session_key.clone()).or_insert(0) += entry.cost_micro_usd;
         let project_stat = session_stats
             .entry(session_key)
             .or_insert_with(|| ProjectUsage {
@@ -685,7 +740,6 @@ pub fn get_session_stats(
                 last_used: " ".to_string(),
             });
 
-        project_stat.total_cost += entry.cost;
         project_stat.total_tokens += entry.input_tokens
             + entry.output_tokens
             + entry.cache_creation_tokens
@@ -694,6 +748,11 @@ pub fn get_session_stats(
         if entry.timestamp > project_stat.last_used {
             project_stat.last_used = entry.timestamp.clone();
         }
+    }
+
+    // Assign display costs once, converting integer micro-USD → f64.
+    for (key, stat) in session_stats.iter_mut() {
+        stat.total_cost = session_cost_micro.get(key).copied().unwrap_or(0) as f64 / 1_000_000.0;
     }
 
     let mut by_session: Vec<ProjectUsage> = session_stats.into_values().collect();
@@ -711,4 +770,112 @@ pub fn get_session_stats(
     }
 
     Ok(by_session)
+}
+
+// ─── Persistence: usage_ledgers table ─────────────────────────────────────────
+
+/// Run during app init (called from `agents::init_database`) to ensure the
+/// usage_ledgers table exists.  Safe to call on an already-migrated database.
+pub fn migrate_usage_ledgers_table(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS usage_ledgers (
+            id                   TEXT PRIMARY KEY,
+            project_id           TEXT NOT NULL,
+            session_id           TEXT,
+            records_json         TEXT NOT NULL,
+            total_cost_micro_usd INTEGER NOT NULL DEFAULT 0,
+            created_at           INTEGER NOT NULL,
+            updated_at           INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_ledgers_project
+            ON usage_ledgers(project_id);
+        CREATE INDEX IF NOT EXISTS idx_usage_ledgers_session
+            ON usage_ledgers(session_id);",
+    )
+}
+
+/// Upsert a serialised UsageLedger aggregate snapshot into SQLite.
+///
+/// The TypeScript layer calls this after every `save()` on the in-memory
+/// repository, making it a write-through cache.  Cost is stored as integer
+/// micro-dollars so no float precision is lost during persistence.
+#[tauri::command]
+pub async fn persist_usage_ledger(
+    db: State<'_, AgentDb>,
+    id: String,
+    project_id: String,
+    session_id: Option<String>,
+    records_json: String,
+    total_cost_micro_usd: i64,
+) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+
+    conn.execute(
+        "INSERT INTO usage_ledgers
+             (id, project_id, session_id, records_json, total_cost_micro_usd, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+         ON CONFLICT(id) DO UPDATE SET
+             project_id           = excluded.project_id,
+             session_id           = excluded.session_id,
+             records_json         = excluded.records_json,
+             total_cost_micro_usd = excluded.total_cost_micro_usd,
+             updated_at           = excluded.updated_at",
+        params![id, project_id, session_id, records_json, total_cost_micro_usd, now],
+    )
+    .map_err(|e| format!("persist_usage_ledger failed: {}", e))?;
+
+    Ok(())
+}
+
+/// Load all persisted UsageLedger snapshots for rehydration on app start.
+///
+/// Returns each row as a `serde_json::Value` so the TypeScript layer can
+/// deserialise each `records_json` payload and rehydrate the in-memory
+/// repository without requiring a separate Rust struct per row.
+#[tauri::command]
+pub async fn load_usage_ledgers(
+    db: State<'_, AgentDb>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, project_id, session_id, records_json, total_cost_micro_usd,
+                    created_at, updated_at
+             FROM usage_ledgers
+             ORDER BY created_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows: Vec<serde_json::Value> = stmt
+        .query_map([], |row| {
+            let id: String = row.get(0)?;
+            let project_id: String = row.get(1)?;
+            let session_id: Option<String> = row.get(2)?;
+            let records_json: String = row.get(3)?;
+            let total_cost_micro_usd: i64 = row.get(4)?;
+            let created_at: i64 = row.get(5)?;
+            let updated_at: i64 = row.get(6)?;
+            Ok((id, project_id, session_id, records_json, total_cost_micro_usd, created_at, updated_at))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .map(|(id, project_id, session_id, records_json, total_cost_micro_usd, created_at, updated_at)| {
+            serde_json::json!({
+                "id": id,
+                "projectId": project_id,
+                "sessionId": session_id,
+                "recordsJson": records_json,
+                "totalCostMicroUsd": total_cost_micro_usd,
+                "createdAt": created_at,
+                "updatedAt": updated_at,
+            })
+        })
+        .collect();
+
+    Ok(rows)
 }
