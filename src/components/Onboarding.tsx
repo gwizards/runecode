@@ -175,6 +175,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       setRufloLines((prev) => [...prev, '✓ MCP server activated in Claude Code']);
       await api.createRufloSlashCommand();
       setRufloLines((prev) => [...prev, '✓ /setup-ruflo slash command created']);
+      try {
+        await api.createDddOptimizationCommand();
+        setRufloLines((prev) => [...prev, '✓ /ddd-optimization slash command created']);
+      } catch {
+        setRufloLines((prev) => [...prev, '⚠ /ddd-optimization command skipped (will retry on next setup)']);
+      }
       await checkRuflo();
     } catch (err) {
       setRufloLines((prev) => [...prev, `✗ Error: ${String(err)}`]);

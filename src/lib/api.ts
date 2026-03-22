@@ -1968,6 +1968,15 @@ export const api = {
     }
   },
 
+  async createDddOptimizationCommand(): Promise<string> {
+    try {
+      return await apiCall<string>("create_ddd_optimization_command");
+    } catch (error) {
+      console.error("Failed to create DDD optimization command:", error);
+      throw error;
+    }
+  },
+
   /** Initializes a project directory with RuFlo configuration files. */
   async initRufloProject(path: string): Promise<string> {
     try {
@@ -2015,7 +2024,7 @@ export const api = {
   /** Exports memory to the given file path as JSON. */
   async syncRufloMemoryLocal(destPath: string): Promise<string> {
     try {
-      return await apiCall<string>('sync_ruflo_memory_local', { dest_path: destPath });
+      return await apiCall<string>('sync_ruflo_memory_local', { output_path: destPath });
     } catch (error) {
       console.error('Failed to sync RuFlo memory:', error);
       throw error;
