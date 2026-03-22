@@ -1,0 +1,130 @@
+/**
+ * Session bounded context — Domain Event factories.
+ *
+ * Every factory returns a plain object satisfying DomainEvent plus a
+ * typed `payload` field. No classes — just data.
+ */
+
+import type { DomainEvent } from '../shared/event-bus';
+import type { SessionId, ProjectId, TokenUsage } from './types';
+
+// ─── Event type discriminators ────────────────────────────────────────────────
+
+export const SESSION_EVENT_TYPES = {
+  SESSION_CREATED: 'session/SESSION_CREATED',
+  OUTPUT_APPENDED: 'session/OUTPUT_APPENDED',
+  SESSION_COMPLETED: 'session/SESSION_COMPLETED',
+  SESSION_FAILED: 'session/SESSION_FAILED',
+  PROJECT_CREATED: 'session/PROJECT_CREATED',
+} as const;
+
+export type SessionEventType =
+  (typeof SESSION_EVENT_TYPES)[keyof typeof SESSION_EVENT_TYPES];
+
+// ─── Typed event interfaces ───────────────────────────────────────────────────
+
+export interface SessionCreatedEvent extends DomainEvent {
+  readonly type: typeof SESSION_EVENT_TYPES.SESSION_CREATED;
+  readonly payload: {
+    readonly sessionId: SessionId;
+    readonly projectId: ProjectId;
+    readonly title: string;
+  };
+}
+
+export interface OutputAppendedEvent extends DomainEvent {
+  readonly type: typeof SESSION_EVENT_TYPES.OUTPUT_APPENDED;
+  readonly payload: {
+    readonly sessionId: SessionId;
+    readonly chunk: string;
+  };
+}
+
+export interface SessionCompletedEvent extends DomainEvent {
+  readonly type: typeof SESSION_EVENT_TYPES.SESSION_COMPLETED;
+  readonly payload: {
+    readonly sessionId: SessionId;
+    readonly tokenUsage: TokenUsage;
+  };
+}
+
+export interface SessionFailedEvent extends DomainEvent {
+  readonly type: typeof SESSION_EVENT_TYPES.SESSION_FAILED;
+  readonly payload: {
+    readonly sessionId: SessionId;
+    readonly reason: string;
+  };
+}
+
+export interface ProjectCreatedEvent extends DomainEvent {
+  readonly type: typeof SESSION_EVENT_TYPES.PROJECT_CREATED;
+  readonly payload: {
+    readonly projectId: ProjectId;
+    readonly path: string;
+    readonly name: string;
+  };
+}
+
+// ─── Factory functions ────────────────────────────────────────────────────────
+
+export function makeSessionCreated(
+  sessionId: SessionId,
+  projectId: ProjectId,
+  title: string,
+): SessionCreatedEvent {
+  return {
+    type: SESSION_EVENT_TYPES.SESSION_CREATED,
+    occurredAt: Date.now(),
+    aggregateId: sessionId,
+    payload: { sessionId, projectId, title },
+  };
+}
+
+export function makeOutputAppended(
+  sessionId: SessionId,
+  chunk: string,
+): OutputAppendedEvent {
+  return {
+    type: SESSION_EVENT_TYPES.OUTPUT_APPENDED,
+    occurredAt: Date.now(),
+    aggregateId: sessionId,
+    payload: { sessionId, chunk },
+  };
+}
+
+export function makeSessionCompleted(
+  sessionId: SessionId,
+  tokenUsage: TokenUsage,
+): SessionCompletedEvent {
+  return {
+    type: SESSION_EVENT_TYPES.SESSION_COMPLETED,
+    occurredAt: Date.now(),
+    aggregateId: sessionId,
+    payload: { sessionId, tokenUsage },
+  };
+}
+
+export function makeSessionFailed(
+  sessionId: SessionId,
+  reason: string,
+): SessionFailedEvent {
+  return {
+    type: SESSION_EVENT_TYPES.SESSION_FAILED,
+    occurredAt: Date.now(),
+    aggregateId: sessionId,
+    payload: { sessionId, reason },
+  };
+}
+
+export function makeProjectCreated(
+  projectId: ProjectId,
+  path: string,
+  name: string,
+): ProjectCreatedEvent {
+  return {
+    type: SESSION_EVENT_TYPES.PROJECT_CREATED,
+    occurredAt: Date.now(),
+    aggregateId: projectId,
+    payload: { projectId, path, name },
+  };
+}
