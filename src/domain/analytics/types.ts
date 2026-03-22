@@ -10,6 +10,7 @@
 import type { DomainEvent } from '../shared/event-bus';
 import type { ProjectId } from '../shared/project-id';
 import { UserId } from '../identity/types';
+import { Result, Ok, Err } from '../shared/result';
 import {
   makeConsentGranted,
   makeConsentRevoked,
@@ -29,18 +30,18 @@ export { UserId } from '../identity/types';
  */
 export type AnalyticsSessionId = string & { readonly _brand: 'SessionId' };
 
-export function toAnalyticsSessionId(raw: string): AnalyticsSessionId {
-  if (!raw || !raw.trim()) throw new Error('AnalyticsSessionId cannot be empty');
-  return raw as AnalyticsSessionId;
+export function toAnalyticsSessionId(raw: string): Result<AnalyticsSessionId> {
+  if (!raw || !raw.trim()) return Err('AnalyticsSessionId cannot be empty');
+  return Ok(raw as AnalyticsSessionId);
 }
 
 // ─── ConsentId ────────────────────────────────────────────────────────────────
 
 export type ConsentId = string & { readonly _brand: 'ConsentId' };
 
-export function toConsentId(raw: string): ConsentId {
-  if (!raw || !raw.trim()) throw new Error('ConsentId cannot be empty');
-  return raw as ConsentId;
+export function toConsentId(raw: string): Result<ConsentId> {
+  if (!raw || !raw.trim()) return Err('ConsentId cannot be empty');
+  return Ok(raw as ConsentId);
 }
 
 // ─── ConsentStatus ────────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ export class ConsentAggregate {
     sessionId: AnalyticsSessionId,
     projectId: ProjectId,
   ): ConsentAggregate {
-    const id = toConsentId(`consent-${sessionId}-${Date.now()}`);
+    const id = `consent-${sessionId}-${Date.now()}` as ConsentId;
     return new ConsentAggregate(id, userId, sessionId, projectId, 'pending');
   }
 
@@ -122,7 +123,7 @@ export class ConsentAggregate {
     // sentinel rather than crashing the repository.
     const userId = userIdResult.ok ? userIdResult.value : UserId.generate();
     return new ConsentAggregate(
-      toConsentId(raw.id),
+      raw.id as ConsentId,
       userId,
       raw.sessionId as AnalyticsSessionId,
       raw.projectId as ProjectId,

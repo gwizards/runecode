@@ -8,7 +8,7 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { SessionAggregate, toProjectId, SessionIdVO } from './types';
+import { SessionAggregate, toProjectId, SessionIdVO, type ProjectId } from './types';
 import type { RawSession, RawTokenUsage } from './types';
 import type { ISessionRepository } from './repository';
 
@@ -22,7 +22,9 @@ export class SessionApplicationService {
 
   async createSession(raw: RawSession): Promise<Result<SessionAggregate>> {
     try {
-      const session = SessionAggregate.create(raw);
+      const sessionResult = SessionAggregate.create(raw);
+      if (!sessionResult.ok) return sessionResult;
+      const session = sessionResult.value;
       await this.repo.saveSession(session);
       this.eventBus.dispatch(session.events);
       session.clearEvents();
@@ -62,7 +64,8 @@ export class SessionApplicationService {
       if (!session) {
         return Err(`Session not found: ${sessionId}`);
       }
-      session.complete();
+      const completeResult = session.complete();
+      if (!completeResult.ok) return completeResult;
       await this.repo.saveSession(session);
       this.eventBus.dispatch(session.events);
       session.clearEvents();
@@ -82,7 +85,8 @@ export class SessionApplicationService {
       if (!session) {
         return Err(`Session not found: ${sessionId}`);
       }
-      session.fail(reason);
+      const failResult = session.fail(reason);
+      if (!failResult.ok) return failResult;
       await this.repo.saveSession(session);
       this.eventBus.dispatch(session.events);
       session.clearEvents();
@@ -147,10 +151,10 @@ export class SessionApplicationService {
   // ── List by project ────────────────────────────────────────────────────────
 
   async listSessions(projectId: string): Promise<Result<SessionAggregate[]>> {
+    const pidResult = toProjectId(projectId);
+    if (!pidResult.ok) return pidResult;
     try {
-      const sessions = await this.repo.listSessionsByProject(
-        toProjectId(projectId),
-      );
+      const sessions = await this.repo.listSessionsByProject(pidResult.value as ProjectId);
       return Ok(sessions);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));

@@ -94,11 +94,13 @@ export class WorkspaceApplicationService {
     opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
   ): Promise<Result<WorkspaceAggregate>> {
     return this._withWorkspace(workspaceId, (ws) => {
-      const tabId = rawTabId
-        ? toTabId(rawTabId)
-        : toTabId(`tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+      const rawId = rawTabId ?? `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const tabIdResult = toTabId(rawId);
+      if (!tabIdResult.ok) return tabIdResult;
+      const tabId = tabIdResult.value;
 
-      ws.openTab(tabId, path, label, opts);
+      const openResult = ws.openTab(tabId, path, label, opts);
+      if (!openResult.ok) return openResult;
       return Ok(ws);
     });
   }

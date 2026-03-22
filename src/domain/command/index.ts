@@ -7,9 +7,7 @@
 
 // ── Types & value objects ──────────────────────────────────────────────────
 export type {
-  CommandId,
-  CommandName,
-  CommandScope,
+  CommandScopeValue,
   SelectionMethod,
   CommandCapabilities,
   RawCommandCapabilities,
@@ -17,9 +15,9 @@ export type {
   RawCommandSnapshot,
 } from './types';
 export {
-  toCommandId,
-  toCommandName,
-  toCommandScope,
+  CommandId,
+  CommandName,
+  CommandScope,
   makeCommandCapabilities,
   SlashCommandEntry,
 } from './types';

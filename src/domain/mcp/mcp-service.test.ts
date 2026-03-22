@@ -502,12 +502,14 @@ describe('MCPServerAggregate.tryFromSnapshot', () => {
     }
   });
 
-  it('fromSnapshot (deprecated wrapper) throws when snapshot is invalid', () => {
+  it('fromSnapshot (deprecated wrapper) returns Err when snapshot is invalid', () => {
     const raw: RawMCPServer = {
       id: 'throw-snap',
       name: 'ThrowServer',
       transport: 'stdio',
     };
-    expect(() => MCPServerAggregate.fromSnapshot(raw)).toThrow('neither url nor command');
+    const result = MCPServerAggregate.fromSnapshot(raw);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('neither url nor command');
   });
 });

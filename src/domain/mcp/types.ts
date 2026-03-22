@@ -20,9 +20,9 @@ import {
 
 export type ServerId = string & { readonly _brand: 'ServerId' };
 
-export function toServerId(id: string): ServerId {
-  if (!id || !id.trim()) throw new Error('ServerId cannot be empty');
-  return id as ServerId;
+export function toServerId(id: string): Result<ServerId> {
+  if (!id || !id.trim()) return Err('ServerId cannot be empty');
+  return Ok(id as ServerId);
 }
 
 // ─── Scalar types ──────────────────────────────────────────────────────────
@@ -106,7 +106,9 @@ export class MCPServerAggregate {
     transport: ServerTransport,
     url: string,
   ): Result<MCPServerAggregate> {
-    const serverId = toServerId(id);
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
+    const serverId = serverIdResult.value;
 
     const nameResult = ServerName.create(name);
     if (!nameResult.ok) return nameResult;
@@ -140,7 +142,9 @@ export class MCPServerAggregate {
       return Err(`MCPServerAggregate: snapshot ${raw.id ?? raw.name} has neither url nor command`);
     }
 
-    const serverId = toServerId(raw.id ?? raw.name);
+    const serverIdResult = toServerId(raw.id ?? raw.name);
+    if (!serverIdResult.ok) return serverIdResult;
+    const serverId = serverIdResult.value;
 
     const nameResult = ServerName.create(raw.name);
     if (!nameResult.ok) return nameResult;
@@ -161,13 +165,12 @@ export class MCPServerAggregate {
   }
 
   /**
-   * Reconstruct from a persisted snapshot. Throws if the snapshot is invalid.
-   * @deprecated Use tryFromSnapshot instead.
+   * Reconstruct from a persisted snapshot. Returns a Result — callers must
+   * handle the Err case.
+   * @deprecated Use tryFromSnapshot instead. Both now return Result<T>.
    */
-  static fromSnapshot(raw: RawMCPServer): MCPServerAggregate {
-    const result = MCPServerAggregate.tryFromSnapshot(raw);
-    if (!result.ok) throw new Error(result.error);
-    return result.value;
+  static fromSnapshot(raw: RawMCPServer): Result<MCPServerAggregate> {
+    return MCPServerAggregate.tryFromSnapshot(raw);
   }
 
   // ── State transitions ─────────────────────────────────────────────────
@@ -195,22 +198,24 @@ export class MCPServerAggregate {
     this._events.push(makeServerStatusChanged(this.id, old, 'error', reason));
   }
 
-  /** Enable the server. Throws if already enabled. */
-  enable(): void {
+  /** Enable the server. Returns Err if already enabled. */
+  enable(): Result<void> {
     if (this._enabled) {
-      throw new Error(`Server ${this._name.value} is already enabled`);
+      return Err(`Server ${this._name.value} is already enabled`);
     }
     this._enabled = true;
     this._events.push(makeServerEnabled(this.id));
+    return Ok(undefined);
   }
 
-  /** Disable the server. Throws if already disabled. */
-  disable(): void {
+  /** Disable the server. Returns Err if already disabled. */
+  disable(): Result<void> {
     if (!this._enabled) {
-      throw new Error(`Server ${this._name.value} is already disabled`);
+      return Err(`Server ${this._name.value} is already disabled`);
     }
     this._enabled = false;
     this._events.push(makeServerDisabled(this.id));
+    return Ok(undefined);
   }
 
   /** Mark the server as removed. Raises ServerRemovedEvent. */

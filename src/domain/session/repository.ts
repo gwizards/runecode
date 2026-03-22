@@ -28,7 +28,12 @@ export class InMemorySessionRepository implements ISessionRepository {
   async getSession(id: SessionId): Promise<SessionAggregate | null> {
     const snapshot = this.sessions.get(id);
     if (!snapshot) return null;
-    return SessionAggregate.fromSnapshot(snapshot);
+    const result = SessionAggregate.fromSnapshot(snapshot);
+    if (!result.ok) {
+      console.warn(`[SessionRepository] Skipping corrupted snapshot for id="${id}": ${result.error}`);
+      return null;
+    }
+    return result.value;
   }
 
   async saveSession(session: SessionAggregate): Promise<void> {
@@ -43,7 +48,12 @@ export class InMemorySessionRepository implements ISessionRepository {
     const result: SessionAggregate[] = [];
     for (const snapshot of this.sessions.values()) {
       if (snapshot.projectId === projectId) {
-        result.push(SessionAggregate.fromSnapshot(snapshot));
+        const aggregateResult = SessionAggregate.fromSnapshot(snapshot);
+        if (!aggregateResult.ok) {
+          console.warn(`[SessionRepository] Skipping corrupted snapshot for projectId="${projectId}": ${aggregateResult.error}`);
+          continue;
+        }
+        result.push(aggregateResult.value);
       }
     }
     return result;

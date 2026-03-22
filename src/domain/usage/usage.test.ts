@@ -13,6 +13,7 @@ import type { RawUsageRecord } from './types';
 import { USAGE_EVENT_TYPES } from './events';
 import { InMemoryUsageLedgerRepository } from './repository';
 import { UsageApplicationService } from './service';
+import { unwrap } from '../shared/result';
 
 // ─── Shared test UserId ───────────────────────────────────────────────────────
 
@@ -57,12 +58,12 @@ const RECORD_B: RawUsageRecord = {
 
 describe('UsageLedger.open()', () => {
   it('raises LEDGER_OPENED event', () => {
-    const ledger = UsageLedger.open({
+    const ledger = unwrap(UsageLedger.open({
       id: 'ledger-001',
       sessionId: 'sess-001',
       projectId: 'proj-001',
       userId: makeUserId(),
-    });
+    }));
 
     const events = ledger.events;
     expect(events).toHaveLength(1);
@@ -71,12 +72,12 @@ describe('UsageLedger.open()', () => {
   });
 
   it('starts with no records and sealed=false', () => {
-    const ledger = UsageLedger.open({
+    const ledger = unwrap(UsageLedger.open({
       id: 'ledger-002',
       sessionId: 'sess-002',
       projectId: 'proj-002',
       userId: makeUserId(),
-    });
+    }));
 
     expect(ledger.sealed).toBe(false);
     expect(ledger.records).toHaveLength(0);
@@ -85,14 +86,14 @@ describe('UsageLedger.open()', () => {
 
 describe('UsageLedger.addRecord()', () => {
   function openLedger() {
-    return UsageLedger.open({ id: 'ledger-ar', sessionId: 'sess-ar', projectId: 'proj-ar', userId: makeUserId() });
+    return unwrap(UsageLedger.open({ id: 'ledger-ar', sessionId: 'sess-ar', projectId: 'proj-ar', userId: makeUserId() }));
   }
 
   it('accepts a valid record and returns updated summary', () => {
     const ledger = openLedger();
     ledger.clearEvents();
 
-    const summary = ledger.addRecord(RECORD_A);
+    const summary = unwrap(ledger.addRecord(RECORD_A));
 
     expect(summary.recordCount).toBe(1);
     expect(summary.totalInputTokens).toBe(100);
@@ -104,57 +105,55 @@ describe('UsageLedger.addRecord()', () => {
     const ledger = openLedger();
     ledger.clearEvents();
 
-    ledger.addRecord(RECORD_A);
-    ledger.addRecord(RECORD_B);
+    unwrap(ledger.addRecord(RECORD_A));
+    unwrap(ledger.addRecord(RECORD_B));
 
     const added = ledger.events.filter((e) => e.type === USAGE_EVENT_TYPES.RECORD_ADDED);
     expect(added).toHaveLength(2);
   });
 
-  it('throws when costUsd is negative', () => {
+  it('returns Err when costUsd is negative', () => {
     const ledger = openLedger();
-
-    expect(() =>
-      ledger.addRecord({ ...RECORD_A, costUsd: -0.5 }),
-    ).toThrow(/costUsd must be >= 0/i);
+    const result = ledger.addRecord({ ...RECORD_A, costUsd: -0.5 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/costUsd must be >= 0/i);
   });
 
-  it('throws when inputTokens is negative', () => {
+  it('returns Err when inputTokens is negative', () => {
     const ledger = openLedger();
-
-    expect(() =>
-      ledger.addRecord({ ...RECORD_A, inputTokens: -1 }),
-    ).toThrow(/inputTokens must be >= 0/i);
+    const result = ledger.addRecord({ ...RECORD_A, inputTokens: -1 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/inputTokens must be >= 0/i);
   });
 
-  it('throws when outputTokens is negative', () => {
+  it('returns Err when outputTokens is negative', () => {
     const ledger = openLedger();
-
-    expect(() =>
-      ledger.addRecord({ ...RECORD_A, outputTokens: -10 }),
-    ).toThrow(/outputTokens must be >= 0/i);
+    const result = ledger.addRecord({ ...RECORD_A, outputTokens: -10 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/outputTokens must be >= 0/i);
   });
 
-  it('throws on an already-sealed ledger', () => {
+  it('returns Err on an already-sealed ledger', () => {
     const ledger = openLedger();
-    ledger.seal();
-
-    expect(() => ledger.addRecord(RECORD_A)).toThrow(/sealed/i);
+    unwrap(ledger.seal());
+    const result = ledger.addRecord(RECORD_A);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/sealed/i);
   });
 });
 
 describe('UsageLedger.seal()', () => {
   function openWithTwoRecords() {
-    const ledger = UsageLedger.open({ id: 'ledger-seal', sessionId: 'sess-seal', projectId: 'proj-seal', userId: makeUserId() });
-    ledger.addRecord(RECORD_A);
-    ledger.addRecord(RECORD_B);
+    const ledger = unwrap(UsageLedger.open({ id: 'ledger-seal', sessionId: 'sess-seal', projectId: 'proj-seal', userId: makeUserId() }));
+    unwrap(ledger.addRecord(RECORD_A));
+    unwrap(ledger.addRecord(RECORD_B));
     ledger.clearEvents();
     return ledger;
   }
 
   it('raises LEDGER_SEALED with correct totalCostUsd and totalTokens', () => {
     const ledger = openWithTwoRecords();
-    ledger.seal();
+    unwrap(ledger.seal());
 
     const sealedEvt = ledger.events.find((e) => e.type === USAGE_EVENT_TYPES.LEDGER_SEALED);
     expect(sealedEvt).toBeDefined();
@@ -170,24 +169,25 @@ describe('UsageLedger.seal()', () => {
 
   it('sets sealed=true after sealing', () => {
     const ledger = openWithTwoRecords();
-    ledger.seal();
+    unwrap(ledger.seal());
 
     expect(ledger.sealed).toBe(true);
   });
 
-  it('throws if seal() is called a second time', () => {
+  it('returns Err if seal() is called a second time', () => {
     const ledger = openWithTwoRecords();
-    ledger.seal();
-
-    expect(() => ledger.seal()).toThrow(/already sealed/i);
+    unwrap(ledger.seal());
+    const result = ledger.seal();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/already sealed/i);
   });
 });
 
 describe('UsageLedger.summary()', () => {
   it('computes correct totals across multiple records', () => {
-    const ledger = UsageLedger.open({ id: 'ledger-sum', sessionId: 'sess-sum', projectId: 'proj-sum', userId: makeUserId() });
-    ledger.addRecord(RECORD_A);
-    ledger.addRecord(RECORD_B);
+    const ledger = unwrap(UsageLedger.open({ id: 'ledger-sum', sessionId: 'sess-sum', projectId: 'proj-sum', userId: makeUserId() }));
+    unwrap(ledger.addRecord(RECORD_A));
+    unwrap(ledger.addRecord(RECORD_B));
 
     const summary = ledger.summary();
 
@@ -205,7 +205,7 @@ describe('UsageLedger.summary()', () => {
   });
 
   it('returns zero totals for a ledger with no records', () => {
-    const ledger = UsageLedger.open({ id: 'ledger-empty', sessionId: 'sess-empty', projectId: 'proj-empty', userId: makeUserId() });
+    const ledger = unwrap(UsageLedger.open({ id: 'ledger-empty', sessionId: 'sess-empty', projectId: 'proj-empty', userId: makeUserId() }));
     const summary = ledger.summary();
 
     expect(summary.totalInputTokens).toBe(0);
@@ -216,25 +216,25 @@ describe('UsageLedger.summary()', () => {
 
 describe('UsageLedger.fromSnapshot()', () => {
   it('reconstitutes without raising any events', () => {
-    const original = UsageLedger.open({ id: 'ledger-snap', sessionId: 'sess-snap', projectId: 'proj-snap', userId: makeUserId() });
-    original.addRecord(RECORD_A);
+    const original = unwrap(UsageLedger.open({ id: 'ledger-snap', sessionId: 'sess-snap', projectId: 'proj-snap', userId: makeUserId() }));
+    unwrap(original.addRecord(RECORD_A));
     const snapshot = original.toSnapshot();
 
-    const restored = UsageLedger.fromSnapshot(snapshot);
+    const restored = unwrap(UsageLedger.fromSnapshot(snapshot));
 
     expect(restored.events).toHaveLength(0);
-    expect(restored.id).toBe(toLedgerId('ledger-snap'));
+    expect(restored.id).toBe(unwrap(toLedgerId('ledger-snap')));
     expect(restored.records).toHaveLength(1);
     expect(restored.sealed).toBe(false);
   });
 
   it('preserves sealed state from snapshot', () => {
-    const original = UsageLedger.open({ id: 'ledger-snap2', sessionId: 'sess-snap2', projectId: 'proj-snap2', userId: makeUserId() });
-    original.addRecord(RECORD_A);
-    original.seal();
+    const original = unwrap(UsageLedger.open({ id: 'ledger-snap2', sessionId: 'sess-snap2', projectId: 'proj-snap2', userId: makeUserId() }));
+    unwrap(original.addRecord(RECORD_A));
+    unwrap(original.seal());
     const snapshot = original.toSnapshot();
 
-    const restored = UsageLedger.fromSnapshot(snapshot);
+    const restored = unwrap(UsageLedger.fromSnapshot(snapshot));
 
     expect(restored.sealed).toBe(true);
   });
@@ -279,7 +279,7 @@ describe('UsageApplicationService.openLedger()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.id).toBe(toLedgerId('ledger-svc-002'));
+    expect(result.value.id).toBe(unwrap(toLedgerId('ledger-svc-002')));
     expect(result.value.sealed).toBe(false);
   });
 

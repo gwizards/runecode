@@ -12,6 +12,7 @@ import { SessionApplicationService } from './service';
 import { InMemorySessionRepository } from './repository';
 import { SESSION_EVENT_TYPES } from './events';
 import { toSessionId, toProjectId, TokenUsage, SessionIdVO } from './types';
+import { unwrap } from '../shared/result';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -58,8 +59,8 @@ describe('SessionApplicationService.createSession()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.id).toBe(toSessionId('sess-svc-001'));
-    expect(result.value.projectId).toBe(toProjectId('proj-svc-001'));
+    expect(result.value.id).toBe(unwrap(toSessionId('sess-svc-001')));
+    expect(result.value.projectId).toBe(unwrap(toProjectId('proj-svc-001')));
     expect(result.value.title).toBe('Service test session');
     expect(result.value.status).toBe('idle');
   });
@@ -435,8 +436,8 @@ describe('SessionApplicationService.listSessions()', () => {
     if (!result.ok) return;
     expect(result.value).toHaveLength(2);
     const ids = result.value.map((s) => s.id);
-    expect(ids).toContain(toSessionId('sess-list-A'));
-    expect(ids).toContain(toSessionId('sess-list-C'));
+    expect(ids).toContain(unwrap(toSessionId('sess-list-A')));
+    expect(ids).toContain(unwrap(toSessionId('sess-list-C')));
   });
 
   it('returns only the session for a project that has one session', async () => {
@@ -445,7 +446,7 @@ describe('SessionApplicationService.listSessions()', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value).toHaveLength(1);
-    expect(result.value[0].id).toBe(toSessionId('sess-list-B'));
+    expect(result.value[0].id).toBe(unwrap(toSessionId('sess-list-B')));
   });
 
   it('returns an empty array for an unknown projectId', async () => {

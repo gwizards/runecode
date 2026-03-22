@@ -19,12 +19,13 @@ import { DOMAIN_EVENT_TYPES } from './domain-events';
 import { InMemoryRuFloRepository } from './application/ruflo.repository';
 import type { RuFloAgent } from './types';
 import { toAgentId } from './types';
+import { unwrap } from '../shared/result';
 
 // ─── Shared Test Fixtures ─────────────────────────────────────────────────────
 
 function makeAgent(id: string): RuFloAgent {
   return {
-    id: toAgentId(id),
+    id: unwrap(toAgentId(id)),
     name: `agent-${id}`,
     agentType: 'coder',
     status: 'running',

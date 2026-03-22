@@ -54,7 +54,9 @@ export class RuFloSwarmAggregate {
     if (maxAgents < 1) throw new Error('maxAgents must be at least 1');
 
     const agents = params.agents ?? [];
-    const swarmId = toSwarmId(params.id);
+    const swarmIdResult = toSwarmId(params.id);
+    if (!swarmIdResult.ok) throw new Error(swarmIdResult.error);
+    const swarmId = swarmIdResult.value;
     const swarm = new RuFloSwarmAggregate(
       swarmId,
       topologyResult.value,
@@ -85,8 +87,10 @@ export class RuFloSwarmAggregate {
     // breaking snapshot rehydration when topology names evolve.
     const fallback = SwarmTopology.create('hierarchical') as { ok: true; value: SwarmTopology };
     const topology = topologyResult.ok ? topologyResult.value : fallback.value;
+    const swarmIdFallback = toSwarmId(params.id);
+    const swarmId = swarmIdFallback.ok ? swarmIdFallback.value : (params.id as SwarmId);
     return new RuFloSwarmAggregate(
-      toSwarmId(params.id),
+      swarmId,
       topology,
       params.maxAgents ?? 15,
       params.memoryNamespace ?? 'default',

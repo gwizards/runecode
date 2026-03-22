@@ -10,7 +10,7 @@
 
 import { ScalarQuantizer, QuantizedSnapshotStore, QuantizedBuffer } from '../shared/quantization';
 import type { ConsentId, RawConsent, AnalyticsSessionId, ConsentStatus } from './types';
-import { ConsentAggregate, toConsentId } from './types';
+import { ConsentAggregate } from './types';
 import type { IConsentRepository } from './ports/IConsentRepository';
 
 // ─── Port re-export ───────────────────────────────────────────────────────────
@@ -129,8 +129,9 @@ export class InMemoryConsentRepository implements IConsentRepository {
 
   save(consent: ConsentAggregate): void {
     const snapshot = consent.toSnapshot();
-    this.store.set(toConsentId(snapshot.id), snapshot);
-    this.sessionIndex.set(snapshot.sessionId as AnalyticsSessionId, toConsentId(snapshot.id));
+    const consentId = snapshot.id as ConsentId;
+    this.store.set(consentId, snapshot);
+    this.sessionIndex.set(snapshot.sessionId as AnalyticsSessionId, consentId);
   }
 
   searchByEmbedding(

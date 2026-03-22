@@ -94,20 +94,22 @@ describe('MCPServerAggregate.connect()', () => {
 describe('MCPServerAggregate enable/disable', () => {
   it('enable() raises ServerEnabledEvent after disable', () => {
     const server = unwrap(MCPServerAggregate.add('srv-5', 'Server 5', 'stdio', '/bin/s5'));
-    server.disable(); // server starts enabled, so disable first
+    unwrap(server.disable()); // server starts enabled, so disable first
     server.clearEvents();
 
-    server.enable();
+    unwrap(server.enable());
 
     expect(server.events).toHaveLength(1);
     expect(server.events[0].type).toBe(MCP_EVENT_TYPES.SERVER_ENABLED);
     expect(server.isEnabled).toBe(true);
   });
 
-  it('double enable() throws', () => {
+  it('double enable() returns Err', () => {
     const server = unwrap(MCPServerAggregate.add('srv-6', 'Server 6', 'stdio', '/bin/s6'));
     // server is already enabled from add()
-    expect(() => server.enable()).toThrow('already enabled');
+    const result = server.enable();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/already enabled/i);
   });
 });
 
@@ -119,7 +121,7 @@ describe('InMemoryMCPRepository', () => {
     const server = unwrap(MCPServerAggregate.add('repo-1', 'Repo Server', 'stdio', '/bin/r1'));
 
     await repo.saveServer(server);
-    const found = await repo.getServer(toServerId('repo-1'));
+    const found = await repo.getServer(unwrap(toServerId('repo-1')));
 
     expect(found).not.toBeNull();
     expect(found?.name).toBe('Repo Server');
@@ -142,7 +144,7 @@ describe('InMemoryMCPRepository', () => {
     const repo = new InMemoryMCPRepository();
     const enabled = unwrap(MCPServerAggregate.add('e-1', 'Enabled', 'stdio', '/bin/enabled'));
     const disabled = unwrap(MCPServerAggregate.add('d-1', 'Disabled', 'stdio', '/bin/disabled'));
-    disabled.disable();
+    unwrap(disabled.disable());
 
     await repo.saveServer(enabled);
     await repo.saveServer(disabled);
@@ -157,8 +159,8 @@ describe('InMemoryMCPRepository', () => {
     const server = unwrap(MCPServerAggregate.add('rem-1', 'ToRemove', 'stdio', '/bin/rm'));
     await repo.saveServer(server);
 
-    await repo.removeServer(toServerId('rem-1'));
-    const found = await repo.getServer(toServerId('rem-1'));
+    await repo.removeServer(unwrap(toServerId('rem-1')));
+    const found = await repo.getServer(unwrap(toServerId('rem-1')));
 
     expect(found).toBeNull();
   });

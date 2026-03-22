@@ -108,7 +108,7 @@ export class InMemoryWorkspaceRepository implements IWorkspaceRepository {
   findById(id: WorkspaceId): Result<WorkspaceAggregate> {
     const raw = this.store.get(id);
     if (!raw) return Err(`Workspace not found: ${id}`);
-    return Ok(WorkspaceAggregate.fromSnapshot(raw));
+    return WorkspaceAggregate.fromSnapshot(raw);
   }
 
   findBySession(sessionId: SessionId): Result<WorkspaceAggregate> {

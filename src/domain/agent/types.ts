@@ -18,8 +18,17 @@ import {
 
 export type AgentId = string & { readonly _brand: 'AgentId' };
 
-export function toAgentId(id: string): AgentId {
-  if (!id || !id.trim()) throw new Error('AgentId cannot be empty');
+export function toAgentId(id: string): Result<AgentId> {
+  if (!id || !id.trim()) return Err('AgentId cannot be empty');
+  return Ok(id as AgentId);
+}
+
+/**
+ * Unsafe coercion — only for tests and internal code that has already
+ * validated the id through another path (e.g. fromSnapshot with a known-good id).
+ * @internal
+ */
+export function unsafeAgentId(id: string): AgentId {
   return id as AgentId;
 }
 
@@ -94,7 +103,9 @@ export class LiveAgentAggregate {
    * Returns Err if the name is invalid.
    */
   static start(id: string, name: string): Result<LiveAgentAggregate> {
-    const agentId = toAgentId(id);
+    const agentIdResult = toAgentId(id);
+    if (!agentIdResult.ok) return agentIdResult;
+    const agentId = agentIdResult.value;
     const nameResult = AgentName.create(name);
     if (!nameResult.ok) return nameResult;
     const agentName = nameResult.value;
@@ -118,11 +129,13 @@ export class LiveAgentAggregate {
    * Returns Err if the stored name fails validation.
    */
   static fromSnapshot(raw: RawLiveAgent): Result<LiveAgentAggregate> {
+    const agentIdResult = toAgentId(raw.id);
+    if (!agentIdResult.ok) return agentIdResult;
     const nameResult = AgentName.create(raw.name);
     if (!nameResult.ok) return nameResult;
     return Ok(
       new LiveAgentAggregate(
-        toAgentId(raw.id),
+        agentIdResult.value,
         nameResult.value,
         raw.status ?? 'idle',
         raw.tokenCount ?? 0,
@@ -137,29 +150,32 @@ export class LiveAgentAggregate {
 
   /**
    * Transition running → thinking and raise AgentThinkingEvent.
-   * Throws if the agent is in a terminal state.
+   * Returns Err if the agent is in a terminal state.
    */
-  think(): void {
+  think(): Result<void> {
     if (this.isTerminal) {
-      throw new Error(
+      return Err(
         `Cannot transition agent ${this.id} to 'thinking': already in terminal status '${this._status}'`,
       );
     }
     this._status = 'thinking';
     this._events.push(makeAgentThinking(this.id));
+    return Ok(undefined);
   }
 
   /**
    * Transition thinking → running.
+   * Returns Err if the agent is in a terminal state.
    * No event is raised (internal scheduling detail).
    */
-  resume(): void {
+  resume(): Result<void> {
     if (this.isTerminal) {
-      throw new Error(
+      return Err(
         `Cannot resume agent ${this.id}: already in terminal status '${this._status}'`,
       );
     }
     this._status = 'running';
+    return Ok(undefined);
   }
 
   /**
@@ -173,30 +189,32 @@ export class LiveAgentAggregate {
 
   /**
    * Mark the agent as completed and raise AgentCompletedEvent.
-   * Throws if already in a terminal state.
+   * Returns Err if already in a terminal state.
    */
-  complete(): void {
+  complete(): Result<void> {
     if (this.isTerminal) {
-      throw new Error(
+      return Err(
         `Cannot complete agent ${this.id}: already in terminal status '${this._status}'`,
       );
     }
     this._status = 'completed';
     this._events.push(makeAgentCompleted(this.id, this._tokenCount, this._elapsedMs));
+    return Ok(undefined);
   }
 
   /**
    * Mark the agent as failed and raise AgentFailedEvent.
-   * Throws if already in a terminal state.
+   * Returns Err if already in a terminal state.
    */
-  fail(reason: string): void {
+  fail(reason: string): Result<void> {
     if (this.isTerminal) {
-      throw new Error(
+      return Err(
         `Cannot fail agent ${this.id}: already in terminal status '${this._status}'`,
       );
     }
     this._status = 'failed';
     this._events.push(makeAgentFailed(this.id, reason));
+    return Ok(undefined);
   }
 
   // ── Accessors ─────────────────────────────────────────────────────────────

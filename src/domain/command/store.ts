@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 import { globalEventBus } from '../shared/event-bus';
 import type { SlashCommandEntry } from './types';
-import type { CommandScope, RawCommand, SelectionMethod } from './types';
+import type { CommandScopeValue, RawCommand, SelectionMethod } from './types';
 import { InMemoryCommandRepository } from './repository';
 import { CommandApplicationService } from './service';
 import type { ListCommandsQuery } from './service';
@@ -31,7 +31,7 @@ interface CommandDomainState {
   selectCommand(id: string, method: SelectionMethod): Promise<void>;
   executeCommand(id: string, durationMs: number, success: boolean): Promise<void>;
   deleteCommand(id: string): Promise<void>;
-  loadCommands(scope?: CommandScope): Promise<void>;
+  loadCommands(scope?: CommandScopeValue): Promise<void>;
   clearError(): void;
 }
 

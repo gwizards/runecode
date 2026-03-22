@@ -18,9 +18,9 @@ import {
 
 export type ProjectId = string & { readonly _brand: 'ProjectId' };
 
-export function toProjectId(id: string): ProjectId {
-  if (!id || !id.trim()) throw new Error('ProjectId cannot be empty');
-  return id as ProjectId;
+export function toProjectId(id: string): Result<ProjectId> {
+  if (!id || !id.trim()) return Err('ProjectId cannot be empty');
+  return Ok(id as ProjectId);
 }
 
 // ─── Value Object: ProjectPath ────────────────────────────────────────────────
@@ -122,9 +122,10 @@ export class ProjectAggregate {
     const pathVO = pathResult.value;
     const nameVO = nameResult.value;
     const now    = Date.now();
-    const projId = toProjectId(id);
+    const projIdResult = toProjectId(id);
+    if (!projIdResult.ok) return Err(projIdResult.error);
 
-    const aggregate = new ProjectAggregate(projId, pathVO, nameVO, now, null, []);
+    const aggregate = new ProjectAggregate(projIdResult.value, pathVO, nameVO, now, null, []);
     aggregate._events.push(makeProjectCreated(id, pathVO.value, nameVO.value));
     return Ok(aggregate);
   }
@@ -150,7 +151,7 @@ export class ProjectAggregate {
       : null;
 
     return Ok(new ProjectAggregate(
-      toProjectId(raw.id),
+      raw.id as ProjectId,
       pathResult.value,
       nameResult.value,
       createdAt,

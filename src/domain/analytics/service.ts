@@ -65,7 +65,9 @@ export class AnalyticsApplicationService {
     userId: UserId,
   ): Promise<Result<ConsentAggregate>> {
     try {
-      const sessionId = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      if (!sessionIdResult.ok) return Err(sessionIdResult.error);
+      const sessionId = sessionIdResult.value;
       const projectIdResult = toProjectId(rawProjectId);
       if (!projectIdResult.ok) return Err(projectIdResult.error);
       const projectId = projectIdResult.value;
@@ -97,8 +99,9 @@ export class AnalyticsApplicationService {
    */
   async revokeConsent(rawConsentId: string): Promise<Result<void>> {
     try {
-      const consentId = toConsentId(rawConsentId);
-      const consent = this.repository.findById(consentId);
+      const consentIdResult = toConsentId(rawConsentId);
+      if (!consentIdResult.ok) return Err(consentIdResult.error);
+      const consent = this.repository.findById(consentIdResult.value);
       if (consent === undefined) {
         return Err(`Consent record not found: ${rawConsentId}`);
       }
@@ -118,8 +121,9 @@ export class AnalyticsApplicationService {
 
   async getConsentStatus(rawConsentId: string): Promise<Result<ConsentStatus>> {
     try {
-      const consentId = toConsentId(rawConsentId);
-      const consent = this.repository.findById(consentId);
+      const consentIdResult = toConsentId(rawConsentId);
+      if (!consentIdResult.ok) return Err(consentIdResult.error);
+      const consent = this.repository.findById(consentIdResult.value);
       if (consent === undefined) {
         return Err(`Consent record not found: ${rawConsentId}`);
       }
@@ -145,7 +149,9 @@ export class AnalyticsApplicationService {
     data: Record<string, unknown> = {},
   ): Promise<Result<void>> {
     try {
-      const sessionId = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      if (!sessionIdResult.ok) return Err(sessionIdResult.error);
+      const sessionId = sessionIdResult.value;
 
       const consent = this.repository.findBySession(sessionId);
       if (consent === undefined || !consent.isGranted()) {
@@ -182,7 +188,9 @@ export class AnalyticsApplicationService {
     properties?: Record<string, unknown>,
   ): Promise<Result<void>> {
     try {
-      const sessionId = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      if (!sessionIdResult.ok) return Err(sessionIdResult.error);
+      const sessionId = sessionIdResult.value;
 
       const consent = this.repository.findBySession(sessionId);
       if (consent === undefined || !consent.isGranted()) {
@@ -230,7 +238,9 @@ export class AnalyticsApplicationService {
 
   async queryEvents(rawSessionId: string): Promise<Result<CapturedEvent[]>> {
     try {
-      const sessionId = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      if (!sessionIdResult.ok) return Err(sessionIdResult.error);
+      const sessionId = sessionIdResult.value;
       const log = capturedEventLog.get(sessionId) ?? [];
       // Return a copy so callers cannot mutate internal state.
       return Ok(log.map(e => ({ ...e, payload: { ...e.payload } })));

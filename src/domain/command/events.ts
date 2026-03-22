@@ -1,8 +1,11 @@
 /**
  * Command bounded context — Domain Event factories.
+ *
+ * Event interfaces use plain string IDs (not VO classes) so that events
+ * remain plain serialisable data objects.
  */
 import type { DomainEvent } from '../shared/event-bus';
-import type { CommandId, CommandScope, SelectionMethod } from './types';
+import type { CommandScopeValue, SelectionMethod } from './types';
 
 export const COMMAND_EVENT_TYPES = {
   COMMAND_REGISTERED: 'command/command.registered',
@@ -21,33 +24,33 @@ export type CommandEventType = (typeof COMMAND_EVENT_TYPES)[keyof typeof COMMAND
 
 export interface CommandRegisteredEvent extends DomainEvent {
   readonly type: typeof COMMAND_EVENT_TYPES.COMMAND_REGISTERED;
-  readonly commandId: CommandId;
+  readonly commandId: string;
   readonly name: string;
-  readonly scope: CommandScope;
+  readonly scope: CommandScopeValue;
 }
 
 export interface CommandSelectedEvent extends DomainEvent {
   readonly type: typeof COMMAND_EVENT_TYPES.COMMAND_SELECTED;
-  readonly commandId: CommandId;
+  readonly commandId: string;
   readonly method: SelectionMethod;
 }
 
 export interface CommandExecutedEvent extends DomainEvent {
   readonly type: typeof COMMAND_EVENT_TYPES.COMMAND_EXECUTED;
-  readonly commandId: CommandId;
+  readonly commandId: string;
   readonly durationMs: number;
   readonly success: boolean;
 }
 
 export interface CommandDeletedEvent extends DomainEvent {
   readonly type: typeof COMMAND_EVENT_TYPES.COMMAND_DELETED;
-  readonly commandId: CommandId;
+  readonly commandId: string;
 }
 
 export function makeCommandRegistered(
-  commandId: CommandId,
+  commandId: string,
   name: string,
-  scope: CommandScope,
+  scope: CommandScopeValue,
 ): CommandRegisteredEvent {
   return {
     type: COMMAND_EVENT_TYPES.COMMAND_REGISTERED,
@@ -60,7 +63,7 @@ export function makeCommandRegistered(
 }
 
 export function makeCommandSelected(
-  commandId: CommandId,
+  commandId: string,
   method: SelectionMethod,
 ): CommandSelectedEvent {
   return {
@@ -73,7 +76,7 @@ export function makeCommandSelected(
 }
 
 export function makeCommandExecuted(
-  commandId: CommandId,
+  commandId: string,
   durationMs: number,
   success: boolean,
 ): CommandExecutedEvent {
@@ -87,7 +90,7 @@ export function makeCommandExecuted(
   };
 }
 
-export function makeCommandDeleted(commandId: CommandId): CommandDeletedEvent {
+export function makeCommandDeleted(commandId: string): CommandDeletedEvent {
   return {
     type: COMMAND_EVENT_TYPES.COMMAND_DELETED,
     occurredAt: Date.now(),

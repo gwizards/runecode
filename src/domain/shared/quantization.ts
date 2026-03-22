@@ -735,17 +735,17 @@ export class SessionSnapshotQuantizer extends ScalarQuantizer<RawSession> {
 
 // ─── CommandSnapshotQuantizer ─────────────────────────────────────────────────
 
-import type { RawCommandSnapshot, CommandScope } from '../command/types';
+import type { RawCommandSnapshot, CommandScopeValue } from '../command/types';
 
 // CommandScope codec (4 values fit in a uint8)
-const COMMAND_SCOPE_ENCODE: Record<CommandScope, number> = {
+const COMMAND_SCOPE_ENCODE: Record<CommandScopeValue, number> = {
   builtin: 0,
   user: 1,
   project: 2,
   skill: 3,
 };
 
-const COMMAND_SCOPE_DECODE: CommandScope[] = ['builtin', 'user', 'project', 'skill'];
+const COMMAND_SCOPE_DECODE: CommandScopeValue[] = ['builtin', 'user', 'project', 'skill'];
 
 /**
  * Quantizes RawCommandSnapshot snapshots.
@@ -815,7 +815,7 @@ export class CommandSnapshotQuantizer extends ScalarQuantizer<RawCommandSnapshot
     const capFlags = buf.fixed.uint8[1] ?? 0;
     const registeredAtSec = buf.fixed.uint32[0] ?? 0;
 
-    const scope: CommandScope = COMMAND_SCOPE_DECODE[scopeCode] ?? 'user';
+    const scope: CommandScopeValue = COMMAND_SCOPE_DECODE[scopeCode] ?? 'user';
 
     const allowedToolsRaw = buf.strings['allowedTools'];
     const allowedTools: string[] = allowedToolsRaw !== undefined

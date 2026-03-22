@@ -100,7 +100,10 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
   // ── Select / focus a session ───────────────────────────────────────────────
 
   selectSession(id: string): void {
-    set({ currentSessionId: toSessionId(id) });
+    const result = toSessionId(id);
+    if (result.ok) {
+      set({ currentSessionId: result.value });
+    }
   },
 
   // ── Create a new session ───────────────────────────────────────────────────

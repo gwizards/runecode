@@ -9,7 +9,7 @@
  * interface; infrastructure owns the implementations.
  */
 
-import type { CommandId, CommandScope } from '../types';
+import type { CommandId, CommandScopeValue } from '../types';
 import type { SlashCommandEntry } from '../types';
 
 export interface ICommandRepository {
@@ -26,7 +26,7 @@ export interface ICommandRepository {
   delete(id: CommandId): Promise<void>;
 
   /** Return all commands whose scope matches the given value. */
-  listByScope(scope: CommandScope): Promise<SlashCommandEntry[]>;
+  listByScope(scope: CommandScopeValue): Promise<SlashCommandEntry[]>;
 
   /** Return all tracked commands regardless of scope. */
   listAll(): Promise<SlashCommandEntry[]>;

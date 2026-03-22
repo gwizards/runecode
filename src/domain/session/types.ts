@@ -27,15 +27,15 @@ const VALID_SESSION_STATUSES = new Set<SessionStatus>(['running', 'completed', '
 export type SessionId = string & { readonly _brand: 'SessionId' };
 export type ProjectId = string & { readonly _brand: 'ProjectId' };
 
-export function toSessionId(id: string): SessionId {
-  if (id === '__unknown__') return id as SessionId; // sentinel allowed
-  if (!id || !id.trim()) throw new Error('SessionId cannot be empty');
-  return id as SessionId;
+export function toSessionId(id: string): Result<SessionId> {
+  if (id === '__unknown__') return Ok(id as SessionId); // sentinel allowed
+  if (!id || !id.trim()) return Err('SessionId cannot be empty');
+  return Ok(id as SessionId);
 }
 
-export function toProjectId(id: string): ProjectId {
-  if (!id || !id.trim()) throw new Error('ProjectId cannot be empty');
-  return id as ProjectId;
+export function toProjectId(id: string): Result<ProjectId> {
+  if (!id || !id.trim()) return Err('ProjectId cannot be empty');
+  return Ok(id as ProjectId);
 }
 
 // ─── Value Object: SessionIdVO ────────────────────────────────────────────────
@@ -240,7 +240,12 @@ export class SessionAggregate {
 
   // ── Factory: create from raw data ──────────────────────────────────────────
 
-  static create(raw: RawSession): SessionAggregate {
+  static create(raw: RawSession): Result<SessionAggregate> {
+    const sidResult = toSessionId(raw.id);
+    if (!sidResult.ok) return sidResult;
+    const pidResult = toProjectId(raw.projectId);
+    if (!pidResult.ok) return pidResult;
+
     const createdAt = raw.createdAt ? Date.parse(raw.createdAt) : Date.now();
     const tokenUsage = raw.tokenUsage
       ? addTokenUsage(emptyTokenUsage(), raw.tokenUsage)
@@ -250,8 +255,8 @@ export class SessionAggregate {
       : 'idle';
 
     const aggregate = new SessionAggregate(
-      toSessionId(raw.id),
-      toProjectId(raw.projectId),
+      sidResult.value,
+      pidResult.value,
       raw.title ?? 'Untitled Session',
       status,
       tokenUsage,
@@ -264,7 +269,7 @@ export class SessionAggregate {
       makeSessionCreated(aggregate.id, aggregate.projectId, aggregate._title),
     );
 
-    return aggregate;
+    return Ok(aggregate);
   }
 
   // ── Factory: rehydrate from snapshot ──────────────────────────────────────
@@ -272,7 +277,12 @@ export class SessionAggregate {
   /**
    * Reconstitutes an aggregate from a persisted snapshot. No events are raised.
    */
-  static fromSnapshot(raw: RawSession): SessionAggregate {
+  static fromSnapshot(raw: RawSession): Result<SessionAggregate> {
+    const sidResult = toSessionId(raw.id);
+    if (!sidResult.ok) return sidResult;
+    const pidResult = toProjectId(raw.projectId);
+    if (!pidResult.ok) return pidResult;
+
     const createdAt = raw.createdAt ? Date.parse(raw.createdAt) : 0;
     const tokenUsage = raw.tokenUsage
       ? addTokenUsage(emptyTokenUsage(), raw.tokenUsage)
@@ -280,16 +290,16 @@ export class SessionAggregate {
     const status: SessionStatus = VALID_SESSION_STATUSES.has(raw.status as SessionStatus)
       ? (raw.status as SessionStatus)
       : 'idle';
-    return new SessionAggregate(
-      toSessionId(raw.id),
-      toProjectId(raw.projectId),
+    return Ok(new SessionAggregate(
+      sidResult.value,
+      pidResult.value,
       raw.title ?? 'Untitled Session',
       status,
       tokenUsage,
       [],
       createdAt,
       [],
-    );
+    ));
   }
 
   // ── Factory: null/empty session ────────────────────────────────────────────
@@ -322,24 +332,26 @@ export class SessionAggregate {
     this._events.push(makeOutputAppended(this.id, chunk));
   }
 
-  complete(): void {
+  complete(): Result<void> {
     if (isTerminal(this._status)) {
-      throw new Error(
+      return Err(
         `Cannot complete session ${this.id}: already in terminal status "${this._status}"`,
       );
     }
     this._status = 'completed';
     this._events.push(makeSessionCompleted(this.id, this._tokenUsage));
+    return Ok(undefined);
   }
 
-  fail(reason: string): void {
+  fail(reason: string): Result<void> {
     if (isTerminal(this._status)) {
-      throw new Error(
+      return Err(
         `Cannot fail session ${this.id}: already in terminal status "${this._status}"`,
       );
     }
     this._status = 'error';
     this._events.push(makeSessionFailed(this.id, reason));
+    return Ok(undefined);
   }
 
   updateTokenUsage(usage: RawTokenUsage): void {

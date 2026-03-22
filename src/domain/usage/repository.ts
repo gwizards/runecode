@@ -7,6 +7,7 @@
 
 import type { LedgerId, SessionId, ProjectId, RawLedger } from './types';
 import { UsageLedger } from './types';
+import { unwrap } from '../shared/result';
 import { quantizeVector, int8CosineSimilarity } from '../shared/quantization';
 import type { IUsageLedgerRepository } from './ports/IUsageLedgerRepository';
 
@@ -59,13 +60,13 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
   async getById(id: LedgerId): Promise<UsageLedger | null> {
     const snapshot = this.ledgers.get(id);
     if (!snapshot) return null;
-    return UsageLedger.fromSnapshot(snapshot);
+    return unwrap(UsageLedger.fromSnapshot(snapshot));
   }
 
   async getBySession(sessionId: SessionId): Promise<UsageLedger | null> {
     for (const snapshot of this.ledgers.values()) {
       if (snapshot.sessionId === sessionId && !snapshot.sealed) {
-        return UsageLedger.fromSnapshot(snapshot);
+        return unwrap(UsageLedger.fromSnapshot(snapshot));
       }
     }
     return null;
@@ -82,7 +83,7 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
   async listByProject(projectId: ProjectId): Promise<UsageLedger[]> {
     return Array.from(this.ledgers.values())
       .filter((s) => s.projectId === projectId)
-      .map(UsageLedger.fromSnapshot);
+      .map((s) => unwrap(UsageLedger.fromSnapshot(s)));
   }
 
   async listByDateRange(from?: number, to?: number): Promise<UsageLedger[]> {
@@ -92,7 +93,7 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
         if (to   !== undefined && s.openedAt > to)   return false;
         return true;
       })
-      .map(UsageLedger.fromSnapshot);
+      .map((s) => unwrap(UsageLedger.fromSnapshot(s)));
   }
 
   searchByEmbedding(

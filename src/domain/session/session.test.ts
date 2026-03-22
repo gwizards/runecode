@@ -17,6 +17,7 @@ import {
   toSessionId,
   toProjectId,
 } from './types';
+import { unwrap } from '../shared/result';
 import { SESSION_EVENT_TYPES } from './events';
 import { InMemorySessionRepository } from './repository';
 
@@ -55,7 +56,7 @@ describe('SessionAggregate.create()', () => {
   };
 
   it('raises a SessionCreatedEvent after creation', () => {
-    const session = SessionAggregate.create(rawSession);
+    const session = unwrap(SessionAggregate.create(rawSession));
     const events = session.events;
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe(SESSION_EVENT_TYPES.SESSION_CREATED);
@@ -63,11 +64,11 @@ describe('SessionAggregate.create()', () => {
   });
 
   it('sets the correct initial status from raw data', () => {
-    const session = SessionAggregate.create(rawSession);
+    const session = unwrap(SessionAggregate.create(rawSession));
     expect(session.status).toBe('idle');
     expect(session.title).toBe('My first session');
-    expect(session.id).toBe(toSessionId('sess-001'));
-    expect(session.projectId).toBe(toProjectId('proj-abc'));
+    expect(session.id).toBe(unwrap(toSessionId('sess-001')));
+    expect(session.projectId).toBe(unwrap(toProjectId('proj-abc')));
   });
 });
 
@@ -75,11 +76,11 @@ describe('SessionAggregate.create()', () => {
 
 describe('SessionAggregate.appendOutput()', () => {
   function makeSession() {
-    return SessionAggregate.create({
+    return unwrap(SessionAggregate.create({
       id: 'sess-002',
       projectId: 'proj-abc',
       title: 'Output test',
-    });
+    }));
   }
 
   it('raises an OutputAppendedEvent for each chunk', () => {
@@ -104,27 +105,30 @@ describe('SessionAggregate.appendOutput()', () => {
 
 describe('SessionAggregate.complete()', () => {
   function makeSession() {
-    return SessionAggregate.create({
+    return unwrap(SessionAggregate.create({
       id: 'sess-003',
       projectId: 'proj-abc',
       title: 'Complete test',
-    });
+    }));
   }
 
   it('raises a SessionCompletedEvent and sets status to completed', () => {
     const session = makeSession();
     session.clearEvents();
-    session.complete();
+    const result = session.complete();
+    expect(result.ok).toBe(true);
     expect(session.status).toBe('completed');
     const events = session.events;
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe(SESSION_EVENT_TYPES.SESSION_COMPLETED);
   });
 
-  it('throws if complete() is called on an already-completed session', () => {
+  it('returns Err if complete() is called on an already-completed session', () => {
     const session = makeSession();
     session.complete();
-    expect(() => session.complete()).toThrow();
+    const result = session.complete();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/terminal/i);
   });
 });
 
@@ -133,47 +137,47 @@ describe('SessionAggregate.complete()', () => {
 describe('InMemorySessionRepository', () => {
   it('save + getSession round-trips correctly', async () => {
     const repo = new InMemorySessionRepository();
-    const session = SessionAggregate.create({
+    const session = unwrap(SessionAggregate.create({
       id: 'sess-100',
       projectId: 'proj-xyz',
       title: 'Round-trip test',
-    });
+    }));
 
     await repo.saveSession(session);
-    const retrieved = await repo.getSession(toSessionId('sess-100'));
+    const retrieved = await repo.getSession(unwrap(toSessionId('sess-100')));
 
     expect(retrieved).not.toBeNull();
-    expect(retrieved?.id).toBe(toSessionId('sess-100'));
+    expect(retrieved?.id).toBe(unwrap(toSessionId('sess-100')));
     expect(retrieved?.title).toBe('Round-trip test');
   });
 
   it('listSessionsByProject filters sessions by projectId', async () => {
     const repo = new InMemorySessionRepository();
 
-    const sessionA = SessionAggregate.create({
+    const sessionA = unwrap(SessionAggregate.create({
       id: 'sess-A',
       projectId: 'proj-1',
       title: 'Session A',
-    });
-    const sessionB = SessionAggregate.create({
+    }));
+    const sessionB = unwrap(SessionAggregate.create({
       id: 'sess-B',
       projectId: 'proj-2',
       title: 'Session B',
-    });
-    const sessionC = SessionAggregate.create({
+    }));
+    const sessionC = unwrap(SessionAggregate.create({
       id: 'sess-C',
       projectId: 'proj-1',
       title: 'Session C',
-    });
+    }));
 
     await repo.saveSession(sessionA);
     await repo.saveSession(sessionB);
     await repo.saveSession(sessionC);
 
-    const proj1Sessions = await repo.listSessionsByProject(toProjectId('proj-1'));
+    const proj1Sessions = await repo.listSessionsByProject(unwrap(toProjectId('proj-1')));
     expect(proj1Sessions).toHaveLength(2);
     const ids = proj1Sessions.map(s => s.id);
-    expect(ids).toContain(toSessionId('sess-A'));
-    expect(ids).toContain(toSessionId('sess-C'));
+    expect(ids).toContain(unwrap(toSessionId('sess-A')));
+    expect(ids).toContain(unwrap(toSessionId('sess-C')));
   });
 });

@@ -13,11 +13,10 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { isTerminalStatus, isActiveStatus } from './types';
+import { isTerminalStatus, isActiveStatus, unsafeAgentId } from './types';
 import { AgentName } from './types';
 import { LiveAgentAggregate } from './types';
 import { InMemoryAgentRepository } from './repository';
-import { toAgentId } from './types';
 import { AGENT_EVENT_TYPES } from './events';
 import { unwrap } from '../shared/result';
 
@@ -91,7 +90,8 @@ describe('LiveAgentAggregate.complete()', () => {
     const agent = unwrap(LiveAgentAggregate.start('agent-3', 'Rune'));
     agent.clearEvents();
     agent.tick(5000, 42);
-    agent.complete();
+    const result = agent.complete();
+    expect(result.ok).toBe(true);
     const events = agent.events;
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe(AGENT_EVENT_TYPES.AGENT_COMPLETED);
@@ -99,10 +99,12 @@ describe('LiveAgentAggregate.complete()', () => {
     expect(agent.isTerminal).toBe(true);
   });
 
-  it('throws if complete() is called a second time on an already completed agent', () => {
+  it('returns Err if complete() is called a second time on an already completed agent', () => {
     const agent = unwrap(LiveAgentAggregate.start('agent-4', 'Rune'));
     agent.complete();
-    expect(() => agent.complete()).toThrow(/terminal/);
+    const result = agent.complete();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/terminal/);
   });
 });
 
@@ -112,7 +114,8 @@ describe('LiveAgentAggregate.fail()', () => {
   it('raises AgentFailedEvent with the supplied reason', () => {
     const agent = unwrap(LiveAgentAggregate.start('agent-5', 'Rune'));
     agent.clearEvents();
-    agent.fail('network timeout');
+    const result = agent.fail('network timeout');
+    expect(result.ok).toBe(true);
     const events = agent.events;
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe(AGENT_EVENT_TYPES.AGENT_FAILED);
@@ -127,7 +130,8 @@ describe('LiveAgentAggregate.think()', () => {
   it('transitions to thinking and raises AgentThinkingEvent', () => {
     const agent = unwrap(LiveAgentAggregate.start('agent-6', 'Rune'));
     agent.clearEvents();
-    agent.think();
+    const result = agent.think();
+    expect(result.ok).toBe(true);
     expect(agent.status).toBe('thinking');
     const events = agent.events;
     expect(events).toHaveLength(1);
@@ -142,7 +146,7 @@ describe('InMemoryAgentRepository', () => {
     const repo = new InMemoryAgentRepository();
     const agent = unwrap(LiveAgentAggregate.start('agent-7', 'Rune'));
     await repo.saveAgent(agent);
-    const retrieved = await repo.getAgent(toAgentId('agent-7'));
+    const retrieved = await repo.getAgent(unsafeAgentId('agent-7'));
     expect(retrieved).not.toBeNull();
     expect(retrieved!.id).toBe('agent-7');
     expect(retrieved!.name).toBe('Rune');

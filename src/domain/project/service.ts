@@ -49,7 +49,9 @@ export class ProjectApplicationService {
 
   async openProject(id: string): Promise<Result<ProjectAggregate>> {
     try {
-      const project = await this.repo.getProject(toProjectId(id));
+      const pidResult = toProjectId(id);
+      if (!pidResult.ok) return Err(pidResult.error);
+      const project = await this.repo.getProject(pidResult.value);
       if (project === null) {
         return Err(`Project "${id}" not found`);
       }
@@ -68,7 +70,9 @@ export class ProjectApplicationService {
 
   async renameProject(id: string, newName: string): Promise<Result<void>> {
     try {
-      const project = await this.repo.getProject(toProjectId(id));
+      const pidResult = toProjectId(id);
+      if (!pidResult.ok) return Err(pidResult.error);
+      const project = await this.repo.getProject(pidResult.value);
       if (project === null) {
         return Err(`Project "${id}" not found`);
       }
@@ -88,10 +92,13 @@ export class ProjectApplicationService {
 
   async deleteProject(id: string): Promise<Result<void>> {
     try {
-      const project = await this.repo.getProject(toProjectId(id));
+      const pidResult = toProjectId(id);
+      if (!pidResult.ok) return Err(pidResult.error);
+      const pid = pidResult.value;
+      const project = await this.repo.getProject(pid);
       if (!project) return Err(`Project "${id}" not found`);
       project.markForDeletion();    // event raised inside aggregate
-      await this.repo.deleteProject(toProjectId(id));
+      await this.repo.deleteProject(pid);
       this.eventBus.dispatch(project.events);
       project.clearEvents();
       return Ok(undefined);
@@ -104,7 +111,9 @@ export class ProjectApplicationService {
 
   async getProject(id: string): Promise<Result<ProjectAggregate>> {
     try {
-      const project = await this.repo.getProject(toProjectId(id));
+      const pidResult = toProjectId(id);
+      if (!pidResult.ok) return Err(pidResult.error);
+      const project = await this.repo.getProject(pidResult.value);
       if (project === null) {
         return Err(`Project "${id}" not found`);
       }

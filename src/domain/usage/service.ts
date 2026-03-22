@@ -47,12 +47,14 @@ export class UsageApplicationService {
     try {
       const userIdResult = UserId.create(cmd.userId);
       if (!userIdResult.ok) return Err(userIdResult.error);
-      const ledger = UsageLedger.open({
+      const ledgerResult = UsageLedger.open({
         id:        cmd.id,
         sessionId: cmd.sessionId,
         projectId: cmd.projectId,
         userId:    userIdResult.value,
       });
+      if (!ledgerResult.ok) return ledgerResult;
+      const ledger = ledgerResult.value;
       await this.persist(ledger);
       return Ok(ledger);
     } catch (err) {
@@ -69,14 +71,16 @@ export class UsageApplicationService {
     record: RawUsageRecord;
   }): Promise<Result<UsageSummary>> {
     try {
-      const sessionId = toSessionId(cmd.sessionId);
-      const ledger    = await this.repo.getBySession(sessionId);
+      const sessionIdResult = toSessionId(cmd.sessionId);
+      if (!sessionIdResult.ok) return sessionIdResult;
+      const ledger = await this.repo.getBySession(sessionIdResult.value);
       if (!ledger) {
         return Err(`No open ledger found for session '${cmd.sessionId}'`);
       }
-      const summary = ledger.addRecord(cmd.record);
+      const summaryResult = ledger.addRecord(cmd.record);
+      if (!summaryResult.ok) return summaryResult;
       await this.persist(ledger);
-      return Ok(summary);
+      return Ok(summaryResult.value);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
     }
@@ -88,14 +92,16 @@ export class UsageApplicationService {
    */
   async sealLedger(cmd: { sessionId: string }): Promise<Result<UsageSummary>> {
     try {
-      const sessionId = toSessionId(cmd.sessionId);
-      const ledger    = await this.repo.getBySession(sessionId);
+      const sessionIdResult = toSessionId(cmd.sessionId);
+      if (!sessionIdResult.ok) return sessionIdResult;
+      const ledger = await this.repo.getBySession(sessionIdResult.value);
       if (!ledger) {
         return Err(`No open ledger found for session '${cmd.sessionId}'`);
       }
-      const summary = ledger.seal();
+      const summaryResult = ledger.seal();
+      if (!summaryResult.ok) return summaryResult;
       await this.persist(ledger);
-      return Ok(summary);
+      return Ok(summaryResult.value);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
     }
@@ -109,8 +115,9 @@ export class UsageApplicationService {
    */
   async getLedgerSummary(sessionId: string): Promise<Result<UsageSummary>> {
     try {
-      const sid    = toSessionId(sessionId);
-      const ledger = await this.repo.getBySession(sid);
+      const sidResult = toSessionId(sessionId);
+      if (!sidResult.ok) return sidResult;
+      const ledger = await this.repo.getBySession(sidResult.value);
       if (!ledger) {
         return Err(`No open ledger found for session '${sessionId}'`);
       }
@@ -133,8 +140,9 @@ export class UsageApplicationService {
       let ledgers: UsageLedger[];
 
       if (cmd.projectId !== undefined) {
-        const projectId = toProjectId(cmd.projectId);
-        ledgers         = await this.repo.listByProject(projectId);
+        const projectIdResult = toProjectId(cmd.projectId);
+        if (!projectIdResult.ok) return projectIdResult;
+        ledgers = await this.repo.listByProject(projectIdResult.value);
         // Apply date range filter if provided
         if (cmd.from !== undefined || cmd.to !== undefined) {
           ledgers = ledgers.filter((l) => {
@@ -159,8 +167,9 @@ export class UsageApplicationService {
    */
   async getLedgerById(ledgerId: string): Promise<Result<UsageSummary>> {
     try {
-      const lid    = toLedgerId(ledgerId);
-      const ledger = await this.repo.getById(lid);
+      const lidResult = toLedgerId(ledgerId);
+      if (!lidResult.ok) return lidResult;
+      const ledger = await this.repo.getById(lidResult.value);
       if (!ledger) {
         return Err(`Ledger '${ledgerId}' not found`);
       }
@@ -186,18 +195,20 @@ export class UsageApplicationService {
     costUsd: number,
   ): Promise<Result<UsageLedger>> {
     try {
-      const sid    = toSessionId(sessionId);
-      const ledger = await this.repo.getBySession(sid);
+      const sidResult = toSessionId(sessionId);
+      if (!sidResult.ok) return sidResult;
+      const ledger = await this.repo.getBySession(sidResult.value);
       if (!ledger) {
         return Err(`No open ledger found for session '${sessionId}'`);
       }
       const half = Math.floor(tokens / 2);
-      ledger.addRecord({
+      const addResult = ledger.addRecord({
         model:        'unknown',
         inputTokens:  half,
         outputTokens: tokens - half,
         costUsd,
       });
+      if (!addResult.ok) return addResult;
       await this.persist(ledger);
       return Ok(ledger);
     } catch (err) {
@@ -214,8 +225,9 @@ export class UsageApplicationService {
    */
   async getLedger(sessionId: string): Promise<Result<UsageLedger>> {
     try {
-      const sid    = toSessionId(sessionId);
-      const ledger = await this.repo.getBySession(sid);
+      const sidResult = toSessionId(sessionId);
+      if (!sidResult.ok) return sidResult;
+      const ledger = await this.repo.getBySession(sidResult.value);
       if (!ledger) {
         return Err(`No open ledger found for session '${sessionId}'`);
       }

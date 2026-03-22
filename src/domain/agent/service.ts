@@ -21,8 +21,10 @@ export class AgentApplicationService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  private async load(agentId: string): Promise<LiveAgentAggregate | null> {
-    return this.repo.getAgent(toAgentId(agentId));
+  private async load(agentId: string): Promise<Result<LiveAgentAggregate | null>> {
+    const idResult = toAgentId(agentId);
+    if (!idResult.ok) return idResult;
+    return Ok(await this.repo.getAgent(idResult.value));
   }
 
   private async persist(agent: LiveAgentAggregate): Promise<void> {
@@ -54,9 +56,12 @@ export class AgentApplicationService {
    */
   async markThinking(agentId: string): Promise<Result<void>> {
     try {
-      const agent = await this.load(agentId);
+      const loadResult = await this.load(agentId);
+      if (!loadResult.ok) return loadResult;
+      const agent = loadResult.value;
       if (!agent) return Err(`Agent '${agentId}' not found`);
-      agent.think();
+      const domainResult = agent.think();
+      if (!domainResult.ok) return domainResult;
       await this.persist(agent);
       return Ok(undefined);
     } catch (err) {
@@ -73,7 +78,9 @@ export class AgentApplicationService {
     tokenCount: number,
   ): Promise<Result<void>> {
     try {
-      const agent = await this.load(agentId);
+      const loadResult = await this.load(agentId);
+      if (!loadResult.ok) return loadResult;
+      const agent = loadResult.value;
       if (!agent) return Err(`Agent '${agentId}' not found`);
       agent.tick(elapsedMs, tokenCount);
       await this.persist(agent);
@@ -88,9 +95,12 @@ export class AgentApplicationService {
    */
   async completeAgent(agentId: string): Promise<Result<void>> {
     try {
-      const agent = await this.load(agentId);
+      const loadResult = await this.load(agentId);
+      if (!loadResult.ok) return loadResult;
+      const agent = loadResult.value;
       if (!agent) return Err(`Agent '${agentId}' not found`);
-      agent.complete();
+      const domainResult = agent.complete();
+      if (!domainResult.ok) return domainResult;
       await this.persist(agent);
       return Ok(undefined);
     } catch (err) {
@@ -103,9 +113,12 @@ export class AgentApplicationService {
    */
   async failAgent(agentId: string, reason: string): Promise<Result<void>> {
     try {
-      const agent = await this.load(agentId);
+      const loadResult = await this.load(agentId);
+      if (!loadResult.ok) return loadResult;
+      const agent = loadResult.value;
       if (!agent) return Err(`Agent '${agentId}' not found`);
-      agent.fail(reason);
+      const domainResult = agent.fail(reason);
+      if (!domainResult.ok) return domainResult;
       await this.persist(agent);
       return Ok(undefined);
     } catch (err) {
@@ -118,9 +131,12 @@ export class AgentApplicationService {
    */
   async resumeAgent(agentId: string): Promise<Result<void>> {
     try {
-      const agent = await this.load(agentId);
+      const loadResult = await this.load(agentId);
+      if (!loadResult.ok) return loadResult;
+      const agent = loadResult.value;
       if (!agent) return Err(`Agent '${agentId}' not found`);
-      agent.resume();
+      const domainResult = agent.resume();
+      if (!domainResult.ok) return domainResult;
       await this.persist(agent);
       return Ok(undefined);
     } catch (err) {
@@ -135,7 +151,9 @@ export class AgentApplicationService {
    */
   async getAgent(agentId: string): Promise<Result<LiveAgentAggregate>> {
     try {
-      const agent = await this.load(agentId);
+      const loadResult = await this.load(agentId);
+      if (!loadResult.ok) return loadResult;
+      const agent = loadResult.value;
       if (!agent) return Err(`Agent '${agentId}' not found`);
       return Ok(agent);
     } catch (err) {

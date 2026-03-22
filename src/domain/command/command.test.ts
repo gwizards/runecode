@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DomainEventBus } from '../shared/event-bus';
 import type { DomainEvent } from '../shared/event-bus';
-import { SlashCommandEntry, toCommandId } from './types';
+import { SlashCommandEntry, CommandId, CommandName, CommandScope } from './types';
 import type { RawCommand } from './types';
 import { COMMAND_EVENT_TYPES } from './events';
 import { InMemoryCommandRepository } from './repository';
@@ -43,11 +43,107 @@ function makeRawCommand(overrides: Partial<RawCommand> = {}): RawCommand {
   };
 }
 
+/** Convenience: unwrap a register result or throw in test setup. */
+function registerOrThrow(raw: RawCommand): SlashCommandEntry {
+  const result = SlashCommandEntry.register(raw);
+  if (!result.ok) throw new Error(`Test setup failed: ${result.error}`);
+  return result.value;
+}
+
+// ─── CommandId VO ─────────────────────────────────────────────────────────────
+
+describe('CommandId', () => {
+  it('creates successfully for a non-empty string', () => {
+    const result = CommandId.create('cmd-001');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.value).toBe('cmd-001');
+  });
+
+  it('returns Err for an empty string', () => {
+    const result = CommandId.create('');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/cannot be empty/i);
+  });
+
+  it('returns Err for a whitespace-only string', () => {
+    const result = CommandId.create('   ');
+    expect(result.ok).toBe(false);
+  });
+
+  it('trims leading/trailing whitespace', () => {
+    const result = CommandId.create('  cmd-001  ');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.value).toBe('cmd-001');
+  });
+});
+
+// ─── CommandName VO ───────────────────────────────────────────────────────────
+
+describe('CommandName', () => {
+  it('creates successfully for a valid name', () => {
+    const result = CommandName.create('optimize');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.value).toBe('optimize');
+  });
+
+  it('returns Err for an empty string', () => {
+    const result = CommandName.create('');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/cannot be empty/i);
+  });
+
+  it('returns Err for a name exceeding 64 characters', () => {
+    const result = CommandName.create('a'.repeat(65));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/64 characters/i);
+  });
+
+  it('returns Err when name contains whitespace', () => {
+    const result = CommandName.create('my command');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/whitespace/i);
+  });
+
+  it('returns Err when name contains "/"', () => {
+    const result = CommandName.create('project/optimize');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/must not contain/i);
+  });
+});
+
+// ─── CommandScope VO ──────────────────────────────────────────────────────────
+
+describe('CommandScope', () => {
+  it('creates successfully for each valid scope', () => {
+    for (const s of ['builtin', 'user', 'project', 'skill'] as const) {
+      const result = CommandScope.create(s);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.value).toBe(s);
+    }
+  });
+
+  it('returns Err for an invalid scope', () => {
+    const result = CommandScope.create('invalid-scope');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/invalid commandscope/i);
+  });
+});
+
 // ─── SlashCommandEntry.register() ─────────────────────────────────────────────
 
 describe('SlashCommandEntry.register()', () => {
   it('registers a valid command and raises COMMAND_REGISTERED', () => {
-    const entry = SlashCommandEntry.register(makeRawCommand());
+    const entry = registerOrThrow(makeRawCommand());
 
     const events = entry.events;
     expect(events).toHaveLength(1);
@@ -56,65 +152,73 @@ describe('SlashCommandEntry.register()', () => {
   });
 
   it('exposes the correct name, fullCommand, and scope', () => {
-    const entry = SlashCommandEntry.register(makeRawCommand());
+    const entry = registerOrThrow(makeRawCommand());
 
     expect(entry.name).toBe('optimize');
     expect(entry.fullCommand).toBe('/project:optimize');
     expect(entry.scope).toBe('project');
   });
 
-  it('throws when full_command does not start with "/"', () => {
-    expect(() =>
-      SlashCommandEntry.register(makeRawCommand({ full_command: 'project:optimize' })),
-    ).toThrow(/must start with/i);
+  it('returns Err when full_command does not start with "/"', () => {
+    const result = SlashCommandEntry.register(
+      makeRawCommand({ full_command: 'project:optimize' }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/must start with/i);
   });
 
-  it('throws when scope is builtin and file_path is provided', () => {
-    expect(() =>
-      SlashCommandEntry.register(
-        makeRawCommand({ scope: 'builtin', file_path: '/home/user/.config/cmd.md' }),
-      ),
-    ).toThrow(/builtin commands must not have a filePath/i);
+  it('returns Err when scope is builtin and file_path is provided', () => {
+    const result = SlashCommandEntry.register(
+      makeRawCommand({ scope: 'builtin', file_path: '/home/user/.config/cmd.md' }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/builtin commands must not have a filePath/i);
   });
 
-  it('throws when hasBashCommands=true but allowedTools is empty', () => {
-    expect(() =>
-      SlashCommandEntry.register(
-        makeRawCommand({ has_bash_commands: true, allowed_tools: [] }),
-      ),
-    ).toThrow(/hasBashCommands=true requires allowedTools.length > 0/i);
+  it('returns Err when hasBashCommands=true but allowedTools is empty', () => {
+    const result = SlashCommandEntry.register(
+      makeRawCommand({ has_bash_commands: true, allowed_tools: [] }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/hasBashCommands=true requires allowedTools.length > 0/i);
   });
 
-  it('does not throw when hasBashCommands=true and allowedTools is non-empty', () => {
-    expect(() =>
-      SlashCommandEntry.register(
-        makeRawCommand({ has_bash_commands: true, allowed_tools: ['Bash'] }),
-      ),
-    ).not.toThrow();
+  it('returns Ok when hasBashCommands=true and allowedTools is non-empty', () => {
+    const result = SlashCommandEntry.register(
+      makeRawCommand({ has_bash_commands: true, allowed_tools: ['Bash'] }),
+    );
+    expect(result.ok).toBe(true);
   });
 
-  it('throws when name contains whitespace', () => {
-    expect(() =>
-      SlashCommandEntry.register(makeRawCommand({ name: 'my command' })),
-    ).toThrow(/must not contain whitespace/i);
+  it('returns Err when name contains whitespace', () => {
+    const result = SlashCommandEntry.register(makeRawCommand({ name: 'my command' }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/must not contain whitespace/i);
   });
 
-  it('throws when name contains "/"', () => {
-    expect(() =>
-      SlashCommandEntry.register(makeRawCommand({ name: 'project/optimize' })),
-    ).toThrow(/must not contain/i);
+  it('returns Err when name contains "/"', () => {
+    const result = SlashCommandEntry.register(makeRawCommand({ name: 'project/optimize' }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/must not contain/i);
   });
 
-  it('throws when name is empty', () => {
-    expect(() =>
-      SlashCommandEntry.register(makeRawCommand({ name: '' })),
-    ).toThrow(/cannot be empty/i);
+  it('returns Err when name is empty', () => {
+    const result = SlashCommandEntry.register(makeRawCommand({ name: '' }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/cannot be empty/i);
   });
 
-  it('throws when id is empty', () => {
-    expect(() =>
-      SlashCommandEntry.register(makeRawCommand({ id: '' })),
-    ).toThrow(/cannot be empty/i);
+  it('returns Err when id is empty', () => {
+    const result = SlashCommandEntry.register(makeRawCommand({ id: '' }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/cannot be empty/i);
   });
 });
 
@@ -122,7 +226,7 @@ describe('SlashCommandEntry.register()', () => {
 
 describe('SlashCommandEntry.select()', () => {
   it('raises COMMAND_SELECTED with the correct method', () => {
-    const entry = SlashCommandEntry.register(makeRawCommand());
+    const entry = registerOrThrow(makeRawCommand());
     entry.clearEvents();
 
     entry.select('keyboard');
@@ -135,7 +239,7 @@ describe('SlashCommandEntry.select()', () => {
   });
 
   it('each selection method produces a distinct event', () => {
-    const entry = SlashCommandEntry.register(makeRawCommand());
+    const entry = registerOrThrow(makeRawCommand());
     entry.clearEvents();
 
     entry.select('click');
@@ -153,7 +257,7 @@ describe('SlashCommandEntry.select()', () => {
 
 describe('SlashCommandEntry.recordExecution()', () => {
   it('raises COMMAND_EXECUTED with durationMs and success=true', () => {
-    const entry = SlashCommandEntry.register(makeRawCommand());
+    const entry = registerOrThrow(makeRawCommand());
     entry.clearEvents();
 
     entry.recordExecution(150, true);
@@ -167,7 +271,7 @@ describe('SlashCommandEntry.recordExecution()', () => {
   });
 
   it('raises COMMAND_EXECUTED with success=false on failure', () => {
-    const entry = SlashCommandEntry.register(makeRawCommand());
+    const entry = registerOrThrow(makeRawCommand());
     entry.clearEvents();
 
     entry.recordExecution(42, false);
@@ -182,7 +286,7 @@ describe('SlashCommandEntry.recordExecution()', () => {
 
 describe('SlashCommandEntry.markDeleted()', () => {
   it('raises COMMAND_DELETED', () => {
-    const entry = SlashCommandEntry.register(makeRawCommand());
+    const entry = registerOrThrow(makeRawCommand());
     entry.clearEvents();
 
     entry.markDeleted();
@@ -197,13 +301,16 @@ describe('SlashCommandEntry.markDeleted()', () => {
 
 describe('SlashCommandEntry.fromSnapshot()', () => {
   it('reconstitutes without raising any events', () => {
-    const original = SlashCommandEntry.register(makeRawCommand());
+    const original = registerOrThrow(makeRawCommand());
     const snapshot = original.toSnapshot();
 
-    const restored = SlashCommandEntry.fromSnapshot(snapshot);
+    const result = SlashCommandEntry.fromSnapshot(snapshot);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const restored = result.value;
 
     expect(restored.events).toHaveLength(0);
-    expect(restored.id).toBe(toCommandId('cmd-001'));
+    expect(restored.id.value).toBe('cmd-001');
     expect(restored.name).toBe('optimize');
     expect(restored.fullCommand).toBe('/project:optimize');
     expect(restored.scope).toBe('project');
@@ -211,13 +318,49 @@ describe('SlashCommandEntry.fromSnapshot()', () => {
 
   it('preserves capabilities from snapshot', () => {
     const raw = makeRawCommand({ has_bash_commands: true, allowed_tools: ['Bash', 'Read'] });
-    const original = SlashCommandEntry.register(raw);
+    const original = registerOrThrow(raw);
     const snapshot = original.toSnapshot();
 
-    const restored = SlashCommandEntry.fromSnapshot(snapshot);
+    const result = SlashCommandEntry.fromSnapshot(snapshot);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const restored = result.value;
 
     expect(restored.capabilities.hasBashCommands).toBe(true);
     expect(restored.capabilities.allowedTools).toEqual(['Bash', 'Read']);
+  });
+
+  it('returns Err when snapshot has an invalid id', () => {
+    const original = registerOrThrow(makeRawCommand());
+    const snapshot = { ...original.toSnapshot(), id: '' };
+
+    const result = SlashCommandEntry.fromSnapshot(snapshot);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/cannot be empty/i);
+  });
+
+  it('returns Err when snapshot has an invalid name', () => {
+    const original = registerOrThrow(makeRawCommand());
+    const snapshot = { ...original.toSnapshot(), name: '' };
+
+    const result = SlashCommandEntry.fromSnapshot(snapshot);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/cannot be empty/i);
+  });
+
+  it('returns Err when snapshot has invalid capabilities', () => {
+    const original = registerOrThrow(makeRawCommand());
+    const snapshot = {
+      ...original.toSnapshot(),
+      capabilities: { hasBashCommands: true, hasFileReferences: false, acceptsArguments: false, allowedTools: [] },
+    };
+
+    const result = SlashCommandEntry.fromSnapshot(snapshot);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/hasBashCommands=true requires allowedTools/i);
   });
 });
 
@@ -299,7 +442,7 @@ describe('CommandApplicationService.selectCommand()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.id).toBe(toCommandId('cmd-001'));
+    expect(result.value.id.value).toBe('cmd-001');
   });
 
   it('returns Err for an unknown id', async () => {
@@ -496,7 +639,7 @@ describe('CommandApplicationService.listCommands()', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value).toHaveLength(1);
-    expect(result.value[0].id).toBe(toCommandId('cmd-builtin-1'));
+    expect(result.value[0].id.value).toBe('cmd-builtin-1');
   });
 });
 
@@ -517,7 +660,7 @@ describe('CommandApplicationService.getCommand()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.id).toBe(toCommandId('cmd-001'));
+    expect(result.value.id.value).toBe('cmd-001');
     expect(result.value.name).toBe('optimize');
   });
 

@@ -44,14 +44,15 @@ export class MCPApplicationService {
   }
 
   async removeServer(id: string): Promise<Result<void>> {
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
     try {
-      const serverId = toServerId(id);
-      const server = await this.repo.getServer(serverId);
+      const server = await this.repo.getServer(serverIdResult.value);
       if (!server) {
         return Err(`Server not found: ${id}`);
       }
       server.remove();
-      await this.repo.removeServer(serverId);
+      await this.repo.removeServer(serverIdResult.value);
       this.eventBus.dispatch(server.events);
       server.clearEvents(); // events dispatched before physical removal
       return Ok(undefined);
@@ -61,9 +62,10 @@ export class MCPApplicationService {
   }
 
   async connectServer(id: string): Promise<Result<void>> {
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
     try {
-      const serverId = toServerId(id);
-      const server = await this.repo.getServer(serverId);
+      const server = await this.repo.getServer(serverIdResult.value);
       if (!server) {
         return Err(`Server not found: ${id}`);
       }
@@ -76,9 +78,10 @@ export class MCPApplicationService {
   }
 
   async disconnectServer(id: string): Promise<Result<void>> {
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
     try {
-      const serverId = toServerId(id);
-      const server = await this.repo.getServer(serverId);
+      const server = await this.repo.getServer(serverIdResult.value);
       if (!server) {
         return Err(`Server not found: ${id}`);
       }
@@ -91,9 +94,10 @@ export class MCPApplicationService {
   }
 
   async markServerError(id: string, reason: string): Promise<Result<void>> {
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
     try {
-      const serverId = toServerId(id);
-      const server = await this.repo.getServer(serverId);
+      const server = await this.repo.getServer(serverIdResult.value);
       if (!server) {
         return Err(`Server not found: ${id}`);
       }
@@ -106,13 +110,15 @@ export class MCPApplicationService {
   }
 
   async enableServer(id: string): Promise<Result<void>> {
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
     try {
-      const serverId = toServerId(id);
-      const server = await this.repo.getServer(serverId);
+      const server = await this.repo.getServer(serverIdResult.value);
       if (!server) {
         return Err(`Server not found: ${id}`);
       }
-      server.enable();
+      const enableResult = server.enable();
+      if (!enableResult.ok) return enableResult;
       await this.persist(server);
       return Ok(undefined);
     } catch (err) {
@@ -121,13 +127,15 @@ export class MCPApplicationService {
   }
 
   async disableServer(id: string): Promise<Result<void>> {
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
     try {
-      const serverId = toServerId(id);
-      const server = await this.repo.getServer(serverId);
+      const server = await this.repo.getServer(serverIdResult.value);
       if (!server) {
         return Err(`Server not found: ${id}`);
       }
-      server.disable();
+      const disableResult = server.disable();
+      if (!disableResult.ok) return disableResult;
       await this.persist(server);
       return Ok(undefined);
     } catch (err) {
@@ -136,9 +144,10 @@ export class MCPApplicationService {
   }
 
   async getServer(id: string): Promise<Result<MCPServerAggregate>> {
+    const serverIdResult = toServerId(id);
+    if (!serverIdResult.ok) return serverIdResult;
     try {
-      const serverId = toServerId(id);
-      const server = await this.repo.getServer(serverId);
+      const server = await this.repo.getServer(serverIdResult.value);
       if (!server) {
         return Err(`Server not found: ${id}`);
       }

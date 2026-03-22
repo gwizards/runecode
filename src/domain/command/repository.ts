@@ -4,12 +4,12 @@
  * ICommandRepository is the domain-facing port; it lives in ./ports/.
  * InMemoryCommandRepository is the default adapter (suitable for tests and dev).
  *
- * Storage uses QuantizedSnapshotStore<RawCommandSnapshot, CommandId> for ~81%
+ * Storage uses QuantizedSnapshotStore<RawCommandSnapshot, string> for ~81%
  * memory reduction on quantizable scope, capabilities, and timestamp fields.
  */
 
-import type { CommandId, CommandScope, RawCommandSnapshot } from './types';
-import { SlashCommandEntry } from './types';
+import type { CommandScopeValue, RawCommandSnapshot } from './types';
+import { CommandId, SlashCommandEntry } from './types';
 import {
   CommandSnapshotQuantizer,
   QuantizedSnapshotStore,
@@ -21,45 +21,62 @@ import type { ICommandRepository } from './ports/ICommandRepository';
 // existing imports from this file continue to resolve without changes.
 export type { ICommandRepository } from './ports/ICommandRepository';
 
+// ─── Helper: unwrap snapshot or return null ────────────────────────────────
+
+function snapshotToEntry(snapshot: RawCommandSnapshot): SlashCommandEntry | null {
+  const result = SlashCommandEntry.fromSnapshot(snapshot);
+  return result.ok ? result.value : null;
+}
+
 // ─── In-Memory Implementation ──────────────────────────────────────────────
 
 export class InMemoryCommandRepository implements ICommandRepository {
-  private readonly store = new QuantizedSnapshotStore<RawCommandSnapshot, CommandId>(
+  // Key is the plain string value of CommandId (class no longer extends string)
+  private readonly store = new QuantizedSnapshotStore<RawCommandSnapshot, string>(
     new CommandSnapshotQuantizer(),
   );
 
   async getById(id: CommandId): Promise<SlashCommandEntry | null> {
-    const snapshot = this.store.get(id);
+    const snapshot = this.store.get(id.value);
     if (!snapshot) return null;
-    return SlashCommandEntry.fromSnapshot(snapshot);
+    return snapshotToEntry(snapshot);
   }
 
   async getByFullCommand(fullCommand: string): Promise<SlashCommandEntry | null> {
     for (const snapshot of this.store.values()) {
       if (snapshot.fullCommand === fullCommand) {
-        return SlashCommandEntry.fromSnapshot(snapshot);
+        return snapshotToEntry(snapshot);
       }
     }
     return null;
   }
 
   async save(command: SlashCommandEntry): Promise<void> {
-    this.store.set(command.id, command.toSnapshot());
+    this.store.set(command.id.value, command.toSnapshot());
   }
 
   async delete(id: CommandId): Promise<void> {
-    this.store.delete(id);
+    this.store.delete(id.value);
   }
 
-  async listByScope(scope: CommandScope): Promise<SlashCommandEntry[]> {
-    return this.store
-      .values()
-      .filter((s) => s.scope === scope)
-      .map(SlashCommandEntry.fromSnapshot);
+  async listByScope(scope: CommandScopeValue): Promise<SlashCommandEntry[]> {
+    const entries: SlashCommandEntry[] = [];
+    for (const snapshot of this.store.values()) {
+      if (snapshot.scope === scope) {
+        const entry = snapshotToEntry(snapshot);
+        if (entry) entries.push(entry);
+      }
+    }
+    return entries;
   }
 
   async listAll(): Promise<SlashCommandEntry[]> {
-    return this.store.values().map(SlashCommandEntry.fromSnapshot);
+    const entries: SlashCommandEntry[] = [];
+    for (const snapshot of this.store.values()) {
+      const entry = snapshotToEntry(snapshot);
+      if (entry) entries.push(entry);
+    }
+    return entries;
   }
 
   /**
@@ -68,6 +85,6 @@ export class InMemoryCommandRepository implements ICommandRepository {
    * any service-layer side effects.
    */
   seed(command: SlashCommandEntry): void {
-    this.store.set(command.id, command.toSnapshot());
+    this.store.set(command.id.value, command.toSnapshot());
   }
 }

@@ -159,7 +159,7 @@ describe('InMemoryProjectRepository', () => {
     const agg  = unwrap(ProjectAggregate.create('proj-r1', '/home/user/roundtrip', 'RoundTrip'));
 
     await repo.saveProject(agg);
-    const found = await repo.getProject(toProjectId('proj-r1'));
+    const found = await repo.getProject(unwrap(toProjectId('proj-r1')));
 
     expect(found).not.toBeNull();
     expect(found?.id).toBe('proj-r1');
@@ -196,8 +196,8 @@ describe('InMemoryProjectRepository', () => {
     const agg  = unwrap(ProjectAggregate.create('proj-del', '/del/me', 'ToDelete'));
     repo.seed(agg);
 
-    await repo.deleteProject(toProjectId('proj-del'));
-    const found = await repo.getProject(toProjectId('proj-del'));
+    await repo.deleteProject(unwrap(toProjectId('proj-del')));
+    const found = await repo.getProject(unwrap(toProjectId('proj-del')));
     expect(found).toBeNull();
   });
 });

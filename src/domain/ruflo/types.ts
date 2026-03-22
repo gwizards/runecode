@@ -1,4 +1,5 @@
 // Strict domain types for the RuFlo bounded context
+import { Result, Ok, Err } from '../shared/result';
 import type {
   RuFloStatus,
   RuFloAgent as ApiAgent,
@@ -16,14 +17,14 @@ declare const _swarmId: unique symbol;
 /** Branded type for swarm identifiers */
 export type SwarmId = string & { readonly [_swarmId]: true };
 
-export function toAgentId(raw: string): AgentId {
-  if (!raw || !raw.trim()) throw new Error('AgentId cannot be empty');
-  return raw as AgentId;
+export function toAgentId(raw: string): Result<AgentId> {
+  if (!raw || !raw.trim()) return Err('AgentId cannot be empty');
+  return Ok(raw as AgentId);
 }
 
-export function toSwarmId(raw: string): SwarmId {
-  if (!raw || !raw.trim()) throw new Error('SwarmId cannot be empty');
-  return raw as SwarmId;
+export function toSwarmId(raw: string): Result<SwarmId> {
+  if (!raw || !raw.trim()) return Err('SwarmId cannot be empty');
+  return Ok(raw as SwarmId);
 }
 
 export type AgentStatus =
@@ -114,8 +115,9 @@ export function toRuFloInstallation(raw: RuFloStatus): RuFloInstallation {
 
 export function toRuFloAgent(raw: ApiAgent): RuFloAgent {
   const status = (raw.status as AgentStatus) ?? 'unknown';
+  const agentIdResult = toAgentId(raw.id);
   return {
-    id: toAgentId(raw.id),
+    id: agentIdResult.ok ? agentIdResult.value : (raw.id as AgentId),
     name: raw.name,
     agentType: raw.agent_type,
     status,

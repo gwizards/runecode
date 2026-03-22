@@ -11,14 +11,14 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { toCommandId, SlashCommandEntry } from './types';
-import type { CommandScope, RawCommand, SelectionMethod } from './types';
+import { CommandId, SlashCommandEntry } from './types';
+import type { CommandScopeValue, RawCommand, SelectionMethod } from './types';
 import type { ICommandRepository } from './ports/ICommandRepository';
 
 // ─── Query shapes ──────────────────────────────────────────────────────────
 
 export interface ListCommandsQuery {
-  scope?: CommandScope;
+  scope?: CommandScopeValue;
   namespace?: string;
 }
 
@@ -53,7 +53,9 @@ export class CommandApplicationService {
           `Command with full_command "${raw.full_command}" is already registered`,
         );
       }
-      const command = SlashCommandEntry.register(raw);
+      const registerResult = SlashCommandEntry.register(raw);
+      if (!registerResult.ok) return Err(registerResult.error);
+      const command = registerResult.value;
       await this.persist(command);
       return Ok(command);
     } catch (err) {
@@ -70,7 +72,9 @@ export class CommandApplicationService {
     method: SelectionMethod,
   ): Promise<Result<SlashCommandEntry>> {
     try {
-      const command = await this.repo.getById(toCommandId(id));
+      const idResult = CommandId.create(id);
+      if (!idResult.ok) return Err(idResult.error);
+      const command = await this.repo.getById(idResult.value);
       if (!command) return Err(`Command '${id}' not found`);
       command.select(method);
       await this.persist(command);
@@ -89,7 +93,9 @@ export class CommandApplicationService {
     success: boolean,
   ): Promise<Result<void>> {
     try {
-      const command = await this.repo.getById(toCommandId(id));
+      const idResult = CommandId.create(id);
+      if (!idResult.ok) return Err(idResult.error);
+      const command = await this.repo.getById(idResult.value);
       if (!command) return Err(`Command '${id}' not found`);
       command.recordExecution(durationMs, success);
       await this.persist(command);
@@ -104,7 +110,9 @@ export class CommandApplicationService {
    */
   async deleteCommand(id: string): Promise<Result<void>> {
     try {
-      const commandId = toCommandId(id);
+      const idResult = CommandId.create(id);
+      if (!idResult.ok) return Err(idResult.error);
+      const commandId = idResult.value;
       const command = await this.repo.getById(commandId);
       if (!command) return Err(`Command '${id}' not found`);
       command.markDeleted();
@@ -143,7 +151,9 @@ export class CommandApplicationService {
    */
   async getCommand(id: string): Promise<Result<SlashCommandEntry>> {
     try {
-      const command = await this.repo.getById(toCommandId(id));
+      const idResult = CommandId.create(id);
+      if (!idResult.ok) return Err(idResult.error);
+      const command = await this.repo.getById(idResult.value);
       if (!command) return Err(`Command '${id}' not found`);
       return Ok(command);
     } catch (err) {
