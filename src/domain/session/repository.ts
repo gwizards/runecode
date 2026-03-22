@@ -21,12 +21,12 @@ export type { ISessionRepository };
 // ─── In-memory implementation ─────────────────────────────────────────────────
 
 export class InMemorySessionRepository implements ISessionRepository {
-  private readonly sessions = new QuantizedSnapshotStore<RawSession, SessionId>(
+  private readonly sessions = new QuantizedSnapshotStore<RawSession, string>(
     new SessionSnapshotQuantizer(),
   );
 
   async getSession(id: SessionId): Promise<SessionAggregate | null> {
-    const snapshot = this.sessions.get(id);
+    const snapshot = this.sessions.get(id.toString());
     if (!snapshot) return null;
     const result = SessionAggregate.fromSnapshot(snapshot);
     if (!result.ok) {
@@ -37,17 +37,17 @@ export class InMemorySessionRepository implements ISessionRepository {
   }
 
   async saveSession(session: SessionAggregate): Promise<void> {
-    this.sessions.set(session.id, session.toSnapshot());
+    this.sessions.set(session.id.toString(), session.toSnapshot());
   }
 
   async deleteSession(id: SessionId): Promise<void> {
-    this.sessions.delete(id);
+    this.sessions.delete(id.toString());
   }
 
   async listSessionsByProject(projectId: ProjectId): Promise<SessionAggregate[]> {
     const result: SessionAggregate[] = [];
     for (const snapshot of this.sessions.values()) {
-      if (snapshot.projectId === projectId) {
+      if (snapshot.projectId === projectId.toString()) {
         const aggregateResult = SessionAggregate.fromSnapshot(snapshot);
         if (!aggregateResult.ok) {
           console.warn(`[SessionRepository] Skipping corrupted snapshot for projectId="${projectId}": ${aggregateResult.error}`);
@@ -64,6 +64,6 @@ export class InMemorySessionRepository implements ISessionRepository {
    * Useful for setting up pre-conditions in unit tests.
    */
   seed(session: SessionAggregate): void {
-    this.sessions.set(session.id, session.toSnapshot());
+    this.sessions.set(session.id.toString(), session.toSnapshot());
   }
 }

@@ -135,7 +135,7 @@ describe('MCPApplicationService — addServer happy path', () => {
     const result = await svc.addServer('srv-1', 'MyServer', 'stdio', STDIO_URL);
     expect(result.ok).toBe(true);
     const server = unwrap(result);
-    expect(server.id).toBe('srv-1');
+    expect(server.id.toString()).toBe('srv-1');
     expect(server.name).toBe('MyServer');
     expect(server.status).toBe('pending');
     expect(server.isEnabled).toBe(true);
@@ -146,7 +146,7 @@ describe('MCPApplicationService — addServer happy path', () => {
     const getResult = await svc.getServer('srv-2');
     expect(getResult.ok).toBe(true);
     const server = unwrap(getResult);
-    expect(server.id).toBe('srv-2');
+    expect(server.id.toString()).toBe('srv-2');
   });
 
   it('addServer dispatches ServerAddedEvent', async () => {
@@ -158,7 +158,7 @@ describe('MCPApplicationService — addServer happy path', () => {
     expect(captured).toHaveLength(1);
     const evt = captured[0] as ServerAddedEvent;
     expect(evt.type).toBe(MCP_EVENT_TYPES.SERVER_ADDED);
-    expect(evt.serverId).toBe('srv-3');
+    expect(evt.serverId.toString()).toBe('srv-3');
     expect(evt.name).toBe('EventServer');
     expect(evt.transport).toBe('stdio');
   });
@@ -210,7 +210,7 @@ describe('MCPApplicationService — connectServer / disconnectServer', () => {
     expect(captured).toHaveLength(1);
     const evt = captured[0] as ServerStatusChangedEvent;
     expect(evt.newStatus).toBe('connected');
-    expect(evt.serverId).toBe('conn-2');
+    expect(evt.serverId.toString()).toBe('conn-2');
   });
 
   it('disconnectServer transitions status to disconnected', async () => {
@@ -266,7 +266,7 @@ describe('MCPApplicationService — enableServer / disableServer', () => {
 
     expect(captured).toHaveLength(1);
     const evt = captured[0] as ServerDisabledEvent;
-    expect(evt.serverId).toBe('toggle-1');
+    expect(evt.serverId.toString()).toBe('toggle-1');
   });
 
   it('enableServer after disableServer restores isEnabled to true and dispatches ServerEnabledEvent', async () => {
@@ -285,7 +285,7 @@ describe('MCPApplicationService — enableServer / disableServer', () => {
 
     expect(captured).toHaveLength(1);
     const evt = captured[0] as ServerEnabledEvent;
-    expect(evt.serverId).toBe('toggle-2');
+    expect(evt.serverId.toString()).toBe('toggle-2');
   });
 
   it('enableServer on an already-enabled server returns Err', async () => {
@@ -359,7 +359,7 @@ describe('MCPApplicationService — removeServer', () => {
 
     expect(captured).toHaveLength(1);
     const evt = captured[0] as ServerRemovedEvent;
-    expect(evt.serverId).toBe('rm-evt');
+    expect(evt.serverId.toString()).toBe('rm-evt');
     expect(evt.name).toBe('EventRemoval');
   });
 });
@@ -384,7 +384,7 @@ describe('MCPApplicationService — listServers', () => {
     expect(result.ok).toBe(true);
     const servers = unwrap(result);
     expect(servers).toHaveLength(3);
-    const ids = servers.map((s) => s.id).sort();
+    const ids = servers.map((s) => s.id.toString()).sort();
     expect(ids).toEqual(['ls-1', 'ls-2', 'ls-3']);
   });
 });
@@ -410,7 +410,7 @@ describe('MCPApplicationService — listEnabledServers', () => {
     expect(result.ok).toBe(true);
     const servers = unwrap(result);
     expect(servers).toHaveLength(2);
-    const ids = servers.map((s) => s.id).sort();
+    const ids = servers.map((s) => s.id.toString()).sort();
     expect(ids).toEqual(['le-1', 'le-2']);
   });
 
@@ -443,7 +443,7 @@ describe('MCPApplicationService — duplicate server id', () => {
     const servers = unwrap(listResult);
 
     // Exactly one entry with that id should exist
-    const matching = servers.filter((s) => s.id === 'dup-id');
+    const matching = servers.filter((s) => s.id.toString() === 'dup-id');
     expect(matching).toHaveLength(1);
     // The replacement wins at the repository layer
     expect(matching[0].name).toBe('Replacement');
@@ -480,7 +480,7 @@ describe('MCPServerAggregate.tryFromSnapshot', () => {
     const result = MCPServerAggregate.tryFromSnapshot(raw);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.id).toBe('good-snap');
+      expect(result.value.id.toString()).toBe('good-snap');
       expect(result.value.name).toBe('GoodServer');
       expect(result.value.url).toBe('/usr/local/bin/good-mcp');
       expect(result.value.status).toBe('disconnected');

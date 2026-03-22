@@ -123,8 +123,8 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value).toBeDefined();
-    expect(typeof result.value.id).toBe('string');
-    expect(result.value.id.length).toBeGreaterThan(0);
+    expect(typeof result.value.id.toString()).toBe('string');
+    expect(result.value.id.toString().length).toBeGreaterThan(0);
   });
 
   it('returned aggregate has status "granted"', async () => {
@@ -153,7 +153,7 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
     if (!first.ok || !second.ok) return;
-    expect(first.value.id).toBe(second.value.id);
+    expect(first.value.id.toString()).toBe(second.value.id.toString());
   });
 
   it('idempotent call does not create a second repository record', async () => {
@@ -258,7 +258,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     expect(grantResult.ok).toBe(true);
     if (!grantResult.ok) return;
 
-    const result = await svc.revokeConsent(grantResult.value.id);
+    const result = await svc.revokeConsent(grantResult.value.id.toString());
 
     expect(result.ok).toBe(true);
   });
@@ -283,7 +283,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     if (!grantResult.ok) return;
     collected.length = 0;
 
-    await svc.revokeConsent(grantResult.value.id);
+    await svc.revokeConsent(grantResult.value.id.toString());
 
     const revoked = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_REVOKED);
     expect(revoked).toHaveLength(1);
@@ -295,7 +295,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     if (!grantResult.ok) return;
     collected.length = 0;
 
-    await svc.revokeConsent(grantResult.value.id);
+    await svc.revokeConsent(grantResult.value.id.toString());
 
     const evt = collected.find(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_REVOKED);
     expect(evt).toBeDefined();
@@ -311,7 +311,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     if (!grantResult.ok) return;
     spy.calls.length = 0;
 
-    await svcWithTracker.revokeConsent(grantResult.value.id);
+    await svcWithTracker.revokeConsent(grantResult.value.id.toString());
 
     const optOutCalls = spy.calls.filter(c => c.method === 'optOut');
     expect(optOutCalls).toHaveLength(1);
@@ -334,7 +334,7 @@ describe('AnalyticsApplicationService.getConsentStatus()', () => {
     const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
 
-    const status = await svc.getConsentStatus(grantResult.value.id);
+    const status = await svc.getConsentStatus(grantResult.value.id.toString());
 
     expect(status.ok).toBe(true);
     if (!status.ok) return;
@@ -346,8 +346,8 @@ describe('AnalyticsApplicationService.getConsentStatus()', () => {
     const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
 
-    await svc.revokeConsent(grantResult.value.id);
-    const status = await svc.getConsentStatus(grantResult.value.id);
+    await svc.revokeConsent(grantResult.value.id.toString());
+    const status = await svc.getConsentStatus(grantResult.value.id.toString());
 
     expect(status.ok).toBe(true);
     if (!status.ok) return;
@@ -425,7 +425,7 @@ describe('AnalyticsApplicationService.trackSession()', () => {
     const sessionId = uniqueSessionId();
     const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
-    await svc.revokeConsent(grantResult.value.id);
+    await svc.revokeConsent(grantResult.value.id.toString());
     collected.length = 0;
 
     await svc.trackSession(sessionId, {});
@@ -525,7 +525,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
     const sessionId = uniqueSessionId();
     const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
-    await svc.revokeConsent(grantResult.value.id);
+    await svc.revokeConsent(grantResult.value.id.toString());
 
     const result = await svc.captureEvent(sessionId, 'page_view', {});
 
@@ -536,7 +536,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
     const sessionId = uniqueSessionId();
     const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
-    await svc.revokeConsent(grantResult.value.id);
+    await svc.revokeConsent(grantResult.value.id.toString());
     collected.length = 0;
 
     await svc.captureEvent(sessionId, 'page_view', {});

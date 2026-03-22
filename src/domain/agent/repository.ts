@@ -21,17 +21,17 @@ export class InMemoryAgentRepository implements IAgentRepository {
   );
 
   async getAgent(id: AgentId): Promise<LiveAgentAggregate | null> {
-    const snapshot = this.agents.get(id);
+    const snapshot = this.agents.get(id.value);
     if (!snapshot) return null;
     return unwrap(LiveAgentAggregate.fromSnapshot(snapshot));
   }
 
   async saveAgent(agent: LiveAgentAggregate): Promise<void> {
-    this.agents.set(agent.id, agent.toSnapshot());
+    this.agents.set(agent.id.value, agent.toSnapshot());
   }
 
   async removeAgent(id: AgentId): Promise<void> {
-    this.agents.delete(id);
+    this.agents.delete(id.value);
   }
 
   async listActiveAgents(): Promise<LiveAgentAggregate[]> {
@@ -50,6 +50,6 @@ export class InMemoryAgentRepository implements IAgentRepository {
    * any service-layer side effects.
    */
   seed(agent: LiveAgentAggregate): void {
-    this.agents.set(agent.id, agent.toSnapshot());
+    this.agents.set(agent.id.value, agent.toSnapshot());
   }
 }

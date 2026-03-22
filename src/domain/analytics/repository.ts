@@ -9,8 +9,8 @@
  */
 
 import { ScalarQuantizer, QuantizedSnapshotStore, QuantizedBuffer } from '../shared/quantization';
-import type { ConsentId, RawConsent, AnalyticsSessionId, ConsentStatus } from './types';
-import { ConsentAggregate } from './types';
+import type { RawConsent, ConsentStatus } from './types';
+import { ConsentId, AnalyticsSessionId, ConsentAggregate } from './types';
 import type { IConsentRepository } from './ports/IConsentRepository';
 
 // ─── Port re-export ───────────────────────────────────────────────────────────
@@ -105,33 +105,34 @@ class ConsentSnapshotQuantizer extends ScalarQuantizer<RawConsent> {
  * Records are stored as QuantizedBuffers and decoded on retrieval.
  */
 export class InMemoryConsentRepository implements IConsentRepository {
-  private readonly store: QuantizedSnapshotStore<RawConsent, ConsentId>;
-  /** Secondary index: sessionId → consentId for fast session lookups. */
-  private readonly sessionIndex = new Map<AnalyticsSessionId, ConsentId>();
+  private readonly store: QuantizedSnapshotStore<RawConsent, string>;
+  /** Secondary index: sessionId string → consentId string for fast session lookups. */
+  private readonly sessionIndex = new Map<string, string>();
 
   constructor() {
-    this.store = new QuantizedSnapshotStore<RawConsent, ConsentId>(
+    this.store = new QuantizedSnapshotStore<RawConsent, string>(
       new ConsentSnapshotQuantizer(),
     );
   }
 
   findById(id: ConsentId): ConsentAggregate | undefined {
-    const raw = this.store.get(id);
+    const raw = this.store.get(id.toString());
     if (raw === undefined) return undefined;
     return ConsentAggregate.fromSnapshot(raw);
   }
 
   findBySession(sessionId: AnalyticsSessionId): ConsentAggregate | undefined {
-    const id = this.sessionIndex.get(sessionId);
-    if (id === undefined) return undefined;
-    return this.findById(id);
+    const idStr = this.sessionIndex.get(sessionId.toString());
+    if (idStr === undefined) return undefined;
+    const idResult = ConsentId.create(idStr);
+    if (!idResult.ok) return undefined;
+    return this.findById(idResult.value);
   }
 
   save(consent: ConsentAggregate): void {
     const snapshot = consent.toSnapshot();
-    const consentId = snapshot.id as ConsentId;
-    this.store.set(consentId, snapshot);
-    this.sessionIndex.set(snapshot.sessionId as AnalyticsSessionId, consentId);
+    this.store.set(snapshot.id, snapshot);
+    this.sessionIndex.set(snapshot.sessionId, snapshot.id);
   }
 
   searchByEmbedding(
@@ -140,7 +141,11 @@ export class InMemoryConsentRepository implements IConsentRepository {
   ): Array<{ consentId: ConsentId; score: number }> {
     return this.store
       .searchNearest(queryVector, topK)
-      .map(({ key, score }) => ({ consentId: key, score }));
+      .flatMap(({ key, score }) => {
+        const idResult = ConsentId.create(key);
+        if (!idResult.ok) return [];
+        return [{ consentId: idResult.value, score }];
+      });
   }
 
   /**

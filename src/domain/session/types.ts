@@ -22,68 +22,78 @@ export type SessionStatus = 'running' | 'completed' | 'error' | 'idle';
 
 const VALID_SESSION_STATUSES = new Set<SessionStatus>(['running', 'completed', 'error', 'idle']);
 
-// ─── Branded IDs ──────────────────────────────────────────────────────────────
+// ─── SessionId Value Object ───────────────────────────────────────────────────
 
-export type SessionId = string & { readonly _brand: 'SessionId' };
-export type ProjectId = string & { readonly _brand: 'ProjectId' };
-
-export function toSessionId(id: string): Result<SessionId> {
-  if (id === '__unknown__') return Ok(id as SessionId); // sentinel allowed
-  if (!id || !id.trim()) return Err('SessionId cannot be empty');
-  return Ok(id as SessionId);
-}
-
-export function toProjectId(id: string): Result<ProjectId> {
-  if (!id || !id.trim()) return Err('ProjectId cannot be empty');
-  return Ok(id as ProjectId);
-}
-
-// ─── Value Object: SessionIdVO ────────────────────────────────────────────────
-
-/**
- * Class-based Value Object for session identifiers.
- *
- * Use SessionIdVO.create() at public service boundaries to get a Result<T>
- * instead of a thrown exception. The inner `value` string is always trimmed
- * and non-empty.
- *
- * The legacy branded type `SessionId` (string & { _brand }) is preserved for
- * backward compatibility with the existing aggregate, events, and repository
- * surface. Use `toBranded()` to convert when passing into those APIs.
- */
-export class SessionIdVO {
+export class SessionId {
   private constructor(readonly value: string) {}
 
-  /**
-   * Validate and construct a SessionIdVO. Returns Err if the raw string is
-   * empty or whitespace-only.
-   */
-  static create(raw: string): Result<SessionIdVO> {
+  static create(raw: string): Result<SessionId> {
     if (!raw || !raw.trim()) return Err('SessionId cannot be empty');
-    return Ok(new SessionIdVO(raw.trim()));
+    return Ok(new SessionId(raw.trim()));
   }
 
-  /** Generate a new, unique SessionIdVO backed by a random UUID. */
-  static generate(): SessionIdVO {
-    return new SessionIdVO(crypto.randomUUID());
+  /** Generate a new, unique SessionId backed by a random UUID. */
+  static generate(): SessionId {
+    return new SessionId(crypto.randomUUID());
   }
 
-  /** Structural equality — two SessionIdVOs with the same value are equal. */
-  equals(other: SessionIdVO): boolean {
+  /** Internal: construct without validation (e.g., for sentinels). */
+  static _unsafe(raw: string): SessionId {
+    return new SessionId(raw);
+  }
+
+  equals(other: SessionId): boolean {
     return this.value === other.value;
   }
 
   toString(): string {
     return this.value;
   }
+}
 
-  /**
-   * Convert to the legacy branded `SessionId` string type for use with the
-   * existing aggregate, event factories, and repository ports.
-   */
-  toBranded(): SessionId {
-    return this.value as SessionId;
+/** @deprecated Use SessionId directly. */
+export type SessionIdVO = SessionId;
+/** @deprecated Use SessionId directly. */
+export const SessionIdVO = SessionId;
+
+/** @deprecated Use SessionId.create() instead. */
+export function toSessionId(id: string): Result<SessionId> {
+  if (id === '__unknown__') return Ok(SessionId._unsafe(id)); // sentinel allowed
+  return SessionId.create(id);
+}
+
+// ─── ProjectId Value Object ───────────────────────────────────────────────────
+
+export class ProjectId {
+  private constructor(readonly value: string) {}
+
+  static create(raw: string): Result<ProjectId> {
+    if (!raw || !raw.trim()) return Err('ProjectId cannot be empty');
+    return Ok(new ProjectId(raw.trim()));
   }
+
+  /** Generate a new, unique ProjectId backed by a random UUID. */
+  static generate(): ProjectId {
+    return new ProjectId(crypto.randomUUID());
+  }
+
+  /** Internal: construct without validation (e.g., for sentinels). */
+  static _unsafe(raw: string): ProjectId {
+    return new ProjectId(raw);
+  }
+
+  equals(other: ProjectId): boolean {
+    return this.value === other.value;
+  }
+
+  toString(): string {
+    return this.value;
+  }
+}
+
+/** @deprecated Use ProjectId.create() instead. */
+export function toProjectId(id: string): Result<ProjectId> {
+  return ProjectId.create(id);
 }
 
 // ─── Value Object: TokenUsage ─────────────────────────────────────────────────
@@ -307,11 +317,9 @@ export class SessionAggregate {
   static unknown(): SessionAggregate {
     // Sentinel aggregate for "no active session" state.
     // Uses a reserved sentinel ID that is distinguishable from real IDs.
-    const UNKNOWN_SENTINEL = '__unknown__' as SessionId;
-    const UNKNOWN_PROJECT  = '__unknown__' as ProjectId;
     return new SessionAggregate(
-      UNKNOWN_SENTINEL,
-      UNKNOWN_PROJECT,
+      SessionId._unsafe('__unknown__'),
+      ProjectId._unsafe('__unknown__'),
       '',
       'idle',
       emptyTokenUsage(),
@@ -322,7 +330,7 @@ export class SessionAggregate {
   }
 
   get isUnknown(): boolean {
-    return this.id === '__unknown__';
+    return this.id.toString() === '__unknown__';
   }
 
   // ── Commands ───────────────────────────────────────────────────────────────
@@ -356,7 +364,7 @@ export class SessionAggregate {
 
   updateTokenUsage(usage: RawTokenUsage): void {
     this._tokenUsage = addTokenUsage(this._tokenUsage, usage);
-    this._events.push(makeTokenUsageUpdated(this.id, this._tokenUsage));
+    this._events.push(makeTokenUsageUpdated(this.id.toString(), this._tokenUsage));
   }
 
   // ── Getters ────────────────────────────────────────────────────────────────
@@ -389,8 +397,8 @@ export class SessionAggregate {
 
   toSnapshot(): RawSession {
     return {
-      id: this.id,
-      projectId: this.projectId,
+      id: this.id.toString(),
+      projectId: this.projectId.toString(),
       title: this._title,
       createdAt: new Date(this.createdAt).toISOString(),
       status: this._status,

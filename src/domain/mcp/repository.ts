@@ -19,7 +19,7 @@ export class InMemoryMCPRepository implements IMCPRepository {
   );
 
   async getServer(id: ServerId): Promise<MCPServerAggregate | null> {
-    const snapshot = this.servers.get(id);
+    const snapshot = this.servers.get(id.toString());
     if (!snapshot) return null;
     const result = MCPServerAggregate.tryFromSnapshot(snapshot);
     if (!result.ok) {
@@ -43,11 +43,11 @@ export class InMemoryMCPRepository implements IMCPRepository {
   }
 
   async saveServer(server: MCPServerAggregate): Promise<void> {
-    this.servers.set(server.id, server.toSnapshot());
+    this.servers.set(server.id.toString(), server.toSnapshot());
   }
 
   async removeServer(id: ServerId): Promise<void> {
-    this.servers.delete(id);
+    this.servers.delete(id.toString());
   }
 
   async listServers(): Promise<MCPServerAggregate[]> {
@@ -70,6 +70,6 @@ export class InMemoryMCPRepository implements IMCPRepository {
 
   /** Test helper: seed an aggregate directly without triggering any events. */
   seed(server: MCPServerAggregate): void {
-    this.servers.set(server.id, server.toSnapshot());
+    this.servers.set(server.id.toString(), server.toSnapshot());
   }
 }

@@ -97,14 +97,14 @@ describe('AgentApplicationService — happy paths', () => {
     const result = await svc.startAgent('agent-a', 'Alpha');
     expect(result.ok).toBe(true);
     const agent = unwrap(result);
-    expect(agent.id).toBe('agent-a');
+    expect(agent.id.toString()).toBe('agent-a');
     expect(agent.name).toBe('Alpha');
     expect(agent.status).toBe('running');
 
     // Should be retrievable from the repo
     const stored = await repo.getAgent(unsafeAgentId('agent-a'));
     expect(stored).not.toBeNull();
-    expect(stored!.id).toBe('agent-a');
+    expect(stored!.id.toString()).toBe('agent-a');
   });
 
   it('startAgent dispatches AgentStartedEvent', async () => {
@@ -188,7 +188,7 @@ describe('AgentApplicationService — happy paths', () => {
     expect(listResult.ok).toBe(true);
     const active = unwrap(listResult);
     expect(active).toHaveLength(2);
-    const ids = active.map((a) => a.id).sort();
+    const ids = active.map((a) => a.id.toString()).sort();
     expect(ids).toEqual(['active-1', 'active-2']);
   });
 
@@ -197,7 +197,7 @@ describe('AgentApplicationService — happy paths', () => {
     const result = await svc.getAgent('agent-h');
     expect(result.ok).toBe(true);
     const agent = unwrap(result);
-    expect(agent.id).toBe('agent-h');
+    expect(agent.id.toString()).toBe('agent-h');
     expect(agent.name).toBe('Theta');
   });
 });

@@ -8,10 +8,9 @@
  * No imports from React, Tauri, window, or localStorage are permitted here.
  */
 
-import type { Result } from '../shared/result';
-import { Ok, Err } from '../shared/result';
+import { Result, Ok, Err } from '../shared/result';
 import type { DomainEvent } from '../shared/event-bus';
-import type { SessionId } from '../session/types';
+import { SessionId } from '../session/types';
 import type { ProjectId } from '../project/types';
 import {
   makeTabOpened,
@@ -21,28 +20,57 @@ import {
   makeTabRenamed,
 } from './events';
 
-// ─── Branded IDs ──────────────────────────────────────────────────────────────
+// ─── Value Object: TabId ──────────────────────────────────────────────────────
 
-export type TabId = string & { readonly _brand: 'TabId' };
-export type WorkspaceId = string & { readonly _brand: 'WorkspaceId' };
+export class TabId {
+  private constructor(readonly value: string) {}
 
-/**
- * Validate and brand a raw string as TabId.
- * Returns Err if the string is empty or whitespace-only.
- */
-export function toTabId(raw: string): Result<TabId> {
-  if (!raw || !raw.trim()) return Err('TabId cannot be empty');
-  return Ok(raw as TabId);
+  static create(raw: string): Result<TabId> {
+    if (!raw || !raw.trim()) return Err('TabId cannot be empty');
+    return Ok(new TabId(raw.trim()));
+  }
+
+  static generate(): TabId {
+    return new TabId(crypto.randomUUID());
+  }
+
+  equals(other: TabId): boolean {
+    return this.value === other.value;
+  }
+
+  toString(): string {
+    return this.value;
+  }
 }
 
-/**
- * Validate and brand a raw string as WorkspaceId.
- * Returns Err if the string is empty or whitespace-only.
- */
-export function toWorkspaceId(raw: string): Result<WorkspaceId> {
-  if (!raw || !raw.trim()) return Err('WorkspaceId cannot be empty');
-  return Ok(raw as WorkspaceId);
+// ─── Value Object: WorkspaceId ────────────────────────────────────────────────
+
+export class WorkspaceId {
+  private constructor(readonly value: string) {}
+
+  static create(raw: string): Result<WorkspaceId> {
+    if (!raw || !raw.trim()) return Err('WorkspaceId cannot be empty');
+    return Ok(new WorkspaceId(raw.trim()));
+  }
+
+  static generate(): WorkspaceId {
+    return new WorkspaceId(`ws-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+  }
+
+  equals(other: WorkspaceId): boolean {
+    return this.value === other.value;
+  }
+
+  toString(): string {
+    return this.value;
+  }
 }
+
+/** @deprecated Use TabId.create() */
+export function toTabId(raw: string): Result<TabId> { return TabId.create(raw); }
+
+/** @deprecated Use WorkspaceId.create() */
+export function toWorkspaceId(raw: string): Result<WorkspaceId> { return WorkspaceId.create(raw); }
 
 // ─── Raw snapshot shapes ──────────────────────────────────────────────────────
 
@@ -147,7 +175,7 @@ export class TabRecord {
 
   toRaw(): RawTab {
     return {
-      id: this.id,
+      id: this.id.toString(),
       path: this.path,
       title: this.title,
       isPinned: this.isPinned,
@@ -201,8 +229,7 @@ export class WorkspaceAggregate {
    * the caller should call openTab() immediately to add an initial tab.
    */
   static create(sessionId: SessionId, projectId: ProjectId): WorkspaceAggregate {
-    // Generated ID is always non-empty — safe to cast directly.
-    const id = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` as WorkspaceId;
+    const id = WorkspaceId.generate();
     return new WorkspaceAggregate(id, sessionId, projectId, [], null, Date.now(), []);
   }
 
@@ -225,7 +252,7 @@ export class WorkspaceAggregate {
     const activeTabId: TabId | null = activeTab ? activeTab.id : null;
     return Ok(new WorkspaceAggregate(
       idResult.value,
-      raw.sessionId as SessionId,
+      SessionId._unsafe(raw.sessionId),
       raw.projectId as ProjectId,
       tabs,
       activeTabId,
@@ -249,7 +276,7 @@ export class WorkspaceAggregate {
     title: string,
     opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
   ): Result<void> {
-    const existing = this._tabs.find(t => t.id === tabId);
+    const existing = this._tabs.find(t => t.id.equals(tabId));
     if (existing) {
       // Tab already open — just activate it.
       this.activateTab(tabId);
@@ -279,11 +306,11 @@ export class WorkspaceAggregate {
       return;
     }
 
-    const index = this._tabs.findIndex(t => t.id === tabId);
+    const index = this._tabs.findIndex(t => t.id.equals(tabId));
     if (index === -1) return;
 
-    const wasActive = this._activeTabId === tabId;
-    this._tabs = this._tabs.filter(t => t.id !== tabId);
+    const wasActive = this._activeTabId !== null && this._activeTabId.equals(tabId);
+    this._tabs = this._tabs.filter(t => !t.id.equals(tabId));
     this._events.push(makeTabClosed(this.id, tabId));
 
     if (wasActive && this._tabs.length > 0) {
@@ -298,9 +325,9 @@ export class WorkspaceAggregate {
    * Raises TabActivated.
    */
   activateTab(tabId: TabId): void {
-    const tab = this._tabs.find(t => t.id === tabId);
+    const tab = this._tabs.find(t => t.id.equals(tabId));
     if (!tab) return;
-    if (this._activeTabId === tabId) return;
+    if (this._activeTabId !== null && this._activeTabId.equals(tabId)) return;
 
     this._setActive(tabId);
   }
@@ -313,14 +340,14 @@ export class WorkspaceAggregate {
    * Tabs not present in newOrder are appended at the end.
    */
   reorderTabs(newOrder: TabId[]): void {
-    const tabMap = new Map(this._tabs.map(t => [t.id, t]));
+    const tabMap = new Map(this._tabs.map(t => [t.id.value, t]));
     const ordered: TabRecord[] = [];
 
     for (const id of newOrder) {
-      const t = tabMap.get(id);
+      const t = tabMap.get(id.value);
       if (t) {
         ordered.push(t);
-        tabMap.delete(id);
+        tabMap.delete(id.value);
       }
     }
 
@@ -339,13 +366,13 @@ export class WorkspaceAggregate {
    * Empty title is silently ignored (no mutation, no event).
    */
   renameTab(tabId: TabId, title: string): void {
-    const index = this._tabs.find(t => t.id === tabId);
+    const index = this._tabs.find(t => t.id.equals(tabId));
     if (!index) return;
     if (!title.trim()) return;
 
     const newTabs: TabRecord[] = [];
     for (const t of this._tabs) {
-      if (t.id === tabId) {
+      if (t.id.equals(tabId)) {
         const renamed = t.withTitle(title);
         if (!renamed.ok) return; // title was empty (already guarded above)
         newTabs.push(renamed.value);
@@ -369,7 +396,7 @@ export class WorkspaceAggregate {
 
   get activeTab(): TabRecord | null {
     if (!this._activeTabId) return null;
-    return this._tabs.find(t => t.id === this._activeTabId) ?? null;
+    return this._tabs.find(t => t.id.equals(this._activeTabId!)) ?? null;
   }
 
   get tabCount(): number {
@@ -388,11 +415,13 @@ export class WorkspaceAggregate {
 
   toSnapshot(): RawWorkspace {
     return {
-      id: this.id,
-      sessionId: this.sessionId,
+      id: this.id.toString(),
+      sessionId: this.sessionId.toString(),
       projectId: this.projectId,
       tabs: this._tabs.map(t =>
-        t.id === this._activeTabId ? t.withActive(true).toRaw() : t.withActive(false).toRaw(),
+        this._activeTabId !== null && t.id.equals(this._activeTabId)
+          ? t.withActive(true).toRaw()
+          : t.withActive(false).toRaw(),
       ),
       createdAt: this.createdAt,
     };
@@ -402,7 +431,7 @@ export class WorkspaceAggregate {
 
   private _setActive(tabId: TabId): void {
     this._activeTabId = tabId;
-    this._tabs = this._tabs.map(t => t.withActive(t.id === tabId));
+    this._tabs = this._tabs.map(t => t.withActive(t.id.equals(tabId)));
     this._events.push(makeTabActivated(this.id, tabId));
   }
 }

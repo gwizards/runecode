@@ -137,7 +137,7 @@ describe('InMemoryMCPRepository', () => {
 
     const found = await repo.findByName('Beta');
     expect(found).not.toBeNull();
-    expect(found?.id).toBe('repo-b');
+    expect(found?.id.toString()).toBe('repo-b');
   });
 
   it('listEnabledServers excludes disabled servers', async () => {

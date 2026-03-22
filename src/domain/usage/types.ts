@@ -16,35 +16,91 @@ import { UserId } from '../identity/types';
 
 export { UserId };
 
-// ─── Branded ID types ──────────────────────────────────────────────────────
+// ─── Value Object: LedgerId ────────────────────────────────────────────────
 
-export type LedgerId  = string & { readonly _brand: 'LedgerId'  };
-export type SessionId = string & { readonly _brand: 'SessionId' };
-export type ProjectId = string & { readonly _brand: 'ProjectId' };
+export class LedgerId {
+  private constructor(readonly value: string) {}
 
+  static create(raw: string): Result<LedgerId> {
+    if (!raw || !raw.trim()) return Err('LedgerId cannot be empty');
+    return Ok(new LedgerId(raw.trim()));
+  }
+
+  /** Reconstruct from a trusted, already-validated source (e.g. persistence). */
+  static fromTrusted(id: string): LedgerId { return new LedgerId(id); }
+
+  static generate(): LedgerId { return new LedgerId(crypto.randomUUID()); }
+
+  equals(other: LedgerId): boolean { return this.value === other.value; }
+
+  toString(): string { return this.value; }
+}
+
+// ─── Value Object: SessionId (usage-local) ─────────────────────────────────
+
+export class SessionId {
+  private constructor(readonly value: string) {}
+
+  static create(raw: string): Result<SessionId> {
+    if (!raw || !raw.trim()) return Err('SessionId cannot be empty');
+    return Ok(new SessionId(raw.trim()));
+  }
+
+  /** Reconstruct from a trusted, already-validated source (e.g. persistence). */
+  static fromTrusted(id: string): SessionId { return new SessionId(id); }
+
+  static generate(): SessionId { return new SessionId(crypto.randomUUID()); }
+
+  equals(other: SessionId): boolean { return this.value === other.value; }
+
+  toString(): string { return this.value; }
+}
+
+// ─── Value Object: ProjectId (usage-local) ─────────────────────────────────
+
+export class ProjectId {
+  private constructor(readonly value: string) {}
+
+  static create(raw: string): Result<ProjectId> {
+    if (!raw || !raw.trim()) return Err('ProjectId cannot be empty');
+    return Ok(new ProjectId(raw.trim()));
+  }
+
+  /** Reconstruct from a trusted, already-validated source (e.g. persistence). */
+  static fromTrusted(id: string): ProjectId { return new ProjectId(id); }
+
+  static generate(): ProjectId { return new ProjectId(crypto.randomUUID()); }
+
+  equals(other: ProjectId): boolean { return this.value === other.value; }
+
+  toString(): string { return this.value; }
+}
+
+// ─── Deprecated bridge functions (keep for backward compatibility) ──────────
+
+/** @deprecated Use LedgerId.create() instead. */
 export function toLedgerId(id: string): Result<LedgerId> {
-  if (!id || !id.trim()) return Err('LedgerId cannot be empty');
-  return Ok(id as LedgerId);
+  return LedgerId.create(id);
 }
 
+/** @deprecated Use SessionId.create() instead. */
 export function toSessionId(id: string): Result<SessionId> {
-  if (!id || !id.trim()) return Err('SessionId cannot be empty');
-  return Ok(id as SessionId);
+  return SessionId.create(id);
 }
 
+/** @deprecated Use ProjectId.create() instead. */
 export function toProjectId(id: string): Result<ProjectId> {
-  if (!id || !id.trim()) return Err('ProjectId cannot be empty');
-  return Ok(id as ProjectId);
+  return ProjectId.create(id);
 }
 
 /**
- * Unsafe coercions — only for internal code where the id has already been
+ * Unsafe constructors — only for internal code where the id has already been
  * validated (e.g. reconstructing from a trusted persistence snapshot).
  * @internal
  */
-export function unsafeLedgerId(id: string): LedgerId  { return id as LedgerId;  }
-export function unsafeSessionId(id: string): SessionId { return id as SessionId; }
-export function unsafeProjectId(id: string): ProjectId { return id as ProjectId; }
+export function unsafeLedgerId(id: string): LedgerId  { return LedgerId.fromTrusted(id);  }
+export function unsafeSessionId(id: string): SessionId { return SessionId.fromTrusted(id); }
+export function unsafeProjectId(id: string): ProjectId { return ProjectId.fromTrusted(id); }
 
 // ─── Value Object: UsageRecord ─────────────────────────────────────────────
 
@@ -175,7 +231,7 @@ export class UsageLedger {
     const projectId = projectIdResult.value;
     const now       = Date.now();
     const aggregate = new UsageLedger(ledgerId, sessionId, projectId, raw.userId, [], false, now, null, []);
-    aggregate._events.push(makeUsageLedgerOpened(ledgerId, sessionId, projectId, raw.userId.value));
+    aggregate._events.push(makeUsageLedgerOpened(ledgerId.value, sessionId.value, projectId.value, raw.userId.value));
     return Ok(aggregate);
   }
 
@@ -211,7 +267,7 @@ export class UsageLedger {
    */
   addRecord(raw: RawUsageRecord): Result<UsageSummary> {
     if (this._sealed) {
-      return Err(`UsageLedger '${this._id}' is sealed — cannot add records`);
+      return Err(`UsageLedger '${this._id.value}' is sealed — cannot add records`);
     }
     const recordResult = makeUsageRecord(raw);
     if (!recordResult.ok) return recordResult;
@@ -219,7 +275,7 @@ export class UsageLedger {
     this._records.push(record);
     this._events.push(
       makeUsageRecordAdded(
-        this._id,
+        this._id.value,
         record.model,
         record.inputTokens,
         record.outputTokens,
@@ -235,13 +291,13 @@ export class UsageLedger {
    */
   seal(): Result<UsageSummary> {
     if (this._sealed) {
-      return Err(`UsageLedger '${this._id}' is already sealed`);
+      return Err(`UsageLedger '${this._id.value}' is already sealed`);
     }
     this._sealed   = true;
     this._sealedAt = Date.now();
     const s        = this.summary();
     this._events.push(
-      makeUsageLedgerSealed(this._id, s.totalCostUsd, s.totalInputTokens + s.totalOutputTokens),
+      makeUsageLedgerSealed(this._id.value, s.totalCostUsd, s.totalInputTokens + s.totalOutputTokens),
     );
     return Ok(s);
   }
@@ -265,9 +321,9 @@ export class UsageLedger {
     }
 
     return {
-      ledgerId:                  this._id,
-      sessionId:                 this._sessionId,
-      projectId:                 this._projectId,
+      ledgerId:                  this._id.value,
+      sessionId:                 this._sessionId.value,
+      projectId:                 this._projectId.value,
       userId:                    this._userId.value,
       totalInputTokens,
       totalOutputTokens,
@@ -321,9 +377,9 @@ export class UsageLedger {
 
   toSnapshot(): RawLedger {
     return {
-      id:        this._id,
-      sessionId: this._sessionId,
-      projectId: this._projectId,
+      id:        this._id.value,
+      sessionId: this._sessionId.value,
+      projectId: this._projectId.value,
       userId:    this._userId.value,
       records:   [...this._records],
       sealed:    this._sealed,

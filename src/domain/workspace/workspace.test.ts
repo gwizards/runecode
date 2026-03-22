@@ -14,7 +14,7 @@ import { WORKSPACE_EVENT_TYPES } from './events';
 import type { WorkspaceId, TabId } from './types';
 import { toTabId, toWorkspaceId } from './types';
 import { unwrap } from '../shared/result';
-import type { SessionId } from '../session/types';
+import { SessionId } from '../session/types';
 import type { ProjectId } from '../project/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ let _counter = 0;
 
 function uniqueSessionId(): SessionId {
   _counter += 1;
-  return `session-ws-${Date.now()}-${_counter}` as SessionId;
+  return SessionId._unsafe(`session-ws-${Date.now()}-${_counter}`);
 }
 
 function uniqueProjectId(): ProjectId {
@@ -61,8 +61,8 @@ describe('WorkspaceApplicationService.createWorkspace()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(typeof result.value).toBe('string');
-    expect(result.value.length).toBeGreaterThan(0);
+    expect(typeof result.value.toString()).toBe('string');
+    expect(result.value.toString().length).toBeGreaterThan(0);
   });
 
   it('generates a unique WorkspaceId each call', async () => {
@@ -92,7 +92,7 @@ describe('WorkspaceApplicationService.createWorkspace()', () => {
 
     expect(getResult.ok).toBe(true);
     if (!getResult.ok) return;
-    expect(getResult.value.sessionId).toBe(sessionId);
+    expect(getResult.value.sessionId).toBe(sessionId.toString());
     expect(getResult.value.projectId).toBe(projectId);
   });
 
@@ -136,7 +136,7 @@ describe('WorkspaceApplicationService.openTab()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const tab = result.value.tabs.find(t => t.id === 'my-tab-id');
+    const tab = result.value.tabs.find(t => t.id.toString() === 'my-tab-id');
     expect(tab).toBeDefined();
   });
 
@@ -175,7 +175,7 @@ describe('WorkspaceApplicationService.openTab()', () => {
     const evt = collected.find(e => e.type === WORKSPACE_EVENT_TYPES.TAB_OPENED);
     expect(evt).toBeDefined();
     const typed = evt as unknown as { tabId: TabId; path: string; title: string };
-    expect(typed.tabId).toBe('tab-foo');
+    expect(typed.tabId.toString()).toBe('tab-foo');
     expect(typed.path).toBe('/src/foo.ts');
     expect(typed.title).toBe('foo.ts');
   });
@@ -245,7 +245,7 @@ describe('WorkspaceApplicationService.closeTab()', () => {
     expect(ws.ok).toBe(true);
     if (!ws.ok) return;
     const ids = ws.value.tabs.map(t => t.id);
-    expect(ids).toContain(tabB);
+    expect(ids).toContain(tabB.toString());
   });
 
   it('dispatches TAB_CLOSED event on success', async () => {
@@ -410,9 +410,9 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
     expect(ws.ok).toBe(true);
     if (!ws.ok) return;
     const ids = ws.value.tabs.map(t => t.id);
-    expect(ids[0]).toBe(tabC);
-    expect(ids[1]).toBe(tabA);
-    expect(ids[2]).toBe(tabB);
+    expect(ids[0]).toBe(tabC.toString());
+    expect(ids[1]).toBe(tabA.toString());
+    expect(ids[2]).toBe(tabB.toString());
   });
 
   it('dispatches TABS_REORDERED event', async () => {
@@ -428,9 +428,9 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
     const evt = collected.find(e => e.type === WORKSPACE_EVENT_TYPES.TABS_REORDERED);
     expect(evt).toBeDefined();
     const typed = evt as unknown as { newOrder: TabId[] };
-    expect(typed.newOrder[0]).toBe(tabC);
-    expect(typed.newOrder[1]).toBe(tabB);
-    expect(typed.newOrder[2]).toBe(tabA);
+    expect(typed.newOrder[0].toString()).toBe(tabC.toString());
+    expect(typed.newOrder[1].toString()).toBe(tabB.toString());
+    expect(typed.newOrder[2].toString()).toBe(tabA.toString());
   });
 
   it('unknown tabIds in newOrder are ignored — existing tabs are appended', async () => {
@@ -441,7 +441,7 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
     if (!ws.ok) return;
     // tabA first, then the remaining tabs (B and C) appended in original order
     expect(ws.value.tabs).toHaveLength(3);
-    expect(ws.value.tabs[0]?.id).toBe(tabA);
+    expect(ws.value.tabs[0]?.id).toBe(tabA.toString());
   });
 
   it('returns Err for an unknown workspaceId', async () => {
@@ -488,7 +488,7 @@ describe('WorkspaceApplicationService.renameTab()', () => {
     const ws = await svc.getWorkspace(workspaceId);
     expect(ws.ok).toBe(true);
     if (!ws.ok) return;
-    const tab = ws.value.tabs.find(t => t.id === tabA);
+    const tab = ws.value.tabs.find(t => t.id === tabA.toString());
     expect(tab).toBeDefined();
     expect(tab?.title).toBe('Renamed Title');
   });
@@ -538,8 +538,8 @@ describe('WorkspaceApplicationService.getWorkspace()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.id).toBe(createResult.value);
-    expect(result.value.sessionId).toBe(sessionId);
+    expect(result.value.id).toBe(createResult.value.toString());
+    expect(result.value.sessionId).toBe(sessionId.toString());
     expect(result.value.projectId).toBe(projectId);
   });
 

@@ -14,22 +14,37 @@ import {
   makeAgentFailed,
 } from './events';
 
-// ─── Branded ID ────────────────────────────────────────────────────────────
+// ─── Value Object: AgentId ─────────────────────────────────────────────────
 
-export type AgentId = string & { readonly _brand: 'AgentId' };
+export class AgentId {
+  private constructor(readonly value: string) {}
 
-export function toAgentId(id: string): Result<AgentId> {
-  if (!id || !id.trim()) return Err('AgentId cannot be empty');
-  return Ok(id as AgentId);
+  static create(raw: string): Result<AgentId> {
+    if (!raw || !raw.trim()) return Err('AgentId cannot be empty');
+    return Ok(new AgentId(raw.trim()));
+  }
+
+  static generate(): AgentId { return new AgentId(crypto.randomUUID()); }
+
+  equals(other: AgentId): boolean { return this.value === other.value; }
+
+  toString(): string { return this.value; }
 }
 
+/** @deprecated Use AgentId.create() */
+export function toAgentId(raw: string): Result<AgentId> { return AgentId.create(raw); }
+
 /**
- * Unsafe coercion — only for tests and internal code that has already
- * validated the id through another path (e.g. fromSnapshot with a known-good id).
+ * Unsafe coercion bridge — retained for test compatibility.
+ * Only for trusted internal IDs already validated through another path.
+ * @deprecated Use AgentId.create() and propagate Result.
  * @internal
  */
-export function unsafeAgentId(id: string): AgentId {
-  return id as AgentId;
+export function unsafeAgentId(raw: string): AgentId {
+  const result = AgentId.create(raw);
+  // Callers guarantee raw is non-empty; if not, fall back to a sentinel so
+  // the domain never throws (programming error surfaced at test-assertion time).
+  return result.ok ? result.value : AgentId.generate();
 }
 
 // ─── Value Object: AgentStatus ─────────────────────────────────────────────
@@ -159,7 +174,7 @@ export class LiveAgentAggregate {
       );
     }
     this._status = 'thinking';
-    this._events.push(makeAgentThinking(this.id));
+    this._events.push(makeAgentThinking(this.id.value));
     return Ok(undefined);
   }
 
@@ -198,7 +213,7 @@ export class LiveAgentAggregate {
       );
     }
     this._status = 'completed';
-    this._events.push(makeAgentCompleted(this.id, this._tokenCount, this._elapsedMs));
+    this._events.push(makeAgentCompleted(this.id.value, this._tokenCount, this._elapsedMs));
     return Ok(undefined);
   }
 
@@ -213,7 +228,7 @@ export class LiveAgentAggregate {
       );
     }
     this._status = 'failed';
-    this._events.push(makeAgentFailed(this.id, reason));
+    this._events.push(makeAgentFailed(this.id.value, reason));
     return Ok(undefined);
   }
 
@@ -253,7 +268,7 @@ export class LiveAgentAggregate {
 
   toSnapshot(): RawLiveAgent {
     return {
-      id: this.id,
+      id: this.id.value,
       name: this._name.value,
       status: this._status,
       tokenCount: this._tokenCount,

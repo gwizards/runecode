@@ -79,7 +79,7 @@ export function makeTabOpened(
   return {
     type: WORKSPACE_EVENT_TYPES.TAB_OPENED,
     occurredAt: Date.now(),
-    aggregateId: workspaceId,
+    aggregateId: workspaceId.toString(),
     tabId,
     path,
     title,
@@ -99,7 +99,7 @@ export function makeTabClosed(
   return {
     type: WORKSPACE_EVENT_TYPES.TAB_CLOSED,
     occurredAt: Date.now(),
-    aggregateId: workspaceId,
+    aggregateId: workspaceId.toString(),
     tabId,
   };
 }
@@ -111,7 +111,7 @@ export function makeTabActivated(
   return {
     type: WORKSPACE_EVENT_TYPES.TAB_ACTIVATED,
     occurredAt: Date.now(),
-    aggregateId: workspaceId,
+    aggregateId: workspaceId.toString(),
     tabId,
   };
 }
@@ -123,8 +123,8 @@ export function makeTabsReordered(
   return {
     type: WORKSPACE_EVENT_TYPES.TABS_REORDERED,
     occurredAt: Date.now(),
-    aggregateId: workspaceId,
-    newOrder: newOrder.slice() as TabId[],
+    aggregateId: workspaceId.toString(),
+    newOrder: newOrder.slice(),
   };
 }
 
@@ -136,7 +136,7 @@ export function makeTabRenamed(
   return {
     type: WORKSPACE_EVENT_TYPES.TAB_RENAMED,
     occurredAt: Date.now(),
-    aggregateId: workspaceId,
+    aggregateId: workspaceId.toString(),
     tabId,
     newTitle,
   };

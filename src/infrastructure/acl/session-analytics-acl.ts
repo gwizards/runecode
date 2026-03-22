@@ -51,7 +51,7 @@ export class SessionAnalyticsAcl {
           this.capture({
             eventName: 'session_completed',
             properties: {
-              sessionId: evt.payload.sessionId,
+              sessionId: evt.payload.sessionId.toString(),
               inputTokens: evt.payload.tokenUsage.inputTokens,
               outputTokens: evt.payload.tokenUsage.outputTokens,
               costUsd: evt.payload.tokenUsage.costUsd,
@@ -69,7 +69,7 @@ export class SessionAnalyticsAcl {
           this.capture({
             eventName: 'session_failed',
             properties: {
-              sessionId: evt.payload.sessionId,
+              sessionId: evt.payload.sessionId.toString(),
               reason: evt.payload.reason,
             },
             timestamp: evt.occurredAt,

@@ -16,13 +16,32 @@ import {
   makeServerStatusChanged,
 } from './events';
 
-// ─── Branded ID ────────────────────────────────────────────────────────────
+// ─── ServerId Value Object ─────────────────────────────────────────────────
 
-export type ServerId = string & { readonly _brand: 'ServerId' };
+export class ServerId {
+  private constructor(readonly value: string) {}
 
+  static create(raw: string): Result<ServerId> {
+    if (!raw || !raw.trim()) return Err('ServerId cannot be empty');
+    return Ok(new ServerId(raw.trim()));
+  }
+
+  static generate(): ServerId {
+    return new ServerId(crypto.randomUUID());
+  }
+
+  equals(other: ServerId): boolean {
+    return this.value === other.value;
+  }
+
+  toString(): string {
+    return this.value;
+  }
+}
+
+/** @deprecated Use ServerId.create() instead. */
 export function toServerId(id: string): Result<ServerId> {
-  if (!id || !id.trim()) return Err('ServerId cannot be empty');
-  return Ok(id as ServerId);
+  return ServerId.create(id);
 }
 
 // ─── Scalar types ──────────────────────────────────────────────────────────
@@ -255,7 +274,7 @@ export class MCPServerAggregate {
 
   toSnapshot(): RawMCPServer {
     return {
-      id: this.id,
+      id: this.id.toString(),
       name: this._name.value,
       transport: this.transport,
       url: this._url.value,

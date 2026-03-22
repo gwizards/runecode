@@ -32,7 +32,7 @@ import {
 // ─── In-memory event log ──────────────────────────────────────────────────────
 
 /** Captured telemetry events queued for external dispatch. */
-const capturedEventLog = new Map<AnalyticsSessionId, CapturedEvent[]>();
+const capturedEventLog = new Map<string, CapturedEvent[]>();
 
 // ─── Application Service ──────────────────────────────────────────────────────
 
@@ -160,7 +160,7 @@ export class AnalyticsApplicationService {
 
       const projectId = consent.projectId;
       this.eventBus.dispatch([
-        makeSessionTracked(consent.id, rawSessionId, projectId),
+        makeSessionTracked(consent.id.toString(), rawSessionId, projectId),
       ]);
 
       this.tracker?.trackSession(rawSessionId, data);
@@ -205,12 +205,12 @@ export class AnalyticsApplicationService {
         capturedAt,
       };
 
-      const log = capturedEventLog.get(sessionId) ?? [];
+      const log = capturedEventLog.get(sessionId.toString()) ?? [];
       log.push(entry);
-      capturedEventLog.set(sessionId, log);
+      capturedEventLog.set(sessionId.toString(), log);
 
       this.eventBus.dispatch([
-        makeEventCaptured(consent.id, rawSessionId, name),
+        makeEventCaptured(consent.id.toString(), rawSessionId, name),
       ]);
 
       this.tracker?.captureEvent(name, properties);
@@ -241,7 +241,7 @@ export class AnalyticsApplicationService {
       const sessionIdResult = toAnalyticsSessionId(rawSessionId);
       if (!sessionIdResult.ok) return Err(sessionIdResult.error);
       const sessionId = sessionIdResult.value;
-      const log = capturedEventLog.get(sessionId) ?? [];
+      const log = capturedEventLog.get(sessionId.toString()) ?? [];
       // Return a copy so callers cannot mutate internal state.
       return Ok(log.map(e => ({ ...e, payload: { ...e.payload } })));
     } catch (err) {

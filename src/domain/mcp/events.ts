@@ -65,7 +65,7 @@ export function makeServerAdded(
   return {
     type: MCP_EVENT_TYPES.SERVER_ADDED,
     occurredAt: Date.now(),
-    aggregateId: serverId,
+    aggregateId: serverId.toString(),
     serverId,
     name,
     transport,
@@ -80,7 +80,7 @@ export function makeServerRemoved(
   return {
     type: MCP_EVENT_TYPES.SERVER_REMOVED,
     occurredAt: Date.now(),
-    aggregateId: serverId,
+    aggregateId: serverId.toString(),
     serverId,
     name,
   };
@@ -95,7 +95,7 @@ export function makeServerStatusChanged(
   return {
     type: MCP_EVENT_TYPES.SERVER_STATUS_CHANGED,
     occurredAt: Date.now(),
-    aggregateId: serverId,
+    aggregateId: serverId.toString(),
     serverId,
     oldStatus,
     newStatus,
@@ -107,7 +107,7 @@ export function makeServerEnabled(serverId: ServerId): ServerEnabledEvent {
   return {
     type: MCP_EVENT_TYPES.SERVER_ENABLED,
     occurredAt: Date.now(),
-    aggregateId: serverId,
+    aggregateId: serverId.toString(),
     serverId,
   };
 }
@@ -116,7 +116,7 @@ export function makeServerDisabled(serverId: ServerId): ServerDisabledEvent {
   return {
     type: MCP_EVENT_TYPES.SERVER_DISABLED,
     occurredAt: Date.now(),
-    aggregateId: serverId,
+    aggregateId: serverId.toString(),
     serverId,
   };
 }

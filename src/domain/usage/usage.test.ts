@@ -223,7 +223,7 @@ describe('UsageLedger.fromSnapshot()', () => {
     const restored = unwrap(UsageLedger.fromSnapshot(snapshot));
 
     expect(restored.events).toHaveLength(0);
-    expect(restored.id).toBe(unwrap(toLedgerId('ledger-snap')));
+    expect(restored.id.toString()).toBe('ledger-snap');
     expect(restored.records).toHaveLength(1);
     expect(restored.sealed).toBe(false);
   });
@@ -279,7 +279,7 @@ describe('UsageApplicationService.openLedger()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.id).toBe(unwrap(toLedgerId('ledger-svc-002')));
+    expect(result.value.id.toString()).toBe('ledger-svc-002');
     expect(result.value.sealed).toBe(false);
   });
 
@@ -737,7 +737,7 @@ describe('UsageApplicationService.getLedger()', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.sessionId).toBe('sess-gl-001');
+    expect(result.value.sessionId.toString()).toBe('sess-gl-001');
   });
 
   it('returned ledger reflects persisted records', async () => {

@@ -78,7 +78,7 @@ export function makeSessionCreated(
   return {
     type: SESSION_EVENT_TYPES.SESSION_CREATED,
     occurredAt: Date.now(),
-    aggregateId: sessionId,
+    aggregateId: sessionId.toString(),
     payload: { sessionId, projectId, title },
   };
 }
@@ -90,7 +90,7 @@ export function makeOutputAppended(
   return {
     type: SESSION_EVENT_TYPES.OUTPUT_APPENDED,
     occurredAt: Date.now(),
-    aggregateId: sessionId,
+    aggregateId: sessionId.toString(),
     payload: { sessionId, chunk },
   };
 }
@@ -102,7 +102,7 @@ export function makeSessionCompleted(
   return {
     type: SESSION_EVENT_TYPES.SESSION_COMPLETED,
     occurredAt: Date.now(),
-    aggregateId: sessionId,
+    aggregateId: sessionId.toString(),
     payload: { sessionId, tokenUsage },
   };
 }
@@ -114,7 +114,7 @@ export function makeSessionFailed(
   return {
     type: SESSION_EVENT_TYPES.SESSION_FAILED,
     occurredAt: Date.now(),
-    aggregateId: sessionId,
+    aggregateId: sessionId.toString(),
     payload: { sessionId, reason },
   };
 }

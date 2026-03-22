@@ -5,8 +5,8 @@
  * InMemoryUsageLedgerRepository is the default adapter (suitable for tests and dev).
  */
 
-import type { LedgerId, SessionId, ProjectId, RawLedger } from './types';
-import { UsageLedger } from './types';
+import type { RawLedger } from './types';
+import { LedgerId, SessionId, ProjectId, UsageLedger } from './types';
 import { unwrap } from '../shared/result';
 import { quantizeVector, int8CosineSimilarity } from '../shared/quantization';
 import type { IUsageLedgerRepository } from './ports/IUsageLedgerRepository';
@@ -58,14 +58,14 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
   private readonly ledgers = new Map<string, RawLedger>();
 
   async getById(id: LedgerId): Promise<UsageLedger | null> {
-    const snapshot = this.ledgers.get(id);
+    const snapshot = this.ledgers.get(id.value);
     if (!snapshot) return null;
     return unwrap(UsageLedger.fromSnapshot(snapshot));
   }
 
   async getBySession(sessionId: SessionId): Promise<UsageLedger | null> {
     for (const snapshot of this.ledgers.values()) {
-      if (snapshot.sessionId === sessionId && !snapshot.sealed) {
+      if (snapshot.sessionId === sessionId.value && !snapshot.sealed) {
         return unwrap(UsageLedger.fromSnapshot(snapshot));
       }
     }
@@ -73,16 +73,16 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
   }
 
   async save(ledger: UsageLedger): Promise<void> {
-    this.ledgers.set(ledger.id, ledger.toSnapshot());
+    this.ledgers.set(ledger.id.value, ledger.toSnapshot());
   }
 
   async delete(id: LedgerId): Promise<void> {
-    this.ledgers.delete(id);
+    this.ledgers.delete(id.value);
   }
 
   async listByProject(projectId: ProjectId): Promise<UsageLedger[]> {
     return Array.from(this.ledgers.values())
-      .filter((s) => s.projectId === projectId)
+      .filter((s) => s.projectId === projectId.value)
       .map((s) => unwrap(UsageLedger.fromSnapshot(s)));
   }
 
@@ -99,19 +99,19 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
   searchByEmbedding(
     queryVector: number[],
     topK = 5,
-  ): Array<{ ledgerId: LedgerId; score: number }> {
+  ): Array<{ ledgerId: string; score: number }> {
     // Quantize the query once and reuse across all entries.
     const queryFloat32 = new Float32Array(queryVector);
     const { quantized: qQuery } = quantizeVector(queryFloat32);
 
-    const results: Array<{ ledgerId: LedgerId; score: number }> = [];
+    const results: Array<{ ledgerId: string; score: number }> = [];
     for (const [id, snapshot] of this.ledgers.entries()) {
       const featureVec = ledgerFeatureVector(snapshot);
       const { quantized: qEntry } = quantizeVector(featureVec);
       // Pad or truncate to match query length so int8CosineSimilarity doesn't throw.
       const len = Math.min(qQuery.length, qEntry.length);
       const score = int8CosineSimilarity(qQuery.slice(0, len), qEntry.slice(0, len));
-      results.push({ ledgerId: id as LedgerId, score });
+      results.push({ ledgerId: id, score });
     }
 
     results.sort((a, b) => b.score - a.score);
@@ -124,6 +124,6 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
    * any service-layer side effects.
    */
   seed(ledger: UsageLedger): void {
-    this.ledgers.set(ledger.id, ledger.toSnapshot());
+    this.ledgers.set(ledger.id.value, ledger.toSnapshot());
   }
 }

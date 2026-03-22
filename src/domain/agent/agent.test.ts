@@ -148,7 +148,7 @@ describe('InMemoryAgentRepository', () => {
     await repo.saveAgent(agent);
     const retrieved = await repo.getAgent(unsafeAgentId('agent-7'));
     expect(retrieved).not.toBeNull();
-    expect(retrieved!.id).toBe('agent-7');
+    expect(retrieved!.id.toString()).toBe('agent-7');
     expect(retrieved!.name).toBe('Rune');
     expect(retrieved!.status).toBe('running');
   });
@@ -168,6 +168,6 @@ describe('InMemoryAgentRepository', () => {
 
     const active = await repo.listActiveAgents();
     expect(active).toHaveLength(1);
-    expect(active[0].id).toBe('r-1');
+    expect(active[0].id.toString()).toBe('r-1');
   });
 });

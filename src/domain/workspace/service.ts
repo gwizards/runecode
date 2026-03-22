@@ -18,11 +18,11 @@ import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
 import type { DomainEventBus } from '../shared/event-bus';
 import { WorkspaceAggregate } from './types';
-import type { WorkspaceId, TabId, RawWorkspace, RawTab } from './types';
+import type { WorkspaceId, RawWorkspace, RawTab } from './types';
+import { TabId } from './types';
 import type { IWorkspaceRepository } from './repository';
 import type { SessionId } from '../session/types';
 import type { ProjectId } from '../project/types';
-import { toTabId } from './types';
 
 // ─── WorkspaceApplicationService ─────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ export class WorkspaceApplicationService {
   ): Promise<Result<WorkspaceAggregate>> {
     return this._withWorkspace(workspaceId, (ws) => {
       const rawId = rawTabId ?? `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const tabIdResult = toTabId(rawId);
+      const tabIdResult = TabId.create(rawId);
       if (!tabIdResult.ok) return tabIdResult;
       const tabId = tabIdResult.value;
 

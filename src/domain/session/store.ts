@@ -136,7 +136,7 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
     if (fetched.ok) {
       set(state => ({
         sessions: state.sessions.map(s =>
-          s.id === id ? fetched.value : s,
+          s.id.toString() === id ? fetched.value : s,
         ),
       }));
     }
@@ -154,7 +154,7 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
     if (fetched.ok) {
       set(state => ({
         sessions: state.sessions.map(s =>
-          s.id === id ? fetched.value : s,
+          s.id.toString() === id ? fetched.value : s,
         ),
       }));
     }
@@ -172,7 +172,7 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
     if (fetched.ok) {
       set(state => ({
         sessions: state.sessions.map(s =>
-          s.id === id ? fetched.value : s,
+          s.id.toString() === id ? fetched.value : s,
         ),
       }));
     }
@@ -185,9 +185,9 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
     const result = await _service.deleteSession(id);
     if (result.ok) {
       set(state => ({
-        sessions: state.sessions.filter(s => s.id !== id),
+        sessions: state.sessions.filter(s => s.id.toString() !== id),
         currentSessionId:
-          state.currentSessionId === id ? null : state.currentSessionId,
+          state.currentSessionId?.toString() === id ? null : state.currentSessionId,
         loading: false,
       }));
     } else {
@@ -255,7 +255,7 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
     if (fetched.ok) {
       set(state => ({
         sessions: state.sessions.map(s =>
-          s.id === id ? fetched.value : s,
+          s.id.toString() === id ? fetched.value : s,
         ),
       }));
     }

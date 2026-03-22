@@ -43,5 +43,5 @@ export interface IUsageLedgerRepository {
    *   [4] total cacheCreationTokens across all records
    *   [5] total cacheReadTokens across all records
    */
-  searchByEmbedding(queryVector: number[], topK?: number): Array<{ ledgerId: LedgerId; score: number }>;
+  searchByEmbedding(queryVector: number[], topK?: number): Array<{ ledgerId: string; score: number }>;
 }

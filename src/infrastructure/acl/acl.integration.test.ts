@@ -32,7 +32,8 @@ import { USAGE_EVENT_TYPES } from '../../domain/usage/events';
 import { WorkspaceApplicationService } from '../../domain/workspace/service';
 import { InMemoryWorkspaceRepository } from '../../domain/workspace/repository';
 import { WORKSPACE_EVENT_TYPES } from '../../domain/workspace/events';
-import type { WorkspaceId, TabId } from '../../domain/workspace/types';
+import { WorkspaceId, TabId } from '../../domain/workspace/types';
+import { SessionId } from '../../domain/session/types';
 
 // ACL under test
 import { SessionAnalyticsAcl } from './session-analytics-acl';
@@ -330,14 +331,14 @@ describe('Session → Workspace flow', () => {
     const sessResult = await sessionSvc.createSession(makeSessionRaw('w1'));
     expect(sessResult.ok).toBe(true);
 
-    const wsResult = await workspaceSvc.createWorkspace('w1' as ReturnType<typeof String> & { _brand: 'SessionId' }, 'proj-1' as ReturnType<typeof String> & { _brand: 'ProjectId' });
+    const wsResult = await workspaceSvc.createWorkspace(SessionId._unsafe('w1'), 'proj-1' as any);
     expect(wsResult.ok).toBe(true);
   });
 
   it('opens a tab in the workspace and retrieves the updated state', async () => {
     const wsResult = await workspaceSvc.createWorkspace('w2' as any, 'proj-1' as any);
     expect(wsResult.ok).toBe(true);
-    const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
+    const workspaceId = wsResult.ok ? wsResult.value : WorkspaceId.generate();
 
     await workspaceSvc.openTab(workspaceId, '/src/index.ts', 'index.ts', 'tab-1');
 
@@ -352,7 +353,7 @@ describe('Session → Workspace flow', () => {
 
   it('opening a second tab adds it and makes it active', async () => {
     const wsResult = await workspaceSvc.createWorkspace('w3' as any, 'proj-1' as any);
-    const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
+    const workspaceId = wsResult.ok ? wsResult.value : WorkspaceId.generate();
 
     await workspaceSvc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
     await workspaceSvc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
@@ -368,11 +369,11 @@ describe('Session → Workspace flow', () => {
 
   it('closing a tab removes it from the workspace', async () => {
     const wsResult = await workspaceSvc.createWorkspace('w4' as any, 'proj-1' as any);
-    const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
+    const workspaceId = wsResult.ok ? wsResult.value : WorkspaceId.generate();
 
     await workspaceSvc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
     await workspaceSvc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
-    await workspaceSvc.closeTab(workspaceId, 'tab-a' as TabId);
+    await workspaceSvc.closeTab(workspaceId, unwrap(TabId.create('tab-a')));
 
     const getResult = await workspaceSvc.getWorkspace(workspaceId);
     expect(getResult.ok).toBe(true);
@@ -384,12 +385,12 @@ describe('Session → Workspace flow', () => {
 
   it('getWorkspace returns correct tab state after multiple operations', async () => {
     const wsResult = await workspaceSvc.createWorkspace('w5' as any, 'proj-1' as any);
-    const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
+    const workspaceId = wsResult.ok ? wsResult.value : WorkspaceId.generate();
 
     await workspaceSvc.openTab(workspaceId, '/a.ts', 'a.ts', 'tab-a');
     await workspaceSvc.openTab(workspaceId, '/b.ts', 'b.ts', 'tab-b');
     await workspaceSvc.openTab(workspaceId, '/c.ts', 'c.ts', 'tab-c');
-    await workspaceSvc.closeTab(workspaceId, 'tab-b' as TabId);
+    await workspaceSvc.closeTab(workspaceId, unwrap(TabId.create('tab-b')));
 
     const getResult = await workspaceSvc.getWorkspace(workspaceId);
     expect(getResult.ok).toBe(true);
@@ -407,7 +408,7 @@ describe('Session → Workspace flow', () => {
     workspaceBus.on(WORKSPACE_EVENT_TYPES.TAB_OPENED, (e) => { workspaceEvents.push(e); });
 
     const wsResult = await workspaceSvc.createWorkspace('w6' as any, 'proj-1' as any);
-    const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
+    const workspaceId = wsResult.ok ? wsResult.value : WorkspaceId.generate();
     await workspaceSvc.openTab(workspaceId, '/src/x.ts', 'x.ts', 'tab-x');
 
     expect(workspaceEvents.length).toBeGreaterThan(0);
@@ -464,7 +465,7 @@ describe('Cross-domain bus isolation', () => {
     const usageEvents = collectEvents(usageBus);
 
     const wsResult = await workspaceSvc.createWorkspace('iso-3' as any, 'proj-1' as any);
-    const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
+    const workspaceId = wsResult.ok ? wsResult.value : WorkspaceId.generate();
     await workspaceSvc.openTab(workspaceId, '/src/z.ts', 'z.ts', 'tab-z');
 
     const workspaceTypesOnUsageBus = usageEvents.filter(e => e.type.startsWith('workspace.'));

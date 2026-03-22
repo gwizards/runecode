@@ -36,8 +36,8 @@ export interface LiveAgentRecord {
 function toRecordMap(agents: LiveAgentAggregate[]): Record<string, LiveAgentRecord> {
   const map: Record<string, LiveAgentRecord> = {};
   for (const a of agents) {
-    map[a.id] = {
-      id: a.id,
+    map[a.id.value] = {
+      id: a.id.value,
       name: a.name,
       status: a.status,
       startedAt: a.startedAt,

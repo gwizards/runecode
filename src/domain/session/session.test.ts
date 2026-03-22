@@ -67,8 +67,8 @@ describe('SessionAggregate.create()', () => {
     const session = unwrap(SessionAggregate.create(rawSession));
     expect(session.status).toBe('idle');
     expect(session.title).toBe('My first session');
-    expect(session.id).toBe(unwrap(toSessionId('sess-001')));
-    expect(session.projectId).toBe(unwrap(toProjectId('proj-abc')));
+    expect(session.id.toString()).toBe('sess-001');
+    expect(session.projectId.toString()).toBe('proj-abc');
   });
 });
 
@@ -147,7 +147,7 @@ describe('InMemorySessionRepository', () => {
     const retrieved = await repo.getSession(unwrap(toSessionId('sess-100')));
 
     expect(retrieved).not.toBeNull();
-    expect(retrieved?.id).toBe(unwrap(toSessionId('sess-100')));
+    expect(retrieved?.id.toString()).toBe('sess-100');
     expect(retrieved?.title).toBe('Round-trip test');
   });
 
@@ -176,8 +176,8 @@ describe('InMemorySessionRepository', () => {
 
     const proj1Sessions = await repo.listSessionsByProject(unwrap(toProjectId('proj-1')));
     expect(proj1Sessions).toHaveLength(2);
-    const ids = proj1Sessions.map(s => s.id);
-    expect(ids).toContain(unwrap(toSessionId('sess-A')));
-    expect(ids).toContain(unwrap(toSessionId('sess-C')));
+    const ids = proj1Sessions.map(s => s.id.toString());
+    expect(ids).toContain('sess-A');
+    expect(ids).toContain('sess-C');
   });
 });

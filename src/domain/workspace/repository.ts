@@ -11,8 +11,8 @@ import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
 import { QuantizedSnapshotStore, ScalarQuantizer } from '../shared/quantization';
 import type { QuantizedBuffer } from '../shared/quantization';
-import { WorkspaceAggregate } from './types';
-import type { WorkspaceId, RawWorkspace, RawTab } from './types';
+import { WorkspaceAggregate, WorkspaceId } from './types';
+import type { RawWorkspace, RawTab } from './types';
 import type { SessionId } from '../session/types';
 import type { IWorkspaceRepository } from './ports/IWorkspaceRepository';
 
@@ -96,40 +96,42 @@ class WorkspaceSnapshotQuantizer extends ScalarQuantizer<RawWorkspace> {
  * A session→workspace index is maintained for findBySession() O(1) lookup.
  */
 export class InMemoryWorkspaceRepository implements IWorkspaceRepository {
-  private readonly store: QuantizedSnapshotStore<RawWorkspace, WorkspaceId>;
-  private readonly sessionIndex = new Map<SessionId, WorkspaceId>();
+  private readonly store: QuantizedSnapshotStore<RawWorkspace, string>;
+  private readonly sessionIndex = new Map<string, string>();
 
   constructor() {
-    this.store = new QuantizedSnapshotStore<RawWorkspace, WorkspaceId>(
+    this.store = new QuantizedSnapshotStore<RawWorkspace, string>(
       new WorkspaceSnapshotQuantizer(),
     );
   }
 
   findById(id: WorkspaceId): Result<WorkspaceAggregate> {
-    const raw = this.store.get(id);
-    if (!raw) return Err(`Workspace not found: ${id}`);
+    const raw = this.store.get(id.value);
+    if (!raw) return Err(`Workspace not found: ${id.value}`);
     return WorkspaceAggregate.fromSnapshot(raw);
   }
 
   findBySession(sessionId: SessionId): Result<WorkspaceAggregate> {
-    const workspaceId = this.sessionIndex.get(sessionId);
-    if (!workspaceId) return Err(`No workspace for session: ${sessionId}`);
-    return this.findById(workspaceId);
+    const workspaceIdValue = this.sessionIndex.get(sessionId.toString());
+    if (!workspaceIdValue) return Err(`No workspace for session: ${sessionId.toString()}`);
+    const workspaceIdResult = WorkspaceId.create(workspaceIdValue);
+    if (!workspaceIdResult.ok) return workspaceIdResult;
+    return this.findById(workspaceIdResult.value);
   }
 
   save(workspace: WorkspaceAggregate): Result<void> {
     const snapshot = workspace.toSnapshot();
-    this.store.set(workspace.id, snapshot);
-    this.sessionIndex.set(workspace.sessionId, workspace.id);
+    this.store.set(workspace.id.value, snapshot);
+    this.sessionIndex.set(workspace.sessionId.toString(), workspace.id.value);
     return Ok(undefined);
   }
 
   delete(id: WorkspaceId): Result<void> {
-    const raw = this.store.get(id);
+    const raw = this.store.get(id.value);
     if (raw) {
-      this.sessionIndex.delete(raw.sessionId as SessionId);
+      this.sessionIndex.delete(raw.sessionId);
     }
-    this.store.delete(id);
+    this.store.delete(id.value);
     return Ok(undefined);
   }
 

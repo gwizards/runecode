@@ -28,20 +28,58 @@ export { UserId } from '../identity/types';
  * SessionId. It is kept separate here to honour bounded-context isolation;
  * no import from the session context is required in the analytics domain.
  */
-export type AnalyticsSessionId = string & { readonly _brand: 'SessionId' };
+export class AnalyticsSessionId {
+  private constructor(readonly value: string) {}
 
+  static create(raw: string): Result<AnalyticsSessionId> {
+    if (!raw || !raw.trim()) return Err('AnalyticsSessionId cannot be empty');
+    return Ok(new AnalyticsSessionId(raw.trim()));
+  }
+
+  static generate(): AnalyticsSessionId {
+    return new AnalyticsSessionId(crypto.randomUUID());
+  }
+
+  equals(other: AnalyticsSessionId): boolean {
+    return this.value === other.value;
+  }
+
+  toString(): string {
+    return this.value;
+  }
+}
+
+/** @deprecated Use AnalyticsSessionId.create() */
 export function toAnalyticsSessionId(raw: string): Result<AnalyticsSessionId> {
-  if (!raw || !raw.trim()) return Err('AnalyticsSessionId cannot be empty');
-  return Ok(raw as AnalyticsSessionId);
+  return AnalyticsSessionId.create(raw);
 }
 
 // ─── ConsentId ────────────────────────────────────────────────────────────────
 
-export type ConsentId = string & { readonly _brand: 'ConsentId' };
+export class ConsentId {
+  private constructor(readonly value: string) {}
 
+  static create(raw: string): Result<ConsentId> {
+    if (!raw || !raw.trim()) return Err('ConsentId cannot be empty');
+    return Ok(new ConsentId(raw.trim()));
+  }
+
+  static generate(): ConsentId {
+    return new ConsentId(crypto.randomUUID());
+  }
+
+  equals(other: ConsentId): boolean {
+    return this.value === other.value;
+  }
+
+  toString(): string {
+    return this.value;
+  }
+}
+
+/** @deprecated Use ConsentId.create() */
 export function toConsentId(raw: string): Result<ConsentId> {
-  if (!raw || !raw.trim()) return Err('ConsentId cannot be empty');
-  return Ok(raw as ConsentId);
+  return ConsentId.create(raw);
 }
 
 // ─── ConsentStatus ────────────────────────────────────────────────────────────
@@ -110,7 +148,7 @@ export class ConsentAggregate {
     sessionId: AnalyticsSessionId,
     projectId: ProjectId,
   ): ConsentAggregate {
-    const id = `consent-${sessionId}-${Date.now()}` as ConsentId;
+    const id = ConsentId.generate();
     return new ConsentAggregate(id, userId, sessionId, projectId, 'pending');
   }
 
@@ -122,10 +160,19 @@ export class ConsentAggregate {
     // Snapshots come from trusted storage; a missing userId falls back to a
     // sentinel rather than crashing the repository.
     const userId = userIdResult.ok ? userIdResult.value : UserId.generate();
+
+    const idResult = ConsentId.create(raw.id);
+    const id = idResult.ok ? idResult.value : ConsentId.generate();
+
+    const sessionIdResult = AnalyticsSessionId.create(raw.sessionId);
+    const sessionId = sessionIdResult.ok
+      ? sessionIdResult.value
+      : AnalyticsSessionId.generate();
+
     return new ConsentAggregate(
-      raw.id as ConsentId,
+      id,
       userId,
-      raw.sessionId as AnalyticsSessionId,
+      sessionId,
       raw.projectId as ProjectId,
       raw.status,
       raw.grantedAt,
@@ -165,7 +212,7 @@ export class ConsentAggregate {
     this._grantedAt = Date.now();
     this._revokedAt = undefined;
     this._domainEvents.push(
-      makeConsentGranted(this.id, this.sessionId, this.projectId, this._grantedAt),
+      makeConsentGranted(this.id.toString(), this.sessionId.toString(), this.projectId, this._grantedAt),
     );
   }
 
@@ -173,7 +220,7 @@ export class ConsentAggregate {
     if (!this._consentGranted) return; // idempotent if already revoked or pending
     this._revokedAt = Date.now();
     this._domainEvents.push(
-      makeConsentRevoked(this.id, this.sessionId, this._revokedAt),
+      makeConsentRevoked(this.id.toString(), this.sessionId.toString(), this._revokedAt),
     );
   }
 
@@ -188,9 +235,9 @@ export class ConsentAggregate {
 
   toSnapshot(): RawConsent {
     return {
-      id: this.id,
+      id: this.id.toString(),
       userId: this._userId.toString(),
-      sessionId: this.sessionId,
+      sessionId: this.sessionId.toString(),
       projectId: this.projectId,
       status: this.status,
       grantedAt: this._grantedAt,
