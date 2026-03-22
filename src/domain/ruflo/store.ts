@@ -17,6 +17,8 @@ import { recommendMode } from './quantization';
 // on QuantizedMemoryStore directly (entries are a cache, not source of truth).
 
 const CODEBOOK_KEY = 'runecode-ruflo-pq-codebook';
+/** localStorage key for persisting CalibratedQuantizer min/max calibration across reloads */
+const CALIBRATION_KEY = 'runecode-ruflo-calibration';
 /** localStorage key tracking whether we've applied the default agentdb backend */
 const BACKEND_INIT_KEY = 'runecode-ruflo-backend-initialized';
 
@@ -39,13 +41,28 @@ function savePersistedMode(mode: QuantizationMode): void {
   } catch { /* ignore */ }
 }
 
-/** Lazily initialized local memory store. Mode is loaded from localStorage on first access. */
+function saveCalibration(store: QuantizedMemoryStore): void {
+  try {
+    const cal = store.exportCalibration();
+    if (cal) localStorage.setItem(CALIBRATION_KEY, JSON.stringify(cal));
+  } catch { /* non-critical */ }
+}
+
+function restoreCalibration(store: QuantizedMemoryStore): void {
+  try {
+    const raw = localStorage.getItem(CALIBRATION_KEY);
+    if (raw) store.importCalibration(JSON.parse(raw));
+  } catch { /* non-critical — stale or malformed entry */ }
+}
+
+/** Lazily initialized local memory store. Mode and calibration are loaded from localStorage on first access. */
 let _localStore: QuantizedMemoryStore | null = null;
 
 export function getLocalMemoryStore(): QuantizedMemoryStore {
   if (!_localStore) {
     const persistedMode = loadPersistedMode();
     _localStore = createRuFloMemoryStore(persistedMode);
+    restoreCalibration(_localStore);
   }
   return _localStore;
 }
@@ -102,6 +119,7 @@ interface RuFloState {
   // ── Local cache actions ───────────────────────────────────────────────
   cacheEntry: (key: string, embedding: number[], metadata?: Record<string, unknown>) => void;
   searchCache: (query: number[], topK?: number) => SearchResult[];
+  fitLocalQuantizer: (samples: Float32Array[]) => void;
 }
 
 export const useRuFloStore = create<RuFloState>((set, get) => ({
@@ -352,5 +370,13 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     } catch {
       return [];
     }
+  },
+
+  fitLocalQuantizer: (samples) => {
+    try {
+      const store = getLocalMemoryStore();
+      store.fitQuantizer(samples);
+      saveCalibration(store);
+    } catch { /* non-critical */ }
   },
 }));

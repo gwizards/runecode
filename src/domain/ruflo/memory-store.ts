@@ -116,7 +116,7 @@ export class QuantizedMemoryStore {
 
     this.entries.set(key, { key, data, metadata, addedAt: Date.now(), ttlMs: ttlMs ?? this.defaultTtlMs });
 
-    // TODO: use recommendMode(this.size) to upgrade quantization strategy
+    // Note: mode auto-upgrade is handled at the store.ts layer via upgradeMemoryStoreMode()
     if (this.maxEntries > 0 && this.entries.size > this.maxEntries) {
       let oldestKey: string | undefined;
       let oldestTime = Infinity;
@@ -243,6 +243,16 @@ export class QuantizedMemoryStore {
   warmUpQuantizer(entries: Float32Array[]): void {
     this.fitQuantizer(entries);
     this.warmUp(entries);
+  }
+
+  /** Export calibration data for persistence. Returns null if quantizer is not yet fitted. */
+  exportCalibration(): { min: number[]; scale: number[] } | null {
+    return this._quantizer.exportCalibration();
+  }
+
+  /** Restore calibration from a previously exported snapshot. */
+  importCalibration(data: { min: number[]; scale: number[] }): void {
+    this._quantizer.importCalibration(data);
   }
 
   /** Memory usage report */
