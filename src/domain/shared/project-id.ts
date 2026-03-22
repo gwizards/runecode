@@ -9,9 +9,11 @@
  * value objects, or domain events — only scalar identity types may be shared.
  */
 
+import { Result, Ok, Err } from './result';
+
 export type ProjectId = string & { readonly _brand: 'ProjectId' };
 
-export function toProjectId(id: string): ProjectId {
-  if (!id || !id.trim()) throw new Error('ProjectId cannot be empty');
-  return id as ProjectId;
+export function toProjectId(id: string): Result<ProjectId> {
+  if (!id || !id.trim()) return Err('ProjectId cannot be empty');
+  return Ok(id as ProjectId);
 }

@@ -63,7 +63,9 @@ export class AnalyticsApplicationService {
   ): Promise<Result<ConsentAggregate>> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
-      const projectId = toProjectId(rawProjectId);
+      const projectIdResult = toProjectId(rawProjectId);
+      if (!projectIdResult.ok) return Err(projectIdResult.error);
+      const projectId = projectIdResult.value;
 
       // Idempotency: re-use existing record if one exists for this session.
       let consent = this.repository.findBySession(sessionId);
