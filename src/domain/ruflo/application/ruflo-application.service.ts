@@ -30,7 +30,8 @@ export class RuFloApplicationService {
   async markInstalled(version: string, isSupported: boolean): Promise<Result<void>> {
     try {
       const installation = await this.repo.getInstallation();
-      installation.markInstalled(version, isSupported);
+      const domainResult = installation.markInstalled(version, isSupported);
+      if (!domainResult.ok) return domainResult;
       const result = await this.repo.saveInstallation(installation);
       if (!result.ok) return result;
       this.eventBus.dispatch(installation.events);
@@ -58,7 +59,8 @@ export class RuFloApplicationService {
   async activateMcp(namespace: string): Promise<Result<void>> {
     try {
       const installation = await this.repo.getInstallation();
-      installation.activateMcp(namespace);
+      const domainResult = installation.activateMcp(namespace);
+      if (!domainResult.ok) return domainResult;
       const result = await this.repo.saveInstallation(installation);
       if (!result.ok) return result;
       this.eventBus.dispatch(installation.events);
@@ -74,7 +76,8 @@ export class RuFloApplicationService {
   ): Promise<Result<void>> {
     try {
       const installation = await this.repo.getInstallation();
-      installation.setMemoryBackend(backend);
+      const domainResult = installation.setMemoryBackend(backend);
+      if (!domainResult.ok) return domainResult;
       const result = await this.repo.saveInstallation(installation);
       if (!result.ok) return result;
       this.eventBus.dispatch(installation.events);
@@ -94,7 +97,9 @@ export class RuFloApplicationService {
     memoryNamespace?: string;
   }): Promise<Result<RuFloSwarmAggregate>> {
     try {
-      const swarm = RuFloSwarmAggregate.create(params);
+      const createResult = RuFloSwarmAggregate.create(params);
+      if (!createResult.ok) return createResult;
+      const swarm = createResult.value;
       const result = await this.repo.saveSwarm(swarm);
       if (!result.ok) return result;
       this.eventBus.dispatch(swarm.events);
@@ -109,7 +114,8 @@ export class RuFloApplicationService {
     try {
       const swarm = await this.repo.getSwarm();
       if (!swarm) return Err('No active swarm');
-      swarm.addAgent(agent);
+      const domainResult = swarm.addAgent(agent);
+      if (!domainResult.ok) return domainResult;
       const result = await this.repo.saveSwarm(swarm);
       if (!result.ok) return result;
       this.eventBus.dispatch(swarm.events);
@@ -124,7 +130,8 @@ export class RuFloApplicationService {
     try {
       const swarm = await this.repo.getSwarm();
       if (!swarm) return Err('No active swarm');
-      swarm.removeAgent(agentId);
+      const domainResult = swarm.removeAgent(agentId);
+      if (!domainResult.ok) return domainResult;
       const result = await this.repo.saveSwarm(swarm);
       if (!result.ok) return result;
       this.eventBus.dispatch(swarm.events);

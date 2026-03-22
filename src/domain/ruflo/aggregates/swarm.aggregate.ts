@@ -13,6 +13,8 @@
 import type { DomainEvent } from '../../shared/event-bus';
 import type { RuFloAgent, AgentCapability } from '../types';
 import { type SwarmId, toSwarmId } from '../types';
+import type { Result } from '../../shared/result';
+import { Ok, Err } from '../../shared/result';
 import {
   makeSwarmInitialized,
   makeSwarmAgentAdded,
@@ -38,7 +40,7 @@ export class RuFloSwarmAggregate {
 
   /**
    * Create a new swarm. Raises SwarmInitializedEvent.
-   * @throws if topology is invalid or maxAgents < 1
+   * Returns Err if topology is invalid or maxAgents < 1.
    */
   static create(params: {
     id: string;
@@ -46,16 +48,16 @@ export class RuFloSwarmAggregate {
     maxAgents?: number;
     memoryNamespace?: string;
     agents?: RuFloAgent[];
-  }): RuFloSwarmAggregate {
+  }): Result<RuFloSwarmAggregate> {
     const topologyResult = SwarmTopology.create(params.topology);
-    if (!topologyResult.ok) throw new Error(topologyResult.error);
+    if (!topologyResult.ok) return Err(topologyResult.error);
 
     const maxAgents = params.maxAgents ?? 15;
-    if (maxAgents < 1) throw new Error('maxAgents must be at least 1');
+    if (maxAgents < 1) return Err('maxAgents must be at least 1');
 
     const agents = params.agents ?? [];
     const swarmIdResult = toSwarmId(params.id);
-    if (!swarmIdResult.ok) throw new Error(swarmIdResult.error);
+    if (!swarmIdResult.ok) return Err(swarmIdResult.error);
     const swarmId = swarmIdResult.value;
     const swarm = new RuFloSwarmAggregate(
       swarmId,
@@ -68,7 +70,7 @@ export class RuFloSwarmAggregate {
     swarm._events.push(
       makeSwarmInitialized(swarmId, topologyResult.value.toString(), agents.length, maxAgents),
     );
-    return swarm;
+    return Ok(swarm);
   }
 
   /**
@@ -130,33 +132,33 @@ export class RuFloSwarmAggregate {
 
   /**
    * Add an agent to the swarm.
-   * @throws if swarm is at capacity or agent ID already exists
+   * Returns Err if swarm is at capacity or agent ID already exists.
    */
-  addAgent(agent: RuFloAgent): void {
+  addAgent(agent: RuFloAgent): Result<void> {
     if (this.isAtCapacity) {
-      throw new Error(
-        `Swarm at capacity: ${this._agents.length}/${this._maxAgents} agents`,
-      );
+      return Err(`Swarm at capacity: ${this._agents.length}/${this._maxAgents} agents`);
     }
-    if (!agent.id.trim()) throw new Error('Agent ID must not be empty');
+    if (!agent.id.trim()) return Err('Agent ID must not be empty');
     if (this.findAgentById(agent.id)) {
-      throw new Error(`Agent ${agent.id} already exists in swarm`);
+      return Err(`Agent ${agent.id} already exists in swarm`);
     }
     this._agents = [...this._agents, agent];
     this._events.push(
       makeSwarmAgentAdded(this._id, agent.id, agent.agentType),
     );
+    return Ok(undefined);
   }
 
   /**
    * Remove an agent from the swarm.
-   * @throws if agent not found
+   * Returns Err if agent not found.
    */
-  removeAgent(agentId: string): void {
+  removeAgent(agentId: string): Result<void> {
     const idx = this._agents.findIndex(a => a.id === agentId);
-    if (idx === -1) throw new Error(`Agent ${agentId} not found in swarm`);
+    if (idx === -1) return Err(`Agent ${agentId} not found in swarm`);
     this._agents = this._agents.filter(a => a.id !== agentId);
     this._events.push(makeSwarmAgentRemoved(this._id, agentId));
+    return Ok(undefined);
   }
 
   // ── Event Management ──────────────────────────────────────────────────────

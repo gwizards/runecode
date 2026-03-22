@@ -45,7 +45,7 @@ function makeAgent(id: string, overrides: Partial<RuFloAgent> = {}): RuFloAgent 
 
 function makeInstalledAggregate(version = '3.0.0'): RuFloInstallationAggregate {
   const inst = RuFloInstallationAggregate.unknown();
-  inst.markInstalled(version, true);
+  unwrap(inst.markInstalled(version, true));
   inst.clearEvents();
   return inst;
 }

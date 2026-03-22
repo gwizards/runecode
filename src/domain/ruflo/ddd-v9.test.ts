@@ -39,13 +39,13 @@ function makeDomainEvent(type: string, aggregateId = 'agg-1'): DomainEvent {
 }
 
 function makeSwarm(overrides: Partial<Parameters<typeof RuFloSwarmAggregate.create>[0]> = {}) {
-  return RuFloSwarmAggregate.create({
+  return unwrap(RuFloSwarmAggregate.create({
     id: 'swarm-1',
     topology: 'hierarchical',
     maxAgents: 5,
     memoryNamespace: 'test',
     ...overrides,
-  });
+  }));
 }
 
 // ─── Group 1: DomainEventBus ─────────────────────────────────────────────────
@@ -170,46 +170,53 @@ describe('RuFloSwarmAggregate', () => {
     expect(swarm.events[0].type).toBe(DOMAIN_EVENT_TYPES.SWARM_INITIALIZED);
   });
 
-  it('test 12 — create() with an empty topology string throws', () => {
-    expect(() => makeSwarm({ topology: '   ' })).toThrow('Swarm topology is required');
+  it('test 12 — create() with an empty topology string returns Err', () => {
+    const result = RuFloSwarmAggregate.create({ id: 'swarm-1', topology: '   ' });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/topology/i);
   });
 
   it('test 13 — addAgent() records a SwarmAgentAddedEvent', () => {
     const swarm = makeSwarm();
     swarm.clearEvents();
 
-    swarm.addAgent(makeAgent('agent-x'));
+    unwrap(swarm.addAgent(makeAgent('agent-x')));
 
     expect(swarm.events).toHaveLength(1);
     expect(swarm.events[0].type).toBe(DOMAIN_EVENT_TYPES.SWARM_AGENT_ADDED);
   });
 
-  it('test 14 — addAgent() throws when swarm is at capacity', () => {
+  it('test 14 — addAgent() returns Err when swarm is at capacity', () => {
     const swarm = makeSwarm({ maxAgents: 2 });
     swarm.clearEvents();
 
-    swarm.addAgent(makeAgent('a1'));
-    swarm.addAgent(makeAgent('a2'));
+    unwrap(swarm.addAgent(makeAgent('a1')));
+    unwrap(swarm.addAgent(makeAgent('a2')));
 
-    expect(() => swarm.addAgent(makeAgent('a3'))).toThrow(/capacity/i);
+    const result = swarm.addAgent(makeAgent('a3'));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/capacity/i);
   });
 
   it('test 15 — removeAgent() records a SwarmAgentRemovedEvent', () => {
     const swarm = makeSwarm();
     const agent = makeAgent('target');
-    swarm.addAgent(agent);
+    unwrap(swarm.addAgent(agent));
     swarm.clearEvents();
 
-    swarm.removeAgent(agent.id);
+    unwrap(swarm.removeAgent(agent.id));
 
     expect(swarm.events).toHaveLength(1);
     expect(swarm.events[0].type).toBe(DOMAIN_EVENT_TYPES.SWARM_AGENT_REMOVED);
   });
 
-  it('test 16 — removeAgent() throws when agent does not exist in the swarm', () => {
+  it('test 16 — removeAgent() returns Err when agent does not exist in the swarm', () => {
     const swarm = makeSwarm();
 
-    expect(() => swarm.removeAgent('ghost-id')).toThrow(/not found/i);
+    const result = swarm.removeAgent('ghost-id');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/not found/i);
   });
 
   it('test 17 — clearEvents() leaves the events array empty', () => {
@@ -235,8 +242,9 @@ describe('RuFloInstallationAggregate', () => {
   it('test 19 — markInstalled() transitions state to installed and raises InstallationCompletedEvent', () => {
     const inst = RuFloInstallationAggregate.unknown();
 
-    inst.markInstalled('3.1.0', true);
+    const result = inst.markInstalled('3.1.0', true);
 
+    expect(result.ok).toBe(true);
     expect(inst.isInstalled).toBe(true);
     expect(inst.state).toBe('installed');
     expect(inst.version).toBe('3.1.0');
@@ -246,30 +254,34 @@ describe('RuFloInstallationAggregate', () => {
 
   it('test 20 — activateMcp() after install transitions to mcp_active and raises McpActivatedEvent', () => {
     const inst = RuFloInstallationAggregate.unknown();
-    inst.markInstalled('3.0.0', true);
+    unwrap(inst.markInstalled('3.0.0', true));
     inst.clearEvents();
 
-    inst.activateMcp('test-namespace');
+    const result = inst.activateMcp('test-namespace');
 
+    expect(result.ok).toBe(true);
     expect(inst.isMcpActive).toBe(true);
     expect(inst.state).toBe('mcp_active');
     expect(inst.events).toHaveLength(1);
     expect(inst.events[0].type).toBe(DOMAIN_EVENT_TYPES.MCP_ACTIVATED);
   });
 
-  it('test 21 — activateMcp() before install throws', () => {
+  it('test 21 — activateMcp() before install returns Err', () => {
     const inst = RuFloInstallationAggregate.unknown();
 
-    expect(() => inst.activateMcp('ns')).toThrow(/installed/i);
+    const result = inst.activateMcp('ns');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/installed/i);
   });
 
   it('test 22 — setMemoryBackend() after install raises MemoryBackendChangedEvent', () => {
     const inst = RuFloInstallationAggregate.unknown();
-    inst.markInstalled('3.0.0', true);
+    unwrap(inst.markInstalled('3.0.0', true));
     inst.clearEvents();
 
-    inst.setMemoryBackend('hnsw');
+    const result = inst.setMemoryBackend('hnsw');
 
+    expect(result.ok).toBe(true);
     expect(inst.memoryBackend).toBe('hnsw');
     expect(inst.events).toHaveLength(1);
     expect(inst.events[0].type).toBe(DOMAIN_EVENT_TYPES.MEMORY_BACKEND_CHANGED);
@@ -277,12 +289,13 @@ describe('RuFloInstallationAggregate', () => {
 
   it('test 23 — setMemoryBackend() is idempotent: no event raised when backend unchanged', () => {
     const inst = RuFloInstallationAggregate.unknown();
-    inst.markInstalled('3.0.0', true);
+    unwrap(inst.markInstalled('3.0.0', true));
     // default backend is 'agentdb'
     inst.clearEvents();
 
-    inst.setMemoryBackend('agentdb'); // same as default — should be no-op
+    const result = inst.setMemoryBackend('agentdb'); // same as default — should be no-op
 
+    expect(result.ok).toBe(true);
     expect(inst.events).toHaveLength(0);
   });
 });
@@ -293,7 +306,7 @@ describe('InMemoryRuFloRepository', () => {
   it('test 24 — seedInstallation() + getInstallation() round-trips the aggregate', async () => {
     const repo = new InMemoryRuFloRepository();
     const installation = RuFloInstallationAggregate.unknown('seeded-id');
-    installation.markInstalled('4.0.0', true);
+    unwrap(installation.markInstalled('4.0.0', true));
 
     repo.seedInstallation(installation);
 
@@ -305,11 +318,11 @@ describe('InMemoryRuFloRepository', () => {
 
   it('test 25 — seedSwarm() + getSwarm() round-trips the aggregate', async () => {
     const repo = new InMemoryRuFloRepository();
-    const swarm = RuFloSwarmAggregate.create({
+    const swarm = unwrap(RuFloSwarmAggregate.create({
       id: 'swarm-seed',
       topology: 'mesh',
       maxAgents: 3,
-    });
+    }));
 
     repo.seedSwarm(swarm);
 

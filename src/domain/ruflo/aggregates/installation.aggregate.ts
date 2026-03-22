@@ -9,6 +9,8 @@
 
 import type { DomainEvent } from '../../shared/event-bus';
 import type { RuFloInstallation } from '../types';
+import type { Result } from '../../shared/result';
+import { Ok, Err } from '../../shared/result';
 import {
   makeInstallationCompleted,
   makeInstallationFailed,
@@ -77,15 +79,16 @@ export class RuFloInstallationAggregate {
 
   /**
    * Mark installation as complete.
-   * @throws if already installed
+   * Returns Err if already installed or version is blank.
    */
-  markInstalled(version: string, isSupported: boolean): void {
-    if (this.isInstalled) throw new Error('Already installed');
-    if (!version.trim()) throw new Error('Version string required');
+  markInstalled(version: string, isSupported: boolean): Result<void> {
+    if (this.isInstalled) return Err('Already installed');
+    if (!version.trim()) return Err('Version string required');
     this._state = 'installed';
     this._version = version;
     this._isSupported = isSupported;
     this._events.push(makeInstallationCompleted(this._id, version, isSupported));
+    return Ok(undefined);
   }
 
   /**
@@ -98,24 +101,26 @@ export class RuFloInstallationAggregate {
 
   /**
    * Activate MCP.
-   * @throws if not installed first
+   * Returns Err if not installed first.
    */
-  activateMcp(namespace: string): void {
-    if (!this.isInstalled) throw new Error('Must be installed before activating MCP');
+  activateMcp(namespace: string): Result<void> {
+    if (!this.isInstalled) return Err('Must be installed before activating MCP');
     this._state = 'mcp_active';
     this._events.push(makeMcpActivated(this._id, namespace));
+    return Ok(undefined);
   }
 
   /**
    * Change the memory backend.
-   * @throws if not installed
+   * Returns Err if not installed.
    */
-  setMemoryBackend(backend: 'agentdb' | 'hnsw' | 'hybrid'): void {
-    if (!this.isInstalled) throw new Error('Must be installed before changing backend');
+  setMemoryBackend(backend: 'agentdb' | 'hnsw' | 'hybrid'): Result<void> {
+    if (!this.isInstalled) return Err('Must be installed before changing backend');
     const prev = this._memoryBackend;
-    if (prev === backend) return; // idempotent
+    if (prev === backend) return Ok(undefined); // idempotent
     this._memoryBackend = backend;
     this._events.push(makeMemoryBackendChanged(this._id, backend, prev));
+    return Ok(undefined);
   }
 
   // ── Events ────────────────────────────────────────────────────────────────
