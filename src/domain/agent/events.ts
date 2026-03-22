@@ -10,13 +10,15 @@ import type { DomainEvent } from '../shared/event-bus';
 // ─── Event Type Constants ──────────────────────────────────────────────────
 
 export const AGENT_EVENT_TYPES = {
-  AGENT_STARTED:   'agent.started',
-  AGENT_THINKING:  'agent.thinking',
-  AGENT_COMPLETED: 'agent.completed',
-  AGENT_FAILED:    'agent.failed',
+  AGENT_STARTED:   'agent/agent.started',
+  AGENT_THINKING:  'agent/agent.thinking',
+  AGENT_COMPLETED: 'agent/agent.completed',
+  AGENT_FAILED:    'agent/agent.failed',
 } as const;
 
 export type AgentEventType = (typeof AGENT_EVENT_TYPES)[keyof typeof AGENT_EVENT_TYPES];
+
+export const DOMAIN_EVENT_TYPES = AGENT_EVENT_TYPES;
 
 // ─── Typed Event Interfaces ────────────────────────────────────────────────
 

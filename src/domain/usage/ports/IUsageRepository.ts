@@ -1,13 +1,11 @@
 /**
- * Usage bounded context — Repository port.
+ * Usage bounded context — IUsageRepository port alias.
  *
- * IUsageRepository is the domain-facing port that application services
- * depend on. Concrete adapters (InMemoryUsageLedgerRepository, SQL, etc.)
- * implement this interface in the infrastructure layer.
+ * IUsageRepository is the canonical short name that application services use.
+ * It is an alias for IUsageLedgerRepository, defined in its own dedicated file.
  *
- * Re-exports IUsageLedgerRepository under the canonical short name so
- * consumers can import from the ports barrel without coupling to the
- * internal implementation file.
+ * Re-exports from the canonical port definition so consumers can import from
+ * the ports barrel without coupling to the internal implementation file.
  */
 
-export type { IUsageLedgerRepository as IUsageRepository } from '../repository';
+export type { IUsageLedgerRepository as IUsageRepository } from './IUsageLedgerRepository';

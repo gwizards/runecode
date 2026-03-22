@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ruFloService } from './service';
-import { dispatchRuFloEvent, RUFLO_EVENTS } from './events';
+import { dispatchRuFloEvent, RUFLO_EVENTS } from '../../infrastructure/ruflo/browser-events-bridge';
 import type { RuFloInstallation, RuFloSwarm, RuFloProjectStatus } from './types';
 import {
   QuantizedMemoryStore,

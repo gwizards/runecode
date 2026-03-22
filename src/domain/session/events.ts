@@ -21,6 +21,8 @@ export const SESSION_EVENT_TYPES = {
 export type SessionEventType =
   (typeof SESSION_EVENT_TYPES)[keyof typeof SESSION_EVENT_TYPES];
 
+export const DOMAIN_EVENT_TYPES = SESSION_EVENT_TYPES;
+
 // ─── Typed event interfaces ───────────────────────────────────────────────────
 
 export interface SessionCreatedEvent extends DomainEvent {

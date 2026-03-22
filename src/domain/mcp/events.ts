@@ -18,6 +18,8 @@ export const MCP_EVENT_TYPES = {
   SERVER_DISABLED: 'mcp/server.disabled',
 } as const;
 
+export const DOMAIN_EVENT_TYPES = MCP_EVENT_TYPES;
+
 // ─── Event interfaces ─────────────────────────────────────────────────────
 
 export interface ServerAddedEvent extends DomainEvent {
