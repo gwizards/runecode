@@ -2,6 +2,8 @@ pub mod domain;
 pub mod repository;
 
 use domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloStatus, RuFloSwarmStatus};
+#[allow(unused_imports)]
+use domain::{MemoryBackend, MemoryStats, MemorySyncResult};
 
 // ---------------------------------------------------------------------------
 // Cache TTLs
@@ -381,5 +383,118 @@ pub async fn uninstall_ruflo() -> Result<String, String> {
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         Err(format!("npm uninstall failed: {stderr}"))
+    }
+}
+
+/// Get memory statistics from the claude-flow CLI
+#[tauri::command]
+pub async fn get_ruflo_memory_stats() -> Result<serde_json::Value, String> {
+    let output = crate::claude_binary::create_command_with_env("npx")
+        .args(["-y", "@claude-flow/cli@latest", "memory", "stats", "--json"])
+        .output()
+        .map_err(|e| format!("Failed to run memory stats: {e}"))?;
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(stdout.trim())
+            .or_else(|_| Ok(serde_json::json!({ "raw": stdout.trim() })))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("memory stats failed: {stderr}"))
+    }
+}
+
+/// Sync memory to local file (export as JSON)
+#[tauri::command]
+pub async fn sync_ruflo_memory_local(output_path: String) -> Result<String, String> {
+    // Validate path is within home dir
+    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    let resolved = std::path::Path::new(&output_path);
+    let canonical_parent = resolved
+        .parent()
+        .and_then(|p| std::fs::canonicalize(p).ok())
+        .ok_or("Cannot resolve output path")?;
+    if !canonical_parent.starts_with(&home) {
+        return Err("Output path must be within home directory".to_string());
+    }
+
+    let output = crate::claude_binary::create_command_with_env("npx")
+        .args([
+            "-y",
+            "@claude-flow/cli@latest",
+            "memory",
+            "export",
+            "--format",
+            "json",
+            "--output",
+            &output_path,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run memory export: {e}"))?;
+
+    if output.status.success() {
+        Ok(format!("Memory synced to {}", output_path))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("memory export failed: {stderr}"))
+    }
+}
+
+/// Consolidate memory (compress + cleanup stale entries)
+#[tauri::command]
+pub async fn consolidate_ruflo_memory() -> Result<String, String> {
+    // Run compress first
+    let compress = crate::claude_binary::create_command_with_env("npx")
+        .args(["-y", "@claude-flow/cli@latest", "memory", "compress"])
+        .output()
+        .map_err(|e| format!("Failed to run memory compress: {e}"))?;
+
+    if !compress.status.success() {
+        let stderr = String::from_utf8_lossy(&compress.stderr);
+        return Err(format!("memory compress failed: {stderr}"));
+    }
+
+    // Then cleanup stale entries
+    let cleanup = crate::claude_binary::create_command_with_env("npx")
+        .args(["-y", "@claude-flow/cli@latest", "memory", "cleanup"])
+        .output()
+        .map_err(|e| format!("Failed to run memory cleanup: {e}"))?;
+
+    if cleanup.status.success() {
+        Ok("Memory consolidated (compressed + cleaned up stale entries)".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&cleanup.stderr);
+        Err(format!("memory cleanup failed: {stderr}"))
+    }
+}
+
+/// Set memory backend (agentdb, hnsw, or hybrid)
+#[tauri::command]
+pub async fn set_ruflo_memory_backend(backend: String) -> Result<String, String> {
+    // Validate backend value
+    if !["agentdb", "hnsw", "hybrid"].contains(&backend.as_str()) {
+        return Err(format!(
+            "Invalid backend '{}'. Must be: agentdb, hnsw, hybrid",
+            backend
+        ));
+    }
+
+    let output = crate::claude_binary::create_command_with_env("npx")
+        .args([
+            "-y",
+            "@claude-flow/cli@latest",
+            "memory",
+            "configure",
+            "--backend",
+            &backend,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run memory configure: {e}"))?;
+
+    if output.status.success() {
+        Ok(format!("Memory backend set to {}", backend))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("memory configure failed: {stderr}"))
     }
 }

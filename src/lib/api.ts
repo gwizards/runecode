@@ -2001,4 +2001,44 @@ export const api = {
   uninstallRuflo: (): Promise<string> =>
     apiCall('uninstall_ruflo'),
 
+  /** Returns memory stats (total entries, backend name). */
+  async getRufloMemoryStats(): Promise<Record<string, unknown>> {
+    try {
+      return await apiCall<Record<string, unknown>>('get_ruflo_memory_stats');
+    } catch (error) {
+      console.error('Failed to get RuFlo memory stats:', error);
+      throw error;
+    }
+  },
+
+  /** Exports memory to the given file path as JSON. */
+  async syncRufloMemoryLocal(destPath: string): Promise<string> {
+    try {
+      return await apiCall<string>('sync_ruflo_memory_local', { dest_path: destPath });
+    } catch (error) {
+      console.error('Failed to sync RuFlo memory:', error);
+      throw error;
+    }
+  },
+
+  /** Compresses and cleans up memory storage. */
+  async consolidateRufloMemory(): Promise<string> {
+    try {
+      return await apiCall<string>('consolidate_ruflo_memory');
+    } catch (error) {
+      console.error('Failed to consolidate RuFlo memory:', error);
+      throw error;
+    }
+  },
+
+  /** Switches the active memory backend. */
+  async setRufloMemoryBackend(backend: 'agentdb' | 'hnsw' | 'hybrid'): Promise<string> {
+    try {
+      return await apiCall<string>('set_ruflo_memory_backend', { backend });
+    } catch (error) {
+      console.error('Failed to set RuFlo memory backend:', error);
+      throw error;
+    }
+  },
+
 };

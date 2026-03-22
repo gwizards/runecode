@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api, type RuFloStatus } from '@/lib/api';
+import { ruFloService, RUFLO_EVENTS, dispatchRuFloEvent, type RuFloInstallation } from '@/domain/ruflo';
 import { Loader2 } from 'lucide-react';
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -20,11 +20,14 @@ function StatusRow({ active, label }: { active: boolean; label: string }) {
 }
 
 export function RuFloSettings() {
-  const [status, setStatus] = useState<RuFloStatus | null>(null);
+  const [status, setStatus] = useState<RuFloInstallation | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  const [memoryStats, setMemoryStats] = useState<{ total?: number; backend?: string } | null>(null);
+  const [memoryBackend, setMemoryBackend] = useState<'agentdb' | 'hnsw' | 'hybrid'>('hybrid');
 
   // Swarm defaults from localStorage
   const [topology, setTopology] = useState(() => localStorage.getItem('runecode-ruflo-topology') ?? 'hierarchical');
@@ -37,9 +40,9 @@ export function RuFloSettings() {
   const refresh = useCallback(async () => {
     setRefreshError(null);
     try {
-      const s = await api.checkRufloInstalled();
+      const s = await ruFloService.getInstallation();
       setStatus(s);
-      window.dispatchEvent(new CustomEvent('runecode:ruflo-status-changed'));
+      dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
     } catch (e) {
       setRefreshError(String(e));
       // keep stale status rather than resetting to null
@@ -98,7 +101,7 @@ export function RuFloSettings() {
           {status?.installed ? (
             <>
               <button
-                onClick={() => runAction('update', () => api.installRuflo())}
+                onClick={() => runAction('update', () => ruFloService.install())}
                 disabled={actionLoading !== null}
                 className="px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs hover:bg-purple-600/30 transition-colors disabled:opacity-50"
               >
@@ -107,7 +110,7 @@ export function RuFloSettings() {
               <button
                 onClick={() => {
                   if (window.confirm('Uninstall RuFlo? This removes the global CLI.')) {
-                    runAction('uninstall', () => api.uninstallRuflo());
+                    runAction('uninstall', () => ruFloService.uninstall());
                   }
                 }}
                 disabled={actionLoading !== null}
@@ -118,7 +121,7 @@ export function RuFloSettings() {
             </>
           ) : (
             <button
-              onClick={() => runAction('install', () => api.installRuflo())}
+              onClick={() => runAction('install', () => ruFloService.install())}
               disabled={actionLoading !== null}
               className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs hover:bg-purple-500 transition-colors disabled:opacity-50"
             >
@@ -131,14 +134,14 @@ export function RuFloSettings() {
       {/* Card 2: MCP Server */}
       <Card>
         <CardTitle>MCP Server</CardTitle>
-        <StatusRow active={status?.mcp_active ?? false} label={status?.mcp_active ? 'Active in Claude Code' : 'Inactive'} />
+        <StatusRow active={status?.mcpActive ?? false} label={status?.mcpActive ? 'Active in Claude Code' : 'Inactive'} />
         <div className="font-mono text-[10px] text-white/30 bg-black/30 rounded px-3 py-2 break-all">
           claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
         </div>
         <div className="flex gap-2">
-          {!status?.mcp_active ? (
+          {!status?.mcpActive ? (
             <button
-              onClick={() => runAction('mcp-activate', () => api.activateRufloMcp())}
+              onClick={() => runAction('mcp-activate', () => ruFloService.activateMcp())}
               disabled={actionLoading !== null || !status?.installed}
               className="px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs hover:bg-purple-600/30 transition-colors disabled:opacity-50"
             >
@@ -146,7 +149,7 @@ export function RuFloSettings() {
             </button>
           ) : (
             <button
-              onClick={() => runAction('mcp-deactivate', () => api.deactivateRufloMcp())}
+              onClick={() => runAction('mcp-deactivate', () => ruFloService.deactivateMcp())}
               disabled={actionLoading !== null}
               className="px-3 py-1.5 rounded-lg bg-zinc-700 text-white/60 text-xs hover:bg-zinc-600 transition-colors disabled:opacity-50"
             >
@@ -159,10 +162,10 @@ export function RuFloSettings() {
       {/* Card 3: /setup-ruflo slash command */}
       <Card>
         <CardTitle>/setup-ruflo Command</CardTitle>
-        <StatusRow active={status?.slash_command_exists ?? false} label={status?.slash_command_exists ? 'Present' : 'Missing'} />
+        <StatusRow active={status?.slashCommandExists ?? false} label={status?.slashCommandExists ? 'Present' : 'Missing'} />
         <p className="text-xs text-white/40">~/.claude/commands/setup-ruflo.md</p>
         <button
-          onClick={() => runAction('slash', () => api.createRufloSlashCommand())}
+          onClick={() => runAction('slash', () => ruFloService.createSlashCommand())}
           disabled={actionLoading !== null || !status?.installed}
           className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
         >
@@ -228,6 +231,70 @@ export function RuFloSettings() {
         >
           Open Project Explorer
         </button>
+      </Card>
+
+      {/* Card 6: Memory Management */}
+      <Card>
+        <CardTitle>Memory Management</CardTitle>
+        {memoryStats && (
+          <div className="flex gap-3 text-xs text-white/60">
+            <span>{memoryStats.total ?? 0} entries</span>
+            <span className="text-white/30">·</span>
+            <span className="text-purple-400/70">{memoryStats.backend ?? 'hybrid'}</span>
+          </div>
+        )}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={async () => {
+              setActionLoading('mem-stats');
+              setError(null);
+              try {
+                const stats = await ruFloService.getMemoryStats();
+                setMemoryStats({ total: stats.total, backend: stats.backend });
+              } catch (e) {
+                setError(String(e));
+              } finally {
+                setActionLoading(null);
+              }
+            }}
+            disabled={actionLoading !== null || !status?.installed}
+            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
+          >
+            {actionLoading === 'mem-stats' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Stats'}
+          </button>
+          <button
+            onClick={() => runAction('mem-sync', () => ruFloService.syncMemoryLocal(`${typeof process !== 'undefined' && process.env?.HOME ? process.env.HOME : '~'}/.claude/ruflo-memory-backup.json`))}
+            disabled={actionLoading !== null || !status?.installed}
+            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
+          >
+            {actionLoading === 'mem-sync' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Sync Local'}
+          </button>
+          <button
+            onClick={() => runAction('mem-consolidate', () => ruFloService.consolidateMemory())}
+            disabled={actionLoading !== null || !status?.installed}
+            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
+          >
+            {actionLoading === 'mem-consolidate' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Consolidate'}
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white/60">Backend</span>
+          <select
+            value={memoryBackend}
+            onChange={async (e) => {
+              const b = e.target.value as 'agentdb' | 'hnsw' | 'hybrid';
+              setMemoryBackend(b);
+              await runAction('mem-backend', () => ruFloService.setMemoryBackend(b));
+            }}
+            disabled={actionLoading !== null || !status?.installed}
+            className="bg-black/40 border border-white/10 rounded text-xs text-white px-2 py-1 focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
+          >
+            <option value="hybrid">hybrid (default)</option>
+            <option value="agentdb">agentdb (SQLite)</option>
+            <option value="hnsw">hnsw (vector-only)</option>
+          </select>
+        </div>
+        <p className="text-xs text-white/30">agentdb = SQLite · hnsw = vector search · hybrid = both</p>
       </Card>
     </div>
   );

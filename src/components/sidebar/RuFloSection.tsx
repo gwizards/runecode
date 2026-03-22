@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Zap } from 'lucide-react';
-import { api, type RuFloProjectStatus, type RuFloSwarmStatus, type RuFloAgent } from '@/lib/api';
+import {
+  ruFloService,
+  onRuFloEvent,
+  RUFLO_EVENTS,
+  type RuFloProjectStatus,
+  type RuFloSwarm,
+  type RuFloAgent,
+} from '@/domain/ruflo';
 
 interface RuFloSectionProps {
   projectPath: string;
@@ -24,7 +31,7 @@ function StatusDot({ active }: { active: boolean }) {
 export function RuFloSection({ projectPath }: RuFloSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [projectStatus, setProjectStatus] = useState<RuFloProjectStatus | null>(null);
-  const [swarmStatus, setSwarmStatus] = useState<RuFloSwarmStatus | null>(null);
+  const [swarmStatus, setSwarmStatus] = useState<RuFloSwarm | null>(null);
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [isIniting, setIsIniting] = useState(false);
@@ -34,8 +41,8 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
     if (!projectPath) return;
     try {
       const [proj, swarm] = await Promise.all([
-        api.getRufloProjectStatus(projectPath),
-        api.getRufloSwarmStatus(),
+        ruFloService.getProjectStatus(projectPath),
+        ruFloService.getSwarmStatus(),
       ]);
       setProjectStatus(proj);
       setSwarmStatus(swarm);
@@ -47,20 +54,18 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
 
   // Check install status once on mount
   useEffect(() => {
-    api.checkRufloInstalled()
+    ruFloService.getInstallation()
       .then((s) => setIsInstalled(s.installed))
       .catch(() => setIsInstalled(false));
   }, []);
 
   // Re-check install status when Settings triggers a ruflo status change
   useEffect(() => {
-    const handler = () => {
-      api.checkRufloInstalled()
+    return onRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED, () => {
+      ruFloService.getInstallation()
         .then((s) => setIsInstalled(s.installed))
         .catch(() => setIsInstalled(false));
-    };
-    window.addEventListener('runecode:ruflo-status-changed', handler);
-    return () => window.removeEventListener('runecode:ruflo-status-changed', handler);
+    });
   }, []);
 
   // Fetch + poll only when expanded
@@ -111,7 +116,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
         className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/8 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
-          <StatusDot active={swarmStatus?.swarm_active ?? false} />
+          <StatusDot active={swarmStatus?.active ?? false} />
           <span className="text-xs font-medium">
             <Zap className="inline w-3 h-3 text-purple-400 mr-1" />
             RuFlo
@@ -147,7 +152,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
               <div className="text-[9px] uppercase tracking-wider text-muted-foreground/40 px-1">Active Agents</div>
               {(swarmStatus?.agents ?? []).map((agent: RuFloAgent) => (
                 <div key={agent.id} className="flex items-center justify-between bg-white/5 rounded-lg px-2 py-1.5">
-                  <span className="text-xs">{agentEmoji(agent.agent_type)} {agent.name}</span>
+                  <span className="text-xs">{agentEmoji(agent.agentType)} {agent.name}</span>
                   <span className={`text-[10px] ${agent.status === 'running' ? 'text-green-400' : 'text-yellow-400'}`}>
                     {agent.status}
                   </span>
@@ -157,16 +162,16 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
           )}
 
           {/* Memory bar */}
-          {(swarmStatus?.memory_entries ?? 0) > 0 && (
+          {(swarmStatus?.memoryEntries ?? 0) > 0 && (
             <div className="flex items-center gap-2 px-1">
               <span className="text-[9px] text-muted-foreground/50 w-12 flex-shrink-0">Memory</span>
               <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-purple-500/60 rounded-full"
-                  style={{ width: `${Math.min(100, ((swarmStatus?.memory_entries ?? 0) / 100) * 100)}%` }}
+                  style={{ width: `${Math.min(100, ((swarmStatus?.memoryEntries ?? 0) / 100) * 100)}%` }}
                 />
               </div>
-              <span className="text-[9px] text-purple-400/70">{swarmStatus?.memory_entries}</span>
+              <span className="text-[9px] text-purple-400/70">{swarmStatus?.memoryEntries}</span>
             </div>
           )}
 
@@ -176,7 +181,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
               onClick={async () => {
                 setIsIniting(true);
                 try {
-                  await api.initRufloProject(projectPath);
+                  await ruFloService.initProject(projectPath);
                   await fetchData();
                 } catch (e) {
                   console.warn('RuFlo init failed:', e);

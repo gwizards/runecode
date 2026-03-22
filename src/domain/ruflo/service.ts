@@ -48,4 +48,24 @@ export const ruFloService = {
   async initProject(path: string): Promise<string> {
     return api.initRufloProject(path);
   },
+
+  async getMemoryStats(): Promise<{ total: number; backend: string }> {
+    const raw = await api.getRufloMemoryStats();
+    return {
+      total: Number(raw.total ?? raw.total_entries ?? 0),
+      backend: String(raw.backend ?? 'hybrid'),
+    };
+  },
+
+  async syncMemoryLocal(destPath: string): Promise<string> {
+    return api.syncRufloMemoryLocal(destPath);
+  },
+
+  async consolidateMemory(): Promise<string> {
+    return api.consolidateRufloMemory();
+  },
+
+  async setMemoryBackend(backend: 'agentdb' | 'hnsw' | 'hybrid'): Promise<string> {
+    return api.setRufloMemoryBackend(backend);
+  },
 };
