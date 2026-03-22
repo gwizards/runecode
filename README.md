@@ -146,6 +146,8 @@ Access the full UI from any browser. The frontend is embedded in the binary — 
 ### Prerequisites
 - [Claude Code CLI](https://claude.ai/code) installed and in your PATH
 
+> **Windows users**: no extra software needed. WebView2 ships with Windows 11 and is auto-installed on Windows 10. The `.msi` / `.exe` installers are standalone — no C++ Build Tools, no Rust, no Visual Studio required.
+
 ### Download
 
 **Latest release: [v0.5.20](https://github.com/gwizards/runecode/releases/tag/v0.5.20)** · [All releases](https://github.com/gwizards/runecode/releases)
@@ -178,8 +180,8 @@ sudo apt update && sudo apt install -y \
 xcode-select --install
 ```
 
-#### Windows
-Install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+#### Windows (build from source only)
+Install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) if not already present. These are compiler requirements — not needed to run the installer.
 
 ### Build
 
