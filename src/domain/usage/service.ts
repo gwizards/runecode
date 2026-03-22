@@ -11,7 +11,7 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { toLedgerId, toSessionId, toProjectId, UsageLedger } from './types';
+import { toLedgerId, toSessionId, toProjectId, UsageLedger, UserId } from './types';
 import type { RawUsageRecord, UsageSummary } from './types';
 import type { IUsageLedgerRepository } from './repository';
 
@@ -34,15 +34,25 @@ export class UsageApplicationService {
 
   /**
    * Create and persist a new ledger in the open state.
+   * Validates the raw userId string at the application boundary before
+   * handing a typed UserId value object into the domain aggregate.
    * Returns the new aggregate on success.
    */
   async openLedger(cmd: {
     id: string;
     sessionId: string;
     projectId: string;
+    userId: string;
   }): Promise<Result<UsageLedger>> {
     try {
-      const ledger = UsageLedger.open(cmd);
+      const userIdResult = UserId.create(cmd.userId);
+      if (!userIdResult.ok) return Err(userIdResult.error);
+      const ledger = UsageLedger.open({
+        id:        cmd.id,
+        sessionId: cmd.sessionId,
+        projectId: cmd.projectId,
+        userId:    userIdResult.value,
+      });
       await this.persist(ledger);
       return Ok(ledger);
     } catch (err) {

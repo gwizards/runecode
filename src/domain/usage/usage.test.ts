@@ -8,11 +8,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DomainEventBus } from '../shared/event-bus';
 import type { DomainEvent } from '../shared/event-bus';
-import { UsageLedger, toLedgerId } from './types';
+import { UsageLedger, toLedgerId, UserId } from './types';
 import type { RawUsageRecord } from './types';
 import { USAGE_EVENT_TYPES } from './events';
 import { InMemoryUsageLedgerRepository } from './repository';
 import { UsageApplicationService } from './service';
+
+// ─── Shared test UserId ───────────────────────────────────────────────────────
+
+function makeUserId(raw = 'user-test-001'): UserId {
+  const r = UserId.create(raw);
+  if (!r.ok) throw new Error(`Test setup: invalid userId '${raw}': ${r.error}`);
+  return r.value;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +61,7 @@ describe('UsageLedger.open()', () => {
       id: 'ledger-001',
       sessionId: 'sess-001',
       projectId: 'proj-001',
+      userId: makeUserId(),
     });
 
     const events = ledger.events;
@@ -66,6 +75,7 @@ describe('UsageLedger.open()', () => {
       id: 'ledger-002',
       sessionId: 'sess-002',
       projectId: 'proj-002',
+      userId: makeUserId(),
     });
 
     expect(ledger.sealed).toBe(false);
@@ -75,7 +85,7 @@ describe('UsageLedger.open()', () => {
 
 describe('UsageLedger.addRecord()', () => {
   function openLedger() {
-    return UsageLedger.open({ id: 'ledger-ar', sessionId: 'sess-ar', projectId: 'proj-ar' });
+    return UsageLedger.open({ id: 'ledger-ar', sessionId: 'sess-ar', projectId: 'proj-ar', userId: makeUserId() });
   }
 
   it('accepts a valid record and returns updated summary', () => {
@@ -135,7 +145,7 @@ describe('UsageLedger.addRecord()', () => {
 
 describe('UsageLedger.seal()', () => {
   function openWithTwoRecords() {
-    const ledger = UsageLedger.open({ id: 'ledger-seal', sessionId: 'sess-seal', projectId: 'proj-seal' });
+    const ledger = UsageLedger.open({ id: 'ledger-seal', sessionId: 'sess-seal', projectId: 'proj-seal', userId: makeUserId() });
     ledger.addRecord(RECORD_A);
     ledger.addRecord(RECORD_B);
     ledger.clearEvents();
@@ -175,7 +185,7 @@ describe('UsageLedger.seal()', () => {
 
 describe('UsageLedger.summary()', () => {
   it('computes correct totals across multiple records', () => {
-    const ledger = UsageLedger.open({ id: 'ledger-sum', sessionId: 'sess-sum', projectId: 'proj-sum' });
+    const ledger = UsageLedger.open({ id: 'ledger-sum', sessionId: 'sess-sum', projectId: 'proj-sum', userId: makeUserId() });
     ledger.addRecord(RECORD_A);
     ledger.addRecord(RECORD_B);
 
@@ -195,7 +205,7 @@ describe('UsageLedger.summary()', () => {
   });
 
   it('returns zero totals for a ledger with no records', () => {
-    const ledger = UsageLedger.open({ id: 'ledger-empty', sessionId: 'sess-empty', projectId: 'proj-empty' });
+    const ledger = UsageLedger.open({ id: 'ledger-empty', sessionId: 'sess-empty', projectId: 'proj-empty', userId: makeUserId() });
     const summary = ledger.summary();
 
     expect(summary.totalInputTokens).toBe(0);
@@ -206,7 +216,7 @@ describe('UsageLedger.summary()', () => {
 
 describe('UsageLedger.fromSnapshot()', () => {
   it('reconstitutes without raising any events', () => {
-    const original = UsageLedger.open({ id: 'ledger-snap', sessionId: 'sess-snap', projectId: 'proj-snap' });
+    const original = UsageLedger.open({ id: 'ledger-snap', sessionId: 'sess-snap', projectId: 'proj-snap', userId: makeUserId() });
     original.addRecord(RECORD_A);
     const snapshot = original.toSnapshot();
 
@@ -219,7 +229,7 @@ describe('UsageLedger.fromSnapshot()', () => {
   });
 
   it('preserves sealed state from snapshot', () => {
-    const original = UsageLedger.open({ id: 'ledger-snap2', sessionId: 'sess-snap2', projectId: 'proj-snap2' });
+    const original = UsageLedger.open({ id: 'ledger-snap2', sessionId: 'sess-snap2', projectId: 'proj-snap2', userId: makeUserId() });
     original.addRecord(RECORD_A);
     original.seal();
     const snapshot = original.toSnapshot();
@@ -249,6 +259,7 @@ describe('UsageApplicationService.openLedger()', () => {
       id: 'ledger-svc-001',
       sessionId: 'sess-svc-001',
       projectId: 'proj-svc-001',
+      userId: 'user-svc-001',
     });
 
     expect(result.ok).toBe(true);
@@ -263,6 +274,7 @@ describe('UsageApplicationService.openLedger()', () => {
       id: 'ledger-svc-002',
       sessionId: 'sess-svc-002',
       projectId: 'proj-svc-002',
+      userId: 'user-svc-002',
     });
 
     expect(result.ok).toBe(true);
@@ -272,11 +284,33 @@ describe('UsageApplicationService.openLedger()', () => {
   });
 
   it('returns Err when ledgerId is empty', async () => {
-    const result = await svc.openLedger({ id: '', sessionId: 'sess', projectId: 'proj' });
+    const result = await svc.openLedger({ id: '', sessionId: 'sess', projectId: 'proj', userId: 'user-test' });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatch(/LedgerId cannot be empty/i);
+  });
+
+  it('returns Err when userId is empty', async () => {
+    const result = await svc.openLedger({ id: 'ledger-uid-err', sessionId: 'sess', projectId: 'proj', userId: '' });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/UserId cannot be empty/i);
+  });
+
+  it('exposes the userId value object on the returned aggregate', async () => {
+    const result = await svc.openLedger({
+      id: 'ledger-uid-check',
+      sessionId: 'sess-uid-check',
+      projectId: 'proj-uid-check',
+      userId: 'user-uid-check',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.userId.value).toBe('user-uid-check');
+    expect(result.value.summary().userId).toBe('user-uid-check');
   });
 });
 
@@ -287,7 +321,7 @@ describe('UsageApplicationService.recordUsage()', () => {
   beforeEach(async () => {
     repo = new InMemoryUsageLedgerRepository();
     svc = new UsageApplicationService(repo, new DomainEventBus());
-    await svc.openLedger({ id: 'ledger-rec-001', sessionId: 'sess-rec-001', projectId: 'proj-rec' });
+    await svc.openLedger({ id: 'ledger-rec-001', sessionId: 'sess-rec-001', projectId: 'proj-rec', userId: 'user-rec' });
   });
 
   it('adds a record to the ledger and returns a summary', async () => {
@@ -328,7 +362,7 @@ describe('UsageApplicationService.sealLedger()', () => {
     repo = new InMemoryUsageLedgerRepository();
     ({ bus, collected } = makeCollectingBus());
     svc = new UsageApplicationService(repo, bus);
-    await svc.openLedger({ id: 'ledger-seal-001', sessionId: 'sess-seal-001', projectId: 'proj-seal' });
+    await svc.openLedger({ id: 'ledger-seal-001', sessionId: 'sess-seal-001', projectId: 'proj-seal', userId: 'user-seal' });
     await svc.recordUsage({ sessionId: 'sess-seal-001', record: RECORD_A });
     collected.length = 0;
   });
@@ -367,7 +401,7 @@ describe('UsageApplicationService.getLedgerSummary()', () => {
   beforeEach(async () => {
     repo = new InMemoryUsageLedgerRepository();
     svc = new UsageApplicationService(repo, new DomainEventBus());
-    await svc.openLedger({ id: 'ledger-gs-001', sessionId: 'sess-gs-001', projectId: 'proj-gs' });
+    await svc.openLedger({ id: 'ledger-gs-001', sessionId: 'sess-gs-001', projectId: 'proj-gs', userId: 'user-gs' });
     await svc.recordUsage({ sessionId: 'sess-gs-001', record: RECORD_A });
     await svc.recordUsage({ sessionId: 'sess-gs-001', record: RECORD_B });
   });
@@ -411,11 +445,11 @@ describe('InMemoryUsageLedgerRepository.searchByEmbedding', () => {
     const svc = new UsageApplicationService(repo, new DomainEventBus());
 
     // Ledger A: high token counts
-    await svc.openLedger({ id: 'embed-ledger-a', sessionId: 'embed-sess-a', projectId: 'embed-proj' });
+    await svc.openLedger({ id: 'embed-ledger-a', sessionId: 'embed-sess-a', projectId: 'embed-proj', userId: 'user-embed' });
     await svc.recordUsage({ sessionId: 'embed-sess-a', record: { ...RECORD_A, inputTokens: 1000, outputTokens: 800 } });
 
     // Ledger B: low token counts
-    await svc.openLedger({ id: 'embed-ledger-b', sessionId: 'embed-sess-b', projectId: 'embed-proj' });
+    await svc.openLedger({ id: 'embed-ledger-b', sessionId: 'embed-sess-b', projectId: 'embed-proj', userId: 'user-embed' });
     await svc.recordUsage({ sessionId: 'embed-sess-b', record: { ...RECORD_A, inputTokens: 1, outputTokens: 1 } });
 
     // Query resembling high-token ledger: large inputTokens and outputTokens
@@ -440,6 +474,7 @@ describe('InMemoryUsageLedgerRepository.searchByEmbedding', () => {
         id: `embed-topk-${i}`,
         sessionId: `embed-topk-sess-${i}`,
         projectId: 'embed-topk-proj',
+        userId: 'user-embed-topk',
       });
       await svc.recordUsage({
         sessionId: `embed-topk-sess-${i}`,
@@ -456,7 +491,7 @@ describe('InMemoryUsageLedgerRepository.searchByEmbedding', () => {
     const repo = new InMemoryUsageLedgerRepository();
     const svc = new UsageApplicationService(repo, new DomainEventBus());
 
-    await svc.openLedger({ id: 'embed-shape-ledger', sessionId: 'embed-shape-sess', projectId: 'embed-shape-proj' });
+    await svc.openLedger({ id: 'embed-shape-ledger', sessionId: 'embed-shape-sess', projectId: 'embed-shape-proj', userId: 'user-embed-shape' });
     await svc.recordUsage({ sessionId: 'embed-shape-sess', record: RECORD_A });
 
     const results = repo.searchByEmbedding([0, 0, 100, 50, 0, 0], 5);
@@ -478,7 +513,7 @@ describe('UsageApplicationService.getLedgerById()', () => {
   beforeEach(async () => {
     repo = new InMemoryUsageLedgerRepository();
     svc = new UsageApplicationService(repo, new DomainEventBus());
-    await svc.openLedger({ id: 'ledger-byid-001', sessionId: 'sess-byid-001', projectId: 'proj-byid' });
+    await svc.openLedger({ id: 'ledger-byid-001', sessionId: 'sess-byid-001', projectId: 'proj-byid', userId: 'user-byid' });
     await svc.recordUsage({ sessionId: 'sess-byid-001', record: RECORD_A });
   });
 
@@ -518,9 +553,9 @@ describe('UsageApplicationService.queryUsage()', () => {
     now = Date.now();
 
     // Two ledgers for project-A, one for project-B
-    await svc.openLedger({ id: 'ledger-q-1', sessionId: 'sess-q-1', projectId: 'proj-query-A' });
-    await svc.openLedger({ id: 'ledger-q-2', sessionId: 'sess-q-2', projectId: 'proj-query-A' });
-    await svc.openLedger({ id: 'ledger-q-3', sessionId: 'sess-q-3', projectId: 'proj-query-B' });
+    await svc.openLedger({ id: 'ledger-q-1', sessionId: 'sess-q-1', projectId: 'proj-query-A', userId: 'user-q' });
+    await svc.openLedger({ id: 'ledger-q-2', sessionId: 'sess-q-2', projectId: 'proj-query-A', userId: 'user-q' });
+    await svc.openLedger({ id: 'ledger-q-3', sessionId: 'sess-q-3', projectId: 'proj-query-B', userId: 'user-q' });
   });
 
   it('returns all ledgers for a given projectId', async () => {
@@ -631,7 +666,7 @@ describe('UsageApplicationService.recordTokenUsage()', () => {
   beforeEach(async () => {
     repo = new InMemoryUsageLedgerRepository();
     svc = new UsageApplicationService(repo, new DomainEventBus());
-    await svc.openLedger({ id: 'ledger-rtu-001', sessionId: 'sess-rtu-001', projectId: 'proj-rtu' });
+    await svc.openLedger({ id: 'ledger-rtu-001', sessionId: 'sess-rtu-001', projectId: 'proj-rtu', userId: 'user-rtu' });
   });
 
   it('returns Ok with the updated UsageLedger aggregate', async () => {
@@ -685,7 +720,7 @@ describe('UsageApplicationService.getLedger()', () => {
   beforeEach(async () => {
     repo = new InMemoryUsageLedgerRepository();
     svc = new UsageApplicationService(repo, new DomainEventBus());
-    await svc.openLedger({ id: 'ledger-gl-001', sessionId: 'sess-gl-001', projectId: 'proj-gl' });
+    await svc.openLedger({ id: 'ledger-gl-001', sessionId: 'sess-gl-001', projectId: 'proj-gl', userId: 'user-gl' });
     await svc.recordTokenUsage('sess-gl-001', 80, 0.0015);
   });
 
@@ -748,10 +783,10 @@ describe('UsageApplicationService.getTotalCost()', () => {
   });
 
   it('sums costs across all ledgers', async () => {
-    await svc.openLedger({ id: 'ledger-tc-1', sessionId: 'sess-tc-1', projectId: 'proj-tc' });
+    await svc.openLedger({ id: 'ledger-tc-1', sessionId: 'sess-tc-1', projectId: 'proj-tc', userId: 'user-tc' });
     await svc.recordUsage({ sessionId: 'sess-tc-1', record: RECORD_A });
 
-    await svc.openLedger({ id: 'ledger-tc-2', sessionId: 'sess-tc-2', projectId: 'proj-tc' });
+    await svc.openLedger({ id: 'ledger-tc-2', sessionId: 'sess-tc-2', projectId: 'proj-tc', userId: 'user-tc' });
     await svc.recordUsage({ sessionId: 'sess-tc-2', record: RECORD_B });
 
     const result = await svc.getTotalCost();
@@ -762,7 +797,7 @@ describe('UsageApplicationService.getTotalCost()', () => {
   });
 
   it('includes cost from sealed ledgers', async () => {
-    await svc.openLedger({ id: 'ledger-tc-sealed', sessionId: 'sess-tc-sealed', projectId: 'proj-tc' });
+    await svc.openLedger({ id: 'ledger-tc-sealed', sessionId: 'sess-tc-sealed', projectId: 'proj-tc', userId: 'user-tc-sealed' });
     await svc.recordUsage({ sessionId: 'sess-tc-sealed', record: RECORD_A });
     await svc.sealLedger({ sessionId: 'sess-tc-sealed' });
 
@@ -778,7 +813,7 @@ describe('UsageApplicationService.getTotalCost()', () => {
   });
 
   it('is 0 when ledgers exist but have no records', async () => {
-    await svc.openLedger({ id: 'ledger-tc-empty', sessionId: 'sess-tc-empty', projectId: 'proj-tc' });
+    await svc.openLedger({ id: 'ledger-tc-empty', sessionId: 'sess-tc-empty', projectId: 'proj-tc', userId: 'user-tc-empty' });
 
     const result = await svc.getTotalCost();
 

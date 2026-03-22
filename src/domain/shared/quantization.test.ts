@@ -970,6 +970,7 @@ describe('CommandSnapshotQuantizer', () => {
 function makeConsent(overrides: Partial<RawConsent> = {}): RawConsent {
   return {
     id: 'consent-001',
+    userId: 'user-001',
     sessionId: 'sess-001',
     projectId: 'proj-001',
     status: 'granted',

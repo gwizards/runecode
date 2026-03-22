@@ -8,7 +8,7 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { SessionAggregate, toSessionId, toProjectId } from './types';
+import { SessionAggregate, toProjectId, SessionIdVO } from './types';
 import type { RawSession, RawTokenUsage } from './types';
 import type { ISessionRepository } from './repository';
 
@@ -35,8 +35,10 @@ export class SessionApplicationService {
   // ── Append output ──────────────────────────────────────────────────────────
 
   async appendOutput(sessionId: string, chunk: string): Promise<Result<void>> {
+    const sidResult = SessionIdVO.create(sessionId);
+    if (!sidResult.ok) return sidResult;
     try {
-      const session = await this.repo.getSession(toSessionId(sessionId));
+      const session = await this.repo.getSession(sidResult.value.toBranded());
       if (!session) {
         return Err(`Session not found: ${sessionId}`);
       }
@@ -53,8 +55,10 @@ export class SessionApplicationService {
   // ── Complete ───────────────────────────────────────────────────────────────
 
   async completeSession(sessionId: string): Promise<Result<void>> {
+    const sidResult = SessionIdVO.create(sessionId);
+    if (!sidResult.ok) return sidResult;
     try {
-      const session = await this.repo.getSession(toSessionId(sessionId));
+      const session = await this.repo.getSession(sidResult.value.toBranded());
       if (!session) {
         return Err(`Session not found: ${sessionId}`);
       }
@@ -71,8 +75,10 @@ export class SessionApplicationService {
   // ── Fail ───────────────────────────────────────────────────────────────────
 
   async failSession(sessionId: string, reason: string): Promise<Result<void>> {
+    const sidResult = SessionIdVO.create(sessionId);
+    if (!sidResult.ok) return sidResult;
     try {
-      const session = await this.repo.getSession(toSessionId(sessionId));
+      const session = await this.repo.getSession(sidResult.value.toBranded());
       if (!session) {
         return Err(`Session not found: ${sessionId}`);
       }
@@ -92,8 +98,10 @@ export class SessionApplicationService {
     sessionId: string,
     usage: RawTokenUsage,
   ): Promise<Result<void>> {
+    const sidResult = SessionIdVO.create(sessionId);
+    if (!sidResult.ok) return sidResult;
     try {
-      const session = await this.repo.getSession(toSessionId(sessionId));
+      const session = await this.repo.getSession(sidResult.value.toBranded());
       if (!session) {
         return Err(`Session not found: ${sessionId}`);
       }
@@ -110,8 +118,10 @@ export class SessionApplicationService {
   // ── Delete ─────────────────────────────────────────────────────────────────
 
   async deleteSession(sessionId: string): Promise<Result<void>> {
+    const sidResult = SessionIdVO.create(sessionId);
+    if (!sidResult.ok) return sidResult;
     try {
-      await this.repo.deleteSession(toSessionId(sessionId));
+      await this.repo.deleteSession(sidResult.value.toBranded());
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -121,8 +131,10 @@ export class SessionApplicationService {
   // ── Get ────────────────────────────────────────────────────────────────────
 
   async getSession(sessionId: string): Promise<Result<SessionAggregate>> {
+    const sidResult = SessionIdVO.create(sessionId);
+    if (!sidResult.ok) return sidResult;
     try {
-      const session = await this.repo.getSession(toSessionId(sessionId));
+      const session = await this.repo.getSession(sidResult.value.toBranded());
       if (!session) {
         return Err(`Session not found: ${sessionId}`);
       }

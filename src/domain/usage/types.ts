@@ -11,6 +11,9 @@ import {
   makeUsageRecordAdded,
   makeUsageLedgerSealed,
 } from './events';
+import { UserId } from '../identity/types';
+
+export { UserId };
 
 // ─── Branded ID types ──────────────────────────────────────────────────────
 
@@ -103,6 +106,7 @@ export interface UsageSummary {
   readonly ledgerId: string;
   readonly sessionId: string;
   readonly projectId: string;
+  readonly userId: string;
   readonly totalInputTokens: number;
   readonly totalOutputTokens: number;
   readonly totalCacheCreationTokens: number;
@@ -120,6 +124,7 @@ export interface RawLedger {
   readonly id: string;
   readonly sessionId: string;
   readonly projectId: string;
+  readonly userId: string;
   readonly records: ReadonlyArray<UsageRecord>;
   readonly sealed: boolean;
   readonly openedAt: number;
@@ -133,6 +138,7 @@ export class UsageLedger {
     private readonly _id: LedgerId,
     private readonly _sessionId: SessionId,
     private readonly _projectId: ProjectId,
+    private readonly _userId: UserId,
     private _records: UsageRecord[],
     private _sealed: boolean,
     private readonly _openedAt: number,
@@ -144,14 +150,15 @@ export class UsageLedger {
 
   /**
    * Open a new ledger and raise UsageLedgerOpenedEvent.
+   * @param raw.userId - A pre-validated UserId value object from the Identity context.
    */
-  static open(raw: { id: string; sessionId: string; projectId: string }): UsageLedger {
+  static open(raw: { id: string; sessionId: string; projectId: string; userId: UserId }): UsageLedger {
     const ledgerId   = toLedgerId(raw.id);
     const sessionId  = toSessionId(raw.sessionId);
     const projectId  = toProjectId(raw.projectId);
     const now        = Date.now();
-    const aggregate  = new UsageLedger(ledgerId, sessionId, projectId, [], false, now, null, []);
-    aggregate._events.push(makeUsageLedgerOpened(ledgerId, sessionId, projectId));
+    const aggregate  = new UsageLedger(ledgerId, sessionId, projectId, raw.userId, [], false, now, null, []);
+    aggregate._events.push(makeUsageLedgerOpened(ledgerId, sessionId, projectId, raw.userId.value));
     return aggregate;
   }
 
@@ -160,10 +167,15 @@ export class UsageLedger {
    * Does not raise any events.
    */
   static fromSnapshot(raw: RawLedger): UsageLedger {
+    const userIdResult = UserId.create(raw.userId);
+    if (!userIdResult.ok) {
+      throw new Error(`Invalid userId in snapshot: ${userIdResult.error}`);
+    }
     return new UsageLedger(
       toLedgerId(raw.id),
       toSessionId(raw.sessionId),
       toProjectId(raw.projectId),
+      userIdResult.value,
       [...raw.records],
       raw.sealed,
       raw.openedAt,
@@ -235,6 +247,7 @@ export class UsageLedger {
       ledgerId:                  this._id,
       sessionId:                 this._sessionId,
       projectId:                 this._projectId,
+      userId:                    this._userId.value,
       totalInputTokens,
       totalOutputTokens,
       totalCacheCreationTokens,
@@ -258,6 +271,10 @@ export class UsageLedger {
 
   get projectId(): ProjectId {
     return this._projectId;
+  }
+
+  get userId(): UserId {
+    return this._userId;
   }
 
   get sealed(): boolean {
@@ -286,6 +303,7 @@ export class UsageLedger {
       id:        this._id,
       sessionId: this._sessionId,
       projectId: this._projectId,
+      userId:    this._userId.value,
       records:   [...this._records],
       sealed:    this._sealed,
       openedAt:  this._openedAt,

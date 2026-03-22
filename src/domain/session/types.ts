@@ -38,6 +38,54 @@ export function toProjectId(id: string): ProjectId {
   return id as ProjectId;
 }
 
+// ─── Value Object: SessionIdVO ────────────────────────────────────────────────
+
+/**
+ * Class-based Value Object for session identifiers.
+ *
+ * Use SessionIdVO.create() at public service boundaries to get a Result<T>
+ * instead of a thrown exception. The inner `value` string is always trimmed
+ * and non-empty.
+ *
+ * The legacy branded type `SessionId` (string & { _brand }) is preserved for
+ * backward compatibility with the existing aggregate, events, and repository
+ * surface. Use `toBranded()` to convert when passing into those APIs.
+ */
+export class SessionIdVO {
+  private constructor(readonly value: string) {}
+
+  /**
+   * Validate and construct a SessionIdVO. Returns Err if the raw string is
+   * empty or whitespace-only.
+   */
+  static create(raw: string): Result<SessionIdVO> {
+    if (!raw || !raw.trim()) return Err('SessionId cannot be empty');
+    return Ok(new SessionIdVO(raw.trim()));
+  }
+
+  /** Generate a new, unique SessionIdVO backed by a random UUID. */
+  static generate(): SessionIdVO {
+    return new SessionIdVO(crypto.randomUUID());
+  }
+
+  /** Structural equality — two SessionIdVOs with the same value are equal. */
+  equals(other: SessionIdVO): boolean {
+    return this.value === other.value;
+  }
+
+  toString(): string {
+    return this.value;
+  }
+
+  /**
+   * Convert to the legacy branded `SessionId` string type for use with the
+   * existing aggregate, event factories, and repository ports.
+   */
+  toBranded(): SessionId {
+    return this.value as SessionId;
+  }
+}
+
 // ─── Value Object: TokenUsage ─────────────────────────────────────────────────
 
 /** Plain data shape for partial token usage updates and persistence serialization. */

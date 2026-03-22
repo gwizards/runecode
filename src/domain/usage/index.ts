@@ -9,6 +9,9 @@
 export type { LedgerId, SessionId, ProjectId } from './types';
 export { toLedgerId, toSessionId, toProjectId } from './types';
 
+// ── Cross-context Value Objects ────────────────────────────────────────────
+export { UserId } from './types';
+
 // ── Value objects & factories ──────────────────────────────────────────────
 export type { UsageRecord, RawUsageRecord } from './types';
 export { makeUsageRecord } from './types';

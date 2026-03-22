@@ -66,6 +66,7 @@ class ConsentSnapshotQuantizer extends ScalarQuantizer<RawConsent> {
       fixed,
       strings: {
         id: snapshot.id,
+        userId: snapshot.userId,
         sessionId: snapshot.sessionId,
         projectId: snapshot.projectId,
       },
@@ -87,6 +88,7 @@ class ConsentSnapshotQuantizer extends ScalarQuantizer<RawConsent> {
 
     return {
       id: buf.strings['id'] ?? '',
+      userId: buf.strings['userId'] ?? '',
       sessionId: buf.strings['sessionId'] ?? '',
       projectId: buf.strings['projectId'] ?? '',
       status,

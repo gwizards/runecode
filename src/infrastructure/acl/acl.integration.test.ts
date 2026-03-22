@@ -20,6 +20,8 @@ import { SESSION_EVENT_TYPES } from '../../domain/session/events';
 import { AnalyticsApplicationService } from '../../domain/analytics/service';
 import { InMemoryConsentRepository } from '../../domain/analytics/repository';
 import { ANALYTICS_EVENT_TYPES } from '../../domain/analytics/events';
+import { UserId } from '../../domain/identity/types';
+import { unwrap } from '../../domain/shared/result';
 
 // Usage context
 import { UsageApplicationService } from '../../domain/usage/service';
@@ -189,7 +191,7 @@ describe('SessionAnalyticsAcl', () => {
     const analyticsSvc = new AnalyticsApplicationService(consentRepo, analyticsBus);
 
     // Grant consent via analytics service (own bus)
-    const consentResult = await analyticsSvc.grantConsent('s10', 'proj-1');
+    const consentResult = await analyticsSvc.grantConsent('s10', 'proj-1', unwrap(UserId.create('user-acl-test')));
     expect(consentResult.ok).toBe(true);
 
     // Complete a session via session service (session bus → ACL)
@@ -224,7 +226,7 @@ describe('Session → Usage flow', () => {
   it('opens a usage ledger for a session and records initial state', async () => {
     await sessionSvc.createSession(makeSessionRaw('u1'));
 
-    const result = await usageSvc.openLedger({ id: 'ledger-u1', sessionId: 'u1', projectId: 'proj-1' });
+    const result = await usageSvc.openLedger({ id: 'ledger-u1', sessionId: 'u1', projectId: 'proj-1', userId: 'user-acl' });
     expect(result.ok).toBe(true);
 
     const summary = await usageSvc.getLedgerSummary('u1');
@@ -238,7 +240,7 @@ describe('Session → Usage flow', () => {
 
   it('records usage and reflects it in the ledger summary', async () => {
     await sessionSvc.createSession(makeSessionRaw('u2'));
-    await usageSvc.openLedger({ id: 'ledger-u2', sessionId: 'u2', projectId: 'proj-1' });
+    await usageSvc.openLedger({ id: 'ledger-u2', sessionId: 'u2', projectId: 'proj-1', userId: 'user-acl' });
 
     const record = await usageSvc.recordUsage({
       sessionId: 'u2',
@@ -255,7 +257,7 @@ describe('Session → Usage flow', () => {
 
   it('getLedgerSummary accumulates multiple usage records correctly', async () => {
     await sessionSvc.createSession(makeSessionRaw('u3'));
-    await usageSvc.openLedger({ id: 'ledger-u3', sessionId: 'u3', projectId: 'proj-1' });
+    await usageSvc.openLedger({ id: 'ledger-u3', sessionId: 'u3', projectId: 'proj-1', userId: 'user-acl' });
 
     await usageSvc.recordUsage({ sessionId: 'u3', record: { model: 'claude-3', inputTokens: 100, outputTokens: 50, costUsd: 0.02 } });
     await usageSvc.recordUsage({ sessionId: 'u3', record: { model: 'claude-3', inputTokens: 300, outputTokens: 150, costUsd: 0.06 } });
@@ -272,7 +274,7 @@ describe('Session → Usage flow', () => {
 
   it('seals the ledger when the session completes and blocks further records', async () => {
     await sessionSvc.createSession(makeSessionRaw('u4'));
-    await usageSvc.openLedger({ id: 'ledger-u4', sessionId: 'u4', projectId: 'proj-1' });
+    await usageSvc.openLedger({ id: 'ledger-u4', sessionId: 'u4', projectId: 'proj-1', userId: 'user-acl' });
     await usageSvc.recordUsage({ sessionId: 'u4', record: { model: 'm', inputTokens: 10, outputTokens: 5, costUsd: 0.001 } });
 
     const sealResult = await usageSvc.sealLedger({ sessionId: 'u4' });
@@ -286,8 +288,8 @@ describe('Session → Usage flow', () => {
   it('querying usage by session returns only that sessions ledger', async () => {
     await sessionSvc.createSession(makeSessionRaw('u5'));
     await sessionSvc.createSession(makeSessionRaw('u6'));
-    await usageSvc.openLedger({ id: 'ledger-u5', sessionId: 'u5', projectId: 'proj-2' });
-    await usageSvc.openLedger({ id: 'ledger-u6', sessionId: 'u6', projectId: 'proj-2' });
+    await usageSvc.openLedger({ id: 'ledger-u5', sessionId: 'u5', projectId: 'proj-2', userId: 'user-acl' });
+    await usageSvc.openLedger({ id: 'ledger-u6', sessionId: 'u6', projectId: 'proj-2', userId: 'user-acl' });
 
     await usageSvc.recordUsage({ sessionId: 'u5', record: { model: 'm', inputTokens: 50, outputTokens: 25, costUsd: 0.01 } });
 
@@ -452,7 +454,7 @@ describe('Cross-domain bus isolation', () => {
   it('analytics bus events do NOT appear on session bus', () => {
     const sessionEvents = collectEvents(sessionBus);
 
-    analyticsSvc.grantConsent('iso-2', 'proj-1');
+    analyticsSvc.grantConsent('iso-2', 'proj-1', unwrap(UserId.create('user-iso')));
 
     const analyticsTypesOnSessionBus = sessionEvents.filter(e => e.type.startsWith('analytics/'));
     expect(analyticsTypesOnSessionBus).toHaveLength(0);

@@ -16,6 +16,8 @@ import { InMemoryConsentRepository } from './repository';
 import { AnalyticsApplicationService } from './service';
 import { ANALYTICS_EVENT_TYPES } from './events';
 import type { IAnalyticsTracker } from './ports/IAnalyticsTracker';
+import { UserId } from '../identity/types';
+import { unwrap } from '../shared/result';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,9 @@ function uniqueSessionId(): string {
   _sessionCounter += 1;
   return `session-${Date.now()}-${_sessionCounter}`;
 }
+
+/** A reusable test UserId — created once and shared across all tests. */
+const TEST_USER_ID = unwrap(UserId.create('test-user-analytics'));
 
 function makeCollectingBus(): { bus: DomainEventBus; collected: DomainEvent[] } {
   const bus = new DomainEventBus();
@@ -70,8 +75,8 @@ describe('InMemoryConsentRepository.searchByEmbedding', () => {
   it('returns [] even after records are stored (no int8 embedding fields)', async () => {
     const repo = new InMemoryConsentRepository();
     const svc = new AnalyticsApplicationService(repo, new DomainEventBus());
-    await svc.grantConsent(uniqueSessionId(), 'proj-embed-1');
-    await svc.grantConsent(uniqueSessionId(), 'proj-embed-2');
+    await svc.grantConsent(uniqueSessionId(), 'proj-embed-1', TEST_USER_ID);
+    await svc.grantConsent(uniqueSessionId(), 'proj-embed-2', TEST_USER_ID);
 
     // ConsentSnapshotQuantizer has zero int8 fields — searchNearest short-circuits.
     const results = repo.searchByEmbedding([1, 0, 0]);
@@ -113,7 +118,7 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
 
   it('returns Ok with a ConsentAggregate on valid inputs', async () => {
     const sessionId = uniqueSessionId();
-    const result = await svc.grantConsent(sessionId, 'project-abc');
+    const result = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -124,7 +129,7 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
 
   it('returned aggregate has status "granted"', async () => {
     const sessionId = uniqueSessionId();
-    const result = await svc.grantConsent(sessionId, 'project-abc');
+    const result = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -134,7 +139,7 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
 
   it('persists the consent record in the repository', async () => {
     const sessionId = uniqueSessionId();
-    const result = await svc.grantConsent(sessionId, 'project-abc');
+    const result = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     expect(result.ok).toBe(true);
     expect(repo.size).toBe(1);
@@ -142,8 +147,8 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
 
   it('is idempotent — calling twice for the same session returns the same ConsentId', async () => {
     const sessionId = uniqueSessionId();
-    const first = await svc.grantConsent(sessionId, 'project-abc');
-    const second = await svc.grantConsent(sessionId, 'project-abc');
+    const first = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
+    const second = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
@@ -153,34 +158,34 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
 
   it('idempotent call does not create a second repository record', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     expect(repo.size).toBe(1);
   });
 
   it('returns Err when sessionId is empty', async () => {
-    const result = await svc.grantConsent('', 'project-abc');
+    const result = await svc.grantConsent('', 'project-abc', TEST_USER_ID);
 
     expect(result.ok).toBe(false);
   });
 
   it('returns Err when sessionId is whitespace only', async () => {
-    const result = await svc.grantConsent('   ', 'project-abc');
+    const result = await svc.grantConsent('   ', 'project-abc', TEST_USER_ID);
 
     expect(result.ok).toBe(false);
   });
 
   it('returns Err when projectId is empty', async () => {
     const sessionId = uniqueSessionId();
-    const result = await svc.grantConsent(sessionId, '');
+    const result = await svc.grantConsent(sessionId, '', TEST_USER_ID);
 
     expect(result.ok).toBe(false);
   });
 
   it('dispatches CONSENT_GRANTED event on success', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     const granted = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_GRANTED);
     expect(granted).toHaveLength(1);
@@ -188,7 +193,7 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
 
   it('CONSENT_GRANTED event carries correct sessionId and projectId', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-xyz');
+    await svc.grantConsent(sessionId, 'project-xyz', TEST_USER_ID);
 
     const evt = collected.find(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_GRANTED);
     expect(evt).toBeDefined();
@@ -199,10 +204,10 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
 
   it('does not dispatch CONSENT_GRANTED on the idempotent second call', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     collected.length = 0;
 
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     const granted = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_GRANTED);
     expect(granted).toHaveLength(0);
@@ -211,7 +216,7 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
   it('calls tracker.optIn() when a tracker is provided', async () => {
     const spy = makeSpyTracker();
     const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
-    await svcWithTracker.grantConsent(uniqueSessionId(), 'project-abc');
+    await svcWithTracker.grantConsent(uniqueSessionId(), 'project-abc', TEST_USER_ID);
 
     const optInCalls = spy.calls.filter(c => c.method === 'optIn');
     expect(optInCalls).toHaveLength(1);
@@ -221,12 +226,12 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
     const spy = makeSpyTracker();
     const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
     const sessionId = uniqueSessionId();
-    await svcWithTracker.grantConsent(sessionId, 'project-abc');
+    await svcWithTracker.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     // Reset the event bus collection after the first call
     collected.length = 0;
 
     // Idempotent — aggregate already granted, no domain event should be raised
-    await svcWithTracker.grantConsent(sessionId, 'project-abc');
+    await svcWithTracker.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     const granted = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_GRANTED);
     expect(granted).toHaveLength(0);
@@ -249,7 +254,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
 
   it('returns Ok(undefined) when revoking a granted consent', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     expect(grantResult.ok).toBe(true);
     if (!grantResult.ok) return;
 
@@ -274,7 +279,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
 
   it('dispatches CONSENT_REVOKED event on success', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
     collected.length = 0;
 
@@ -286,7 +291,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
 
   it('CONSENT_REVOKED event carries the correct sessionId', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
     collected.length = 0;
 
@@ -302,7 +307,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     const spy = makeSpyTracker();
     const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
     const sessionId = uniqueSessionId();
-    const grantResult = await svcWithTracker.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svcWithTracker.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
     spy.calls.length = 0;
 
@@ -326,7 +331,7 @@ describe('AnalyticsApplicationService.getConsentStatus()', () => {
 
   it('returns "granted" after grantConsent is called', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
 
     const status = await svc.getConsentStatus(grantResult.value.id);
@@ -338,7 +343,7 @@ describe('AnalyticsApplicationService.getConsentStatus()', () => {
 
   it('returns "revoked" after revokeConsent is called', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
 
     await svc.revokeConsent(grantResult.value.id);
@@ -394,7 +399,7 @@ describe('AnalyticsApplicationService.trackSession()', () => {
 
   it('dispatches SESSION_TRACKED when consent is granted', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     collected.length = 0;
 
     await svc.trackSession(sessionId, { browser: 'chrome' });
@@ -405,7 +410,7 @@ describe('AnalyticsApplicationService.trackSession()', () => {
 
   it('SESSION_TRACKED event carries correct sessionId', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     collected.length = 0;
 
     await svc.trackSession(sessionId);
@@ -418,7 +423,7 @@ describe('AnalyticsApplicationService.trackSession()', () => {
 
   it('silently drops after consent is revoked', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
     await svc.revokeConsent(grantResult.value.id);
     collected.length = 0;
@@ -433,7 +438,7 @@ describe('AnalyticsApplicationService.trackSession()', () => {
     const spy = makeSpyTracker();
     const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
     const sessionId = uniqueSessionId();
-    await svcWithTracker.grantConsent(sessionId, 'project-abc');
+    await svcWithTracker.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     spy.calls.length = 0;
 
     await svcWithTracker.trackSession(sessionId, { key: 'value' });
@@ -493,7 +498,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
 
   it('stores the event when consent has been granted', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     await svc.captureEvent(sessionId, 'page_view', { page: '/home' });
 
@@ -505,7 +510,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
 
   it('stores the correct event name and properties', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     await svc.captureEvent(sessionId, 'button_click', { buttonId: 'save' });
 
@@ -518,7 +523,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
 
   it('returns Ok even when consent has been revoked', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
     await svc.revokeConsent(grantResult.value.id);
 
@@ -529,7 +534,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
 
   it('silently drops event when consent is revoked', async () => {
     const sessionId = uniqueSessionId();
-    const grantResult = await svc.grantConsent(sessionId, 'project-abc');
+    const grantResult = await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     if (!grantResult.ok) return;
     await svc.revokeConsent(grantResult.value.id);
     collected.length = 0;
@@ -544,7 +549,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
 
   it('dispatches EVENT_CAPTURED event on the bus when tracking succeeds', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     collected.length = 0;
 
     await svc.captureEvent(sessionId, 'search', { query: 'foo' });
@@ -555,7 +560,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
 
   it('EVENT_CAPTURED event carries correct sessionId and eventType', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     collected.length = 0;
 
     await svc.captureEvent(sessionId, 'custom_action', {});
@@ -571,7 +576,7 @@ describe('AnalyticsApplicationService.captureEvent()', () => {
     const spy = makeSpyTracker();
     const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
     const sessionId = uniqueSessionId();
-    await svcWithTracker.grantConsent(sessionId, 'project-abc');
+    await svcWithTracker.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     spy.calls.length = 0;
 
     await svcWithTracker.captureEvent(sessionId, 'my_event', { x: 1 });
@@ -612,7 +617,7 @@ describe('AnalyticsApplicationService.trackEvent() (legacy alias)', () => {
 
   it('stores the event via captureEvent when consent has been granted', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     await svc.trackEvent(sessionId, 'page_view', { page: '/home' });
 
@@ -646,7 +651,7 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
 
   it('returns Ok with events in insertion order after tracking', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
 
     await svc.captureEvent(sessionId, 'first', {});
     await svc.captureEvent(sessionId, 'second', {});
@@ -663,7 +668,7 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
 
   it('returns a defensive copy — mutating the result does not affect the store', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     await svc.captureEvent(sessionId, 'click', { x: 10 });
 
     const first = await svc.queryEvents(sessionId);
@@ -679,7 +684,7 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
 
   it('mutating a returned payload does not affect the stored payload', async () => {
     const sessionId = uniqueSessionId();
-    await svc.grantConsent(sessionId, 'project-abc');
+    await svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID);
     await svc.captureEvent(sessionId, 'scroll', { offset: 100 });
 
     const first = await svc.queryEvents(sessionId);
@@ -703,8 +708,8 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
   it('returns events only for the queried session, not for others', async () => {
     const sessionA = uniqueSessionId();
     const sessionB = uniqueSessionId();
-    await svc.grantConsent(sessionA, 'project-abc');
-    await svc.grantConsent(sessionB, 'project-abc');
+    await svc.grantConsent(sessionA, 'project-abc', TEST_USER_ID);
+    await svc.grantConsent(sessionB, 'project-abc', TEST_USER_ID);
 
     await svc.captureEvent(sessionA, 'event_a', {});
     await svc.captureEvent(sessionB, 'event_b', {});
@@ -727,7 +732,7 @@ describe('IAnalyticsTracker port contract', () => {
     const svc = new AnalyticsApplicationService(repo, bus);
     const sessionId = uniqueSessionId();
 
-    await expect(svc.grantConsent(sessionId, 'project-abc')).resolves.not.toThrow();
+    await expect(svc.grantConsent(sessionId, 'project-abc', TEST_USER_ID)).resolves.not.toThrow();
     await expect(svc.trackSession(sessionId)).resolves.not.toThrow();
     await expect(svc.captureEvent(sessionId, 'test_event')).resolves.not.toThrow();
   });

@@ -11,7 +11,7 @@ import type { DomainEvent } from '../shared/event-bus';
 import { SessionApplicationService } from './service';
 import { InMemorySessionRepository } from './repository';
 import { SESSION_EVENT_TYPES } from './events';
-import { toSessionId, toProjectId, TokenUsage } from './types';
+import { toSessionId, toProjectId, TokenUsage, SessionIdVO } from './types';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -462,6 +462,82 @@ describe('SessionApplicationService.listSessions()', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatch(/ProjectId cannot be empty/i);
+  });
+});
+
+// ─── SessionIdVO — Value Object ───────────────────────────────────────────────
+
+describe('SessionIdVO.create()', () => {
+  it('returns Err for an empty string', () => {
+    const result = SessionIdVO.create('');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/SessionId cannot be empty/i);
+  });
+
+  it('returns Err for a whitespace-only string', () => {
+    const result = SessionIdVO.create('   ');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/SessionId cannot be empty/i);
+  });
+
+  it('returns Ok for a valid id string', () => {
+    const result = SessionIdVO.create('valid-session-id');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.value).toBe('valid-session-id');
+  });
+
+  it('trims surrounding whitespace from a valid id', () => {
+    const result = SessionIdVO.create('  sess-abc  ');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.value).toBe('sess-abc');
+  });
+});
+
+describe('SessionIdVO.generate()', () => {
+  it('returns a SessionIdVO with a non-empty value', () => {
+    const vo = SessionIdVO.generate();
+    expect(vo.value).toBeTruthy();
+    expect(vo.value.length).toBeGreaterThan(0);
+  });
+
+  it('generates unique values on consecutive calls', () => {
+    const a = SessionIdVO.generate();
+    const b = SessionIdVO.generate();
+    expect(a.value).not.toBe(b.value);
+  });
+});
+
+describe('SessionIdVO.equals()', () => {
+  it('returns true when two VOs have the same value', () => {
+    const a = SessionIdVO.create('same-id');
+    const b = SessionIdVO.create('same-id');
+    if (!a.ok || !b.ok) throw new Error('setup failed');
+    expect(a.value.equals(b.value)).toBe(true);
+  });
+
+  it('returns false when two VOs have different values', () => {
+    const a = SessionIdVO.create('id-one');
+    const b = SessionIdVO.create('id-two');
+    if (!a.ok || !b.ok) throw new Error('setup failed');
+    expect(a.value.equals(b.value)).toBe(false);
+  });
+});
+
+describe('SessionIdVO.toString() and toBranded()', () => {
+  it('toString() returns the raw string value', () => {
+    const result = SessionIdVO.create('my-session');
+    if (!result.ok) throw new Error('setup failed');
+    expect(result.value.toString()).toBe('my-session');
+  });
+
+  it('toBranded() returns the same string value (for legacy repo compatibility)', () => {
+    const result = SessionIdVO.create('branded-test');
+    if (!result.ok) throw new Error('setup failed');
+    expect(result.value.toBranded()).toBe('branded-test');
   });
 });
 

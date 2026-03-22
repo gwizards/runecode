@@ -22,6 +22,7 @@ import {
   type AnalyticsSessionId,
   type ConsentStatus,
   type CapturedEvent,
+  UserId,
 } from './types';
 import {
   makeEventCaptured,
@@ -55,11 +56,13 @@ export class AnalyticsApplicationService {
    *
    * @param rawSessionId - Session identifier (non-empty string).
    * @param rawProjectId - Project identifier (non-empty string).
+   * @param userId - Identity of the user granting consent.
    * @returns Ok(ConsentAggregate) on success; Err(message) on validation failure.
    */
   async grantConsent(
     rawSessionId: string,
     rawProjectId: string,
+    userId: UserId,
   ): Promise<Result<ConsentAggregate>> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
@@ -70,7 +73,7 @@ export class AnalyticsApplicationService {
       // Idempotency: re-use existing record if one exists for this session.
       let consent = this.repository.findBySession(sessionId);
       if (consent === undefined) {
-        consent = ConsentAggregate.create(sessionId, projectId);
+        consent = ConsentAggregate.create(userId, sessionId, projectId);
       }
 
       consent.grant();

@@ -29,7 +29,7 @@ interface UsageDomainState {
   loading: boolean;
   error: string | null;
 
-  openLedger(cmd: { id: string; sessionId: string; projectId: string }): Promise<void>;
+  openLedger(cmd: { id: string; sessionId: string; projectId: string; userId: string }): Promise<void>;
   recordUsage(cmd: { sessionId: string; record: RawUsageRecord }): Promise<void>;
   sealLedger(cmd: { sessionId: string }): Promise<void>;
   loadSummary(sessionId: string): Promise<void>;

@@ -9,6 +9,7 @@
 
 import type { DomainEvent } from '../shared/event-bus';
 import type { ProjectId } from '../shared/project-id';
+import { UserId } from '../identity/types';
 import {
   makeConsentGranted,
   makeConsentRevoked,
@@ -17,6 +18,7 @@ import {
 // ─── Re-exports from shared kernel ────────────────────────────────────────────
 
 export type { ProjectId } from '../shared/project-id';
+export { UserId } from '../identity/types';
 
 // ─── SessionId (aliased from session context) ─────────────────────────────────
 
@@ -53,6 +55,7 @@ export type ConsentStatus = 'granted' | 'revoked' | 'pending';
  */
 export interface RawConsent {
   readonly id: string;
+  readonly userId: string;
   readonly sessionId: string;
   readonly projectId: string;
   readonly status: ConsentStatus;
@@ -87,6 +90,7 @@ export class ConsentAggregate {
 
   private constructor(
     readonly id: ConsentId,
+    private readonly _userId: UserId,
     readonly sessionId: AnalyticsSessionId,
     readonly projectId: ProjectId,
     initialStatus: ConsentStatus,
@@ -101,19 +105,25 @@ export class ConsentAggregate {
   // ── Factory ──
 
   static create(
+    userId: UserId,
     sessionId: AnalyticsSessionId,
     projectId: ProjectId,
   ): ConsentAggregate {
     const id = toConsentId(`consent-${sessionId}-${Date.now()}`);
-    return new ConsentAggregate(id, sessionId, projectId, 'pending');
+    return new ConsentAggregate(id, userId, sessionId, projectId, 'pending');
   }
 
   /**
    * Reconstitute from a raw snapshot (used by the repository after loading).
    */
   static fromSnapshot(raw: RawConsent): ConsentAggregate {
+    const userIdResult = UserId.create(raw.userId);
+    // Snapshots come from trusted storage; a missing userId falls back to a
+    // sentinel rather than crashing the repository.
+    const userId = userIdResult.ok ? userIdResult.value : UserId.generate();
     return new ConsentAggregate(
       toConsentId(raw.id),
+      userId,
       raw.sessionId as AnalyticsSessionId,
       raw.projectId as ProjectId,
       raw.status,
@@ -123,6 +133,10 @@ export class ConsentAggregate {
   }
 
   // ── Queries ──
+
+  get userId(): UserId {
+    return this._userId;
+  }
 
   get status(): ConsentStatus {
     if (this._revokedAt !== undefined) return 'revoked';
@@ -174,6 +188,7 @@ export class ConsentAggregate {
   toSnapshot(): RawConsent {
     return {
       id: this.id,
+      userId: this._userId.toString(),
       sessionId: this.sessionId,
       projectId: this.projectId,
       status: this.status,

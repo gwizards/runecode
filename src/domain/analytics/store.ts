@@ -13,6 +13,7 @@ import { DomainEventBus } from '../shared/event-bus';
 import { InMemoryConsentRepository } from './repository';
 import { AnalyticsApplicationService } from './service';
 import type { ConsentStatus, CapturedEvent, ConsentId, ConsentAggregate } from './types';
+import { UserId } from './types';
 import type { Result } from '../shared/result';
 
 // ─── Bootstrap singletons ─────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ interface AnalyticsStoreState {
   error: string | null;
 
   // ── Actions ──
-  grantConsent(sessionId: string, projectId: string): Promise<Result<ConsentAggregate>>;
+  grantConsent(sessionId: string, projectId: string, userId: string): Promise<Result<ConsentAggregate>>;
   revokeConsent(consentId: string): Promise<Result<void>>;
   refreshStatus(consentId: string): void;
   captureEvent(
@@ -60,9 +61,14 @@ export const useAnalyticsStore = create<AnalyticsStoreState>((set, _get) => ({
   loading: false,
   error: null,
 
-  grantConsent: async (sessionId, projectId) => {
+  grantConsent: async (sessionId, projectId, rawUserId) => {
     set({ loading: true, error: null });
-    const result = await _service.grantConsent(sessionId, projectId);
+    const userIdResult = UserId.create(rawUserId);
+    if (!userIdResult.ok) {
+      set({ loading: false, error: userIdResult.error });
+      return { ok: false as const, error: userIdResult.error };
+    }
+    const result = await _service.grantConsent(sessionId, projectId, userIdResult.value);
     if (result.ok) {
       const aggregate = result.value;
       set({

@@ -27,6 +27,7 @@ export interface UsageLedgerOpenedEvent extends DomainEvent {
   readonly ledgerId: string;
   readonly sessionId: string;
   readonly projectId: string;
+  readonly userId: string;
 }
 
 export interface UsageRecordAddedEvent extends DomainEvent {
@@ -51,6 +52,7 @@ export function makeUsageLedgerOpened(
   ledgerId: string,
   sessionId: string,
   projectId: string,
+  userId: string,
 ): UsageLedgerOpenedEvent {
   return {
     type: USAGE_EVENT_TYPES.LEDGER_OPENED,
@@ -59,6 +61,7 @@ export function makeUsageLedgerOpened(
     ledgerId,
     sessionId,
     projectId,
+    userId,
   };
 }
 
