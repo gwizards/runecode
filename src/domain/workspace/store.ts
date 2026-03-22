@@ -122,8 +122,7 @@ export function createWorkspaceStore(
         set({ error: result.error });
         return;
       }
-      const wsResult = service.getWorkspace(currentWorkspaceId);
-      if (wsResult.ok) set({ workspace: wsResult.value });
+      set({ workspace: result.value.toSnapshot() });
     },
 
     closeTab(tabId) {
@@ -146,8 +145,7 @@ export function createWorkspaceStore(
         set({ error: result.error });
         return;
       }
-      const wsResult = service.getWorkspace(currentWorkspaceId);
-      if (wsResult.ok) set({ workspace: wsResult.value });
+      set({ workspace: result.value.toSnapshot() });
     },
 
     reorderTabs(newOrder) {
@@ -158,8 +156,7 @@ export function createWorkspaceStore(
         set({ error: result.error });
         return;
       }
-      const wsResult = service.getWorkspace(currentWorkspaceId);
-      if (wsResult.ok) set({ workspace: wsResult.value });
+      set({ workspace: result.value.toSnapshot() });
     },
 
     renameTab(tabId, title) {
@@ -170,8 +167,7 @@ export function createWorkspaceStore(
         set({ error: result.error });
         return;
       }
-      const wsResult = service.getWorkspace(currentWorkspaceId);
-      if (wsResult.ok) set({ workspace: wsResult.value });
+      set({ workspace: result.value.toSnapshot() });
     },
 
     deleteWorkspace() {

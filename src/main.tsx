@@ -20,6 +20,16 @@ import AppIcon from "./assets/nfo/asterisk-logo.png";
 const tauriInternals = window.__TAURI_INTERNALS__;
 const isWebMode = !tauriInternals || tauriInternals.__WEB_MODE_MOCK__;
 
+// Wire the Tauri event listener port for the ruflo domain.
+// Only injected when running inside Tauri — web/test environments get no-op behaviour.
+if (!isWebMode) {
+  import('./infrastructure/ruflo/tauri-event-listener').then(({ tauriRuFloEventListener }) => {
+    import('./domain/ruflo/store').then(({ setRuFloEventListener }) => {
+      setRuFloEventListener(tauriRuFloEventListener);
+    });
+  });
+}
+
 // Initialize analytics before rendering
 analytics.initialize();
 

@@ -621,3 +621,169 @@ describe('UsageApplicationService.queryUsage()', () => {
     result.value.forEach(s => expect(s.ledgerId).toMatch(/ledger-q-[12]/));
   });
 });
+
+// ─── UsageApplicationService.recordTokenUsage() ───────────────────────────────
+
+describe('UsageApplicationService.recordTokenUsage()', () => {
+  let repo: InMemoryUsageLedgerRepository;
+  let svc: UsageApplicationService;
+
+  beforeEach(async () => {
+    repo = new InMemoryUsageLedgerRepository();
+    svc = new UsageApplicationService(repo, new DomainEventBus());
+    await svc.openLedger({ id: 'ledger-rtu-001', sessionId: 'sess-rtu-001', projectId: 'proj-rtu' });
+  });
+
+  it('returns Ok with the updated UsageLedger aggregate', async () => {
+    const result = await svc.recordTokenUsage('sess-rtu-001', 100, 0.002);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBeInstanceOf(UsageLedger);
+    expect(result.value.records).toHaveLength(1);
+  });
+
+  it('splits tokens evenly between input and output', async () => {
+    const result = await svc.recordTokenUsage('sess-rtu-001', 100, 0.001);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const summary = result.value.summary();
+    expect(summary.totalInputTokens + summary.totalOutputTokens).toBe(100);
+  });
+
+  it('accumulates cost across multiple calls', async () => {
+    await svc.recordTokenUsage('sess-rtu-001', 100, 0.001);
+    const result = await svc.recordTokenUsage('sess-rtu-001', 200, 0.002);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.summary().totalCostUsd).toBeCloseTo(0.003);
+  });
+
+  it('returns Err when no open ledger exists for the session', async () => {
+    const result = await svc.recordTokenUsage('ghost-session', 50, 0.001);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('ghost-session');
+  });
+
+  it('returns Err when sessionId is empty', async () => {
+    const result = await svc.recordTokenUsage('', 50, 0.001);
+
+    expect(result.ok).toBe(false);
+  });
+});
+
+// ─── UsageApplicationService.getLedger() ─────────────────────────────────────
+
+describe('UsageApplicationService.getLedger()', () => {
+  let repo: InMemoryUsageLedgerRepository;
+  let svc: UsageApplicationService;
+
+  beforeEach(async () => {
+    repo = new InMemoryUsageLedgerRepository();
+    svc = new UsageApplicationService(repo, new DomainEventBus());
+    await svc.openLedger({ id: 'ledger-gl-001', sessionId: 'sess-gl-001', projectId: 'proj-gl' });
+    await svc.recordTokenUsage('sess-gl-001', 80, 0.0015);
+  });
+
+  it('returns Ok with a UsageLedger instance', async () => {
+    const result = await svc.getLedger('sess-gl-001');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBeInstanceOf(UsageLedger);
+  });
+
+  it('returned ledger has the correct sessionId', async () => {
+    const result = await svc.getLedger('sess-gl-001');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sessionId).toBe('sess-gl-001');
+  });
+
+  it('returned ledger reflects persisted records', async () => {
+    const result = await svc.getLedger('sess-gl-001');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.records).toHaveLength(1);
+  });
+
+  it('returns Err for an unknown sessionId', async () => {
+    const result = await svc.getLedger('no-such-session');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('no-such-session');
+  });
+
+  it('returns Err when sessionId is empty', async () => {
+    const result = await svc.getLedger('');
+
+    expect(result.ok).toBe(false);
+  });
+});
+
+// ─── UsageApplicationService.getTotalCost() ──────────────────────────────────
+
+describe('UsageApplicationService.getTotalCost()', () => {
+  let repo: InMemoryUsageLedgerRepository;
+  let svc: UsageApplicationService;
+
+  beforeEach(() => {
+    repo = new InMemoryUsageLedgerRepository();
+    svc = new UsageApplicationService(repo, new DomainEventBus());
+  });
+
+  it('returns Ok with 0 when no ledgers exist', async () => {
+    const result = await svc.getTotalCost();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBe(0);
+  });
+
+  it('sums costs across all ledgers', async () => {
+    await svc.openLedger({ id: 'ledger-tc-1', sessionId: 'sess-tc-1', projectId: 'proj-tc' });
+    await svc.recordUsage({ sessionId: 'sess-tc-1', record: RECORD_A });
+
+    await svc.openLedger({ id: 'ledger-tc-2', sessionId: 'sess-tc-2', projectId: 'proj-tc' });
+    await svc.recordUsage({ sessionId: 'sess-tc-2', record: RECORD_B });
+
+    const result = await svc.getTotalCost();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBeCloseTo(RECORD_A.costUsd + RECORD_B.costUsd);
+  });
+
+  it('includes cost from sealed ledgers', async () => {
+    await svc.openLedger({ id: 'ledger-tc-sealed', sessionId: 'sess-tc-sealed', projectId: 'proj-tc' });
+    await svc.recordUsage({ sessionId: 'sess-tc-sealed', record: RECORD_A });
+    await svc.sealLedger({ sessionId: 'sess-tc-sealed' });
+
+    // Sealed ledgers are excluded from getBySession but must be included in
+    // getTotalCost which uses listByDateRange (returns all, sealed or not).
+    // Note: getBySession only returns OPEN (unsealed) ledgers. Sealed ones
+    // remain in the store and are retrievable via listByDateRange.
+    const result = await svc.getTotalCost();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBeCloseTo(RECORD_A.costUsd);
+  });
+
+  it('is 0 when ledgers exist but have no records', async () => {
+    await svc.openLedger({ id: 'ledger-tc-empty', sessionId: 'sess-tc-empty', projectId: 'proj-tc' });
+
+    const result = await svc.getTotalCost();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toBe(0);
+  });
+});

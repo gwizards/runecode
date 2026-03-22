@@ -13,7 +13,7 @@ export {
   addTokenUsage,
   SessionAggregate,
 } from './types';
-export type { SessionId, ProjectId, TokenUsage, RawSession, SessionStatus } from './types';
+export type { SessionId, ProjectId, TokenUsage, RawTokenUsage, RawSession, SessionStatus } from './types';
 
 // Events
 export {

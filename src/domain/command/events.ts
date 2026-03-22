@@ -5,11 +5,17 @@ import type { DomainEvent } from '../shared/event-bus';
 import type { CommandId, CommandScope, SelectionMethod } from './types';
 
 export const COMMAND_EVENT_TYPES = {
-  COMMAND_REGISTERED: 'command/registered',
-  COMMAND_SELECTED:   'command/selected',
-  COMMAND_EXECUTED:   'command/executed',
-  COMMAND_DELETED:    'command/deleted',
+  COMMAND_REGISTERED: 'command/command.registered',
+  COMMAND_SELECTED:   'command/command.selected',
+  COMMAND_EXECUTED:   'command/command.executed',
+  COMMAND_DELETED:    'command/command.deleted',
 } as const;
+
+/**
+ * Alias for COMMAND_EVENT_TYPES — satisfies the DDD requirement for a
+ * `DOMAIN_EVENT_TYPES` export on every bounded context's events module.
+ */
+export const DOMAIN_EVENT_TYPES = COMMAND_EVENT_TYPES;
 
 export type CommandEventType = (typeof COMMAND_EVENT_TYPES)[keyof typeof COMMAND_EVENT_TYPES];
 

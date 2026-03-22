@@ -454,7 +454,7 @@ describe('Cross-domain bus isolation', () => {
 
     analyticsSvc.grantConsent('iso-2', 'proj-1');
 
-    const analyticsTypesOnSessionBus = sessionEvents.filter(e => e.type.startsWith('analytics.'));
+    const analyticsTypesOnSessionBus = sessionEvents.filter(e => e.type.startsWith('analytics/'));
     expect(analyticsTypesOnSessionBus).toHaveLength(0);
   });
 

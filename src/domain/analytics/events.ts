@@ -12,10 +12,10 @@ import type { DomainEvent } from '../shared/event-bus';
 // ─── Event type discriminators ────────────────────────────────────────────────
 
 export const ANALYTICS_EVENT_TYPES = {
-  CONSENT_GRANTED: 'analytics.consent.granted',
-  CONSENT_REVOKED: 'analytics.consent.revoked',
-  SESSION_TRACKED: 'analytics.session.tracked',
-  EVENT_CAPTURED: 'analytics.event.captured',
+  CONSENT_GRANTED: 'analytics/consent.granted',
+  CONSENT_REVOKED: 'analytics/consent.revoked',
+  SESSION_TRACKED: 'analytics/session.tracked',
+  EVENT_CAPTURED: 'analytics/event.captured',
 } as const;
 
 export type AnalyticsEventType =

@@ -1,7 +1,7 @@
 /**
- * Command bounded context — Repository interface and in-memory implementation.
+ * Command bounded context — Repository adapter (in-memory implementation).
  *
- * ICommandRepository is the domain-facing port.
+ * ICommandRepository is the domain-facing port; it lives in ./ports/.
  * InMemoryCommandRepository is the default adapter (suitable for tests and dev).
  *
  * Storage uses QuantizedSnapshotStore<RawCommandSnapshot, CommandId> for ~81%
@@ -14,28 +14,12 @@ import {
   CommandSnapshotQuantizer,
   QuantizedSnapshotStore,
 } from '../shared/quantization';
+import type { ICommandRepository } from './ports/ICommandRepository';
 
-// ─── Repository Interface ──────────────────────────────────────────────────
-
-export interface ICommandRepository {
-  /** Return the aggregate for the given id, or null if not found. */
-  getById(id: CommandId): Promise<SlashCommandEntry | null>;
-
-  /** Return the aggregate matching a full command string (e.g. "/project:optimize"), or null. */
-  getByFullCommand(fullCommand: string): Promise<SlashCommandEntry | null>;
-
-  /** Persist (upsert) an aggregate. */
-  save(command: SlashCommandEntry): Promise<void>;
-
-  /** Remove a command by id. No-op if not found. */
-  delete(id: CommandId): Promise<void>;
-
-  /** Return all commands whose scope matches the given value. */
-  listByScope(scope: CommandScope): Promise<SlashCommandEntry[]>;
-
-  /** Return all tracked commands regardless of scope. */
-  listAll(): Promise<SlashCommandEntry[]>;
-}
+// ─── Port re-export ────────────────────────────────────────────────────────
+// The interface lives in ./ports/ (canonical location). Re-exported here so
+// existing imports from this file continue to resolve without changes.
+export type { ICommandRepository } from './ports/ICommandRepository';
 
 // ─── In-Memory Implementation ──────────────────────────────────────────────
 

@@ -6,23 +6,27 @@
  *
  * All public methods return Result<T> and NEVER throw.
  * No browser APIs, localStorage, or Tauri imports.
+ * PostHog is abstracted behind IAnalyticsTracker — never imported directly here.
  */
 
 import type { DomainEventBus } from '../shared/event-bus';
 import { Ok, Err } from '../shared/result';
 import type { Result } from '../shared/result';
 import { toProjectId } from '../shared/project-id';
-import type { IConsentRepository } from './repository';
+import type { IConsentRepository } from './ports/IConsentRepository';
+import type { IAnalyticsTracker } from './ports/IAnalyticsTracker';
 import {
   ConsentAggregate,
   toConsentId,
   toAnalyticsSessionId,
-  type ConsentId,
   type AnalyticsSessionId,
   type ConsentStatus,
   type CapturedEvent,
 } from './types';
-import { makeEventCaptured } from './events';
+import {
+  makeEventCaptured,
+  makeSessionTracked,
+} from './events';
 
 // ─── In-memory event log ──────────────────────────────────────────────────────
 
@@ -35,14 +39,28 @@ export class AnalyticsApplicationService {
   constructor(
     private readonly repository: IConsentRepository,
     private readonly eventBus: DomainEventBus,
+    /**
+     * Optional analytics tracker port. When provided, session tracking and
+     * event capture are forwarded to the external service (e.g. PostHog).
+     * When absent the service operates in pure domain mode — events are
+     * recorded in the in-memory log and dispatched on the event bus only.
+     */
+    private readonly tracker?: IAnalyticsTracker,
   ) {}
 
   // ── Grant consent ───────────────────────────────────────────────────────────
 
+  /**
+   * Grant analytics consent for a session.
+   *
+   * @param rawSessionId - Session identifier (non-empty string).
+   * @param rawProjectId - Project identifier (non-empty string).
+   * @returns Ok(ConsentAggregate) on success; Err(message) on validation failure.
+   */
   grantConsent(
     rawSessionId: string,
     rawProjectId: string,
-  ): Result<ConsentId> {
+  ): Result<ConsentAggregate> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
       const projectId = toProjectId(rawProjectId);
@@ -56,7 +74,9 @@ export class AnalyticsApplicationService {
       consent.grant();
       this.persist(consent);
 
-      return Ok(consent.id);
+      this.tracker?.optIn();
+
+      return Ok(consent);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
     }
@@ -64,6 +84,12 @@ export class AnalyticsApplicationService {
 
   // ── Revoke consent ──────────────────────────────────────────────────────────
 
+  /**
+   * Revoke analytics consent identified by its ConsentId.
+   *
+   * @param rawConsentId - Consent record identifier.
+   * @returns Ok(void) on success; Err(message) if the record is not found.
+   */
   revokeConsent(rawConsentId: string): Result<void> {
     try {
       const consentId = toConsentId(rawConsentId);
@@ -74,6 +100,8 @@ export class AnalyticsApplicationService {
 
       consent.revoke();
       this.persist(consent);
+
+      this.tracker?.optOut();
 
       return Ok(undefined);
     } catch (err) {
@@ -99,26 +127,68 @@ export class AnalyticsApplicationService {
 
   // ── Track session ───────────────────────────────────────────────────────────
 
-  trackEvent(
+  /**
+   * Record that a session has started (or resumed).
+   * Silently no-ops when consent has not been granted for the session.
+   *
+   * @param rawSessionId - Session identifier.
+   * @param data - Arbitrary session metadata.
+   * @returns Ok(void) always (consent check is a silent drop, not an error).
+   */
+  trackSession(
     rawSessionId: string,
-    eventType: string,
-    payload: Record<string, unknown>,
+    data: Record<string, unknown> = {},
   ): Result<void> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
 
-      // Only capture if the session has granted consent.
       const consent = this.repository.findBySession(sessionId);
       if (consent === undefined || !consent.isGranted()) {
-        // Silently drop — not an error.
+        return Ok(undefined);
+      }
+
+      const projectId = consent.projectId;
+      this.eventBus.dispatch([
+        makeSessionTracked(consent.id, rawSessionId, projectId),
+      ]);
+
+      this.tracker?.trackSession(rawSessionId, data);
+
+      return Ok(undefined);
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // ── Capture event ───────────────────────────────────────────────────────────
+
+  /**
+   * Capture a named analytics event for a session.
+   * Silently no-ops when consent has not been granted for the session.
+   *
+   * @param rawSessionId - Session identifier.
+   * @param name - Event name.
+   * @param properties - Optional event properties.
+   * @returns Ok(void) always (consent check is a silent drop, not an error).
+   */
+  captureEvent(
+    rawSessionId: string,
+    name: string,
+    properties?: Record<string, unknown>,
+  ): Result<void> {
+    try {
+      const sessionId = toAnalyticsSessionId(rawSessionId);
+
+      const consent = this.repository.findBySession(sessionId);
+      if (consent === undefined || !consent.isGranted()) {
         return Ok(undefined);
       }
 
       const capturedAt = Date.now();
       const entry: CapturedEvent = {
         sessionId: rawSessionId,
-        eventType,
-        payload: { ...payload },
+        eventType: name,
+        payload: { ...(properties ?? {}) },
         capturedAt,
       };
 
@@ -127,13 +197,28 @@ export class AnalyticsApplicationService {
       capturedEventLog.set(sessionId, log);
 
       this.eventBus.dispatch([
-        makeEventCaptured(consent.id, rawSessionId, eventType),
+        makeEventCaptured(consent.id, rawSessionId, name),
       ]);
+
+      this.tracker?.captureEvent(name, properties);
 
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
     }
+  }
+
+  // ── Track event (legacy alias for captureEvent) ──────────────────────────────
+
+  /**
+   * @deprecated Use captureEvent() instead.
+   */
+  trackEvent(
+    rawSessionId: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+  ): Result<void> {
+    return this.captureEvent(rawSessionId, eventType, payload);
   }
 
   // ── Query events ────────────────────────────────────────────────────────────

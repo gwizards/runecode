@@ -13,7 +13,7 @@ import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
 import { toCommandId, SlashCommandEntry } from './types';
 import type { CommandScope, RawCommand, SelectionMethod } from './types';
-import type { ICommandRepository } from './repository';
+import type { ICommandRepository } from './ports/ICommandRepository';
 
 // ─── Query shapes ──────────────────────────────────────────────────────────
 
@@ -149,5 +149,86 @@ export class CommandApplicationService {
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
     }
+  }
+
+  // ── Convenience API ───────────────────────────────────────────────────────
+  //
+  // Simpler entry-points for callers that do not have a full RawCommand.
+  // Each delegates to the full-featured methods above.
+
+  /**
+   * Register a builtin slash command by name and description.
+   *
+   * Generates a synthetic id (name-derived) and constructs the minimal
+   * RawCommand required by the aggregate.  An optional `handler` string
+   * may be stored as the command's `content` field.
+   *
+   * @param name        - Command name (no whitespace, no '/').
+   * @param description - Human-readable description.
+   * @param handler     - Optional handler content / body string.
+   * @returns Result<SlashCommandEntry>
+   */
+  async register(
+    name: string,
+    description: string,
+    handler?: string,
+  ): Promise<Result<SlashCommandEntry>> {
+    const raw: RawCommand = {
+      id: `builtin-${name}`,
+      name,
+      full_command: `/${name}`,
+      scope: 'builtin',
+      namespace: undefined,
+      file_path: undefined,
+      content: handler ?? '',
+      description,
+      allowed_tools: [],
+      has_bash_commands: false,
+      has_file_references: false,
+      accepts_arguments: false,
+    };
+    return this.registerCommand(raw);
+  }
+
+  /**
+   * Execute a command by name (looks up by full_command "/<name>").
+   *
+   * Records a successful execution with a zero-duration placeholder and
+   * returns the updated aggregate.  Use `executeCommand(id, duration, success)`
+   * for full control over execution recording.
+   *
+   * @param name - The bare command name (without leading '/').
+   * @returns Result<SlashCommandEntry>
+   */
+  async execute(name: string): Promise<Result<SlashCommandEntry>> {
+    try {
+      const fullCommand = `/${name}`;
+      const command = await this.repo.getByFullCommand(fullCommand);
+      if (!command) return Err(`Command '${name}' not found`);
+      command.recordExecution(0, true);
+      await this.persist(command);
+      return Ok(command);
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /**
+   * Delete a command by id.  Alias for `deleteCommand` with a cleaner name.
+   *
+   * @param id - The CommandId string.
+   * @returns Result<void>
+   */
+  async delete(id: string): Promise<Result<void>> {
+    return this.deleteCommand(id);
+  }
+
+  /**
+   * Return all registered commands.  Alias for `listCommands({})`.
+   *
+   * @returns Result<SlashCommandEntry[]>
+   */
+  async listAll(): Promise<Result<SlashCommandEntry[]>> {
+    return this.listCommands({});
   }
 }

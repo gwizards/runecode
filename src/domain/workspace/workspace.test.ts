@@ -121,20 +121,22 @@ describe('WorkspaceApplicationService.openTab()', () => {
     collected.length = 0;
   });
 
-  it('returns Ok with a TabId on success', () => {
+  it('returns Ok with a WorkspaceAggregate on success', () => {
     const result = svc.openTab(workspaceId, '/src/main.ts', 'main.ts');
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(typeof result.value).toBe('string');
+    // Result is the updated aggregate; it must have the new tab
+    expect(result.value.tabCount).toBeGreaterThan(0);
   });
 
-  it('uses the provided rawTabId when supplied', () => {
+  it('uses the provided rawTabId when supplied — tab appears in aggregate', () => {
     const result = svc.openTab(workspaceId, '/src/index.ts', 'index.ts', 'my-tab-id');
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value).toBe('my-tab-id');
+    const tab = result.value.tabs.find(t => t.id === 'my-tab-id');
+    expect(tab).toBeDefined();
   });
 
   it('opening a tab with a duplicate tabId does not add a second tab', () => {
@@ -214,8 +216,8 @@ describe('WorkspaceApplicationService.closeTab()', () => {
     const r1 = svc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
     const r2 = svc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
     if (!r1.ok || !r2.ok) throw new Error('setup failed');
-    tabA = r1.value;
-    tabB = r2.value;
+    tabA = toTabId('tab-a');
+    tabB = toTabId('tab-b');
     collected.length = 0;
   });
 
@@ -314,8 +316,8 @@ describe('WorkspaceApplicationService.activateTab()', () => {
     const r1 = svc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
     const r2 = svc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
     if (!r1.ok || !r2.ok) throw new Error('setup failed');
-    tabA = r1.value;
-    tabB = r2.value;
+    tabA = toTabId('tab-a');
+    tabB = toTabId('tab-b');
     collected.length = 0;
   });
 
@@ -388,9 +390,9 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
     const r2 = svc.openTab(workspaceId, '/b.ts', 'b.ts', 'tab-b');
     const r3 = svc.openTab(workspaceId, '/c.ts', 'c.ts', 'tab-c');
     if (!r1.ok || !r2.ok || !r3.ok) throw new Error('setup failed');
-    tabA = r1.value;
-    tabB = r2.value;
-    tabC = r3.value;
+    tabA = toTabId('tab-a');
+    tabB = toTabId('tab-b');
+    tabC = toTabId('tab-c');
     collected.length = 0;
   });
 
@@ -469,7 +471,7 @@ describe('WorkspaceApplicationService.renameTab()', () => {
 
     const r1 = svc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-rename-a');
     if (!r1.ok) throw new Error('setup failed');
-    tabA = r1.value;
+    tabA = toTabId('tab-rename-a');
     collected.length = 0;
   });
 

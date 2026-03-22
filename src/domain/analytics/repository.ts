@@ -1,8 +1,9 @@
 /**
- * Analytics bounded context — Repository ports and in-memory adapters.
+ * Analytics bounded context — Repository port re-export and in-memory adapter.
  *
- * Ports (interfaces) define what the domain needs.
- * Adapters (classes) fulfil those ports with concrete storage strategies.
+ * The canonical port definition lives in ports/IConsentRepository.ts.
+ * This file re-exports it for backwards compatibility and houses the
+ * InMemoryConsentRepository adapter.
  *
  * No browser APIs, localStorage, or Tauri imports here.
  */
@@ -10,21 +11,11 @@
 import { ScalarQuantizer, QuantizedSnapshotStore, QuantizedBuffer } from '../shared/quantization';
 import type { ConsentId, RawConsent, AnalyticsSessionId, ConsentStatus } from './types';
 import { ConsentAggregate, toConsentId } from './types';
+import type { IConsentRepository } from './ports/IConsentRepository';
 
-// ─── Port ─────────────────────────────────────────────────────────────────────
+// ─── Port re-export ───────────────────────────────────────────────────────────
 
-export interface IConsentRepository {
-  findById(id: ConsentId): ConsentAggregate | undefined;
-  findBySession(sessionId: AnalyticsSessionId): ConsentAggregate | undefined;
-  save(consent: ConsentAggregate): void;
-  /**
-   * Semantic nearest-neighbour search over the int8-quantized numeric fields
-   * of stored consent snapshots.  Returns up to `topK` matches sorted by
-   * descending cosine similarity.  Returns [] when the backing store contains
-   * no int8-quantized dimensions (i.e. all fields are strings/uint).
-   */
-  searchByEmbedding(queryVector: number[], topK?: number): Array<{ consentId: ConsentId; score: number }>;
-}
+export type { IConsentRepository };
 
 // ─── ConsentSnapshotQuantizer ─────────────────────────────────────────────────
 

@@ -34,14 +34,17 @@ export type {
 } from './events';
 export {
   COMMAND_EVENT_TYPES,
+  DOMAIN_EVENT_TYPES,
   makeCommandRegistered,
   makeCommandSelected,
   makeCommandExecuted,
   makeCommandDeleted,
 } from './events';
 
-// ── Repository ─────────────────────────────────────────────────────────────
-export type { ICommandRepository } from './repository';
+// ── Repository port ────────────────────────────────────────────────────────
+export type { ICommandRepository } from './ports/ICommandRepository';
+
+// ── Repository adapter ─────────────────────────────────────────────────────
 export { InMemoryCommandRepository } from './repository';
 
 // ── Application service ────────────────────────────────────────────────────

@@ -529,3 +529,210 @@ describe('CommandApplicationService.getCommand()', () => {
     expect(result.error).toContain('no-such-id');
   });
 });
+
+// ─── CommandApplicationService.register() — convenience method ───────────────
+
+describe('CommandApplicationService.register()', () => {
+  let repo: InMemoryCommandRepository;
+  let bus: DomainEventBus;
+  let collected: DomainEvent[];
+  let svc: CommandApplicationService;
+
+  beforeEach(() => {
+    repo = new InMemoryCommandRepository();
+    ({ bus, collected } = makeCollectingBus());
+    svc = new CommandApplicationService(repo, bus);
+  });
+
+  it('registers a builtin command by name and description', async () => {
+    const result = await svc.register('help', 'Show help information');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.name).toBe('help');
+    expect(result.value.fullCommand).toBe('/help');
+    expect(result.value.scope).toBe('builtin');
+    expect(result.value.description).toBe('Show help information');
+  });
+
+  it('dispatches COMMAND_REGISTERED with the correct noun.verb event type', async () => {
+    const result = await svc.register('clear', 'Clear the terminal');
+
+    expect(result.ok).toBe(true);
+    const registered = collected.filter((e) => e.type === COMMAND_EVENT_TYPES.COMMAND_REGISTERED);
+    expect(registered).toHaveLength(1);
+    expect(registered[0].type).toBe('command/command.registered');
+  });
+
+  it('stores handler content when provided', async () => {
+    const result = await svc.register('build', 'Run build', 'npm run build');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.content).toBe('npm run build');
+  });
+
+  it('stores empty string content when handler is omitted', async () => {
+    const result = await svc.register('version', 'Show version');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.content).toBe('');
+  });
+
+  it('returns Err on duplicate registration', async () => {
+    await svc.register('help', 'First');
+    const result = await svc.register('help', 'Second');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('/help');
+  });
+
+  it('returns Err for invalid command name (contains whitespace)', async () => {
+    const result = await svc.register('my command', 'Invalid name');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('whitespace');
+  });
+});
+
+// ─── CommandApplicationService.execute() — convenience method ────────────────
+
+describe('CommandApplicationService.execute()', () => {
+  let repo: InMemoryCommandRepository;
+  let bus: DomainEventBus;
+  let collected: DomainEvent[];
+  let svc: CommandApplicationService;
+
+  beforeEach(async () => {
+    repo = new InMemoryCommandRepository();
+    ({ bus, collected } = makeCollectingBus());
+    svc = new CommandApplicationService(repo, bus);
+    await svc.register('help', 'Show help');
+    collected.length = 0;
+  });
+
+  it('returns Ok and dispatches COMMAND_EXECUTED for a known command name', async () => {
+    const result = await svc.execute('help');
+
+    expect(result.ok).toBe(true);
+    const executed = collected.filter((e) => e.type === COMMAND_EVENT_TYPES.COMMAND_EXECUTED);
+    expect(executed).toHaveLength(1);
+  });
+
+  it('returns the updated aggregate on success', async () => {
+    const result = await svc.execute('help');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.name).toBe('help');
+  });
+
+  it('returns Err for an unknown command name', async () => {
+    const result = await svc.execute('no-such-command');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('no-such-command');
+  });
+});
+
+// ─── CommandApplicationService.delete() — convenience method ─────────────────
+
+describe('CommandApplicationService.delete()', () => {
+  let repo: InMemoryCommandRepository;
+  let bus: DomainEventBus;
+  let collected: DomainEvent[];
+  let svc: CommandApplicationService;
+
+  beforeEach(async () => {
+    repo = new InMemoryCommandRepository();
+    ({ bus, collected } = makeCollectingBus());
+    svc = new CommandApplicationService(repo, bus);
+    await svc.register('help', 'Show help');
+    collected.length = 0;
+  });
+
+  it('returns Ok and dispatches COMMAND_DELETED', async () => {
+    const result = await svc.delete('builtin-help');
+
+    expect(result.ok).toBe(true);
+    const deleted = collected.filter((e) => e.type === COMMAND_EVENT_TYPES.COMMAND_DELETED);
+    expect(deleted).toHaveLength(1);
+  });
+
+  it('removes the command so subsequent listAll does not include it', async () => {
+    await svc.delete('builtin-help');
+    const listResult = await svc.listAll();
+
+    expect(listResult.ok).toBe(true);
+    if (!listResult.ok) return;
+    expect(listResult.value).toHaveLength(0);
+  });
+
+  it('returns Err for an unknown id', async () => {
+    const result = await svc.delete('nonexistent-id');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('nonexistent-id');
+  });
+});
+
+// ─── CommandApplicationService.listAll() — convenience method ────────────────
+
+describe('CommandApplicationService.listAll()', () => {
+  let repo: InMemoryCommandRepository;
+  let svc: CommandApplicationService;
+
+  beforeEach(async () => {
+    repo = new InMemoryCommandRepository();
+    svc = new CommandApplicationService(repo, new DomainEventBus());
+    await svc.register('help', 'Show help');
+    await svc.register('clear', 'Clear terminal');
+    await svc.register('version', 'Show version');
+  });
+
+  it('returns all registered commands', async () => {
+    const result = await svc.listAll();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(3);
+  });
+
+  it('returns an empty array when no commands are registered', async () => {
+    const emptyRepo = new InMemoryCommandRepository();
+    const emptySvc = new CommandApplicationService(emptyRepo, new DomainEventBus());
+
+    const result = await emptySvc.listAll();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(0);
+  });
+
+  it('returns Ok (never throws)', async () => {
+    const result = await svc.listAll();
+
+    expect(result.ok).toBe(true);
+  });
+});
+
+// ─── Event type naming convention ─────────────────────────────────────────────
+
+describe('COMMAND_EVENT_TYPES naming convention', () => {
+  it('uses command/noun.verb format for all event types', () => {
+    const nounVerbPattern = /^command\/[a-z]+\.[a-z]+$/;
+    for (const value of Object.values(COMMAND_EVENT_TYPES)) {
+      expect(value).toMatch(nounVerbPattern);
+    }
+  });
+
+  it('DOMAIN_EVENT_TYPES is the same reference as COMMAND_EVENT_TYPES', async () => {
+    const { DOMAIN_EVENT_TYPES } = await import('./events');
+    expect(DOMAIN_EVENT_TYPES).toBe(COMMAND_EVENT_TYPES);
+  });
+});

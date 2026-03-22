@@ -18,6 +18,7 @@ import {
   makeSwarmAgentAdded,
   makeSwarmAgentRemoved,
 } from '../domain-events';
+import { SwarmTopology } from '../value-objects/swarm-topology';
 
 export class RuFloSwarmAggregate {
   private _agents: RuFloAgent[];
@@ -25,7 +26,7 @@ export class RuFloSwarmAggregate {
 
   private constructor(
     private readonly _id: SwarmId,
-    private readonly _topology: string,
+    private readonly _topology: SwarmTopology,
     private readonly _maxAgents: number,
     private readonly _memoryNamespace: string,
     agents: RuFloAgent[],
@@ -37,7 +38,7 @@ export class RuFloSwarmAggregate {
 
   /**
    * Create a new swarm. Raises SwarmInitializedEvent.
-   * @throws if topology is empty or maxAgents < 1
+   * @throws if topology is invalid or maxAgents < 1
    */
   static create(params: {
     id: string;
@@ -46,7 +47,9 @@ export class RuFloSwarmAggregate {
     memoryNamespace?: string;
     agents?: RuFloAgent[];
   }): RuFloSwarmAggregate {
-    if (!params.topology.trim()) throw new Error('Swarm topology is required');
+    const topologyResult = SwarmTopology.create(params.topology);
+    if (!topologyResult.ok) throw new Error(topologyResult.error);
+
     const maxAgents = params.maxAgents ?? 15;
     if (maxAgents < 1) throw new Error('maxAgents must be at least 1');
 
@@ -54,20 +57,21 @@ export class RuFloSwarmAggregate {
     const swarmId = toSwarmId(params.id);
     const swarm = new RuFloSwarmAggregate(
       swarmId,
-      params.topology,
+      topologyResult.value,
       maxAgents,
       params.memoryNamespace ?? 'default',
       agents,
     );
 
     swarm._events.push(
-      makeSwarmInitialized(swarmId, params.topology, agents.length, maxAgents),
+      makeSwarmInitialized(swarmId, topologyResult.value.toString(), agents.length, maxAgents),
     );
     return swarm;
   }
 
   /**
    * Reconstitute from a raw snapshot (no event raised — state already exists).
+   * Accepts any string topology value for forward-compatibility with persisted data.
    */
   static fromSnapshot(params: {
     id: string;
@@ -76,9 +80,14 @@ export class RuFloSwarmAggregate {
     memoryNamespace?: string;
     agents?: RuFloAgent[];
   }): RuFloSwarmAggregate {
+    const topologyResult = SwarmTopology.create(params.topology);
+    // Fallback to 'hierarchical' for unknown persisted topology values to avoid
+    // breaking snapshot rehydration when topology names evolve.
+    const fallback = SwarmTopology.create('hierarchical') as { ok: true; value: SwarmTopology };
+    const topology = topologyResult.ok ? topologyResult.value : fallback.value;
     return new RuFloSwarmAggregate(
       toSwarmId(params.id),
-      params.topology,
+      topology,
       params.maxAgents ?? 15,
       params.memoryNamespace ?? 'default',
       params.agents ?? [],
@@ -88,7 +97,7 @@ export class RuFloSwarmAggregate {
   // ── Queries ───────────────────────────────────────────────────────────────
 
   get id(): SwarmId { return this._id; }
-  get topology(): string { return this._topology; }
+  get topology(): string { return this._topology.toString(); }
   get maxAgents(): number { return this._maxAgents; }
   get memoryNamespace(): string { return this._memoryNamespace; }
   get agents(): ReadonlyArray<RuFloAgent> { return this._agents; }
@@ -166,7 +175,7 @@ export class RuFloSwarmAggregate {
   } {
     return {
       id: this._id,
-      topology: this._topology,
+      topology: this._topology.toString(),
       maxAgents: this._maxAgents,
       memoryNamespace: this._memoryNamespace,
       agents: [...this._agents],

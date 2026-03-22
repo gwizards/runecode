@@ -1,8 +1,8 @@
 /**
- * Workspace bounded context — Repository interface and in-memory implementation.
+ * Workspace bounded context — Repository adapter and re-exports.
  *
- * IWorkspaceRepository defines the port; InMemoryWorkspaceRepository is the
- * default adapter used in the application and tests.
+ * IWorkspaceRepository is the hexagonal port defined in ports/workspace-repository.port.ts.
+ * InMemoryWorkspaceRepository is the default in-process adapter.
  *
  * No imports from React, Tauri, window, or localStorage are permitted here.
  */
@@ -14,22 +14,11 @@ import type { QuantizedBuffer } from '../shared/quantization';
 import { WorkspaceAggregate } from './types';
 import type { WorkspaceId, RawWorkspace, RawTab } from './types';
 import type { SessionId } from '../session/types';
+import type { IWorkspaceRepository } from './ports/workspace-repository.port';
 
-// ─── IWorkspaceRepository ─────────────────────────────────────────────────────
+// ─── IWorkspaceRepository (re-exported from ports/) ──────────────────────────
 
-export interface IWorkspaceRepository {
-  /** Find a workspace by its ID. Returns Err if not found. */
-  findById(id: WorkspaceId): Result<WorkspaceAggregate>;
-
-  /** Find a workspace by the owning session. Returns Err if none exists. */
-  findBySession(sessionId: SessionId): Result<WorkspaceAggregate>;
-
-  /** Persist (insert or update) a workspace aggregate. */
-  save(workspace: WorkspaceAggregate): Result<void>;
-
-  /** Remove a workspace by ID. No-op if not found. */
-  delete(id: WorkspaceId): Result<void>;
-}
+export type { IWorkspaceRepository } from './ports/workspace-repository.port';
 
 // ─── WorkspaceSnapshotQuantizer ───────────────────────────────────────────────
 

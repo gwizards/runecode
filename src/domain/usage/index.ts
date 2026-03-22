@@ -36,7 +36,10 @@ export {
   makeUsageLedgerSealed,
 } from './events';
 
-// ── Repository ─────────────────────────────────────────────────────────────
+// ── Repository port (canonical import path) ────────────────────────────────
+export type { IUsageRepository } from './ports';
+
+// ── Repository (full interface + in-memory adapter) ────────────────────────
 export type { IUsageLedgerRepository } from './repository';
 export { InMemoryUsageLedgerRepository } from './repository';
 

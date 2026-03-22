@@ -9,6 +9,7 @@ import {
   type SearchResult,
 } from './memory-store';
 import { recommendMode } from './quantization';
+import type { IRuFloEventListener } from './ports/i-ruflo-event-listener';
 // Persistence delegated to infrastructure layer — see src/infrastructure/
 import {
   loadPersistedMode,
@@ -17,6 +18,20 @@ import {
   restoreCalibration,
   checkAndMarkBackendInitialized,
 } from '../../infrastructure/persistence/ruflo-persistence';
+
+// ── Event listener port ───────────────────────────────────────────────────────
+// Injected by the infrastructure layer before the store is first used.
+// Call setRuFloEventListener() from the app bootstrap (e.g. main.tsx or the
+// Tauri adapter module) with a concrete IRuFloEventListener implementation.
+// If no listener is injected the store simply skips Tauri event subscriptions
+// (graceful degradation — useful in tests and web-only environments).
+
+let _eventListener: IRuFloEventListener | null = null;
+
+/** Register the concrete Tauri event listener adapter. */
+export function setRuFloEventListener(listener: IRuFloEventListener): void {
+  _eventListener = listener;
+}
 
 // ── Singleton quantized local memory cache ────────────────────────────────────
 // Used to cache embedding-like data locally with scalar/product quantization.
@@ -111,19 +126,20 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   setupListeners: async () => {
     if (get()._listenersSetup) return;
     set({ _listenersSetup: true });
+    if (!_eventListener) return; // no adapter injected — skip (tests / web-only)
     try {
-      const { listen } = await import('@tauri-apps/api/event');
-      await listen('ruflo-mcp-changed', () => {
+      const listener = _eventListener;
+      await listener.listen('ruflo-mcp-changed', () => {
         get().fetchInstallation();
       });
-      await listen('ruflo-memory-changed', () => {
+      await listener.listen('ruflo-memory-changed', () => {
         get().fetchMemoryStats();
       });
-      await listen('ruflo-project-changed', () => {
+      await listener.listen('ruflo-project-changed', () => {
         // project status refresh handled per-component with path
       });
     } catch {
-      // Tauri events not available (e.g., in test env) — silently skip
+      // Listener unavailable at runtime — silently skip
     }
   },
 

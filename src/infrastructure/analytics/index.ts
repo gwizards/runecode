@@ -7,4 +7,5 @@
 
 export * from './analytics-service';
 export * from './posthog-adapter';
+export * from './posthog-tracker';
 export * from './types';

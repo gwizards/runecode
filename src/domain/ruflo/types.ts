@@ -4,7 +4,7 @@ import type {
   RuFloAgent as ApiAgent,
   RuFloSwarmStatus,
   RuFloProjectStatus as ApiProjectStatus,
-} from '@/lib/api';
+} from './ports/IRuFloApiPort';
 
 // ─── Branded / Newtype IDs ────────────────────────────────────────────────────
 

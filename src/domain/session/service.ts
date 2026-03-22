@@ -9,7 +9,7 @@ import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
 import { SessionAggregate, toSessionId, toProjectId } from './types';
-import type { RawSession, TokenUsage } from './types';
+import type { RawSession, RawTokenUsage } from './types';
 import type { ISessionRepository } from './repository';
 
 export class SessionApplicationService {
@@ -90,7 +90,7 @@ export class SessionApplicationService {
 
   async updateTokenUsage(
     sessionId: string,
-    usage: Partial<TokenUsage>,
+    usage: RawTokenUsage,
   ): Promise<Result<void>> {
     try {
       const session = await this.repo.getSession(toSessionId(sessionId));

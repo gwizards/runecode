@@ -11,12 +11,15 @@ import type { TabId, WorkspaceId, RawTab } from './types';
 // ─── Event type discriminators ────────────────────────────────────────────────
 
 export const WORKSPACE_EVENT_TYPES = {
-  TAB_OPENED:     'workspace.tab.opened',
-  TAB_CLOSED:     'workspace.tab.closed',
-  TAB_ACTIVATED:  'workspace.tab.activated',
-  TABS_REORDERED: 'workspace.tabs.reordered',
-  TAB_RENAMED:    'workspace.tab.renamed',
+  TAB_OPENED:     'workspace/tab.opened',
+  TAB_CLOSED:     'workspace/tab.closed',
+  TAB_ACTIVATED:  'workspace/tab.activated',
+  TABS_REORDERED: 'workspace/tabs.reordered',
+  TAB_RENAMED:    'workspace/tab.renamed',
 } as const;
+
+/** Alias that matches the project-wide DOMAIN_EVENT_TYPES convention. */
+export const DOMAIN_EVENT_TYPES = WORKSPACE_EVENT_TYPES;
 
 export type WorkspaceEventType = typeof WORKSPACE_EVENT_TYPES[keyof typeof WORKSPACE_EVENT_TYPES];
 

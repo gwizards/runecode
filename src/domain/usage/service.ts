@@ -159,4 +159,75 @@ export class UsageApplicationService {
       return Err(err instanceof Error ? err.message : String(err));
     }
   }
+
+  /**
+   * Simplified facade: record token usage for a session without requiring
+   * a full RawUsageRecord. Derives a minimal record from the three scalar
+   * parameters and delegates to the existing open ledger for the session.
+   *
+   * @param sessionId - identifies the open ledger
+   * @param tokens    - total tokens (split evenly between input and output)
+   * @param costUsd   - cost in US dollars for this call
+   * @returns the updated UsageLedger aggregate
+   */
+  async recordTokenUsage(
+    sessionId: string,
+    tokens: number,
+    costUsd: number,
+  ): Promise<Result<UsageLedger>> {
+    try {
+      const sid    = toSessionId(sessionId);
+      const ledger = await this.repo.getBySession(sid);
+      if (!ledger) {
+        return Err(`No open ledger found for session '${sessionId}'`);
+      }
+      const half = Math.floor(tokens / 2);
+      ledger.addRecord({
+        model:        'unknown',
+        inputTokens:  half,
+        outputTokens: tokens - half,
+        costUsd,
+      });
+      await this.persist(ledger);
+      return Ok(ledger);
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /**
+   * Return the open (or sealed) UsageLedger aggregate for a session.
+   * Fails if no ledger exists for the session.
+   *
+   * @param sessionId - session whose ledger to retrieve
+   * @returns the UsageLedger aggregate (not just a summary)
+   */
+  async getLedger(sessionId: string): Promise<Result<UsageLedger>> {
+    try {
+      const sid    = toSessionId(sessionId);
+      const ledger = await this.repo.getBySession(sid);
+      if (!ledger) {
+        return Err(`No open ledger found for session '${sessionId}'`);
+      }
+      return Ok(ledger);
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /**
+   * Compute the sum of totalCostUsd across ALL persisted ledgers.
+   * Delegates to listByDateRange with no bounds to retrieve every ledger.
+   *
+   * @returns total cost in USD as a number
+   */
+  async getTotalCost(): Promise<Result<number>> {
+    try {
+      const ledgers = await this.repo.listByDateRange();
+      const total   = ledgers.reduce((sum, l) => sum + l.summary().totalCostUsd, 0);
+      return Ok(total);
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
+  }
 }

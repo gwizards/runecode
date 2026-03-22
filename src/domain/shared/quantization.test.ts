@@ -16,6 +16,9 @@ import { describe, it, expect } from 'vitest';
 import type { RawLiveAgent, AgentStatus } from '../agent/types';
 import type { RawMCPServer, ServerTransport, ServerStatusValue } from '../mcp/types';
 import type { RawProject } from '../project/types';
+import type { RawSession } from '../session/types';
+import type { RawCommandSnapshot } from '../command/types';
+import type { RawConsent } from '../analytics/types';
 import {
   quantizeScalar,
   dequantizeScalar,
@@ -26,12 +29,16 @@ import {
   AgentSnapshotQuantizer,
   MCPSnapshotQuantizer,
   ProjectSnapshotQuantizer,
+  SessionSnapshotQuantizer,
+  CommandSnapshotQuantizer,
+  AnalyticsSnapshotQuantizer,
+  WorkspaceSnapshotQuantizer,
   QuantizedSnapshotStore,
   QuantizedVectorStore,
   ScalarQuantizer,
   computeSavingsProjections,
 } from './quantization';
-import type { QuantizedBuffer } from './quantization';
+import type { QuantizedBuffer, RawWorkspace } from './quantization';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -708,5 +715,575 @@ describe('QuantizedVectorStore', () => {
     const store = new QuantizedVectorStore(64);
     store.addVector('v', new Float32Array(64).fill(1));
     expect(store.estimateBaselineFloat32Bytes()).toBe(store.estimateBytes() * 4);
+  });
+});
+
+// ─── Helpers for Session and Command tests ────────────────────────────────────
+
+function makeSession(overrides: Partial<RawSession> = {}): RawSession {
+  return {
+    id: 'sess-001',
+    projectId: 'proj-001',
+    status: 'running',
+    createdAt: '2024-05-01T12:00:00.000Z',
+    tokenUsage: {
+      inputTokens: 100,
+      outputTokens: 200,
+      costUsd: 0.01234,
+      cacheReadTokens: 50,
+      cacheCreationTokens: 75,
+    },
+    ...overrides,
+  };
+}
+
+function makeCommand(overrides: Partial<RawCommandSnapshot> = {}): RawCommandSnapshot {
+  return {
+    id: 'cmd-001',
+    name: 'test-cmd',
+    fullCommand: '/test-cmd',
+    scope: 'builtin',
+    namespace: undefined,
+    filePath: undefined,
+    content: 'echo hello',
+    description: undefined,
+    capabilities: {
+      hasBashCommands: false,
+      hasFileReferences: false,
+      acceptsArguments: false,
+      allowedTools: [],
+    },
+    registeredAt: 1_700_000_000_000,
+    ...overrides,
+  };
+}
+
+// ─── SessionSnapshotQuantizer ─────────────────────────────────────────────────
+
+describe('SessionSnapshotQuantizer', () => {
+  const q = new SessionSnapshotQuantizer();
+
+  it('round-trip: status "running" → decode → "running"', () => {
+    const original = makeSession({ status: 'running' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.status).toBe('running');
+  });
+
+  it('round-trip: status "completed" → decode → "completed"', () => {
+    const original = makeSession({ status: 'completed' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.status).toBe('completed');
+  });
+
+  it('round-trip: status "error" → decode → "error"', () => {
+    const original = makeSession({ status: 'error' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.status).toBe('error');
+  });
+
+  it('round-trip: status "idle" → decode → "idle"', () => {
+    const original = makeSession({ status: 'idle' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.status).toBe('idle');
+  });
+
+  it('round-trip: tokenUsage.inputTokens preserved', () => {
+    const original = makeSession({ tokenUsage: { inputTokens: 12345, outputTokens: 0, costUsd: 0, cacheReadTokens: 0, cacheCreationTokens: 0 } });
+    const restored = q.decode(q.encode(original));
+    expect(restored.tokenUsage?.inputTokens).toBe(12345);
+  });
+
+  it('round-trip: tokenUsage.outputTokens preserved', () => {
+    const original = makeSession({ tokenUsage: { inputTokens: 0, outputTokens: 67890, costUsd: 0, cacheReadTokens: 0, cacheCreationTokens: 0 } });
+    const restored = q.decode(q.encode(original));
+    expect(restored.tokenUsage?.outputTokens).toBe(67890);
+  });
+
+  it('round-trip: tokenUsage.costUsd preserved (e.g. 0.01234)', () => {
+    const original = makeSession({ tokenUsage: { inputTokens: 0, outputTokens: 0, costUsd: 0.01234, cacheReadTokens: 0, cacheCreationTokens: 0 } });
+    const restored = q.decode(q.encode(original));
+    expect(restored.tokenUsage?.costUsd).toBeCloseTo(0.01234, 8);
+  });
+
+  it('round-trip: id and projectId preserved', () => {
+    const original = makeSession({ id: 'my-session-id', projectId: 'my-project-id' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.id).toBe('my-session-id');
+    expect(restored.projectId).toBe('my-project-id');
+  });
+
+  it('round-trip: optional title preserved', () => {
+    const original = makeSession({ title: 'My Session Title' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.title).toBe('My Session Title');
+  });
+
+  it('round-trip: missing optional fields (title/updatedAt) → undefined in decoded result', () => {
+    const original: RawSession = { id: 'sess-no-opt', projectId: 'proj-001' };
+    const restored = q.decode(q.encode(original));
+    expect(restored.title).toBeUndefined();
+    expect(restored.updatedAt).toBeUndefined();
+  });
+
+  it('round-trip: cacheReadTokens and cacheCreationTokens preserved', () => {
+    const original = makeSession({ tokenUsage: { inputTokens: 0, outputTokens: 0, costUsd: 0, cacheReadTokens: 111, cacheCreationTokens: 222 } });
+    const restored = q.decode(q.encode(original));
+    expect(restored.tokenUsage?.cacheReadTokens).toBe(111);
+    expect(restored.tokenUsage?.cacheCreationTokens).toBe(222);
+  });
+
+  it('round-trip: max uint32 token values do not overflow', () => {
+    const maxUint32 = 0xFFFFFFFF; // 4294967295
+    const original = makeSession({
+      tokenUsage: {
+        inputTokens: maxUint32,
+        outputTokens: maxUint32,
+        costUsd: 0,
+        cacheReadTokens: maxUint32,
+        cacheCreationTokens: maxUint32,
+      },
+    });
+    const restored = q.decode(q.encode(original));
+    expect(restored.tokenUsage?.inputTokens).toBe(maxUint32);
+    expect(restored.tokenUsage?.outputTokens).toBe(maxUint32);
+    expect(restored.tokenUsage?.cacheReadTokens).toBe(maxUint32);
+    expect(restored.tokenUsage?.cacheCreationTokens).toBe(maxUint32);
+  });
+});
+
+// ─── CommandSnapshotQuantizer ─────────────────────────────────────────────────
+
+describe('CommandSnapshotQuantizer', () => {
+  const q = new CommandSnapshotQuantizer();
+
+  it('round-trip: scope "builtin" → decode → "builtin"', () => {
+    const original = makeCommand({ scope: 'builtin' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.scope).toBe('builtin');
+  });
+
+  it('round-trip: scope "user" → decode → "user"', () => {
+    const original = makeCommand({ scope: 'user' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.scope).toBe('user');
+  });
+
+  it('round-trip: scope "project" → decode → "project"', () => {
+    const original = makeCommand({ scope: 'project' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.scope).toBe('project');
+  });
+
+  it('round-trip: scope "skill" → decode → "skill"', () => {
+    const original = makeCommand({ scope: 'skill' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.scope).toBe('skill');
+  });
+
+  it('round-trip: id, name, fullCommand preserved', () => {
+    const original = makeCommand({ id: 'cmd-xyz', name: 'my-cmd', fullCommand: '/my-cmd arg' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.id).toBe('cmd-xyz');
+    expect(restored.name).toBe('my-cmd');
+    expect(restored.fullCommand).toBe('/my-cmd arg');
+  });
+
+  it('round-trip: description optional field preserved', () => {
+    const original = makeCommand({ description: 'A useful command' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.description).toBe('A useful command');
+  });
+
+  it('round-trip: filePath optional field preserved', () => {
+    const original = makeCommand({ scope: 'user', filePath: '/home/user/.claude/commands/test.md' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.filePath).toBe('/home/user/.claude/commands/test.md');
+  });
+
+  it('round-trip: allowedTools array preserved (JSON round-trip)', () => {
+    const original = makeCommand({
+      capabilities: {
+        hasBashCommands: true,
+        hasFileReferences: false,
+        acceptsArguments: false,
+        allowedTools: ['Bash', 'Read', 'Write'],
+      },
+    });
+    const restored = q.decode(q.encode(original));
+    expect(restored.capabilities.allowedTools).toEqual(['Bash', 'Read', 'Write']);
+  });
+
+  it('round-trip: capabilities bitmask — hasBashCommands=true preserved', () => {
+    const original = makeCommand({
+      capabilities: {
+        hasBashCommands: true,
+        hasFileReferences: false,
+        acceptsArguments: false,
+        allowedTools: ['Bash'],
+      },
+    });
+    const restored = q.decode(q.encode(original));
+    expect(restored.capabilities.hasBashCommands).toBe(true);
+    expect(restored.capabilities.hasFileReferences).toBe(false);
+    expect(restored.capabilities.acceptsArguments).toBe(false);
+  });
+
+  it('round-trip: capabilities bitmask — all flags true preserved', () => {
+    const original = makeCommand({
+      capabilities: {
+        hasBashCommands: true,
+        hasFileReferences: true,
+        acceptsArguments: true,
+        allowedTools: ['Bash', 'Read'],
+      },
+    });
+    const restored = q.decode(q.encode(original));
+    expect(restored.capabilities.hasBashCommands).toBe(true);
+    expect(restored.capabilities.hasFileReferences).toBe(true);
+    expect(restored.capabilities.acceptsArguments).toBe(true);
+  });
+
+  it('round-trip: capabilities bitmask — all flags false preserved', () => {
+    const original = makeCommand({
+      capabilities: {
+        hasBashCommands: false,
+        hasFileReferences: false,
+        acceptsArguments: false,
+        allowedTools: [],
+      },
+    });
+    const restored = q.decode(q.encode(original));
+    expect(restored.capabilities.hasBashCommands).toBe(false);
+    expect(restored.capabilities.hasFileReferences).toBe(false);
+    expect(restored.capabilities.acceptsArguments).toBe(false);
+  });
+
+  it('round-trip: namespace optional field preserved', () => {
+    const original = makeCommand({ namespace: 'my-namespace' });
+    const restored = q.decode(q.encode(original));
+    expect(restored.namespace).toBe('my-namespace');
+  });
+});
+
+// ─── Helpers for Analytics and Workspace tests ────────────────────────────────
+
+function makeConsent(overrides: Partial<RawConsent> = {}): RawConsent {
+  return {
+    id: 'consent-001',
+    sessionId: 'sess-001',
+    projectId: 'proj-001',
+    status: 'granted',
+    grantedAt: 1_700_000_000_000,
+    revokedAt: undefined,
+    ...overrides,
+  };
+}
+
+function makeWorkspace(overrides: Partial<RawWorkspace> = {}): RawWorkspace {
+  return {
+    workspaceId: 'ws-001',
+    sessionId: 'sess-001',
+    projectId: 'proj-001',
+    tabCount: 3,
+    activeTabIndex: 1,
+    ...overrides,
+  };
+}
+
+// ─── Quantizer savings projections ────────────────────────────────────────────
+
+describe('Quantizer savings projections', () => {
+  // ── computeSavingsProjections structural tests ─────────────────────────────
+
+  describe('computeSavingsProjections structure', () => {
+    it('returns an array with 4 rows for each record count', () => {
+      const result = computeSavingsProjections([100, 1000, 10_000]);
+      expect(result).toHaveLength(3);
+      for (const perCount of result) {
+        expect(perCount).toHaveLength(4);
+      }
+    });
+
+    it('each row has the required fields: recordCount, rawBytes, quantizedBytes, savedBytes, savingsPercent', () => {
+      const result = computeSavingsProjections([100, 1000, 10_000]);
+      for (const perCount of result) {
+        for (const row of perCount) {
+          // The SavingsProjection interface uses these field names:
+          expect(row).toHaveProperty('aggregateType');
+          expect(row).toHaveProperty('records');
+          expect(row).toHaveProperty('baselineBytes');
+          expect(row).toHaveProperty('quantizedBytes');
+          expect(row).toHaveProperty('savingBytes');
+          expect(row).toHaveProperty('savingPercent');
+        }
+      }
+    });
+
+    it('savingPercent is between 0 and 100 for all rows', () => {
+      const result = computeSavingsProjections([100, 1000, 10_000]);
+      for (const perCount of result) {
+        for (const row of perCount) {
+          expect(row.savingPercent).toBeGreaterThan(0);
+          expect(row.savingPercent).toBeLessThanOrEqual(100);
+        }
+      }
+    });
+
+    it('quantizedBytes is less than baselineBytes for all rows', () => {
+      const result = computeSavingsProjections([100, 1000, 10_000]);
+      for (const perCount of result) {
+        for (const row of perCount) {
+          expect(row.quantizedBytes).toBeLessThan(row.baselineBytes);
+        }
+      }
+    });
+
+    it('savingBytes equals baselineBytes minus quantizedBytes', () => {
+      const result = computeSavingsProjections([100, 1000, 10_000]);
+      for (const perCount of result) {
+        for (const row of perCount) {
+          expect(row.savingBytes).toBe(row.baselineBytes - row.quantizedBytes);
+        }
+      }
+    });
+  });
+
+  // ── AgentSnapshotQuantizer — estimateFixedBytes vs JSON ───────────────────
+
+  describe('AgentSnapshotQuantizer savings', () => {
+    const snapshot: RawLiveAgent = {
+      id: 'agent-bench-001',
+      name: 'BenchmarkAgent',
+      status: 'running',
+      tokenCount: 75_000,
+      startedAt: 1_700_000_000_000,
+      elapsedMs: 12_345,
+    };
+
+    it('estimateFixedBytes returns fewer bytes than JSON.stringify(snapshot).length', () => {
+      const store = new QuantizedSnapshotStore<RawLiveAgent, string>(new AgentSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const quantizedBytes = store.estimateFixedBytes();
+      const jsonBytes = JSON.stringify(snapshot).length;
+      expect(quantizedBytes).toBeLessThan(jsonBytes);
+    });
+
+    it('encode/decode preserves identity for AgentSnapshotQuantizer store', () => {
+      const store = new QuantizedSnapshotStore<RawLiveAgent, string>(new AgentSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const restored = store.get(snapshot.id);
+      expect(restored).toBeDefined();
+      expect(restored!.id).toBe(snapshot.id);
+      expect(restored!.name).toBe(snapshot.name);
+      expect(restored!.status).toBe(snapshot.status);
+      expect(restored!.tokenCount).toBe(snapshot.tokenCount);
+    });
+  });
+
+  // ── MCPSnapshotQuantizer — estimateFixedBytes vs JSON ─────────────────────
+
+  describe('MCPSnapshotQuantizer savings', () => {
+    const snapshot: RawMCPServer = {
+      id: 'mcp-bench-001',
+      name: 'BenchmarkMCPServer',
+      transport: 'sse',
+      status: 'connected',
+      enabled: true,
+      url: 'http://localhost:3000',
+    };
+
+    it('estimateFixedBytes returns fewer bytes than JSON.stringify(snapshot).length', () => {
+      const store = new QuantizedSnapshotStore<RawMCPServer, string>(new MCPSnapshotQuantizer());
+      store.set(snapshot.id!, snapshot);
+      const quantizedBytes = store.estimateFixedBytes();
+      const jsonBytes = JSON.stringify(snapshot).length;
+      expect(quantizedBytes).toBeLessThan(jsonBytes);
+    });
+
+    it('encode/decode preserves identity for MCPSnapshotQuantizer store', () => {
+      const store = new QuantizedSnapshotStore<RawMCPServer, string>(new MCPSnapshotQuantizer());
+      store.set(snapshot.id!, snapshot);
+      const restored = store.get(snapshot.id!);
+      expect(restored).toBeDefined();
+      expect(restored!.name).toBe(snapshot.name);
+      expect(restored!.transport).toBe(snapshot.transport);
+      expect(restored!.status).toBe(snapshot.status);
+      expect(restored!.enabled).toBe(snapshot.enabled);
+    });
+  });
+
+  // ── ProjectSnapshotQuantizer — estimateFixedBytes vs JSON ─────────────────
+
+  describe('ProjectSnapshotQuantizer savings', () => {
+    const snapshot: RawProject = {
+      id: 'proj-bench-001',
+      path: '/home/user/projects/benchmark',
+      name: 'BenchmarkProject',
+      createdAt: '2024-01-15T10:00:00.000Z',
+      lastOpenedAt: '2024-06-01T08:30:00.000Z',
+    };
+
+    it('estimateFixedBytes returns fewer bytes than JSON.stringify(snapshot).length', () => {
+      const store = new QuantizedSnapshotStore<RawProject, string>(new ProjectSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const quantizedBytes = store.estimateFixedBytes();
+      const jsonBytes = JSON.stringify(snapshot).length;
+      expect(quantizedBytes).toBeLessThan(jsonBytes);
+    });
+
+    it('encode/decode preserves identity for ProjectSnapshotQuantizer store', () => {
+      const store = new QuantizedSnapshotStore<RawProject, string>(new ProjectSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const restored = store.get(snapshot.id);
+      expect(restored).toBeDefined();
+      expect(restored!.id).toBe(snapshot.id);
+      expect(restored!.path).toBe(snapshot.path);
+      expect(restored!.name).toBe(snapshot.name);
+    });
+  });
+
+  // ── SessionSnapshotQuantizer — estimateFixedBytes vs JSON ─────────────────
+
+  describe('SessionSnapshotQuantizer savings', () => {
+    const snapshot: RawSession = {
+      id: 'sess-bench-001',
+      projectId: 'proj-bench-001',
+      title: 'Benchmark Session',
+      status: 'running',
+      createdAt: '2024-05-01T12:00:00.000Z',
+      updatedAt: '2024-05-01T13:00:00.000Z',
+      tokenUsage: {
+        inputTokens: 5_000,
+        outputTokens: 3_000,
+        costUsd: 0.025,
+        cacheReadTokens: 1_000,
+        cacheCreationTokens: 500,
+      },
+    };
+
+    it('estimateFixedBytes returns fewer bytes than JSON.stringify(snapshot).length', () => {
+      const store = new QuantizedSnapshotStore<RawSession, string>(new SessionSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const quantizedBytes = store.estimateFixedBytes();
+      const jsonBytes = JSON.stringify(snapshot).length;
+      expect(quantizedBytes).toBeLessThan(jsonBytes);
+    });
+
+    it('encode/decode preserves identity for SessionSnapshotQuantizer store', () => {
+      const store = new QuantizedSnapshotStore<RawSession, string>(new SessionSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const restored = store.get(snapshot.id);
+      expect(restored).toBeDefined();
+      expect(restored!.id).toBe(snapshot.id);
+      expect(restored!.projectId).toBe(snapshot.projectId);
+      expect(restored!.status).toBe(snapshot.status);
+      expect(restored!.tokenUsage?.inputTokens).toBe(5_000);
+    });
+  });
+
+  // ── CommandSnapshotQuantizer — estimateFixedBytes vs JSON ─────────────────
+
+  describe('CommandSnapshotQuantizer savings', () => {
+    const snapshot: RawCommandSnapshot = {
+      id: 'cmd-bench-001',
+      name: 'benchmark-cmd',
+      fullCommand: '/benchmark-cmd --flag value',
+      scope: 'user',
+      namespace: 'bench',
+      filePath: '/home/user/.claude/commands/benchmark.md',
+      content: 'Run the benchmark suite with comprehensive coverage',
+      description: 'Execute benchmark tests across all domains',
+      capabilities: {
+        hasBashCommands: true,
+        hasFileReferences: true,
+        acceptsArguments: true,
+        allowedTools: ['Bash', 'Read', 'Write', 'Grep'],
+      },
+      registeredAt: 1_700_000_000_000,
+    };
+
+    it('estimateFixedBytes returns fewer bytes than JSON.stringify(snapshot).length', () => {
+      const store = new QuantizedSnapshotStore<RawCommandSnapshot, string>(new CommandSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const quantizedBytes = store.estimateFixedBytes();
+      const jsonBytes = JSON.stringify(snapshot).length;
+      expect(quantizedBytes).toBeLessThan(jsonBytes);
+    });
+
+    it('encode/decode preserves identity for CommandSnapshotQuantizer store', () => {
+      const store = new QuantizedSnapshotStore<RawCommandSnapshot, string>(new CommandSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const restored = store.get(snapshot.id);
+      expect(restored).toBeDefined();
+      expect(restored!.id).toBe(snapshot.id);
+      expect(restored!.name).toBe(snapshot.name);
+      expect(restored!.scope).toBe(snapshot.scope);
+      expect(restored!.capabilities.hasBashCommands).toBe(true);
+      expect(restored!.capabilities.allowedTools).toEqual(['Bash', 'Read', 'Write', 'Grep']);
+    });
+  });
+
+  // ── AnalyticsSnapshotQuantizer — estimateFixedBytes vs JSON ───────────────
+
+  describe('AnalyticsSnapshotQuantizer savings', () => {
+    const snapshot = makeConsent({
+      id: 'consent-bench-001',
+      sessionId: 'sess-bench-001',
+      projectId: 'proj-bench-001',
+      status: 'granted',
+      grantedAt: 1_700_000_000_000,
+      revokedAt: undefined,
+    });
+
+    it('estimateFixedBytes returns fewer bytes than JSON.stringify(snapshot).length', () => {
+      const store = new QuantizedSnapshotStore<RawConsent, string>(new AnalyticsSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const quantizedBytes = store.estimateFixedBytes();
+      const jsonBytes = JSON.stringify(snapshot).length;
+      expect(quantizedBytes).toBeLessThan(jsonBytes);
+    });
+
+    it('encode/decode preserves identity for AnalyticsSnapshotQuantizer store', () => {
+      const store = new QuantizedSnapshotStore<RawConsent, string>(new AnalyticsSnapshotQuantizer());
+      store.set(snapshot.id, snapshot);
+      const restored = store.get(snapshot.id);
+      expect(restored).toBeDefined();
+      expect(restored!.id).toBe(snapshot.id);
+      expect(restored!.sessionId).toBe(snapshot.sessionId);
+      expect(restored!.projectId).toBe(snapshot.projectId);
+      expect(restored!.status).toBe(snapshot.status);
+    });
+  });
+
+  // ── WorkspaceSnapshotQuantizer — estimateFixedBytes vs JSON ───────────────
+
+  describe('WorkspaceSnapshotQuantizer savings', () => {
+    const snapshot = makeWorkspace({
+      workspaceId: 'ws-bench-001',
+      sessionId: 'sess-bench-001',
+      projectId: 'proj-bench-001',
+      tabCount: 7,
+      activeTabIndex: 2,
+    });
+
+    it('estimateFixedBytes returns fewer bytes than JSON.stringify(snapshot).length', () => {
+      const store = new QuantizedSnapshotStore<RawWorkspace, string>(new WorkspaceSnapshotQuantizer());
+      store.set(snapshot.workspaceId, snapshot);
+      const quantizedBytes = store.estimateFixedBytes();
+      const jsonBytes = JSON.stringify(snapshot).length;
+      expect(quantizedBytes).toBeLessThan(jsonBytes);
+    });
+
+    it('encode/decode preserves identity for WorkspaceSnapshotQuantizer store', () => {
+      const store = new QuantizedSnapshotStore<RawWorkspace, string>(new WorkspaceSnapshotQuantizer());
+      store.set(snapshot.workspaceId, snapshot);
+      const restored = store.get(snapshot.workspaceId);
+      expect(restored).toBeDefined();
+      expect(restored!.workspaceId).toBe(snapshot.workspaceId);
+      expect(restored!.sessionId).toBe(snapshot.sessionId);
+      expect(restored!.projectId).toBe(snapshot.projectId);
+      expect(restored!.tabCount).toBe(snapshot.tabCount);
+      expect(restored!.activeTabIndex).toBe(snapshot.activeTabIndex);
+    });
   });
 });

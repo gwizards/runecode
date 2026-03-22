@@ -7,6 +7,7 @@
  */
 
 import type { DomainEvent } from '../shared/event-bus';
+import { Ok, Err, type Result } from '../shared/result';
 import {
   makeSessionCreated,
   makeOutputAppended,
@@ -39,32 +40,98 @@ export function toProjectId(id: string): ProjectId {
 
 // ─── Value Object: TokenUsage ─────────────────────────────────────────────────
 
-export interface TokenUsage {
-  readonly inputTokens: number;
-  readonly outputTokens: number;
-  readonly costUsd: number;
-  readonly cacheReadTokens: number;
-  readonly cacheCreationTokens: number;
+/** Plain data shape for partial token usage updates and persistence serialization. */
+export type RawTokenUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+};
+
+export class TokenUsage {
+  private constructor(
+    readonly inputTokens: number,
+    readonly outputTokens: number,
+    readonly costUsd: number,
+    readonly cacheReadTokens: number,
+    readonly cacheCreationTokens: number,
+  ) {}
+
+  static create(raw: {
+    inputTokens?: number;
+    outputTokens?: number;
+    costUsd?: number;
+    cacheReadTokens?: number;
+    cacheCreationTokens?: number;
+  }): Result<TokenUsage> {
+    const inputTokens = raw.inputTokens ?? 0;
+    const outputTokens = raw.outputTokens ?? 0;
+    const costUsd = raw.costUsd ?? 0;
+    const cacheReadTokens = raw.cacheReadTokens ?? 0;
+    const cacheCreationTokens = raw.cacheCreationTokens ?? 0;
+    if (inputTokens < 0) return Err('inputTokens cannot be negative');
+    if (outputTokens < 0) return Err('outputTokens cannot be negative');
+    if (costUsd < 0) return Err('costUsd cannot be negative');
+    return Ok(new TokenUsage(inputTokens, outputTokens, costUsd, cacheReadTokens, cacheCreationTokens));
+  }
+
+  static empty(): TokenUsage {
+    return new TokenUsage(0, 0, 0, 0, 0);
+  }
+
+  add(other: TokenUsage): TokenUsage {
+    return new TokenUsage(
+      this.inputTokens + other.inputTokens,
+      this.outputTokens + other.outputTokens,
+      this.costUsd + other.costUsd,
+      this.cacheReadTokens + other.cacheReadTokens,
+      this.cacheCreationTokens + other.cacheCreationTokens,
+    );
+  }
+
+  toPlain(): {
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+  } {
+    return {
+      inputTokens: this.inputTokens,
+      outputTokens: this.outputTokens,
+      costUsd: this.costUsd,
+      cacheReadTokens: this.cacheReadTokens,
+      cacheCreationTokens: this.cacheCreationTokens,
+    };
+  }
+
+  /**
+   * Internal helper used by addTokenUsage(). Adds a partial raw update without
+   * re-validating the base (which is already a valid VO).
+   */
+  static addPartial(
+    base: TokenUsage,
+    delta: RawTokenUsage,
+  ): TokenUsage {
+    return new TokenUsage(
+      base.inputTokens + (delta.inputTokens ?? 0),
+      base.outputTokens + (delta.outputTokens ?? 0),
+      base.costUsd + (delta.costUsd ?? 0),
+      base.cacheReadTokens + (delta.cacheReadTokens ?? 0),
+      base.cacheCreationTokens + (delta.cacheCreationTokens ?? 0),
+    );
+  }
 }
 
+/** Backward-compatible helper — returns an empty TokenUsage VO instance. */
 export function emptyTokenUsage(): TokenUsage {
-  return {
-    inputTokens: 0,
-    outputTokens: 0,
-    costUsd: 0,
-    cacheReadTokens: 0,
-    cacheCreationTokens: 0,
-  };
+  return TokenUsage.empty();
 }
 
-export function addTokenUsage(a: TokenUsage, b: Partial<TokenUsage>): TokenUsage {
-  return {
-    inputTokens: a.inputTokens + (b.inputTokens ?? 0),
-    outputTokens: a.outputTokens + (b.outputTokens ?? 0),
-    costUsd: a.costUsd + (b.costUsd ?? 0),
-    cacheReadTokens: a.cacheReadTokens + (b.cacheReadTokens ?? 0),
-    cacheCreationTokens: a.cacheCreationTokens + (b.cacheCreationTokens ?? 0),
-  };
+/** Backward-compatible helper — adds a partial raw update to an existing TokenUsage VO. */
+export function addTokenUsage(a: TokenUsage, b: RawTokenUsage): TokenUsage {
+  return TokenUsage.addPartial(a, b);
 }
 
 // ─── Raw shape (mirrors api.ts Session) ──────────────────────────────────────
@@ -77,7 +144,7 @@ export interface RawSession {
   updatedAt?: string;
   /** 'running' | 'completed' | 'error' | 'idle' */
   status?: string;
-  tokenUsage?: Partial<TokenUsage>;
+  tokenUsage?: RawTokenUsage;
 }
 
 // ─── Terminal statuses ────────────────────────────────────────────────────────
@@ -206,7 +273,7 @@ export class SessionAggregate {
     this._events.push(makeSessionFailed(this.id, reason));
   }
 
-  updateTokenUsage(usage: Partial<TokenUsage>): void {
+  updateTokenUsage(usage: RawTokenUsage): void {
     this._tokenUsage = addTokenUsage(this._tokenUsage, usage);
     this._events.push(makeTokenUsageUpdated(this.id, this._tokenUsage));
   }
@@ -222,7 +289,7 @@ export class SessionAggregate {
   }
 
   get tokenUsage(): TokenUsage {
-    return { ...this._tokenUsage };
+    return this._tokenUsage;
   }
 
   get output(): ReadonlyArray<string> {
@@ -246,7 +313,7 @@ export class SessionAggregate {
       title: this._title,
       createdAt: new Date(this.createdAt).toISOString(),
       status: this._status,
-      tokenUsage: { ...this._tokenUsage },
+      tokenUsage: this._tokenUsage.toPlain(),
     };
   }
 }

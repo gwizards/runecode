@@ -65,7 +65,10 @@ export interface SessionStoreState {
   removeActiveSkill(skill: string): void;
   clearActiveSkills(): void;
 
-  // Live usage actions
+  // Persisted token usage — delegates to SessionApplicationService
+  updateTokenUsage(id: string, usage: { inputTokens?: number; outputTokens?: number; costUsd?: number; cacheReadTokens?: number; cacheCreationTokens?: number }): Promise<void>;
+
+  // Live usage actions (ephemeral UI display only — not persisted)
   updateLiveUsage(delta: { inputTokens?: number; outputTokens?: number; costUsd?: number }): void;
   resetLiveUsage(): void;
 }
@@ -234,7 +237,28 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
     set({ activeSkills: [] });
   },
 
-  // ── Live usage tracking ────────────────────────────────────────────────────
+  // ── Persist token usage to aggregate via service ──────────────────────────
+
+  async updateTokenUsage(
+    id: string,
+    usage: { inputTokens?: number; outputTokens?: number; costUsd?: number; cacheReadTokens?: number; cacheCreationTokens?: number },
+  ): Promise<void> {
+    const result = await _service.updateTokenUsage(id, usage);
+    if (!result.ok) {
+      set({ error: result.error });
+      return;
+    }
+    const fetched = await _service.getSession(id);
+    if (fetched.ok) {
+      set(state => ({
+        sessions: state.sessions.map(s =>
+          s.id === id ? fetched.value : s,
+        ),
+      }));
+    }
+  },
+
+  // ── Live usage tracking (ephemeral UI display only) ────────────────────────
 
   updateLiveUsage(delta: { inputTokens?: number; outputTokens?: number; costUsd?: number }): void {
     set(state => ({

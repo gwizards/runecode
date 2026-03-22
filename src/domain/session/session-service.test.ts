@@ -11,7 +11,7 @@ import type { DomainEvent } from '../shared/event-bus';
 import { SessionApplicationService } from './service';
 import { InMemorySessionRepository } from './repository';
 import { SESSION_EVENT_TYPES } from './events';
-import { toSessionId, toProjectId } from './types';
+import { toSessionId, toProjectId, TokenUsage } from './types';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -462,5 +462,66 @@ describe('SessionApplicationService.listSessions()', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatch(/ProjectId cannot be empty/i);
+  });
+});
+
+// ─── TokenUsage VO — negative validation ─────────────────────────────────────
+
+describe('TokenUsage.create() — negative field validation', () => {
+  it('returns Err when inputTokens is negative', () => {
+    const result = TokenUsage.create({ inputTokens: -1 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/inputTokens cannot be negative/i);
+  });
+
+  it('returns Err when outputTokens is negative', () => {
+    const result = TokenUsage.create({ outputTokens: -5 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/outputTokens cannot be negative/i);
+  });
+
+  it('returns Err when costUsd is negative', () => {
+    const result = TokenUsage.create({ costUsd: -0.01 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/costUsd cannot be negative/i);
+  });
+
+  it('returns Ok for all-zero values', () => {
+    const result = TokenUsage.create({});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.inputTokens).toBe(0);
+    expect(result.value.outputTokens).toBe(0);
+    expect(result.value.costUsd).toBe(0);
+  });
+
+  it('returns Ok for valid positive values and exposes them on the instance', () => {
+    const result = TokenUsage.create({
+      inputTokens: 100,
+      outputTokens: 50,
+      costUsd: 0.005,
+      cacheReadTokens: 10,
+      cacheCreationTokens: 3,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.inputTokens).toBe(100);
+    expect(result.value.outputTokens).toBe(50);
+    expect(result.value.costUsd).toBeCloseTo(0.005);
+    expect(result.value.cacheReadTokens).toBe(10);
+    expect(result.value.cacheCreationTokens).toBe(3);
+  });
+
+  it('add() combines two TokenUsage VOs correctly', () => {
+    const a = TokenUsage.create({ inputTokens: 10, outputTokens: 5 });
+    const b = TokenUsage.create({ inputTokens: 20, costUsd: 0.003 });
+    if (!a.ok || !b.ok) throw new Error('setup failed');
+    const sum = a.value.add(b.value);
+    expect(sum.inputTokens).toBe(30);
+    expect(sum.outputTokens).toBe(5);
+    expect(sum.costUsd).toBeCloseTo(0.003);
   });
 });

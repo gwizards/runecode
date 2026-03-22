@@ -12,7 +12,7 @@ import { create } from 'zustand';
 import { DomainEventBus } from '../shared/event-bus';
 import { InMemoryConsentRepository } from './repository';
 import { AnalyticsApplicationService } from './service';
-import type { ConsentStatus, CapturedEvent, ConsentId } from './types';
+import type { ConsentStatus, CapturedEvent, ConsentId, ConsentAggregate } from './types';
 import type { Result } from '../shared/result';
 
 // ─── Bootstrap singletons ─────────────────────────────────────────────────────
@@ -34,9 +34,16 @@ interface AnalyticsStoreState {
   error: string | null;
 
   // ── Actions ──
-  grantConsent(sessionId: string, projectId: string): Promise<Result<ConsentId>>;
+  grantConsent(sessionId: string, projectId: string): Promise<Result<ConsentAggregate>>;
   revokeConsent(consentId: string): Promise<Result<void>>;
   refreshStatus(consentId: string): void;
+  captureEvent(
+    sessionId: string,
+    name: string,
+    properties?: Record<string, unknown>,
+  ): Result<void>;
+  trackSession(sessionId: string, data?: Record<string, unknown>): Result<void>;
+  /** @deprecated Use captureEvent() instead. */
   trackEvent(
     sessionId: string,
     eventType: string,
@@ -57,10 +64,10 @@ export const useAnalyticsStore = create<AnalyticsStoreState>((set, _get) => ({
     set({ loading: true, error: null });
     const result = _service.grantConsent(sessionId, projectId);
     if (result.ok) {
-      const statusResult = _service.getConsentStatus(result.value);
+      const aggregate = result.value;
       set({
-        activeConsentId: result.value,
-        consentStatus: statusResult.ok ? statusResult.value : null,
+        activeConsentId: aggregate.id,
+        consentStatus: aggregate.status,
         loading: false,
       });
     } else {
@@ -89,6 +96,14 @@ export const useAnalyticsStore = create<AnalyticsStoreState>((set, _get) => ({
     if (result.ok) {
       set({ consentStatus: result.value });
     }
+  },
+
+  captureEvent: (sessionId, name, properties) => {
+    return _service.captureEvent(sessionId, name, properties);
+  },
+
+  trackSession: (sessionId, data) => {
+    return _service.trackSession(sessionId, data);
   },
 
   trackEvent: (sessionId, eventType, payload) => {

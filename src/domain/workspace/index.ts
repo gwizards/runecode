@@ -10,7 +10,7 @@ export type { TabId, WorkspaceId, RawTab, RawWorkspace } from './types';
 export { toTabId, toWorkspaceId, TabRecord, WorkspaceAggregate } from './types';
 
 // Events
-export { WORKSPACE_EVENT_TYPES } from './events';
+export { WORKSPACE_EVENT_TYPES, DOMAIN_EVENT_TYPES } from './events';
 export type {
   WorkspaceEventType,
   WorkspaceEvent,
@@ -21,8 +21,10 @@ export type {
   TabRenamedEvent,
 } from './events';
 
-// Repository
-export type { IWorkspaceRepository } from './repository';
+// Repository port (hexagonal architecture interface)
+export type { IWorkspaceRepository } from './ports/workspace-repository.port';
+
+// Repository adapter
 export { InMemoryWorkspaceRepository, seed } from './repository';
 
 // Application Service

@@ -10,63 +10,70 @@ import type { DomainEvent } from '../shared/event-bus';
 
 // ─── Event Type Constants ─────────────────────────────────────────────────────
 
-export const DOMAIN_EVENT_TYPES = {
-  SWARM_INITIALIZED: 'ruflo.SwarmInitialized',
-  SWARM_AGENT_ADDED: 'ruflo.SwarmAgentAdded',
-  SWARM_AGENT_REMOVED: 'ruflo.SwarmAgentRemoved',
-  INSTALLATION_COMPLETED: 'ruflo.InstallationCompleted',
-  INSTALLATION_FAILED: 'ruflo.InstallationFailed',
-  MCP_ACTIVATED: 'ruflo.McpActivated',
-  MEMORY_BACKEND_CHANGED: 'ruflo.MemoryBackendChanged',
-  PROJECT_INITIALIZED: 'ruflo.ProjectInitialized',
+export const RUFLO_EVENT_TYPES = {
+  SWARM_INITIALIZED: 'ruflo/swarm.initialized',
+  SWARM_AGENT_ADDED: 'ruflo/swarm.agent-added',
+  SWARM_AGENT_REMOVED: 'ruflo/swarm.agent-removed',
+  INSTALLATION_COMPLETED: 'ruflo/installation.completed',
+  INSTALLATION_FAILED: 'ruflo/installation.failed',
+  MCP_ACTIVATED: 'ruflo/mcp.activated',
+  MEMORY_BACKEND_CHANGED: 'ruflo/memory.backend-changed',
+  PROJECT_INITIALIZED: 'ruflo/project.initialized',
 } as const;
 
-export type RuFloDomainEventType = typeof DOMAIN_EVENT_TYPES[keyof typeof DOMAIN_EVENT_TYPES];
+/**
+ * Backward-compatible alias — existing consumers that imported DOMAIN_EVENT_TYPES
+ * from this module will continue to work. New code should import RUFLO_EVENT_TYPES.
+ * @deprecated Use RUFLO_EVENT_TYPES instead.
+ */
+export const DOMAIN_EVENT_TYPES = RUFLO_EVENT_TYPES;
+
+export type RuFloDomainEventType = typeof RUFLO_EVENT_TYPES[keyof typeof RUFLO_EVENT_TYPES];
 
 // ─── Concrete Domain Events ────────────────────────────────────────────────────
 
 export interface SwarmInitializedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.SWARM_INITIALIZED;
+  readonly type: typeof RUFLO_EVENT_TYPES.SWARM_INITIALIZED;
   readonly topology: string;
   readonly agentCount: number;
   readonly maxAgents: number;
 }
 
 export interface SwarmAgentAddedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.SWARM_AGENT_ADDED;
+  readonly type: typeof RUFLO_EVENT_TYPES.SWARM_AGENT_ADDED;
   readonly agentId: string;
   readonly agentType: string;
 }
 
 export interface SwarmAgentRemovedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.SWARM_AGENT_REMOVED;
+  readonly type: typeof RUFLO_EVENT_TYPES.SWARM_AGENT_REMOVED;
   readonly agentId: string;
 }
 
 export interface InstallationCompletedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.INSTALLATION_COMPLETED;
+  readonly type: typeof RUFLO_EVENT_TYPES.INSTALLATION_COMPLETED;
   readonly version: string;
   readonly isSupported: boolean;
 }
 
 export interface InstallationFailedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.INSTALLATION_FAILED;
+  readonly type: typeof RUFLO_EVENT_TYPES.INSTALLATION_FAILED;
   readonly reason: string;
 }
 
 export interface McpActivatedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.MCP_ACTIVATED;
+  readonly type: typeof RUFLO_EVENT_TYPES.MCP_ACTIVATED;
   readonly namespace: string;
 }
 
 export interface MemoryBackendChangedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.MEMORY_BACKEND_CHANGED;
+  readonly type: typeof RUFLO_EVENT_TYPES.MEMORY_BACKEND_CHANGED;
   readonly newBackend: 'agentdb' | 'hnsw' | 'hybrid';
   readonly previousBackend: string;
 }
 
 export interface ProjectInitializedEvent extends DomainEvent {
-  readonly type: typeof DOMAIN_EVENT_TYPES.PROJECT_INITIALIZED;
+  readonly type: typeof RUFLO_EVENT_TYPES.PROJECT_INITIALIZED;
   readonly projectPath: string;
 }
 
@@ -89,7 +96,7 @@ export function makeSwarmInitialized(
   maxAgents: number,
 ): SwarmInitializedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.SWARM_INITIALIZED,
+    type: RUFLO_EVENT_TYPES.SWARM_INITIALIZED,
     occurredAt: Date.now(),
     aggregateId,
     topology,
@@ -104,7 +111,7 @@ export function makeSwarmAgentAdded(
   agentType: string,
 ): SwarmAgentAddedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.SWARM_AGENT_ADDED,
+    type: RUFLO_EVENT_TYPES.SWARM_AGENT_ADDED,
     occurredAt: Date.now(),
     aggregateId,
     agentId,
@@ -117,7 +124,7 @@ export function makeSwarmAgentRemoved(
   agentId: string,
 ): SwarmAgentRemovedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.SWARM_AGENT_REMOVED,
+    type: RUFLO_EVENT_TYPES.SWARM_AGENT_REMOVED,
     occurredAt: Date.now(),
     aggregateId,
     agentId,
@@ -130,7 +137,7 @@ export function makeInstallationCompleted(
   isSupported: boolean,
 ): InstallationCompletedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.INSTALLATION_COMPLETED,
+    type: RUFLO_EVENT_TYPES.INSTALLATION_COMPLETED,
     occurredAt: Date.now(),
     aggregateId,
     version,
@@ -143,7 +150,7 @@ export function makeInstallationFailed(
   reason: string,
 ): InstallationFailedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.INSTALLATION_FAILED,
+    type: RUFLO_EVENT_TYPES.INSTALLATION_FAILED,
     occurredAt: Date.now(),
     aggregateId,
     reason,
@@ -155,7 +162,7 @@ export function makeMcpActivated(
   namespace: string,
 ): McpActivatedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.MCP_ACTIVATED,
+    type: RUFLO_EVENT_TYPES.MCP_ACTIVATED,
     occurredAt: Date.now(),
     aggregateId,
     namespace,
@@ -168,7 +175,7 @@ export function makeMemoryBackendChanged(
   previousBackend: string,
 ): MemoryBackendChangedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.MEMORY_BACKEND_CHANGED,
+    type: RUFLO_EVENT_TYPES.MEMORY_BACKEND_CHANGED,
     occurredAt: Date.now(),
     aggregateId,
     newBackend,
@@ -181,7 +188,7 @@ export function makeProjectInitialized(
   projectPath: string,
 ): ProjectInitializedEvent {
   return {
-    type: DOMAIN_EVENT_TYPES.PROJECT_INITIALIZED,
+    type: RUFLO_EVENT_TYPES.PROJECT_INITIALIZED,
     occurredAt: Date.now(),
     aggregateId,
     projectPath,

@@ -9,3 +9,7 @@ export type { QuantizedEntry, SearchResult, QuantizedMemoryStoreConfig } from '.
 // DDD v9 additions
 export * from './domain-events';
 export * from './aggregates';
+
+// Value Objects
+export { SwarmTopology } from './value-objects/swarm-topology';
+export type { SwarmTopologyValue } from './value-objects/swarm-topology';

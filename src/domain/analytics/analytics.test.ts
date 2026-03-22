@@ -15,6 +15,7 @@ import type { DomainEvent } from '../shared/event-bus';
 import { InMemoryConsentRepository } from './repository';
 import { AnalyticsApplicationService } from './service';
 import { ANALYTICS_EVENT_TYPES } from './events';
+import type { IAnalyticsTracker } from './ports/IAnalyticsTracker';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,21 @@ function makeCollectingBus(): { bus: DomainEventBus; collected: DomainEvent[] } 
     originalDispatch(events);
   };
   return { bus, collected };
+}
+
+/** Spy tracker that records all calls without side effects. */
+function makeSpyTracker(): IAnalyticsTracker & {
+  calls: { method: string; args: unknown[] }[];
+} {
+  const calls: { method: string; args: unknown[] }[] = [];
+  return {
+    calls,
+    trackSession(sessionId, props) { calls.push({ method: 'trackSession', args: [sessionId, props] }); },
+    captureEvent(name, props) { calls.push({ method: 'captureEvent', args: [name, props] }); },
+    identify(userId, traits) { calls.push({ method: 'identify', args: [userId, traits] }); },
+    optOut() { calls.push({ method: 'optOut', args: [] }); },
+    optIn() { calls.push({ method: 'optIn', args: [] }); },
+  };
 }
 
 // ─── InMemoryConsentRepository.searchByEmbedding ─────────────────────────────
@@ -95,14 +111,25 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
     svc = new AnalyticsApplicationService(repo, bus);
   });
 
-  it('returns Ok with a ConsentId on valid inputs', () => {
+  it('returns Ok with a ConsentAggregate on valid inputs', () => {
     const sessionId = uniqueSessionId();
     const result = svc.grantConsent(sessionId, 'project-abc');
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(typeof result.value).toBe('string');
-    expect(result.value.length).toBeGreaterThan(0);
+    expect(result.value).toBeDefined();
+    expect(typeof result.value.id).toBe('string');
+    expect(result.value.id.length).toBeGreaterThan(0);
+  });
+
+  it('returned aggregate has status "granted"', () => {
+    const sessionId = uniqueSessionId();
+    const result = svc.grantConsent(sessionId, 'project-abc');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.status).toBe('granted');
+    expect(result.value.isGranted()).toBe(true);
   });
 
   it('persists the consent record in the repository', () => {
@@ -121,7 +148,7 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
     if (!first.ok || !second.ok) return;
-    expect(first.value).toBe(second.value);
+    expect(first.value.id).toBe(second.value.id);
   });
 
   it('idempotent call does not create a second repository record', () => {
@@ -180,6 +207,30 @@ describe('AnalyticsApplicationService.grantConsent()', () => {
     const granted = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_GRANTED);
     expect(granted).toHaveLength(0);
   });
+
+  it('calls tracker.optIn() when a tracker is provided', () => {
+    const spy = makeSpyTracker();
+    const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
+    svcWithTracker.grantConsent(uniqueSessionId(), 'project-abc');
+
+    const optInCalls = spy.calls.filter(c => c.method === 'optIn');
+    expect(optInCalls).toHaveLength(1);
+  });
+
+  it('does not dispatch CONSENT_GRANTED on the idempotent second call', () => {
+    const spy = makeSpyTracker();
+    const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
+    const sessionId = uniqueSessionId();
+    svcWithTracker.grantConsent(sessionId, 'project-abc');
+    // Reset the event bus collection after the first call
+    collected.length = 0;
+
+    // Idempotent — aggregate already granted, no domain event should be raised
+    svcWithTracker.grantConsent(sessionId, 'project-abc');
+
+    const granted = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_GRANTED);
+    expect(granted).toHaveLength(0);
+  });
 });
 
 // ─── revokeConsent ────────────────────────────────────────────────────────────
@@ -202,7 +253,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     expect(grantResult.ok).toBe(true);
     if (!grantResult.ok) return;
 
-    const result = svc.revokeConsent(grantResult.value);
+    const result = svc.revokeConsent(grantResult.value.id);
 
     expect(result.ok).toBe(true);
   });
@@ -227,7 +278,7 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     if (!grantResult.ok) return;
     collected.length = 0;
 
-    svc.revokeConsent(grantResult.value);
+    svc.revokeConsent(grantResult.value.id);
 
     const revoked = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_REVOKED);
     expect(revoked).toHaveLength(1);
@@ -239,12 +290,26 @@ describe('AnalyticsApplicationService.revokeConsent()', () => {
     if (!grantResult.ok) return;
     collected.length = 0;
 
-    svc.revokeConsent(grantResult.value);
+    svc.revokeConsent(grantResult.value.id);
 
     const evt = collected.find(e => e.type === ANALYTICS_EVENT_TYPES.CONSENT_REVOKED);
     expect(evt).toBeDefined();
     const typed = evt as unknown as { sessionId: string };
     expect(typed.sessionId).toBe(sessionId);
+  });
+
+  it('calls tracker.optOut() when a tracker is provided', () => {
+    const spy = makeSpyTracker();
+    const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
+    const sessionId = uniqueSessionId();
+    const grantResult = svcWithTracker.grantConsent(sessionId, 'project-abc');
+    if (!grantResult.ok) return;
+    spy.calls.length = 0;
+
+    svcWithTracker.revokeConsent(grantResult.value.id);
+
+    const optOutCalls = spy.calls.filter(c => c.method === 'optOut');
+    expect(optOutCalls).toHaveLength(1);
   });
 });
 
@@ -264,7 +329,7 @@ describe('AnalyticsApplicationService.getConsentStatus()', () => {
     const grantResult = svc.grantConsent(sessionId, 'project-abc');
     if (!grantResult.ok) return;
 
-    const status = svc.getConsentStatus(grantResult.value);
+    const status = svc.getConsentStatus(grantResult.value.id);
 
     expect(status.ok).toBe(true);
     if (!status.ok) return;
@@ -276,8 +341,8 @@ describe('AnalyticsApplicationService.getConsentStatus()', () => {
     const grantResult = svc.grantConsent(sessionId, 'project-abc');
     if (!grantResult.ok) return;
 
-    svc.revokeConsent(grantResult.value);
-    const status = svc.getConsentStatus(grantResult.value);
+    svc.revokeConsent(grantResult.value.id);
+    const status = svc.getConsentStatus(grantResult.value.id);
 
     expect(status.ok).toBe(true);
     if (!status.ok) return;
@@ -299,9 +364,105 @@ describe('AnalyticsApplicationService.getConsentStatus()', () => {
   });
 });
 
-// ─── trackEvent ───────────────────────────────────────────────────────────────
+// ─── trackSession ─────────────────────────────────────────────────────────────
 
-describe('AnalyticsApplicationService.trackEvent()', () => {
+describe('AnalyticsApplicationService.trackSession()', () => {
+  let repo: InMemoryConsentRepository;
+  let bus: DomainEventBus;
+  let collected: DomainEvent[];
+  let svc: AnalyticsApplicationService;
+
+  beforeEach(() => {
+    repo = new InMemoryConsentRepository();
+    ({ bus, collected } = makeCollectingBus());
+    svc = new AnalyticsApplicationService(repo, bus);
+  });
+
+  it('returns Ok even when consent has not been granted', () => {
+    const result = svc.trackSession(uniqueSessionId(), { source: 'test' });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('silently drops the session track when consent is not granted', () => {
+    const sessionId = uniqueSessionId();
+    svc.trackSession(sessionId, {});
+
+    const tracked = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.SESSION_TRACKED);
+    expect(tracked).toHaveLength(0);
+  });
+
+  it('dispatches SESSION_TRACKED when consent is granted', () => {
+    const sessionId = uniqueSessionId();
+    svc.grantConsent(sessionId, 'project-abc');
+    collected.length = 0;
+
+    svc.trackSession(sessionId, { browser: 'chrome' });
+
+    const tracked = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.SESSION_TRACKED);
+    expect(tracked).toHaveLength(1);
+  });
+
+  it('SESSION_TRACKED event carries correct sessionId', () => {
+    const sessionId = uniqueSessionId();
+    svc.grantConsent(sessionId, 'project-abc');
+    collected.length = 0;
+
+    svc.trackSession(sessionId);
+
+    const evt = collected.find(e => e.type === ANALYTICS_EVENT_TYPES.SESSION_TRACKED);
+    expect(evt).toBeDefined();
+    const typed = evt as unknown as { sessionId: string };
+    expect(typed.sessionId).toBe(sessionId);
+  });
+
+  it('silently drops after consent is revoked', () => {
+    const sessionId = uniqueSessionId();
+    const grantResult = svc.grantConsent(sessionId, 'project-abc');
+    if (!grantResult.ok) return;
+    svc.revokeConsent(grantResult.value.id);
+    collected.length = 0;
+
+    svc.trackSession(sessionId, {});
+
+    const tracked = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.SESSION_TRACKED);
+    expect(tracked).toHaveLength(0);
+  });
+
+  it('calls tracker.trackSession() when a tracker is provided and consent is granted', () => {
+    const spy = makeSpyTracker();
+    const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
+    const sessionId = uniqueSessionId();
+    svcWithTracker.grantConsent(sessionId, 'project-abc');
+    spy.calls.length = 0;
+
+    svcWithTracker.trackSession(sessionId, { key: 'value' });
+
+    const calls = spy.calls.filter(c => c.method === 'trackSession');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args[0]).toBe(sessionId);
+  });
+
+  it('does NOT call tracker.trackSession() when consent is not granted', () => {
+    const spy = makeSpyTracker();
+    const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
+
+    svcWithTracker.trackSession(uniqueSessionId(), {});
+
+    const calls = spy.calls.filter(c => c.method === 'trackSession');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('returns Err when sessionId is empty', () => {
+    const result = svc.trackSession('');
+
+    expect(result.ok).toBe(false);
+  });
+});
+
+// ─── captureEvent ─────────────────────────────────────────────────────────────
+
+describe('AnalyticsApplicationService.captureEvent()', () => {
   let repo: InMemoryConsentRepository;
   let bus: DomainEventBus;
   let collected: DomainEvent[];
@@ -315,14 +476,14 @@ describe('AnalyticsApplicationService.trackEvent()', () => {
 
   it('returns Ok even when consent has not been granted', () => {
     const sessionId = uniqueSessionId();
-    const result = svc.trackEvent(sessionId, 'page_view', { page: '/home' });
+    const result = svc.captureEvent(sessionId, 'page_view', { page: '/home' });
 
     expect(result.ok).toBe(true);
   });
 
   it('silently drops the event when consent is not granted', () => {
     const sessionId = uniqueSessionId();
-    svc.trackEvent(sessionId, 'page_view', { page: '/home' });
+    svc.captureEvent(sessionId, 'page_view', { page: '/home' });
 
     const eventsResult = svc.queryEvents(sessionId);
     expect(eventsResult.ok).toBe(true);
@@ -334,7 +495,7 @@ describe('AnalyticsApplicationService.trackEvent()', () => {
     const sessionId = uniqueSessionId();
     svc.grantConsent(sessionId, 'project-abc');
 
-    svc.trackEvent(sessionId, 'page_view', { page: '/home' });
+    svc.captureEvent(sessionId, 'page_view', { page: '/home' });
 
     const eventsResult = svc.queryEvents(sessionId);
     expect(eventsResult.ok).toBe(true);
@@ -342,11 +503,11 @@ describe('AnalyticsApplicationService.trackEvent()', () => {
     expect(eventsResult.value).toHaveLength(1);
   });
 
-  it('stores the correct eventType and payload', () => {
+  it('stores the correct event name and properties', () => {
     const sessionId = uniqueSessionId();
     svc.grantConsent(sessionId, 'project-abc');
 
-    svc.trackEvent(sessionId, 'button_click', { buttonId: 'save' });
+    svc.captureEvent(sessionId, 'button_click', { buttonId: 'save' });
 
     const eventsResult = svc.queryEvents(sessionId);
     if (!eventsResult.ok) return;
@@ -359,9 +520,9 @@ describe('AnalyticsApplicationService.trackEvent()', () => {
     const sessionId = uniqueSessionId();
     const grantResult = svc.grantConsent(sessionId, 'project-abc');
     if (!grantResult.ok) return;
-    svc.revokeConsent(grantResult.value);
+    svc.revokeConsent(grantResult.value.id);
 
-    const result = svc.trackEvent(sessionId, 'page_view', {});
+    const result = svc.captureEvent(sessionId, 'page_view', {});
 
     expect(result.ok).toBe(true);
   });
@@ -370,14 +531,13 @@ describe('AnalyticsApplicationService.trackEvent()', () => {
     const sessionId = uniqueSessionId();
     const grantResult = svc.grantConsent(sessionId, 'project-abc');
     if (!grantResult.ok) return;
-    svc.revokeConsent(grantResult.value);
+    svc.revokeConsent(grantResult.value.id);
     collected.length = 0;
 
-    svc.trackEvent(sessionId, 'page_view', {});
+    svc.captureEvent(sessionId, 'page_view', {});
 
     const eventsResult = svc.queryEvents(sessionId);
     if (!eventsResult.ok) return;
-    // No new events should be captured after revoke
     const captured = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.EVENT_CAPTURED);
     expect(captured).toHaveLength(0);
   });
@@ -387,7 +547,7 @@ describe('AnalyticsApplicationService.trackEvent()', () => {
     svc.grantConsent(sessionId, 'project-abc');
     collected.length = 0;
 
-    svc.trackEvent(sessionId, 'search', { query: 'foo' });
+    svc.captureEvent(sessionId, 'search', { query: 'foo' });
 
     const captured = collected.filter(e => e.type === ANALYTICS_EVENT_TYPES.EVENT_CAPTURED);
     expect(captured).toHaveLength(1);
@@ -398,13 +558,69 @@ describe('AnalyticsApplicationService.trackEvent()', () => {
     svc.grantConsent(sessionId, 'project-abc');
     collected.length = 0;
 
-    svc.trackEvent(sessionId, 'custom_action', {});
+    svc.captureEvent(sessionId, 'custom_action', {});
 
     const evt = collected.find(e => e.type === ANALYTICS_EVENT_TYPES.EVENT_CAPTURED);
     expect(evt).toBeDefined();
     const typed = evt as unknown as { sessionId: string; eventType: string };
     expect(typed.sessionId).toBe(sessionId);
     expect(typed.eventType).toBe('custom_action');
+  });
+
+  it('calls tracker.captureEvent() when a tracker is provided and consent is granted', () => {
+    const spy = makeSpyTracker();
+    const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
+    const sessionId = uniqueSessionId();
+    svcWithTracker.grantConsent(sessionId, 'project-abc');
+    spy.calls.length = 0;
+
+    svcWithTracker.captureEvent(sessionId, 'my_event', { x: 1 });
+
+    const calls = spy.calls.filter(c => c.method === 'captureEvent');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args[0]).toBe('my_event');
+  });
+
+  it('does NOT call tracker.captureEvent() when consent is not granted', () => {
+    const spy = makeSpyTracker();
+    const svcWithTracker = new AnalyticsApplicationService(repo, bus, spy);
+
+    svcWithTracker.captureEvent(uniqueSessionId(), 'my_event', {});
+
+    const calls = spy.calls.filter(c => c.method === 'captureEvent');
+    expect(calls).toHaveLength(0);
+  });
+});
+
+// ─── trackEvent (legacy alias) ────────────────────────────────────────────────
+
+describe('AnalyticsApplicationService.trackEvent() (legacy alias)', () => {
+  let repo: InMemoryConsentRepository;
+  let svc: AnalyticsApplicationService;
+
+  beforeEach(() => {
+    repo = new InMemoryConsentRepository();
+    svc = new AnalyticsApplicationService(repo, new DomainEventBus());
+  });
+
+  it('returns Ok even when consent has not been granted', () => {
+    const sessionId = uniqueSessionId();
+    const result = svc.trackEvent(sessionId, 'page_view', { page: '/home' });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('stores the event via captureEvent when consent has been granted', () => {
+    const sessionId = uniqueSessionId();
+    svc.grantConsent(sessionId, 'project-abc');
+
+    svc.trackEvent(sessionId, 'page_view', { page: '/home' });
+
+    const eventsResult = svc.queryEvents(sessionId);
+    expect(eventsResult.ok).toBe(true);
+    if (!eventsResult.ok) return;
+    expect(eventsResult.value).toHaveLength(1);
+    expect(eventsResult.value[0]?.eventType).toBe('page_view');
   });
 });
 
@@ -432,9 +648,9 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
     const sessionId = uniqueSessionId();
     svc.grantConsent(sessionId, 'project-abc');
 
-    svc.trackEvent(sessionId, 'first', {});
-    svc.trackEvent(sessionId, 'second', {});
-    svc.trackEvent(sessionId, 'third', {});
+    svc.captureEvent(sessionId, 'first', {});
+    svc.captureEvent(sessionId, 'second', {});
+    svc.captureEvent(sessionId, 'third', {});
 
     const result = svc.queryEvents(sessionId);
     expect(result.ok).toBe(true);
@@ -448,7 +664,7 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
   it('returns a defensive copy — mutating the result does not affect the store', () => {
     const sessionId = uniqueSessionId();
     svc.grantConsent(sessionId, 'project-abc');
-    svc.trackEvent(sessionId, 'click', { x: 10 });
+    svc.captureEvent(sessionId, 'click', { x: 10 });
 
     const first = svc.queryEvents(sessionId);
     if (!first.ok) return;
@@ -464,7 +680,7 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
   it('mutating a returned payload does not affect the stored payload', () => {
     const sessionId = uniqueSessionId();
     svc.grantConsent(sessionId, 'project-abc');
-    svc.trackEvent(sessionId, 'scroll', { offset: 100 });
+    svc.captureEvent(sessionId, 'scroll', { offset: 100 });
 
     const first = svc.queryEvents(sessionId);
     if (!first.ok) return;
@@ -490,13 +706,45 @@ describe('AnalyticsApplicationService.queryEvents()', () => {
     svc.grantConsent(sessionA, 'project-abc');
     svc.grantConsent(sessionB, 'project-abc');
 
-    svc.trackEvent(sessionA, 'event_a', {});
-    svc.trackEvent(sessionB, 'event_b', {});
+    svc.captureEvent(sessionA, 'event_a', {});
+    svc.captureEvent(sessionB, 'event_b', {});
 
     const resultA = svc.queryEvents(sessionA);
     expect(resultA.ok).toBe(true);
     if (!resultA.ok) return;
     expect(resultA.value).toHaveLength(1);
     expect(resultA.value[0]?.eventType).toBe('event_a');
+  });
+});
+
+// ─── IAnalyticsTracker port ───────────────────────────────────────────────────
+
+describe('IAnalyticsTracker port contract', () => {
+  it('service works without a tracker (tracker is optional)', () => {
+    const repo = new InMemoryConsentRepository();
+    const bus = new DomainEventBus();
+    // No tracker passed — should not throw
+    const svc = new AnalyticsApplicationService(repo, bus);
+    const sessionId = uniqueSessionId();
+
+    expect(() => svc.grantConsent(sessionId, 'project-abc')).not.toThrow();
+    expect(() => svc.trackSession(sessionId)).not.toThrow();
+    expect(() => svc.captureEvent(sessionId, 'test_event')).not.toThrow();
+  });
+
+  it('spy tracker receives no calls when no consent is granted', () => {
+    const repo = new InMemoryConsentRepository();
+    const bus = new DomainEventBus();
+    const spy = makeSpyTracker();
+    const svc = new AnalyticsApplicationService(repo, bus, spy);
+
+    svc.trackSession(uniqueSessionId());
+    svc.captureEvent(uniqueSessionId(), 'some_event');
+
+    // Only optIn/optOut can be called via grant/revoke — not track/capture
+    const trackCalls = spy.calls.filter(
+      c => c.method === 'trackSession' || c.method === 'captureEvent',
+    );
+    expect(trackCalls).toHaveLength(0);
   });
 });

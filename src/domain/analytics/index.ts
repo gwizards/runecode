@@ -47,6 +47,10 @@ export {
 export type { IConsentRepository } from './repository';
 export { InMemoryConsentRepository } from './repository';
 
+// ─── Ports ────────────────────────────────────────────────────────────────────
+
+export type { IAnalyticsTracker } from './ports/IAnalyticsTracker';
+
 // ─── Application Service ──────────────────────────────────────────────────────
 
 export { AnalyticsApplicationService } from './service';

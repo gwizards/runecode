@@ -2,17 +2,41 @@
  * Port: abstracts all Tauri IPC calls needed by the ruflo domain service.
  * The adapter (TauriRuFloApiAdapter) lives in src/infrastructure/ruflo/.
  *
- * Every method listed here corresponds to a call that ruFloService makes
- * on the raw `api` object from @/lib/api.
+ * Raw API shapes (snake_case) are defined here so the domain is self-contained
+ * and does not depend on the deprecated @/lib/api infrastructure shim.
  */
 
-import type {
-  RuFloStatus,
-  RuFloSwarmStatus,
-  RuFloProjectStatus,
-} from '@/lib/api';
+/** Raw Tauri response for ruflo installation state (snake_case from Rust). */
+export interface RuFloStatus {
+  installed: boolean;
+  version: string | null;
+  mcp_active: boolean;
+  slash_command_exists: boolean;
+  is_supported?: boolean;
+}
 
-export type { RuFloStatus, RuFloSwarmStatus, RuFloProjectStatus };
+/** Raw Tauri response for a single agent entry (snake_case from Rust). */
+export interface RuFloAgent {
+  id: string;
+  name: string;
+  agent_type: string;
+  status: string;
+}
+
+/** Raw Tauri response for swarm state (snake_case from Rust). */
+export interface RuFloSwarmStatus {
+  swarm_active: boolean;
+  agents: RuFloAgent[];
+  memory_entries: number;
+}
+
+/** Raw Tauri response for project task counts (snake_case from Rust). */
+export interface RuFloProjectStatus {
+  initialized: boolean;
+  pending: number;
+  completed: number;
+  blocked: number;
+}
 
 export interface IRuFloApiPort {
   checkRufloInstalled(): Promise<RuFloStatus>;

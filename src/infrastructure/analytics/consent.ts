@@ -7,16 +7,16 @@ const ANALYTICS_STORAGE_KEY = 'runecode-analytics-settings';
 export class ConsentManager {
   private static instance: ConsentManager;
   private settings: AnalyticsSettings | null = null;
-  
+
   private constructor() {}
-  
+
   static getInstance(): ConsentManager {
     if (!ConsentManager.instance) {
       ConsentManager.instance = new ConsentManager();
     }
     return ConsentManager.instance;
   }
-  
+
   async initialize(): Promise<AnalyticsSettings> {
     try {
       // Try to load from localStorage first
@@ -30,18 +30,18 @@ export class ConsentManager {
           hasConsented: false,
         };
       }
-      
+
       // Generate anonymous user ID if not exists
       if (this.settings && !this.settings.userId) {
         this.settings.userId = this.generateAnonymousId();
         await this.saveSettings();
       }
-      
+
       // Generate session ID
       if (this.settings) {
         this.settings.sessionId = this.generateSessionId();
       }
-      
+
       return this.settings || {
         enabled: true,
         hasConsented: true,
@@ -55,29 +55,29 @@ export class ConsentManager {
       };
     }
   }
-  
+
   async grantConsent(): Promise<void> {
     if (!this.settings) {
       await this.initialize();
     }
-    
+
     this.settings!.enabled = true;
     this.settings!.hasConsented = true;
     this.settings!.consentDate = new Date().toISOString();
-    
+
     await this.saveSettings();
   }
-  
+
   async revokeConsent(): Promise<void> {
     if (!this.settings) {
       await this.initialize();
     }
-    
+
     this.settings!.enabled = false;
-    
+
     await this.saveSettings();
   }
-  
+
   async deleteAllData(): Promise<void> {
     // Clear local storage
     localStorage.removeItem(ANALYTICS_STORAGE_KEY);
@@ -92,37 +92,37 @@ export class ConsentManager {
 
     await this.saveSettings();
   }
-  
+
   getSettings(): AnalyticsSettings | null {
     return this.settings;
   }
-  
+
   hasConsented(): boolean {
     return this.settings?.hasConsented || false;
   }
-  
+
   isEnabled(): boolean {
     return this.settings?.enabled || false;
   }
-  
+
   getUserId(): string {
     return this.settings?.userId || this.generateAnonymousId();
   }
-  
+
   getSessionId(): string {
     return this.settings?.sessionId || this.generateSessionId();
   }
-  
+
   private async saveSettings(): Promise<void> {
     if (!this.settings) return;
-    
+
     try {
       localStorage.setItem(ANALYTICS_STORAGE_KEY, JSON.stringify(this.settings));
     } catch (error) {
       console.error('Failed to save analytics settings:', error);
     }
   }
-  
+
   private generateAnonymousId(): string {
     // Generate a UUID v4
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -131,7 +131,7 @@ export class ConsentManager {
       return v.toString(16);
     });
   }
-  
+
   private generateSessionId(): string {
     // Simple session ID based on timestamp and random value
     return `${Date.now()}-${crypto.randomUUID()}`;

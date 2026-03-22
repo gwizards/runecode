@@ -78,27 +78,28 @@ export class WorkspaceApplicationService {
 
   /**
    * Opens a new tab (or focuses it if already open) in the workspace.
+   * Returns the updated WorkspaceAggregate on success.
    *
    * @param workspaceId - target workspace
    * @param path        - filesystem or virtual path for the tab
-   * @param title       - display title
+   * @param label       - display title / label
    * @param rawTabId    - optional caller-supplied ID (e.g. the existing React tab id)
    * @param opts        - optional extended tab metadata (tabType, status, sessionId, etc.)
    */
   openTab(
     workspaceId: WorkspaceId,
     path: string,
-    title: string,
+    label: string,
     rawTabId?: string,
     opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
-  ): Result<TabId> {
+  ): Result<WorkspaceAggregate> {
     return this._withWorkspace(workspaceId, (ws) => {
       const tabId = rawTabId
         ? toTabId(rawTabId)
         : toTabId(`tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
 
-      ws.openTab(tabId, path, title, opts);
-      return Ok(tabId);
+      ws.openTab(tabId, path, label, opts);
+      return Ok(ws);
     });
   }
 
@@ -116,31 +117,34 @@ export class WorkspaceApplicationService {
 
   /**
    * Makes the specified tab active.
+   * Returns the updated WorkspaceAggregate on success.
    */
-  activateTab(workspaceId: WorkspaceId, tabId: TabId): Result<void> {
+  activateTab(workspaceId: WorkspaceId, tabId: TabId): Result<WorkspaceAggregate> {
     return this._withWorkspace(workspaceId, (ws) => {
       ws.activateTab(tabId);
-      return Ok(undefined);
+      return Ok(ws);
     });
   }
 
   /**
    * Reorders the tabs in the workspace to match the supplied order array.
+   * Returns the updated WorkspaceAggregate on success.
    */
-  reorderTabs(workspaceId: WorkspaceId, newOrder: TabId[]): Result<void> {
+  reorderTabs(workspaceId: WorkspaceId, newOrder: TabId[]): Result<WorkspaceAggregate> {
     return this._withWorkspace(workspaceId, (ws) => {
       ws.reorderTabs(newOrder);
-      return Ok(undefined);
+      return Ok(ws);
     });
   }
 
   /**
    * Renames the specified tab.
+   * Returns the updated WorkspaceAggregate on success.
    */
-  renameTab(workspaceId: WorkspaceId, tabId: TabId, title: string): Result<void> {
+  renameTab(workspaceId: WorkspaceId, tabId: TabId, label: string): Result<WorkspaceAggregate> {
     return this._withWorkspace(workspaceId, (ws) => {
-      ws.renameTab(tabId, title);
-      return Ok(undefined);
+      ws.renameTab(tabId, label);
+      return Ok(ws);
     });
   }
 

@@ -11,10 +11,10 @@ import type { SessionId, ProjectId, TokenUsage } from './types';
 // ─── Event type discriminators ────────────────────────────────────────────────
 
 export const SESSION_EVENT_TYPES = {
-  SESSION_CREATED: 'session/SESSION_CREATED',
-  OUTPUT_APPENDED: 'session/OUTPUT_APPENDED',
-  SESSION_COMPLETED: 'session/SESSION_COMPLETED',
-  SESSION_FAILED: 'session/SESSION_FAILED',
+  SESSION_CREATED: 'session/session.created',
+  OUTPUT_APPENDED: 'session/output.appended',
+  SESSION_COMPLETED: 'session/session.completed',
+  SESSION_FAILED: 'session/session.failed',
   TOKEN_USAGE_UPDATED: 'session/token-usage.updated',
 } as const;
 
