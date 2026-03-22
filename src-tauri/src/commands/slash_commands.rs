@@ -105,7 +105,10 @@ fn extract_command_info(file_path: &Path, base_path: &Path) -> Result<(String, O
         Ok((components[0].to_string(), None))
     } else {
         // Last component is the command name, rest is namespace
-        let command_name = components.last().unwrap().to_string();
+        let command_name = match components.last() {
+            Some(c) => c.to_string(),
+            None => return Err(anyhow::anyhow!("Empty path components")),
+        };
         let namespace = components[..components.len() - 1].join(":");
         Ok((command_name, Some(namespace)))
     }

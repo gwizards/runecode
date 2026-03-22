@@ -1,5 +1,6 @@
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::Query;
+use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use axum::http::Method;
 use axum::{
     extract::{Path, State as AxumState, WebSocketUpgrade},
@@ -16,7 +17,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use which;
 use std::time::Duration;
 
@@ -1579,14 +1580,21 @@ async fn find_claude_md_files(
         let mut files = Vec::new();
         let home = std::env::var("HOME").unwrap_or_default();
 
+        // Project CLAUDE.md — canonicalize and restrict to HOME
         let project_claude = format!("{}/CLAUDE.md", project_path);
-        if std::path::Path::new(&project_claude).exists() {
-            if let Ok(content) = std::fs::read_to_string(&project_claude) {
-                files.push(serde_json::json!({
-                    "path": project_claude,
-                    "content": content,
-                    "scope": "project"
-                }));
+        let project_path_obj = std::path::Path::new(&project_claude);
+        if project_path_obj.exists() {
+            if let Ok(canonical) = std::fs::canonicalize(project_path_obj) {
+                let canonical_str = canonical.to_string_lossy();
+                if !home.is_empty() && canonical_str.starts_with(&home) {
+                    if let Ok(content) = std::fs::read_to_string(&canonical) {
+                        files.push(serde_json::json!({
+                            "path": canonical.to_string_lossy(),
+                            "content": content,
+                            "scope": "project"
+                        }));
+                    }
+                }
             }
         }
 
@@ -2621,7 +2629,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
     let cors = CorsLayer::new()
         .allow_origin(localhost_origins)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers(Any);
+        .allow_headers([CONTENT_TYPE, AUTHORIZATION, ACCEPT]);
 
     // Create router with API endpoints
     let app = Router::new()

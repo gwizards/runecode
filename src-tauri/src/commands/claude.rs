@@ -1301,7 +1301,7 @@ async fn spawn_claude_process(
             if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&line) {
                 if msg["type"] == "system" && msg["subtype"] == "init" {
                     if let Some(claude_session_id) = msg["session_id"].as_str() {
-                        let mut session_id_guard = session_id_holder_clone.lock().unwrap();
+                        let mut session_id_guard = session_id_holder_clone.lock().unwrap_or_else(|e| e.into_inner());
                         if session_id_guard.is_none() {
                             *session_id_guard = Some(claude_session_id.to_string());
                             log::info!("Extracted Claude session ID: {}", claude_session_id);
@@ -1316,7 +1316,7 @@ async fn spawn_claude_process(
                             ) {
                                 Ok(run_id) => {
                                     log::info!("Registered Claude session with run_id: {}", run_id);
-                                    let mut run_id_guard = run_id_holder_clone.lock().unwrap();
+                                    let mut run_id_guard = run_id_holder_clone.lock().unwrap_or_else(|e| e.into_inner());
                                     *run_id_guard = Some(run_id);
                                 }
                                 Err(e) => {
@@ -1329,12 +1329,12 @@ async fn spawn_claude_process(
             }
 
             // Store live output in registry if we have a run_id
-            if let Some(run_id) = *run_id_holder_clone.lock().unwrap() {
+            if let Some(run_id) = *run_id_holder_clone.lock().unwrap_or_else(|e| e.into_inner()) {
                 let _ = registry_clone.append_live_output(run_id, &line);
             }
 
             // Emit the line to the frontend with session isolation if we have session ID
-            if let Some(ref session_id) = *session_id_holder_clone.lock().unwrap() {
+            if let Some(ref session_id) = *session_id_holder_clone.lock().unwrap_or_else(|e| e.into_inner()) {
                 let _ = app_handle.emit(&format!("claude-output:{}", session_id), &line);
             }
             // Also emit to the generic event for backward compatibility
@@ -1349,7 +1349,7 @@ async fn spawn_claude_process(
         while let Ok(Some(line)) = lines.next_line().await {
             log::error!("Claude stderr: {}", line);
             // Emit error lines to the frontend with session isolation if we have session ID
-            if let Some(ref session_id) = *session_id_holder_clone2.lock().unwrap() {
+            if let Some(ref session_id) = *session_id_holder_clone2.lock().unwrap_or_else(|e| e.into_inner()) {
                 let _ = app_handle_stderr.emit(&format!("claude-error:{}", session_id), &line);
             }
             // Also emit to the generic event for backward compatibility
@@ -1375,7 +1375,7 @@ async fn spawn_claude_process(
                     log::info!("Claude process exited with status: {}", status);
                     // Add a small delay to ensure all messages are processed
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    if let Some(ref session_id) = *session_id_holder_clone3.lock().unwrap() {
+                    if let Some(ref session_id) = *session_id_holder_clone3.lock().unwrap_or_else(|e| e.into_inner()) {
                         let _ = app_handle_wait
                             .emit(&format!("claude-complete:{}", session_id), status.success());
                     }
@@ -1386,7 +1386,7 @@ async fn spawn_claude_process(
                     log::error!("Failed to wait for Claude process: {}", e);
                     // Add a small delay to ensure all messages are processed
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    if let Some(ref session_id) = *session_id_holder_clone3.lock().unwrap() {
+                    if let Some(ref session_id) = *session_id_holder_clone3.lock().unwrap_or_else(|e| e.into_inner()) {
                         let _ =
                             app_handle_wait.emit(&format!("claude-complete:{}", session_id), false);
                     }
@@ -1397,7 +1397,7 @@ async fn spawn_claude_process(
         }
 
         // Unregister from ProcessRegistry if we have a run_id
-        if let Some(run_id) = *run_id_holder_clone2.lock().unwrap() {
+        if let Some(run_id) = *run_id_holder_clone2.lock().unwrap_or_else(|e| e.into_inner()) {
             let _ = registry_clone2.unregister_process(run_id);
         }
 

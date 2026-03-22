@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react';
 import { createHighlighter, type Highlighter } from 'shiki';
 
+const SAFE_LANGUAGES = new Set([
+  'typescript', 'javascript', 'tsx', 'jsx', 'python', 'rust', 'go',
+  'java', 'c', 'cpp', 'csharp', 'html', 'css', 'json', 'yaml', 'toml',
+  'bash', 'sh', 'shell', 'markdown', 'md', 'sql', 'graphql', 'xml',
+  'dockerfile', 'makefile', 'text', 'plain', 'txt', 'diff', 'ini', 'env',
+]);
+
+function sanitizeLang(lang: string | undefined): string {
+  const normalized = (lang ?? 'text').toLowerCase().trim();
+  return SAFE_LANGUAGES.has(normalized) ? normalized : 'text';
+}
+
 let highlighterPromise: Promise<Highlighter> | null = null;
 let cachedHighlighter: Highlighter | null = null;
 
@@ -32,23 +44,24 @@ function getHighlighter(): Promise<Highlighter> {
  * Returns true if the language is available after loading.
  */
 async function ensureLanguageLoaded(highlighter: Highlighter, lang: string): Promise<boolean> {
+  const safeLang = sanitizeLang(lang);
   const loadedLangs = highlighter.getLoadedLanguages();
-  if (loadedLangs.includes(lang as any)) return true;
+  if (loadedLangs.includes(safeLang as any)) return true;
 
   // Check if already loading
-  if (pendingLangLoads.has(lang)) {
-    await pendingLangLoads.get(lang);
-    return highlighter.getLoadedLanguages().includes(lang as any);
+  if (pendingLangLoads.has(safeLang)) {
+    await pendingLangLoads.get(safeLang);
+    return highlighter.getLoadedLanguages().includes(safeLang as any);
   }
 
   // Attempt to load the language
-  const loadPromise = highlighter.loadLanguage(lang as any)
-    .then(() => { pendingLangLoads.delete(lang); })
-    .catch(() => { pendingLangLoads.delete(lang); });
-  pendingLangLoads.set(lang, loadPromise);
+  const loadPromise = highlighter.loadLanguage(safeLang as any)
+    .then(() => { pendingLangLoads.delete(safeLang); })
+    .catch(() => { pendingLangLoads.delete(safeLang); });
+  pendingLangLoads.set(safeLang, loadPromise);
   await loadPromise;
 
-  return highlighter.getLoadedLanguages().includes(lang as any);
+  return highlighter.getLoadedLanguages().includes(safeLang as any);
 }
 
 export function useShiki() {
@@ -71,13 +84,14 @@ export function useShiki() {
 
 export function highlightCode(highlighter: Highlighter, code: string, lang: string, theme: string = 'github-dark'): string {
   try {
+    const safeLang = sanitizeLang(lang);
     const loadedLangs = highlighter.getLoadedLanguages();
-    const isLoaded = loadedLangs.includes(lang as any);
-    const actualLang = isLoaded ? lang : 'text';
+    const isLoaded = loadedLangs.includes(safeLang as any);
+    const actualLang = isLoaded ? safeLang : 'text';
 
     // Trigger on-demand load for next render if language is missing
-    if (!isLoaded && lang !== 'text') {
-      ensureLanguageLoaded(highlighter, lang);
+    if (!isLoaded && safeLang !== 'text') {
+      ensureLanguageLoaded(highlighter, safeLang);
     }
 
     return highlighter.codeToHtml(code, { lang: actualLang, theme });
