@@ -222,9 +222,9 @@ export class WorkspaceAggregate {
    * Creates a new empty workspace. No events are raised on creation;
    * the caller should call openTab() immediately to add an initial tab.
    */
-  static create(sessionId: SessionId, projectId: ProjectId): WorkspaceAggregate {
+  static create(sessionId: SessionId, projectId: ProjectId): Result<WorkspaceAggregate> {
     const id = WorkspaceId.generate();
-    return new WorkspaceAggregate(id, sessionId, projectId, [], null, Date.now(), []);
+    return Ok(new WorkspaceAggregate(id, sessionId, projectId, [], null, Date.now(), []));
   }
 
   /**

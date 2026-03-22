@@ -137,9 +137,9 @@ export class ConsentAggregate {
     userId: UserId,
     sessionId: AnalyticsSessionId,
     projectId: ProjectId,
-  ): ConsentAggregate {
+  ): Result<ConsentAggregate> {
     const id = ConsentId.generate();
-    return new ConsentAggregate(id, userId, sessionId, projectId, 'pending');
+    return Ok(new ConsentAggregate(id, userId, sessionId, projectId, 'pending'));
   }
 
   /**

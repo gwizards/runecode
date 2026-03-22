@@ -74,7 +74,9 @@ export class AnalyticsApplicationService {
       // Idempotency: re-use existing record if one exists for this session.
       let consent = this.repository.findBySession(sessionId);
       if (consent === undefined) {
-        consent = ConsentAggregate.create(userId, sessionId, projectId);
+        const createResult = ConsentAggregate.create(userId, sessionId, projectId);
+        if (!createResult.ok) return Err(createResult.error);
+        consent = createResult.value;
       }
 
       consent.grant();

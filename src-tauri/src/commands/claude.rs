@@ -2296,7 +2296,17 @@ pub fn check_node_installed() -> serde_json::Value {
         {
             let mut v = vec![std::path::PathBuf::from("node")];
             if let Some(home) = dirs::home_dir() {
-                v.push(home.join(".nvm/versions/node/current/bin/node"));
+                // NVM has no "current" symlink; scan installed versions and pick latest.
+                if let Ok(versions) = std::fs::read_dir(home.join(".nvm/versions/node")) {
+                    let mut ver_dirs: Vec<_> = versions
+                        .flatten()
+                        .filter(|e| e.path().is_dir())
+                        .collect();
+                    ver_dirs.sort_by_key(|e| e.file_name());
+                    if let Some(latest) = ver_dirs.last() {
+                        v.push(latest.path().join("bin/node"));
+                    }
+                }
                 v.push(home.join(".volta/bin/node"));
                 v.push(home.join(".fnm/node-versions/current/installation/bin/node"));
             }

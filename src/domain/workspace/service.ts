@@ -40,7 +40,9 @@ export class WorkspaceApplicationService {
    */
   async createWorkspace(sessionId: SessionId, projectId: ProjectId): Promise<Result<WorkspaceId>> {
     try {
-      const workspace = WorkspaceAggregate.create(sessionId, projectId);
+      const workspaceResult = WorkspaceAggregate.create(sessionId, projectId);
+      if (!workspaceResult.ok) return workspaceResult;
+      const workspace = workspaceResult.value;
       const saveResult = this.repository.save(workspace);
       if (!saveResult.ok) return saveResult;
       this._dispatchAndClear(workspace);

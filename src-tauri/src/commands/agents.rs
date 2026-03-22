@@ -113,10 +113,10 @@ impl AgentRunMetrics {
                 if let Some(timestamp_str) = json.get("timestamp").and_then(|t| t.as_str()) {
                     if let Ok(timestamp) = chrono::DateTime::parse_from_rfc3339(timestamp_str) {
                         let utc_time = timestamp.with_timezone(&chrono::Utc);
-                        if start_time.is_none() || utc_time < start_time.unwrap() {
+                        if start_time.map_or(true, |t| utc_time < t) {
                             start_time = Some(utc_time);
                         }
-                        if end_time.is_none() || utc_time > end_time.unwrap() {
+                        if end_time.map_or(true, |t| utc_time > t) {
                             end_time = Some(utc_time);
                         }
                     }
@@ -890,7 +890,7 @@ async fn spawn_agent_system(
     let app_dir = app
         .path()
         .app_data_dir()
-        .expect("Failed to get app data dir");
+        .map_err(|e| format!("Failed to get app data dir: {e}"))?;
     let db_path = app_dir.join("agents.db");
 
     // Shared state for collecting session ID and live output
@@ -1547,27 +1547,24 @@ pub async fn stream_session_output(
 
             // Check if the session is still running by querying the database
             // If the session is no longer running, stop streaming
-            if let Ok(conn) = rusqlite::Connection::open(
-                app.path()
-                    .app_data_dir()
-                    .expect("Failed to get app data dir")
-                    .join("agents.db"),
-            ) {
-                if let Ok(status) = conn.query_row(
-                    "SELECT status FROM agent_runs WHERE id = ?1",
-                    rusqlite::params![run_id],
-                    |row| row.get::<_, String>(0),
-                ) {
-                    if status != "running" {
-                        debug!("Session {} is no longer running, stopping stream", run_id);
-                        break;
+            if let Ok(app_dir) = app.path().app_data_dir() {
+                if let Ok(conn) = rusqlite::Connection::open(app_dir.join("agents.db")) {
+                    if let Ok(status) = conn.query_row(
+                        "SELECT status FROM agent_runs WHERE id = ?1",
+                        rusqlite::params![run_id],
+                        |row| row.get::<_, String>(0),
+                    ) {
+                        if status != "running" {
+                            debug!("Session {} is no longer running, stopping stream", run_id);
+                            break;
+                        }
+                    } else {
+                        // If we can't query the status, assume it's still running
+                        debug!(
+                            "Could not query session status for {}, continuing stream",
+                            run_id
+                        );
                     }
-                } else {
-                    // If we can't query the status, assume it's still running
-                    debug!(
-                        "Could not query session status for {}, continuing stream",
-                        run_id
-                    );
                 }
             }
 

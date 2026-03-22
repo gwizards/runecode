@@ -20,10 +20,6 @@ struct Args {
     #[arg(short, long, default_value = "8080")]
     port: u16,
 
-    /// Host to bind to (0.0.0.0 for all interfaces)
-    #[arg(short = 'H', long, default_value = "0.0.0.0")]
-    host: String,
-
     /// Automatically open the browser
     #[arg(long)]
     open: bool,
@@ -35,7 +31,7 @@ async fn main() {
 
     let args = Args::parse();
 
-    println!("RuneCode running at http://{}:{}", args.host, args.port);
+    println!("RuneCode running at http://127.0.0.1:{}", args.port);
     println!("Press Ctrl+C to stop");
 
     if args.open {

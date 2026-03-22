@@ -2830,6 +2830,15 @@ async fn list_directory_contents(
         .cloned()
         .unwrap_or_default();
 
+    // Enforce home-directory boundary before touching the filesystem.
+    if let Err(e) = crate::path_guard::require_within_home(std::path::Path::new(&dir_path)) {
+        return axum::Json(serde_json::json!({
+            "success": false,
+            "data": null,
+            "error": format!("Access denied: {e}")
+        }));
+    }
+
     let result = tokio::task::spawn_blocking(move || {
         let mut entries = Vec::new();
         if let Ok(dir) = std::fs::read_dir(&dir_path) {

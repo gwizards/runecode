@@ -144,8 +144,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       const result = await api.checkRufloInstalled();
       setRufloStatus(result);
       if (result.installed) setStatus(4, 'passed');
+      else setStatus(4, 'failed');
     } catch {
       setRufloStatus({ installed: false, version: null, mcp_active: false, slash_command_exists: false });
+      setStatus(4, 'failed');
     }
   }, [setStatus]);
 
