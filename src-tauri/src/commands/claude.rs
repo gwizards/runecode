@@ -2270,41 +2270,73 @@ pub async fn validate_hook_command(command: String) -> Result<serde_json::Value,
     }
 }
 
-/// Checks if Node.js is installed and returns version info
+/// Checks if Node.js is installed and returns version info.
+/// On Windows, Tauri launches without the shell PATH (NVM/fnm paths are
+/// shell-profile-only), so we try well-known install locations as fallback.
 #[tauri::command]
 pub fn check_node_installed() -> serde_json::Value {
-    let node_bin = if cfg!(target_os = "windows") {
-        "node.exe"
-    } else {
-        "node"
+    // Candidate paths to try in order: PATH lookup first, then common locations.
+    let candidates: Vec<std::path::PathBuf> = {
+        #[cfg(target_os = "windows")]
+        {
+            let mut v = vec![std::path::PathBuf::from("node.exe")];
+            if let Some(home) = dirs::home_dir() {
+                // NVM for Windows
+                v.push(home.join("AppData\\Roaming\\nvm\\current\\node.exe"));
+                // fnm / Volta / direct install
+                v.push(home.join("AppData\\Local\\fnm_multishells\\node.exe"));
+                v.push(home.join(".volta\\bin\\node.exe"));
+                // Common global install (LTS)
+                v.push(std::path::PathBuf::from("C:\\Program Files\\nodejs\\node.exe"));
+                v.push(std::path::PathBuf::from("C:\\Program Files (x86)\\nodejs\\node.exe"));
+            }
+            v
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let mut v = vec![std::path::PathBuf::from("node")];
+            if let Some(home) = dirs::home_dir() {
+                v.push(home.join(".nvm/versions/node/current/bin/node"));
+                v.push(home.join(".volta/bin/node"));
+                v.push(home.join(".fnm/node-versions/current/installation/bin/node"));
+            }
+            v.push(std::path::PathBuf::from("/usr/local/bin/node"));
+            v.push(std::path::PathBuf::from("/usr/bin/node"));
+            v
+        }
     };
 
-    match crate::claude_binary::silent_command(node_bin)
+    for candidate in &candidates {
+        if let Ok(output) = crate::claude_binary::silent_command(
+            candidate.to_str().unwrap_or("node"),
+        )
         .arg("--version")
         .output()
-    {
-        Ok(output) if output.status.success() => {
-            let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let major: u32 = version_str
-                .trim_start_matches('v')
-                .split('.')
-                .next()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
-            serde_json::json!({
-                "installed": true,
-                "version": version_str,
-                "major": major,
-                "meets_minimum": major >= 18
-            })
+        {
+            if output.status.success() {
+                let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let major: u32 = version_str
+                    .trim_start_matches('v')
+                    .split('.')
+                    .next()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
+                return serde_json::json!({
+                    "installed": true,
+                    "version": version_str,
+                    "major": major,
+                    "meets_minimum": major >= 18
+                });
+            }
         }
-        _ => serde_json::json!({
-            "installed": false,
-            "version": null,
-            "major": 0,
-            "meets_minimum": false
-        }),
     }
+
+    serde_json::json!({
+        "installed": false,
+        "version": null,
+        "major": 0,
+        "meets_minimum": false
+    })
 }
 
 /// Installs Node.js in a platform-aware manner

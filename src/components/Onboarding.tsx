@@ -283,7 +283,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             icon={Box}
             status={statuses[1] ?? 'pending'}
             onNext={nextStep}
-            nextDisabled={statuses[1] !== 'passed'}
+            nextDisabled={statuses[1] !== 'passed' && statuses[1] !== 'skipped'}
+            onSkip={skipStep}
+            canSkip={statuses[1] === 'failed' || statuses[1] === 'pending'}
           >
             {statuses[1] === 'passed' && nodeVersion && (
               <div className="text-sm text-green-400">
@@ -330,7 +332,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             icon={Terminal}
             status={statuses[2] ?? 'pending'}
             onNext={nextStep}
-            nextDisabled={statuses[2] !== 'passed'}
+            nextDisabled={statuses[2] !== 'passed' && statuses[2] !== 'skipped'}
+            onSkip={skipStep}
+            canSkip={statuses[2] === 'failed' || statuses[2] === 'pending'}
           >
             {statuses[2] === 'passed' && claudeVersion && (
               <div className="text-sm text-green-400">
@@ -377,7 +381,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             icon={CheckCircle}
             status={statuses[3] ?? 'pending'}
             onNext={nextStep}
-            nextDisabled={statuses[3] !== 'passed'}
+            nextDisabled={statuses[3] !== 'passed' && statuses[3] !== 'skipped'}
+            onSkip={skipStep}
+            canSkip={statuses[3] === 'failed' || statuses[3] === 'pending'}
           >
             {statuses[3] === 'passed' && claudeVersion && (
               <div className="text-sm text-green-400">
