@@ -8,7 +8,7 @@
  */
 
 import type { DomainEvent } from '../shared/event-bus';
-import type { ProjectId } from '../shared/project-id';
+import { ProjectId, toProjectId } from '../shared/project-id';
 import { UserId } from '../identity/types';
 import { Result, Ok, Err } from '../shared/result';
 import {
@@ -18,7 +18,7 @@ import {
 
 // ─── Re-exports from shared kernel ────────────────────────────────────────────
 
-export type { ProjectId } from '../shared/project-id';
+export { ProjectId } from '../shared/project-id';
 export { UserId } from '../identity/types';
 
 // ─── SessionId (aliased from session context) ─────────────────────────────────
@@ -169,11 +169,18 @@ export class ConsentAggregate {
       ? sessionIdResult.value
       : AnalyticsSessionId.generate();
 
+    // Snapshots come from trusted storage; a missing/empty projectId is a data
+    // error — fall back to the sentinel 'unknown' rather than crashing the repo.
+    const projectIdResult = toProjectId(raw.projectId);
+    const projectId = projectIdResult.ok
+      ? projectIdResult.value
+      : (toProjectId('unknown') as { ok: true; value: ProjectId }).value;
+
     return new ConsentAggregate(
       id,
       userId,
       sessionId,
-      raw.projectId as ProjectId,
+      projectId,
       raw.status,
       raw.grantedAt,
       raw.revokedAt,
@@ -212,7 +219,7 @@ export class ConsentAggregate {
     this._grantedAt = Date.now();
     this._revokedAt = undefined;
     this._domainEvents.push(
-      makeConsentGranted(this.id.toString(), this.sessionId.toString(), this.projectId, this._grantedAt),
+      makeConsentGranted(this.id.toString(), this.sessionId.toString(), this.projectId.toString(), this._grantedAt),
     );
   }
 
@@ -238,7 +245,7 @@ export class ConsentAggregate {
       id: this.id.toString(),
       userId: this._userId.toString(),
       sessionId: this.sessionId.toString(),
-      projectId: this.projectId,
+      projectId: this.projectId.toString(),
       status: this.status,
       grantedAt: this._grantedAt,
       revokedAt: this._revokedAt,

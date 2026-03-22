@@ -11,7 +11,7 @@
 import { Result, Ok, Err } from '../shared/result';
 import type { DomainEvent } from '../shared/event-bus';
 import { SessionId } from '../session/types';
-import type { ProjectId } from '../project/types';
+import { ProjectId, toProjectId } from '../project/types';
 import {
   makeTabOpened,
   makeTabClosed,
@@ -250,10 +250,18 @@ export class WorkspaceAggregate {
 
     const activeTab = tabs.find(t => t.isActive) ?? tabs[0] ?? null;
     const activeTabId: TabId | null = activeTab ? activeTab.id : null;
+
+    // Snapshots come from trusted storage; fall back to the 'unknown' sentinel
+    // rather than crashing the repository on a missing or empty projectId.
+    const rawProjectIdResult = toProjectId(raw.projectId);
+    const projectId = rawProjectIdResult.ok
+      ? rawProjectIdResult.value
+      : (toProjectId('unknown') as { ok: true; value: ProjectId }).value;
+
     return Ok(new WorkspaceAggregate(
       idResult.value,
       SessionId._unsafe(raw.sessionId),
-      raw.projectId as ProjectId,
+      projectId,
       tabs,
       activeTabId,
       raw.createdAt,
@@ -417,7 +425,7 @@ export class WorkspaceAggregate {
     return {
       id: this.id.toString(),
       sessionId: this.sessionId.toString(),
-      projectId: this.projectId,
+      projectId: this.projectId.toString(),
       tabs: this._tabs.map(t =>
         this._activeTabId !== null && t.id.equals(this._activeTabId)
           ? t.withActive(true).toRaw()

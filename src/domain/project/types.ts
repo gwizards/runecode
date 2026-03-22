@@ -14,14 +14,25 @@ import {
   makeProjectRenamed,
 } from './events';
 
-// ─── Branded ID ───────────────────────────────────────────────────────────────
+// ─── Value Object: ProjectId ──────────────────────────────────────────────────
 
-export type ProjectId = string & { readonly _brand: 'ProjectId' };
+export class ProjectId {
+  private constructor(readonly value: string) {}
 
-export function toProjectId(id: string): Result<ProjectId> {
-  if (!id || !id.trim()) return Err('ProjectId cannot be empty');
-  return Ok(id as ProjectId);
+  static create(raw: string): Result<ProjectId> {
+    if (!raw || !raw.trim()) return Err('ProjectId cannot be empty');
+    return Ok(new ProjectId(raw.trim()));
+  }
+
+  static generate(): ProjectId { return new ProjectId(crypto.randomUUID()); }
+
+  equals(other: ProjectId): boolean { return this.value === other.value; }
+
+  toString(): string { return this.value; }
 }
+
+/** @deprecated Use ProjectId.create() */
+export function toProjectId(id: string): Result<ProjectId> { return ProjectId.create(id); }
 
 // ─── Value Object: ProjectPath ────────────────────────────────────────────────
 
@@ -126,7 +137,7 @@ export class ProjectAggregate {
     if (!projIdResult.ok) return Err(projIdResult.error);
 
     const aggregate = new ProjectAggregate(projIdResult.value, pathVO, nameVO, now, null, []);
-    aggregate._events.push(makeProjectCreated(id, pathVO.value, nameVO.value));
+    aggregate._events.push(makeProjectCreated(projIdResult.value.toString(), pathVO.value, nameVO.value));
     return Ok(aggregate);
   }
 
@@ -145,13 +156,16 @@ export class ProjectAggregate {
     const nameResult = ProjectName.create(effectiveName);
     if (!nameResult.ok) return nameResult;
 
+    const idResult = ProjectId.create(raw.id);
+    if (!idResult.ok) return idResult;
+
     const createdAt   = raw.createdAt ? new Date(raw.createdAt).getTime() : 0;
     const lastOpenedAt = raw.lastOpenedAt
       ? new Date(raw.lastOpenedAt).getTime()
       : null;
 
     return Ok(new ProjectAggregate(
-      raw.id as ProjectId,
+      idResult.value,
       pathResult.value,
       nameResult.value,
       createdAt,
@@ -167,7 +181,7 @@ export class ProjectAggregate {
    */
   open(): void {
     this._lastOpenedAt = Date.now();
-    this._events.push(makeProjectOpened(this.id, this._path.value));
+    this._events.push(makeProjectOpened(this.id.toString(), this._path.value));
   }
 
   /**
@@ -179,7 +193,7 @@ export class ProjectAggregate {
     if (!nameResult.ok) return nameResult;
     const oldName  = this._name.value;
     this._name     = nameResult.value;
-    this._events.push(makeProjectRenamed(this.id, oldName, this._name.value));
+    this._events.push(makeProjectRenamed(this.id.toString(), oldName, this._name.value));
     return Ok(undefined);
   }
 
@@ -189,7 +203,7 @@ export class ProjectAggregate {
    */
   markForDeletion(): void {
     this._deleted = true;
-    this._events.push(makeProjectDeleted(this.id, this._path.value));
+    this._events.push(makeProjectDeleted(this.id.toString(), this._path.value));
   }
 
   // ─── Getters ──────────────────────────────────────────────────────────────
@@ -225,7 +239,7 @@ export class ProjectAggregate {
 
   toSnapshot(): RawProject {
     return {
-      id:           this.id,
+      id:           this.id.toString(),
       path:         this._path.value,
       name:         this._name.value,
       createdAt:    new Date(this.createdAt).toISOString(),

@@ -143,8 +143,8 @@ export function createProjectStore(
       if (result.ok) {
         set(state => ({
           loading:          false,
-          projects:         state.projects.filter(p => p.id !== id),
-          currentProjectId: state.currentProjectId === id ? null : state.currentProjectId,
+          projects:         state.projects.filter(p => p.id.toString() !== id),
+          currentProjectId: state.currentProjectId?.toString() === id ? null : state.currentProjectId,
         }));
       } else {
         set({ error: result.error, loading: false });

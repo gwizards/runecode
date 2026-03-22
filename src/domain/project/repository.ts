@@ -26,7 +26,7 @@ export class InMemoryProjectRepository implements IProjectRepository {
   );
 
   async getProject(id: ProjectId): Promise<ProjectAggregate | null> {
-    const snapshot = this.projects.get(id);
+    const snapshot = this.projects.get(id.toString());
     if (!snapshot) return null;
     return unwrap(ProjectAggregate.fromSnapshot(snapshot));
   }
@@ -39,11 +39,11 @@ export class InMemoryProjectRepository implements IProjectRepository {
   }
 
   async saveProject(project: ProjectAggregate): Promise<void> {
-    this.projects.set(project.id, project.toSnapshot());
+    this.projects.set(project.id.toString(), project.toSnapshot());
   }
 
   async deleteProject(id: ProjectId): Promise<void> {
-    this.projects.delete(id);
+    this.projects.delete(id.toString());
   }
 
   async listProjects(): Promise<ProjectAggregate[]> {
@@ -55,6 +55,6 @@ export class InMemoryProjectRepository implements IProjectRepository {
    * Useful to pre-populate state before exercising a use-case.
    */
   seed(project: ProjectAggregate): void {
-    this.projects.set(project.id, project.toSnapshot());
+    this.projects.set(project.id.toString(), project.toSnapshot());
   }
 }

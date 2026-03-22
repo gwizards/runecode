@@ -19,7 +19,6 @@ import {
   ConsentAggregate,
   toConsentId,
   toAnalyticsSessionId,
-  type AnalyticsSessionId,
   type ConsentStatus,
   type CapturedEvent,
   UserId,
@@ -160,7 +159,7 @@ export class AnalyticsApplicationService {
 
       const projectId = consent.projectId;
       this.eventBus.dispatch([
-        makeSessionTracked(consent.id.toString(), rawSessionId, projectId),
+        makeSessionTracked(consent.id.toString(), rawSessionId, projectId.toString()),
       ]);
 
       this.tracker?.trackSession(rawSessionId, data);

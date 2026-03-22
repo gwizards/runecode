@@ -1,19 +1,8 @@
 /**
- * Shared Kernel — ProjectId
+ * Shared kernel — ProjectId re-export.
  *
- * ProjectId is referenced by both the project and session bounded contexts.
- * Rather than each context independently declaring the same branded type,
- * both import from this shared kernel module.
- *
- * This is the ONLY shared kernel type. Contexts must NOT share aggregates,
- * value objects, or domain events — only scalar identity types may be shared.
+ * The canonical ProjectId class VO lives in the project bounded context.
+ * This file exists for backward-compat imports by contexts that need the type
+ * without depending on the full project domain module.
  */
-
-import { Result, Ok, Err } from './result';
-
-export type ProjectId = string & { readonly _brand: 'ProjectId' };
-
-export function toProjectId(id: string): Result<ProjectId> {
-  if (!id || !id.trim()) return Err('ProjectId cannot be empty');
-  return Ok(id as ProjectId);
-}
+export { ProjectId, toProjectId } from '../project/types';
