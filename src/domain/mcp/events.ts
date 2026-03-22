@@ -11,11 +11,11 @@ import type { ServerId, ServerStatusValue, ServerTransport } from './types';
 // ─── Event type constants ──────────────────────────────────────────────────
 
 export const MCP_EVENT_TYPES = {
-  SERVER_ADDED: 'mcp.server.added',
-  SERVER_REMOVED: 'mcp.server.removed',
-  SERVER_STATUS_CHANGED: 'mcp.server.status_changed',
-  SERVER_ENABLED: 'mcp.server.enabled',
-  SERVER_DISABLED: 'mcp.server.disabled',
+  SERVER_ADDED: 'mcp/server.added',
+  SERVER_REMOVED: 'mcp/server.removed',
+  SERVER_STATUS_CHANGED: 'mcp/server.status_changed',
+  SERVER_ENABLED: 'mcp/server.enabled',
+  SERVER_DISABLED: 'mcp/server.disabled',
 } as const;
 
 // ─── Event interfaces ─────────────────────────────────────────────────────

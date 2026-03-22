@@ -146,62 +146,57 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   fetchInstallation: async () => {
     void get().setupListeners(); // non-blocking, idempotent
     set({ loading: true, error: null });
-    try {
-      const installation = await ruFloService.getInstallation();
-      set({ installation, loading: false });
-      dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
-    } catch (e) {
-      set({ error: String(e), loading: false });
+    const result = await ruFloService.getInstallation();
+    if (!result.ok) {
+      set({ error: result.error, loading: false });
+      return;
     }
+    set({ installation: result.value, loading: false });
+    dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
   },
 
   fetchSwarm: async () => {
-    try {
-      const swarm = await ruFloService.getSwarmStatus();
-      set({ swarm });
-    } catch {
-      // non-critical
+    const result = await ruFloService.getSwarmStatus();
+    if (result.ok) {
+      set({ swarm: result.value });
     }
+    // non-critical — ignore errors silently
   },
 
   fetchProjectStatus: async (projectPath: string) => {
-    try {
-      const projectStatus = await ruFloService.getProjectStatus(projectPath);
-      set({ projectStatus });
-    } catch {
-      // non-critical
+    const result = await ruFloService.getProjectStatus(projectPath);
+    if (result.ok) {
+      set({ projectStatus: result.value });
     }
+    // non-critical — ignore errors silently
   },
 
   fetchMemoryStats: async () => {
     // QUERY — reads current memory stats and local cache state; no side effects.
-    try {
-      const memoryStats = await ruFloService.getMemoryStats();
-      const localStore = getLocalMemoryStore();
-      const localSnapshot = localStore.export();
-      set({
-        memoryStats: {
-          ...memoryStats,
-          localCacheSize: localStore.size,
-          localMode: localSnapshot.mode,
-        },
-        localMemoryMode: localSnapshot.mode as QuantizationMode,
+    const result = await ruFloService.getMemoryStats();
+    if (!result.ok) return; // non-critical
+    const memoryStats = result.value;
+    const localStore = getLocalMemoryStore();
+    const localSnapshot = localStore.export();
+    set({
+      memoryStats: {
+        ...memoryStats,
         localCacheSize: localStore.size,
-      });
-    } catch {
-      // non-critical
-    }
+        localMode: localSnapshot.mode,
+      },
+      localMemoryMode: localSnapshot.mode as QuantizationMode,
+      localCacheSize: localStore.size,
+    });
   },
 
   refreshMemoryStats: async () => {
     // COMMAND — ensures agentdb backend is initialized on first launch (side
     // effect tracked by infrastructure layer), then delegates to the query.
-    try {
-      const alreadyInitialized = checkAndMarkBackendInitialized();
-      if (!alreadyInitialized) {
-        await ruFloService.setMemoryBackend('agentdb');
-      }
-    } catch { /* non-critical — CLI may not be installed yet */ }
+    const alreadyInitialized = checkAndMarkBackendInitialized();
+    if (!alreadyInitialized) {
+      // non-critical — CLI may not be installed yet; ignore Err
+      await ruFloService.setMemoryBackend('agentdb');
+    }
     await get().fetchMemoryStats();
   },
 
@@ -221,129 +216,112 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
 
   install: async () => {
     set({ actionInProgress: 'install', error: null });
-    try {
-      const result = await ruFloService.install();
-      await get().fetchInstallation();
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.install();
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    await get().fetchInstallation();
+    return result.value;
   },
 
   uninstall: async () => {
     set({ actionInProgress: 'uninstall', error: null });
-    try {
-      const result = await ruFloService.uninstall();
-      set({ installation: null, swarm: null, memoryStats: null });
-      dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.uninstall();
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    set({ installation: null, swarm: null, memoryStats: null });
+    dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
+    return result.value;
   },
 
   activateMcp: async () => {
     set({ actionInProgress: 'mcp', error: null });
-    try {
-      const result = await ruFloService.activateMcp();
-      await get().fetchInstallation();
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.activateMcp();
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    await get().fetchInstallation();
+    return result.value;
   },
 
   deactivateMcp: async () => {
     set({ actionInProgress: 'mcp', error: null });
-    try {
-      const result = await ruFloService.deactivateMcp();
-      await get().fetchInstallation();
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.deactivateMcp();
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    await get().fetchInstallation();
+    return result.value;
   },
 
   createSlashCommand: async () => {
     set({ actionInProgress: 'slash', error: null });
-    try {
-      const result = await ruFloService.createSlashCommand();
-      await get().fetchInstallation();
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.createSlashCommand();
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    await get().fetchInstallation();
+    return result.value;
   },
 
   initProject: async (projectPath: string) => {
     set({ actionInProgress: 'init', error: null });
-    try {
-      const result = await ruFloService.initProject(projectPath);
-      await get().fetchProjectStatus(projectPath);
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.initProject(projectPath);
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    await get().fetchProjectStatus(projectPath);
+    return result.value;
   },
 
   // ── Memory actions ────────────────────────────────────────────────────────
 
   syncMemoryLocal: async (outputPath: string) => {
     set({ actionInProgress: 'mem-sync', error: null });
-    try {
-      return await ruFloService.syncMemoryLocal(outputPath);
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.syncMemoryLocal(outputPath);
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    return result.value;
   },
 
   consolidateMemory: async () => {
     set({ actionInProgress: 'mem-consolidate', error: null });
-    try {
-      const result = await ruFloService.consolidateMemory();
-      await get().fetchMemoryStats();
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.consolidateMemory();
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    await get().fetchMemoryStats();
+    return result.value;
   },
 
   setMemoryBackend: async (backend) => {
     set({ actionInProgress: 'mem-backend', error: null });
-    try {
-      const result = await ruFloService.setMemoryBackend(backend);
-      await get().fetchMemoryStats();
-      return result;
-    } catch (e) {
-      set({ error: String(e) });
-      throw e;
-    } finally {
-      set({ actionInProgress: null });
+    const result = await ruFloService.setMemoryBackend(backend);
+    set({ actionInProgress: null });
+    if (!result.ok) {
+      set({ error: result.error });
+      throw new Error(result.error);
     }
+    await get().fetchMemoryStats();
+    return result.value;
   },
 
   // ── Local cache actions ───────────────────────────────────────────────────

@@ -44,21 +44,19 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
 
   const fetchData = useCallback(async () => {
     if (!projectPath) return;
-    try {
-      const proj = await ruFloService.getProjectStatus(projectPath);
-      setProjectStatus(proj);
+    const projResult = await ruFloService.getProjectStatus(projectPath);
+    if (!projResult.ok) {
+      setIsStale(true);
+    } else {
+      setProjectStatus(projResult.value);
       await fetchSwarm();
       setIsStale(false);
-    } catch {
-      setIsStale(true);
     }
-    try {
-      const stats = await ruFloService.getMemoryStats();
-      if (stats && typeof stats === 'object') {
-        const s = stats as Record<string, unknown>;
-        setMemoryBackend(String(s.backend ?? 'hybrid'));
-      }
-    } catch { /* non-critical */ }
+    const statsResult = await ruFloService.getMemoryStats();
+    if (statsResult.ok) {
+      setMemoryBackend(String(statsResult.value.backend ?? 'hybrid'));
+    }
+    // non-critical — ignore Err silently
   }, [projectPath, fetchSwarm]);
 
   // Check install status once on mount
@@ -202,14 +200,13 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
             <button
               onClick={async () => {
                 setIsIniting(true);
-                try {
-                  await ruFloService.initProject(projectPath);
+                const result = await ruFloService.initProject(projectPath);
+                if (!result.ok) {
+                  console.warn('RuFlo init failed:', result.error);
+                } else {
                   await fetchData();
-                } catch (e) {
-                  console.warn('RuFlo init failed:', e);
-                } finally {
-                  setIsIniting(false);
                 }
+                setIsIniting(false);
               }}
               disabled={isIniting}
               className="flex-1 py-1 text-[10px] bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
@@ -219,10 +216,9 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
             <button
               onClick={async () => {
                 setIsSyncing(true);
-                try {
-                  await ruFloService.syncMemoryLocal(`${projectPath}/ruflo-memory-backup.json`);
-                } catch (e) { console.warn('sync failed:', e); }
-                finally { setIsSyncing(false); }
+                const result = await ruFloService.syncMemoryLocal(`${projectPath}/ruflo-memory-backup.json`);
+                if (!result.ok) console.warn('sync failed:', result.error);
+                setIsSyncing(false);
               }}
               disabled={isSyncing}
               className="flex-1 py-1 text-[10px] bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
@@ -232,10 +228,9 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
             <button
               onClick={async () => {
                 setIsConsolidating(true);
-                try {
-                  await ruFloService.consolidateMemory();
-                } catch (e) { console.warn('consolidate failed:', e); }
-                finally { setIsConsolidating(false); }
+                const result = await ruFloService.consolidateMemory();
+                if (!result.ok) console.warn('consolidate failed:', result.error);
+                setIsConsolidating(false);
               }}
               disabled={isConsolidating}
               className="flex-1 py-1 text-[10px] bg-white/5 rounded-md text-muted-foreground/60 hover:bg-white/10 transition-colors disabled:opacity-50"

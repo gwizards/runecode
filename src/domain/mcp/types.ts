@@ -6,6 +6,8 @@
  */
 
 import type { DomainEvent } from '../shared/event-bus';
+import type { Result } from '../shared/result';
+import { Ok, Err } from '../shared/result';
 import {
   makeServerAdded,
   makeServerEnabled,
@@ -122,22 +124,21 @@ export class MCPServerAggregate {
   }
 
   /**
-   * Reconstruct from a persisted snapshot. No events raised.
+   * Reconstruct from a persisted snapshot. Returns a Result — callers must
+   * handle the Err case rather than catching a thrown exception.
+   * No events are raised.
    */
-  static fromSnapshot(raw: RawMCPServer): MCPServerAggregate {
-    const serverId = toServerId(raw.id ?? raw.name);
-    const serverName = ServerName.create(raw.name);
-
-    let serverUrl: ServerUrl;
-    if (raw.url) {
-      serverUrl = ServerUrl.create(raw.url, raw.transport);
-    } else if (raw.command) {
-      serverUrl = ServerUrl.create(raw.command, raw.transport);
-    } else {
-      throw new Error('MCPServerAggregate.fromSnapshot: url or command required');
+  static tryFromSnapshot(raw: RawMCPServer): Result<MCPServerAggregate> {
+    if (!raw.url && !raw.command) {
+      return Err(`MCPServerAggregate: snapshot ${raw.id ?? raw.name} has neither url nor command`);
     }
 
-    return new MCPServerAggregate(
+    const serverId = toServerId(raw.id ?? raw.name);
+    const serverName = ServerName.create(raw.name);
+    const endpoint = (raw.url ?? raw.command) as string;
+    const serverUrl = ServerUrl.create(endpoint, raw.transport);
+
+    return Ok(new MCPServerAggregate(
       serverId,
       serverName,
       raw.transport,
@@ -145,7 +146,17 @@ export class MCPServerAggregate {
       raw.status ?? 'disconnected',
       raw.enabled ?? true,
       [],
-    );
+    ));
+  }
+
+  /**
+   * Reconstruct from a persisted snapshot. Throws if the snapshot is invalid.
+   * @deprecated Use tryFromSnapshot instead.
+   */
+  static fromSnapshot(raw: RawMCPServer): MCPServerAggregate {
+    const result = MCPServerAggregate.tryFromSnapshot(raw);
+    if (!result.ok) throw new Error(result.error);
+    return result.value;
   }
 
   // ── State transitions ─────────────────────────────────────────────────

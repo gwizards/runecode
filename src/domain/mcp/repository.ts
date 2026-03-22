@@ -27,12 +27,23 @@ export class InMemoryMCPRepository implements IMCPRepository {
   async getServer(id: ServerId): Promise<MCPServerAggregate | null> {
     const snapshot = this.servers.get(id);
     if (!snapshot) return null;
-    return MCPServerAggregate.fromSnapshot(snapshot);
+    const result = MCPServerAggregate.tryFromSnapshot(snapshot);
+    if (!result.ok) {
+      console.warn(`[MCPRepository] Skipping corrupted snapshot for id="${id}": ${result.error}`);
+      return null;
+    }
+    return result.value;
   }
 
   async findByName(name: string): Promise<MCPServerAggregate | null> {
     for (const snapshot of this.servers.values()) {
-      if (snapshot.name === name) return MCPServerAggregate.fromSnapshot(snapshot);
+      if (snapshot.name !== name) continue;
+      const result = MCPServerAggregate.tryFromSnapshot(snapshot);
+      if (!result.ok) {
+        console.warn(`[MCPRepository] Skipping corrupted snapshot for name="${name}": ${result.error}`);
+        continue;
+      }
+      return result.value;
     }
     return null;
   }
@@ -46,13 +57,21 @@ export class InMemoryMCPRepository implements IMCPRepository {
   }
 
   async listServers(): Promise<MCPServerAggregate[]> {
-    return this.servers.values().map(MCPServerAggregate.fromSnapshot);
+    const aggregates: MCPServerAggregate[] = [];
+    for (const snapshot of this.servers.values()) {
+      const result = MCPServerAggregate.tryFromSnapshot(snapshot);
+      if (!result.ok) {
+        console.warn(`[MCPRepository] Skipping corrupted snapshot: ${result.error}`);
+        continue;
+      }
+      aggregates.push(result.value);
+    }
+    return aggregates;
   }
 
   async listEnabledServers(): Promise<MCPServerAggregate[]> {
-    return this.servers.values()
-      .map(MCPServerAggregate.fromSnapshot)
-      .filter((s) => s.isEnabled);
+    const servers = await this.listServers();
+    return servers.filter((s) => s.isEnabled);
   }
 
   /** Test helper: seed an aggregate directly without triggering any events. */

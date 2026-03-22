@@ -10,11 +10,14 @@ import type { DomainEvent } from '../shared/event-bus';
 // ─── Event Type Constants ─────────────────────────────────────────────────────
 
 export const PROJECT_EVENT_TYPES = {
-  CREATED: 'project.created',
-  OPENED:  'project.opened',
-  RENAMED: 'project.renamed',
-  DELETED: 'project.deleted',
+  CREATED: 'project/project.created',
+  OPENED:  'project/project.opened',
+  RENAMED: 'project/project.renamed',
+  DELETED: 'project/project.deleted',
 } as const;
+
+/** Alias kept for consumers that import the generic name. */
+export const DOMAIN_EVENT_TYPES = PROJECT_EVENT_TYPES;
 
 export type ProjectEventType = (typeof PROJECT_EVENT_TYPES)[keyof typeof PROJECT_EVENT_TYPES];
 

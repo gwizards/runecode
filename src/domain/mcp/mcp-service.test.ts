@@ -28,6 +28,7 @@ import type {
   ServerDisabledEvent,
 } from './events';
 import { MCPApplicationService } from './service';
+import type { RawMCPServer } from './types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -446,5 +447,67 @@ describe('MCPApplicationService — duplicate server id', () => {
     expect(matching).toHaveLength(1);
     // The replacement wins at the repository layer
     expect(matching[0].name).toBe('Replacement');
+  });
+});
+
+// ─── 9. MCPServerAggregate.tryFromSnapshot ───────────────────────────────────
+
+describe('MCPServerAggregate.tryFromSnapshot', () => {
+  it('returns Err when snapshot has neither url nor command', () => {
+    const raw: RawMCPServer = {
+      id: 'bad-snap',
+      name: 'BadServer',
+      transport: 'stdio',
+      // url and command both absent
+    };
+    const result = MCPServerAggregate.tryFromSnapshot(raw);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('bad-snap');
+      expect(result.error).toContain('neither url nor command');
+    }
+  });
+
+  it('returns Ok with a valid aggregate when url is present', () => {
+    const raw: RawMCPServer = {
+      id: 'good-snap',
+      name: 'GoodServer',
+      transport: 'stdio',
+      url: '/usr/local/bin/good-mcp',
+      status: 'disconnected',
+      enabled: true,
+    };
+    const result = MCPServerAggregate.tryFromSnapshot(raw);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.id).toBe('good-snap');
+      expect(result.value.name).toBe('GoodServer');
+      expect(result.value.url).toBe('/usr/local/bin/good-mcp');
+      expect(result.value.status).toBe('disconnected');
+      expect(result.value.isEnabled).toBe(true);
+    }
+  });
+
+  it('returns Ok with a valid aggregate when command is present and url is absent', () => {
+    const raw: RawMCPServer = {
+      id: 'cmd-snap',
+      name: 'CmdServer',
+      transport: 'stdio',
+      command: '/usr/local/bin/cmd-mcp',
+    };
+    const result = MCPServerAggregate.tryFromSnapshot(raw);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.url).toBe('/usr/local/bin/cmd-mcp');
+    }
+  });
+
+  it('fromSnapshot (deprecated wrapper) throws when snapshot is invalid', () => {
+    const raw: RawMCPServer = {
+      id: 'throw-snap',
+      name: 'ThrowServer',
+      transport: 'stdio',
+    };
+    expect(() => MCPServerAggregate.fromSnapshot(raw)).toThrow('neither url nor command');
   });
 });

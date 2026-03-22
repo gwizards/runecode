@@ -247,14 +247,13 @@ export function RuFloSettings() {
             onClick={async () => {
               setActionLoading('mem-stats');
               setError(null);
-              try {
-                const stats = await ruFloService.getMemoryStats();
-                setMemoryStats({ total: stats.total, backend: stats.backend });
-              } catch (e) {
-                setError(String(e));
-              } finally {
-                setActionLoading(null);
+              const result = await ruFloService.getMemoryStats();
+              if (!result.ok) {
+                setError(result.error);
+              } else {
+                setMemoryStats({ total: result.value.total, backend: result.value.backend });
               }
+              setActionLoading(null);
             }}
             disabled={actionLoading !== null || !status?.installed}
             className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
