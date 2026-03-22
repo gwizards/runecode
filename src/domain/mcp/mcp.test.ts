@@ -7,44 +7,47 @@ import { ServerUrl, ServerName, MCPServerAggregate } from './types';
 import { MCP_EVENT_TYPES } from './events';
 import { InMemoryMCPRepository } from './repository';
 import { toServerId } from './types';
+import { unwrap } from '../shared/result';
 
 // ─── 1. ServerUrl Value Object ────────────────────────────────────────────
 
 describe('ServerUrl', () => {
   it('accepts a valid stdio URL', () => {
-    const url = ServerUrl.create('/usr/local/bin/my-server', 'stdio');
+    const url = unwrap(ServerUrl.create('/usr/local/bin/my-server', 'stdio'));
     expect(url.value).toBe('/usr/local/bin/my-server');
     expect(url.transport).toBe('stdio');
   });
 
   it('accepts a valid SSE URL starting with http', () => {
-    const url = ServerUrl.create('http://localhost:3000/sse', 'sse');
+    const url = unwrap(ServerUrl.create('http://localhost:3000/sse', 'sse'));
     expect(url.value).toBe('http://localhost:3000/sse');
   });
 
-  it('throws when SSE URL does not start with http', () => {
-    expect(() => ServerUrl.create('localhost:3000/sse', 'sse')).toThrow(
-      'SSE URLs must start with http',
-    );
+  it('returns Err when SSE URL does not start with http', () => {
+    const result = ServerUrl.create('localhost:3000/sse', 'sse');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('SSE URLs must start with http');
   });
 
-  it('throws for an empty URL', () => {
-    expect(() => ServerUrl.create('   ', 'stdio')).toThrow('Server URL required');
+  it('returns Err for an empty URL', () => {
+    const result = ServerUrl.create('   ', 'stdio');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('Server URL required');
   });
 });
 
 // ─── 2. ServerName Value Object ──────────────────────────────────────────
 
 describe('ServerName', () => {
-  it('throws when name exceeds 100 characters', () => {
+  it('returns Err when name exceeds 100 characters', () => {
     const longName = 'a'.repeat(101);
-    expect(() => ServerName.create(longName)).toThrow(
-      'Server name must be 1-100 characters',
-    );
+    const result = ServerName.create(longName);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('Server name must be 1-100 characters');
   });
 
   it('accepts a valid name and trims whitespace', () => {
-    const name = ServerName.create('  my-server  ');
+    const name = unwrap(ServerName.create('  my-server  '));
     expect(name.value).toBe('my-server');
   });
 });
@@ -53,14 +56,14 @@ describe('ServerName', () => {
 
 describe('MCPServerAggregate.add()', () => {
   it('raises a ServerAddedEvent', () => {
-    const server = MCPServerAggregate.add('srv-1', 'My Server', 'stdio', '/bin/server');
+    const server = unwrap(MCPServerAggregate.add('srv-1', 'My Server', 'stdio', '/bin/server'));
     expect(server.events).toHaveLength(1);
     expect(server.events[0].type).toBe(MCP_EVENT_TYPES.SERVER_ADDED);
     expect(server.events[0].aggregateId).toBe('srv-1');
   });
 
   it('starts with status pending', () => {
-    const server = MCPServerAggregate.add('srv-2', 'My Server', 'stdio', '/bin/server');
+    const server = unwrap(MCPServerAggregate.add('srv-2', 'My Server', 'stdio', '/bin/server'));
     expect(server.status).toBe('pending');
   });
 });
@@ -69,7 +72,7 @@ describe('MCPServerAggregate.add()', () => {
 
 describe('MCPServerAggregate.connect()', () => {
   it('raises a ServerStatusChangedEvent', () => {
-    const server = MCPServerAggregate.add('srv-3', 'Server 3', 'stdio', '/bin/s3');
+    const server = unwrap(MCPServerAggregate.add('srv-3', 'Server 3', 'stdio', '/bin/s3'));
     server.clearEvents();
 
     server.connect();
@@ -79,7 +82,7 @@ describe('MCPServerAggregate.connect()', () => {
   });
 
   it('sets status to connected', () => {
-    const server = MCPServerAggregate.add('srv-4', 'Server 4', 'stdio', '/bin/s4');
+    const server = unwrap(MCPServerAggregate.add('srv-4', 'Server 4', 'stdio', '/bin/s4'));
     server.connect();
     expect(server.status).toBe('connected');
     expect(server.isConnected).toBe(true);
@@ -90,7 +93,7 @@ describe('MCPServerAggregate.connect()', () => {
 
 describe('MCPServerAggregate enable/disable', () => {
   it('enable() raises ServerEnabledEvent after disable', () => {
-    const server = MCPServerAggregate.add('srv-5', 'Server 5', 'stdio', '/bin/s5');
+    const server = unwrap(MCPServerAggregate.add('srv-5', 'Server 5', 'stdio', '/bin/s5'));
     server.disable(); // server starts enabled, so disable first
     server.clearEvents();
 
@@ -102,7 +105,7 @@ describe('MCPServerAggregate enable/disable', () => {
   });
 
   it('double enable() throws', () => {
-    const server = MCPServerAggregate.add('srv-6', 'Server 6', 'stdio', '/bin/s6');
+    const server = unwrap(MCPServerAggregate.add('srv-6', 'Server 6', 'stdio', '/bin/s6'));
     // server is already enabled from add()
     expect(() => server.enable()).toThrow('already enabled');
   });
@@ -113,7 +116,7 @@ describe('MCPServerAggregate enable/disable', () => {
 describe('InMemoryMCPRepository', () => {
   it('save and getServer round-trips the aggregate', async () => {
     const repo = new InMemoryMCPRepository();
-    const server = MCPServerAggregate.add('repo-1', 'Repo Server', 'stdio', '/bin/r1');
+    const server = unwrap(MCPServerAggregate.add('repo-1', 'Repo Server', 'stdio', '/bin/r1'));
 
     await repo.saveServer(server);
     const found = await repo.getServer(toServerId('repo-1'));
@@ -124,8 +127,8 @@ describe('InMemoryMCPRepository', () => {
 
   it('findByName returns the correct aggregate', async () => {
     const repo = new InMemoryMCPRepository();
-    const serverA = MCPServerAggregate.add('repo-a', 'Alpha', 'stdio', '/bin/alpha');
-    const serverB = MCPServerAggregate.add('repo-b', 'Beta', 'sse', 'http://localhost/sse');
+    const serverA = unwrap(MCPServerAggregate.add('repo-a', 'Alpha', 'stdio', '/bin/alpha'));
+    const serverB = unwrap(MCPServerAggregate.add('repo-b', 'Beta', 'sse', 'http://localhost/sse'));
 
     await repo.saveServer(serverA);
     await repo.saveServer(serverB);
@@ -137,8 +140,8 @@ describe('InMemoryMCPRepository', () => {
 
   it('listEnabledServers excludes disabled servers', async () => {
     const repo = new InMemoryMCPRepository();
-    const enabled = MCPServerAggregate.add('e-1', 'Enabled', 'stdio', '/bin/enabled');
-    const disabled = MCPServerAggregate.add('d-1', 'Disabled', 'stdio', '/bin/disabled');
+    const enabled = unwrap(MCPServerAggregate.add('e-1', 'Enabled', 'stdio', '/bin/enabled'));
+    const disabled = unwrap(MCPServerAggregate.add('d-1', 'Disabled', 'stdio', '/bin/disabled'));
     disabled.disable();
 
     await repo.saveServer(enabled);
@@ -151,7 +154,7 @@ describe('InMemoryMCPRepository', () => {
 
   it('removeServer deletes the aggregate', async () => {
     const repo = new InMemoryMCPRepository();
-    const server = MCPServerAggregate.add('rem-1', 'ToRemove', 'stdio', '/bin/rm');
+    const server = unwrap(MCPServerAggregate.add('rem-1', 'ToRemove', 'stdio', '/bin/rm'));
     await repo.saveServer(server);
 
     await repo.removeServer(toServerId('rem-1'));

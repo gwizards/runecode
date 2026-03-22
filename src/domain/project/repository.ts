@@ -8,6 +8,7 @@
 
 import type { ProjectId, RawProject } from './types';
 import { ProjectAggregate } from './types';
+import { unwrap } from '../shared/result';
 import { ProjectSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
 import type { IProjectRepository } from './ports/IProjectRepository';
 
@@ -27,12 +28,12 @@ export class InMemoryProjectRepository implements IProjectRepository {
   async getProject(id: ProjectId): Promise<ProjectAggregate | null> {
     const snapshot = this.projects.get(id);
     if (!snapshot) return null;
-    return ProjectAggregate.fromSnapshot(snapshot);
+    return unwrap(ProjectAggregate.fromSnapshot(snapshot));
   }
 
   async findByPath(path: string): Promise<ProjectAggregate | null> {
     for (const snapshot of this.projects.values()) {
-      if (snapshot.path === path) return ProjectAggregate.fromSnapshot(snapshot);
+      if (snapshot.path === path) return unwrap(ProjectAggregate.fromSnapshot(snapshot));
     }
     return null;
   }
@@ -46,7 +47,7 @@ export class InMemoryProjectRepository implements IProjectRepository {
   }
 
   async listProjects(): Promise<ProjectAggregate[]> {
-    return this.projects.values().map(ProjectAggregate.fromSnapshot);
+    return this.projects.values().map((s) => unwrap(ProjectAggregate.fromSnapshot(s)));
   }
 
   /**

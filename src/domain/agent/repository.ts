@@ -8,6 +8,7 @@
 import type { AgentId, RawLiveAgent } from './types';
 import { LiveAgentAggregate } from './types';
 import { AgentSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
+import { unwrap } from '../shared/result';
 import type { IAgentRepository } from './ports/IAgentRepository';
 
 export type { IAgentRepository };
@@ -22,7 +23,7 @@ export class InMemoryAgentRepository implements IAgentRepository {
   async getAgent(id: AgentId): Promise<LiveAgentAggregate | null> {
     const snapshot = this.agents.get(id);
     if (!snapshot) return null;
-    return LiveAgentAggregate.fromSnapshot(snapshot);
+    return unwrap(LiveAgentAggregate.fromSnapshot(snapshot));
   }
 
   async saveAgent(agent: LiveAgentAggregate): Promise<void> {
@@ -35,12 +36,12 @@ export class InMemoryAgentRepository implements IAgentRepository {
 
   async listActiveAgents(): Promise<LiveAgentAggregate[]> {
     return this.agents.values()
-      .map(LiveAgentAggregate.fromSnapshot)
+      .map((s) => unwrap(LiveAgentAggregate.fromSnapshot(s)))
       .filter((a) => a.isActive);
   }
 
   async listAll(): Promise<LiveAgentAggregate[]> {
-    return this.agents.values().map(LiveAgentAggregate.fromSnapshot);
+    return this.agents.values().map((s) => unwrap(LiveAgentAggregate.fromSnapshot(s)));
   }
 
   /**

@@ -38,15 +38,15 @@ export class ServerUrl {
     readonly transport: ServerTransport,
   ) {}
 
-  static create(url: string, transport: ServerTransport): ServerUrl {
+  static create(url: string, transport: ServerTransport): Result<ServerUrl> {
     const trimmed = url.trim();
     if (!trimmed) {
-      throw new Error('Server URL required');
+      return Err('Server URL required');
     }
     if (transport === 'sse' && !trimmed.startsWith('http')) {
-      throw new Error('SSE URLs must start with http');
+      return Err('SSE URLs must start with http');
     }
-    return new ServerUrl(trimmed, transport);
+    return Ok(new ServerUrl(trimmed, transport));
   }
 
   equals(other: ServerUrl): boolean {
@@ -59,12 +59,12 @@ export class ServerUrl {
 export class ServerName {
   private constructor(readonly value: string) {}
 
-  static create(raw: string): ServerName {
+  static create(raw: string): Result<ServerName> {
     const v = raw.trim();
     if (!v || v.length > 100) {
-      throw new Error('Server name must be 1-100 characters');
+      return Err('Server name must be 1-100 characters');
     }
-    return new ServerName(v);
+    return Ok(new ServerName(v));
   }
 }
 
@@ -105,14 +105,21 @@ export class MCPServerAggregate {
     name: string,
     transport: ServerTransport,
     url: string,
-  ): MCPServerAggregate {
+  ): Result<MCPServerAggregate> {
     const serverId = toServerId(id);
-    const serverName = ServerName.create(name);
-    const serverUrl = ServerUrl.create(url, transport);
+
+    const nameResult = ServerName.create(name);
+    if (!nameResult.ok) return nameResult;
+
+    const urlResult = ServerUrl.create(url, transport);
+    if (!urlResult.ok) return urlResult;
+
+    const serverName = nameResult.value;
+    const serverUrl = urlResult.value;
 
     const event = makeServerAdded(serverId, serverName.value, transport, serverUrl.value);
 
-    return new MCPServerAggregate(
+    return Ok(new MCPServerAggregate(
       serverId,
       serverName,
       transport,
@@ -120,7 +127,7 @@ export class MCPServerAggregate {
       'pending',
       true,
       [event],
-    );
+    ));
   }
 
   /**
@@ -134,15 +141,19 @@ export class MCPServerAggregate {
     }
 
     const serverId = toServerId(raw.id ?? raw.name);
-    const serverName = ServerName.create(raw.name);
+
+    const nameResult = ServerName.create(raw.name);
+    if (!nameResult.ok) return nameResult;
+
     const endpoint = (raw.url ?? raw.command) as string;
-    const serverUrl = ServerUrl.create(endpoint, raw.transport);
+    const urlResult = ServerUrl.create(endpoint, raw.transport);
+    if (!urlResult.ok) return urlResult;
 
     return Ok(new MCPServerAggregate(
       serverId,
-      serverName,
+      nameResult.value,
       raw.transport,
-      serverUrl,
+      urlResult.value,
       raw.status ?? 'disconnected',
       raw.enabled ?? true,
       [],

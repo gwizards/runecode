@@ -40,12 +40,10 @@ export function isActiveStatus(s: AgentStatus): boolean {
 export class AgentName {
   private constructor(readonly value: string) {}
 
-  static create(raw: string): AgentName {
-    const v = raw.trim();
-    if (!v || v.length > 200) {
-      throw new Error('Agent name must be 1-200 characters');
-    }
-    return new AgentName(v);
+  static create(raw: string): Result<AgentName> {
+    if (!raw || raw.trim().length === 0) return Err('Agent name cannot be empty');
+    if (raw.length > 200) return Err('Agent name too long (max 200 chars)');
+    return Ok(new AgentName(raw.trim()));
   }
 }
 
@@ -93,10 +91,13 @@ export class LiveAgentAggregate {
   /**
    * Create a new agent and raise AgentStartedEvent.
    * Initial status is 'running'.
+   * Returns Err if the name is invalid.
    */
-  static start(id: string, name: string): LiveAgentAggregate {
+  static start(id: string, name: string): Result<LiveAgentAggregate> {
     const agentId = toAgentId(id);
-    const agentName = AgentName.create(name);
+    const nameResult = AgentName.create(name);
+    if (!nameResult.ok) return nameResult;
+    const agentName = nameResult.value;
     const now = Date.now();
     const aggregate = new LiveAgentAggregate(
       agentId,
@@ -108,22 +109,27 @@ export class LiveAgentAggregate {
       [],
     );
     aggregate._events.push(makeAgentStarted(id, agentName.value));
-    return aggregate;
+    return Ok(aggregate);
   }
 
   /**
    * Reconstitute an aggregate from a persisted snapshot.
    * Does not raise any events.
+   * Returns Err if the stored name fails validation.
    */
-  static fromSnapshot(raw: RawLiveAgent): LiveAgentAggregate {
-    return new LiveAgentAggregate(
-      toAgentId(raw.id),
-      AgentName.create(raw.name),
-      raw.status ?? 'idle',
-      raw.tokenCount ?? 0,
-      raw.startedAt ?? Date.now(),
-      raw.elapsedMs ?? 0,
-      [],
+  static fromSnapshot(raw: RawLiveAgent): Result<LiveAgentAggregate> {
+    const nameResult = AgentName.create(raw.name);
+    if (!nameResult.ok) return nameResult;
+    return Ok(
+      new LiveAgentAggregate(
+        toAgentId(raw.id),
+        nameResult.value,
+        raw.status ?? 'idle',
+        raw.tokenCount ?? 0,
+        raw.startedAt ?? Date.now(),
+        raw.elapsedMs ?? 0,
+        [],
+      ),
     );
   }
 

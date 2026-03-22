@@ -33,7 +33,9 @@ export class MCPApplicationService {
     url: string,
   ): Promise<Result<MCPServerAggregate>> {
     try {
-      const server = MCPServerAggregate.add(id, name, transport, url);
+      const addResult = MCPServerAggregate.add(id, name, transport, url);
+      if (!addResult.ok) return addResult;
+      const server = addResult.value;
       await this.persist(server);
       return Ok(server);
     } catch (err) {

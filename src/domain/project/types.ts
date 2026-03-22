@@ -5,6 +5,8 @@
  */
 
 import type { DomainEvent } from '../shared/event-bus';
+import type { Result } from '../shared/result';
+import { Ok, Err } from '../shared/result';
 import {
   makeProjectCreated,
   makeProjectDeleted,
@@ -30,17 +32,17 @@ export function toProjectId(id: string): ProjectId {
 export class ProjectPath {
   private constructor(readonly value: string) {}
 
-  static create(raw: string): ProjectPath {
+  static create(raw: string): Result<ProjectPath> {
     const trimmed = raw.trim();
     if (!trimmed) {
-      throw new Error('Project path required');
+      return Err('Project path required');
     }
     const isUnix    = trimmed.startsWith('/');
     const isWindows = /^[A-Za-z]:[/\\]/.test(trimmed);
     if (!isUnix && !isWindows) {
-      throw new Error('Absolute path required');
+      return Err('Absolute path required');
     }
-    return new ProjectPath(trimmed);
+    return Ok(new ProjectPath(trimmed));
   }
 
   /** The last path segment — used as the default display name. */
@@ -61,12 +63,12 @@ export class ProjectPath {
 export class ProjectName {
   private constructor(readonly value: string) {}
 
-  static create(raw: string): ProjectName {
+  static create(raw: string): Result<ProjectName> {
     const v = raw.trim();
     if (!v || v.length > 100) {
-      throw new Error('Name must be 1-100 characters');
+      return Err('Name must be 1-100 characters');
     }
-    return new ProjectName(v);
+    return Ok(new ProjectName(v));
   }
 
   equals(other: ProjectName): boolean {
@@ -110,15 +112,21 @@ export class ProjectAggregate {
   /**
    * Creates a brand-new project and records a ProjectCreatedEvent.
    */
-  static create(id: string, path: string, name: string): ProjectAggregate {
-    const pathVO = ProjectPath.create(path);
-    const nameVO = ProjectName.create(name);
+  static create(id: string, path: string, name: string): Result<ProjectAggregate> {
+    const pathResult = ProjectPath.create(path);
+    if (!pathResult.ok) return pathResult;
+
+    const nameResult = ProjectName.create(name);
+    if (!nameResult.ok) return nameResult;
+
+    const pathVO = pathResult.value;
+    const nameVO = nameResult.value;
     const now    = Date.now();
     const projId = toProjectId(id);
 
     const aggregate = new ProjectAggregate(projId, pathVO, nameVO, now, null, []);
     aggregate._events.push(makeProjectCreated(id, pathVO.value, nameVO.value));
-    return aggregate;
+    return Ok(aggregate);
   }
 
   // ─── Factory: rehydrate from snapshot ────────────────────────────────────
@@ -126,23 +134,29 @@ export class ProjectAggregate {
   /**
    * Rehydrates an aggregate from a persisted snapshot. No events are raised.
    */
-  static fromSnapshot(raw: RawProject): ProjectAggregate {
-    const pathVO      = ProjectPath.create(raw.path);
+  static fromSnapshot(raw: RawProject): Result<ProjectAggregate> {
+    const pathResult = ProjectPath.create(raw.path);
+    if (!pathResult.ok) return pathResult;
+
+    const pathVO = pathResult.value;
     const effectiveName = raw.name ?? pathVO.name;
-    const nameVO      = ProjectName.create(effectiveName);
+
+    const nameResult = ProjectName.create(effectiveName);
+    if (!nameResult.ok) return nameResult;
+
     const createdAt   = raw.createdAt ? new Date(raw.createdAt).getTime() : 0;
     const lastOpenedAt = raw.lastOpenedAt
       ? new Date(raw.lastOpenedAt).getTime()
       : null;
 
-    return new ProjectAggregate(
+    return Ok(new ProjectAggregate(
       toProjectId(raw.id),
-      pathVO,
-      nameVO,
+      pathResult.value,
+      nameResult.value,
       createdAt,
       lastOpenedAt,
       [],
-    );
+    ));
   }
 
   // ─── Commands ─────────────────────────────────────────────────────────────
@@ -157,12 +171,15 @@ export class ProjectAggregate {
 
   /**
    * Renames the project and records a ProjectRenamedEvent.
-   * Validates the new name via ProjectName.create() — throws on invalid input.
+   * Returns Err if the new name is invalid — no event is pushed in that case.
    */
-  rename(name: string): void {
-    const oldName = this._name.value;
-    this._name    = ProjectName.create(name);
+  rename(name: string): Result<void> {
+    const nameResult = ProjectName.create(name);
+    if (!nameResult.ok) return nameResult;
+    const oldName  = this._name.value;
+    this._name     = nameResult.value;
     this._events.push(makeProjectRenamed(this.id, oldName, this._name.value));
+    return Ok(undefined);
   }
 
   /**

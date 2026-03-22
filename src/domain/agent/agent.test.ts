@@ -19,6 +19,7 @@ import { LiveAgentAggregate } from './types';
 import { InMemoryAgentRepository } from './repository';
 import { toAgentId } from './types';
 import { AGENT_EVENT_TYPES } from './events';
+import { unwrap } from '../shared/result';
 
 // ─── 1. AgentStatus helpers ────────────────────────────────────────────────
 
@@ -44,16 +45,23 @@ describe('AgentStatus helpers', () => {
 
 describe('AgentName value object', () => {
   it('accepts a valid trimmed name', () => {
-    const name = AgentName.create('  RuneBot  ');
-    expect(name.value).toBe('RuneBot');
+    const result = AgentName.create('  RuneBot  ');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.value).toBe('RuneBot');
   });
 
-  it('throws for empty string and for names exceeding 200 characters', () => {
-    expect(() => AgentName.create('')).toThrow('Agent name must be 1-200 characters');
-    expect(() => AgentName.create('   ')).toThrow('Agent name must be 1-200 characters');
-    expect(() => AgentName.create('x'.repeat(201))).toThrow(
-      'Agent name must be 1-200 characters',
-    );
+  it('returns Err for empty string and for names exceeding 200 characters', () => {
+    const emptyResult = AgentName.create('');
+    expect(emptyResult.ok).toBe(false);
+    if (!emptyResult.ok) expect(emptyResult.error).toBe('Agent name cannot be empty');
+
+    const whitespaceResult = AgentName.create('   ');
+    expect(whitespaceResult.ok).toBe(false);
+    if (!whitespaceResult.ok) expect(whitespaceResult.error).toBe('Agent name cannot be empty');
+
+    const tooLongResult = AgentName.create('x'.repeat(201));
+    expect(tooLongResult.ok).toBe(false);
+    if (!tooLongResult.ok) expect(tooLongResult.error).toBe('Agent name too long (max 200 chars)');
   });
 });
 
@@ -61,7 +69,7 @@ describe('AgentName value object', () => {
 
 describe('LiveAgentAggregate.start()', () => {
   it('records an AgentStartedEvent after creation', () => {
-    const agent = LiveAgentAggregate.start('agent-1', 'Rune');
+    const agent = unwrap(LiveAgentAggregate.start('agent-1', 'Rune'));
     const events = agent.events;
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe(AGENT_EVENT_TYPES.AGENT_STARTED);
@@ -69,7 +77,7 @@ describe('LiveAgentAggregate.start()', () => {
   });
 
   it('initial status is running', () => {
-    const agent = LiveAgentAggregate.start('agent-2', 'Rune');
+    const agent = unwrap(LiveAgentAggregate.start('agent-2', 'Rune'));
     expect(agent.status).toBe('running');
     expect(agent.isActive).toBe(true);
     expect(agent.isTerminal).toBe(false);
@@ -80,7 +88,7 @@ describe('LiveAgentAggregate.start()', () => {
 
 describe('LiveAgentAggregate.complete()', () => {
   it('raises AgentCompletedEvent and transitions to completed', () => {
-    const agent = LiveAgentAggregate.start('agent-3', 'Rune');
+    const agent = unwrap(LiveAgentAggregate.start('agent-3', 'Rune'));
     agent.clearEvents();
     agent.tick(5000, 42);
     agent.complete();
@@ -92,7 +100,7 @@ describe('LiveAgentAggregate.complete()', () => {
   });
 
   it('throws if complete() is called a second time on an already completed agent', () => {
-    const agent = LiveAgentAggregate.start('agent-4', 'Rune');
+    const agent = unwrap(LiveAgentAggregate.start('agent-4', 'Rune'));
     agent.complete();
     expect(() => agent.complete()).toThrow(/terminal/);
   });
@@ -102,7 +110,7 @@ describe('LiveAgentAggregate.complete()', () => {
 
 describe('LiveAgentAggregate.fail()', () => {
   it('raises AgentFailedEvent with the supplied reason', () => {
-    const agent = LiveAgentAggregate.start('agent-5', 'Rune');
+    const agent = unwrap(LiveAgentAggregate.start('agent-5', 'Rune'));
     agent.clearEvents();
     agent.fail('network timeout');
     const events = agent.events;
@@ -117,7 +125,7 @@ describe('LiveAgentAggregate.fail()', () => {
 
 describe('LiveAgentAggregate.think()', () => {
   it('transitions to thinking and raises AgentThinkingEvent', () => {
-    const agent = LiveAgentAggregate.start('agent-6', 'Rune');
+    const agent = unwrap(LiveAgentAggregate.start('agent-6', 'Rune'));
     agent.clearEvents();
     agent.think();
     expect(agent.status).toBe('thinking');
@@ -132,7 +140,7 @@ describe('LiveAgentAggregate.think()', () => {
 describe('InMemoryAgentRepository', () => {
   it('save() then getAgent() returns the same aggregate', async () => {
     const repo = new InMemoryAgentRepository();
-    const agent = LiveAgentAggregate.start('agent-7', 'Rune');
+    const agent = unwrap(LiveAgentAggregate.start('agent-7', 'Rune'));
     await repo.saveAgent(agent);
     const retrieved = await repo.getAgent(toAgentId('agent-7'));
     expect(retrieved).not.toBeNull();
@@ -144,10 +152,10 @@ describe('InMemoryAgentRepository', () => {
   it('listActiveAgents() excludes agents in terminal states', async () => {
     const repo = new InMemoryAgentRepository();
 
-    const running = LiveAgentAggregate.start('r-1', 'Runner');
-    const completed = LiveAgentAggregate.start('c-1', 'Completer');
+    const running = unwrap(LiveAgentAggregate.start('r-1', 'Runner'));
+    const completed = unwrap(LiveAgentAggregate.start('c-1', 'Completer'));
     completed.complete();
-    const failed = LiveAgentAggregate.start('f-1', 'Failer');
+    const failed = unwrap(LiveAgentAggregate.start('f-1', 'Failer'));
     failed.fail('oops');
 
     await repo.saveAgent(running);

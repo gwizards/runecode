@@ -6,38 +6,16 @@
  * InMemoryRuFloRepository is used in tests.
  */
 
-import type { Result } from '../../shared/result';
-import { Ok } from '../../shared/result';
+import { Ok, type Result } from '../../shared/result';
 import { RuFloInstallationAggregate } from '../aggregates/installation.aggregate';
 import { RuFloSwarmAggregate } from '../aggregates/swarm.aggregate';
+import type { IRuFloRepository, MemoryStats } from '../ports/IRuFloRepository';
 
-// ─── MemoryStats ──────────────────────────────────────────────────────────────
+// ─── Re-exports (ports/) ──────────────────────────────────────────────────────
 
-/**
- * Statistics about the RuFlo memory subsystem.
- * Defined here because it does not exist in types.ts or api.ts as a named type.
- */
-export interface MemoryStats {
-  totalEntries: number;
-  backend: string;
-  sizeBytes?: number;
-  namespaces?: string[];
-}
-
-// ─── Repository Interface ─────────────────────────────────────────────────────
-
-export interface IRuFloRepository {
-  // Installation
-  getInstallation(): Promise<RuFloInstallationAggregate>;
-  saveInstallation(agg: RuFloInstallationAggregate): Promise<Result<void>>;
-
-  // Swarm
-  getSwarm(): Promise<RuFloSwarmAggregate | null>;
-  saveSwarm(agg: RuFloSwarmAggregate): Promise<Result<void>>;
-
-  // Memory
-  getMemoryStats(): Promise<MemoryStats | null>;
-}
+// Keep existing consumers working — MemoryStats and IRuFloRepository were
+// previously exported from this file.
+export type { IRuFloRepository, MemoryStats };
 
 // ─── In-Memory Implementation (for tests) ────────────────────────────────────
 

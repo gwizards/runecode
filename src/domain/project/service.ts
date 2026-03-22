@@ -33,7 +33,9 @@ export class ProjectApplicationService {
         return Err(`A project with path "${path}" already exists`);
       }
 
-      const project = ProjectAggregate.create(id, path, name);
+      const createResult = ProjectAggregate.create(id, path, name);
+      if (!createResult.ok) return createResult;
+      const project = createResult.value;
       await this.repo.saveProject(project);
       this.eventBus.dispatch(project.events);
       project.clearEvents();
@@ -71,7 +73,8 @@ export class ProjectApplicationService {
         return Err(`Project "${id}" not found`);
       }
 
-      project.rename(newName);
+      const renameResult = project.rename(newName);
+      if (!renameResult.ok) return renameResult;
       await this.repo.saveProject(project);
       this.eventBus.dispatch(project.events);
       project.clearEvents();

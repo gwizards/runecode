@@ -39,7 +39,9 @@ export class AgentApplicationService {
    */
   async startAgent(id: string, name: string): Promise<Result<LiveAgentAggregate>> {
     try {
-      const agent = LiveAgentAggregate.start(id, name);
+      const agentResult = LiveAgentAggregate.start(id, name);
+      if (!agentResult.ok) return agentResult;
+      const agent = agentResult.value;
       await this.persist(agent);
       return Ok(agent);
     } catch (err) {
