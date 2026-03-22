@@ -660,11 +660,47 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 </li>
               ))}
             </ul>
+
+            {/* Web / server mode */}
+            <div className="bg-white/4 border border-white/8 rounded-xl px-4 py-3 flex flex-col gap-2">
+              <p className="text-xs font-medium text-white/70">Web / Server Mode</p>
+              <p className="text-[11px] text-white/40 leading-relaxed">
+                Access RuneCode from any browser — no desktop app required.
+              </p>
+              <div className="flex items-center gap-1.5 bg-black/30 rounded-lg px-3 py-2 font-mono text-[11px] text-purple-300/80">
+                <span className="flex-1 select-all">runecode serve --port 8080 --open</span>
+                <button
+                  onClick={copyWebModeCommand}
+                  className="text-white/30 hover:text-white/70 transition-colors flex-shrink-0 text-[10px] px-2 py-0.5 rounded border border-white/10 hover:border-white/20"
+                >
+                  Copy
+                </button>
+              </div>
+              <button
+                onClick={openBrowser}
+                className="text-[11px] text-purple-400/70 hover:text-purple-300 transition-colors text-left"
+              >
+                Open localhost:8080 →
+              </button>
+            </div>
           </StepCard>
         );
 
       default:
         return null;
+    }
+  };
+
+  const copyWebModeCommand = () => {
+    navigator.clipboard.writeText('runecode serve --port 8080 --open').catch(() => {});
+  };
+
+  const openBrowser = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-shell');
+      await open('http://localhost:8080');
+    } catch {
+      window.open('http://localhost:8080', '_blank');
     }
   };
 
@@ -676,7 +712,31 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       {/* Content */}
-      <div className="relative w-full max-w-lg px-4">
+      <div className="relative w-full max-w-lg px-4 flex flex-col gap-3">
+        {/* Web mode escape hatch — shown only on step 1 */}
+        {currentStep === 1 && (
+          <div className="bg-white/4 border border-white/8 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-white/60 font-medium">Prefer the browser?</p>
+              <p className="text-[11px] text-white/35 mt-0.5">Run <code className="font-mono text-purple-400/80">runecode serve</code> in a terminal, then open your browser.</p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button
+                onClick={copyWebModeCommand}
+                className="px-2.5 py-1 text-[11px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/50 hover:text-white/80 transition-colors font-mono"
+              >
+                Copy cmd
+              </button>
+              <button
+                onClick={openBrowser}
+                className="px-2.5 py-1 text-[11px] bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg text-purple-400/80 hover:text-purple-300 transition-colors"
+              >
+                Open
+              </button>
+            </div>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           {renderStepContent()}
         </AnimatePresence>
