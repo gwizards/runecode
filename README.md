@@ -9,19 +9,18 @@
   </p>
 
   <p>
-    <a href="https://github.com/gwizards/runecode/releases/tag/v0.5.20"><img src="https://img.shields.io/badge/v0.5.20-Latest-8b5cf6?style=for-the-badge" alt="Latest Release"></a>
+    <a href="https://github.com/gwizards/runecode/releases/latest"><img src="https://img.shields.io/github/v/release/gwizards/runecode?style=for-the-badge&color=8b5cf6&label=Latest" alt="Latest Release"></a>
     <a href="https://runecode.sh"><img src="https://img.shields.io/badge/runecode.sh-website-6d28d9?style=for-the-badge" alt="Website"></a>
     <a href="https://discord.com/invite/KYwhHVzUsY"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
     <a href="https://github.com/gwizards/runecode/releases"><img src="https://img.shields.io/badge/All_Releases-📦-gray?style=for-the-badge" alt="All Releases"></a>
   </p>
 
-  <h3>⬇️ Download v0.5.20</h3>
+  <h3>⬇️ Download Latest Release</h3>
 
   <p>
-    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64.msi"><img src="https://img.shields.io/badge/Windows-.msi-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows MSI"></a>
-    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64_setup.exe"><img src="https://img.shields.io/badge/Windows-.exe-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows EXE"></a>
-    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.AppImage"><img src="https://img.shields.io/badge/Linux-.AppImage-f97316?style=for-the-badge&logo=linux&logoColor=white" alt="Linux AppImage"></a>
-    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.deb"><img src="https://img.shields.io/badge/Linux-.deb-f97316?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Linux DEB"></a>
+    <a href="https://github.com/gwizards/runecode/releases/latest"><img src="https://img.shields.io/badge/Windows-.msi%20%2F%20.exe-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows"></a>
+    <a href="https://github.com/gwizards/runecode/releases/latest"><img src="https://img.shields.io/badge/Linux-.AppImage%20%2F%20.deb-f97316?style=for-the-badge&logo=linux&logoColor=white" alt="Linux"></a>
+    <a href="https://github.com/gwizards/runecode/releases/latest"><img src="https://img.shields.io/badge/macOS-.dmg-888888?style=for-the-badge&logo=apple&logoColor=white" alt="macOS"></a>
   </p>
 
   <p>
@@ -150,15 +149,15 @@ Access the full UI from any browser. The frontend is embedded in the binary — 
 
 ### Download
 
-**Latest release: [v0.5.20](https://github.com/gwizards/runecode/releases/tag/v0.5.20)** · [All releases](https://github.com/gwizards/runecode/releases)
+**[Download the latest release →](https://github.com/gwizards/runecode/releases/latest)** · [All releases](https://github.com/gwizards/runecode/releases)
 
-| Platform | Download | Format |
-|----------|----------|--------|
-| Windows | [RuneCode_0.5.20_windows_x64.msi](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64.msi) · [.exe](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64_setup.exe) | `.msi` or `.exe` |
-| Linux | [RuneCode_0.5.20_linux_amd64.AppImage](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.AppImage) · [.deb](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.deb) | `.AppImage` or `.deb` |
-| macOS | [GitHub Releases page](https://github.com/gwizards/runecode/releases/tag/v0.5.20) | `.dmg` (when available) |
+| Platform | Format |
+|----------|--------|
+| Windows | `.msi` or `.exe` installer |
+| Linux | `.AppImage` or `.deb` |
+| macOS | `.dmg` |
 
-SHA256 checksums: [SHA256SUMS.txt](https://github.com/gwizards/runecode/releases/download/v0.5.20/SHA256SUMS.txt)
+SHA256 checksums are included on every release page.
 
 ## Build from Source
 
