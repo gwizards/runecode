@@ -406,3 +406,57 @@ describe('IDENTITY_EVENT_TYPES naming convention', () => {
     }
   });
 });
+
+// ─── UserProfileAggregate.fromSnapshot() ─────────────────────────────────────
+
+describe('UserProfileAggregate.fromSnapshot()', () => {
+  it('round-trips create → toSnapshot → fromSnapshot', () => {
+    const email = unwrap(Email.create('test@example.com'));
+    const displayName = unwrap(DisplayName.create('Test User'));
+    const profile = unwrap(UserProfileAggregate.create({ email, displayName }));
+    profile.pullEvents();
+
+    const snapshot = profile.toSnapshot();
+    const restored = unwrap(UserProfileAggregate.fromSnapshot(snapshot));
+
+    expect(restored.userId.toString()).toBe(profile.userId.toString());
+    expect(restored.email.toString()).toBe('test@example.com');
+    expect(restored.displayName.toString()).toBe('Test User');
+    expect(restored.isDeleted).toBe(false);
+  });
+
+  it('restores deleted state from snapshot', () => {
+    const email = unwrap(Email.create('gone@example.com'));
+    const displayName = unwrap(DisplayName.create('Gone User'));
+    const profile = unwrap(UserProfileAggregate.create({ email, displayName }));
+    profile.markDeleted();
+
+    const snapshot = profile.toSnapshot();
+    const restored = unwrap(UserProfileAggregate.fromSnapshot(snapshot));
+    expect(restored.isDeleted).toBe(true);
+  });
+
+  it('returns Err for invalid userId in snapshot', () => {
+    const result = UserProfileAggregate.fromSnapshot({ userId: '', email: 'a@b.com', displayName: 'X', deleted: false });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('empty');
+  });
+
+  it('returns Err for invalid email in snapshot', () => {
+    const result = UserProfileAggregate.fromSnapshot({ userId: 'u-1', email: 'not-an-email', displayName: 'X', deleted: false });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('Invalid email');
+  });
+
+  it('returns Err for invalid displayName in snapshot', () => {
+    const result = UserProfileAggregate.fromSnapshot({ userId: 'u-1', email: 'a@b.com', displayName: '', deleted: false });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('empty');
+  });
+
+  it('fromSnapshot raises no domain events', () => {
+    const result = UserProfileAggregate.fromSnapshot({ userId: 'u-silent', email: 'silent@test.com', displayName: 'Silent', deleted: false });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.pullEvents()).toHaveLength(0);
+  });
+});

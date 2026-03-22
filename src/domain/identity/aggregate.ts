@@ -33,13 +33,32 @@ export class UserProfileAggregate {
   private _deleted = false;
   private readonly _events: DomainEvent[] = [];
 
-  private constructor(userId: UserId, email: Email, displayName: DisplayName) {
+  private constructor(userId: UserId, email: Email, displayName: DisplayName, deleted = false) {
     this._userId = userId;
     this._email = email;
     this._displayName = displayName;
+    this._deleted = deleted;
   }
 
   // ─── Factory ────────────────────────────────────────────────────────────────
+
+  static fromSnapshot(raw: UserProfileSnapshot): Result<UserProfileAggregate> {
+    const userIdResult = UserId.create(raw.userId);
+    if (!userIdResult.ok) return Err(userIdResult.error);
+
+    const emailResult = Email.create(raw.email);
+    if (!emailResult.ok) return Err(emailResult.error);
+
+    const displayNameResult = DisplayName.create(raw.displayName);
+    if (!displayNameResult.ok) return Err(displayNameResult.error);
+
+    return Ok(new UserProfileAggregate(
+      userIdResult.value,
+      emailResult.value,
+      displayNameResult.value,
+      raw.deleted,
+    ));
+  }
 
   static create(opts: {
     email: Email;
