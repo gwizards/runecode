@@ -17,7 +17,7 @@ import { InMemoryAgentRepository } from './repository';
 import { AGENT_EVENT_TYPES } from './events';
 import type { AgentStartedEvent, AgentThinkingEvent, AgentCompletedEvent } from './events';
 import { AgentApplicationService } from './service';
-import { unsafeAgentId } from './types';
+import { AgentId } from './types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ describe('AgentApplicationService — happy paths', () => {
     expect(agent.status).toBe('running');
 
     // Should be retrievable from the repo
-    const stored = await repo.getAgent(unsafeAgentId('agent-a'));
+    const stored = await repo.getAgent(unwrap(AgentId.create('agent-a')));
     expect(stored).not.toBeNull();
     expect(stored!.id.toString()).toBe('agent-a');
   });

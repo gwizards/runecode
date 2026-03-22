@@ -39,11 +39,6 @@ export class ServerId {
   }
 }
 
-/** @deprecated Use ServerId.create() instead. */
-export function toServerId(id: string): Result<ServerId> {
-  return ServerId.create(id);
-}
-
 // ─── Scalar types ──────────────────────────────────────────────────────────
 
 export type ServerTransport = 'stdio' | 'sse';
@@ -125,7 +120,7 @@ export class MCPServerAggregate {
     transport: ServerTransport,
     url: string,
   ): Result<MCPServerAggregate> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     const serverId = serverIdResult.value;
 
@@ -161,7 +156,7 @@ export class MCPServerAggregate {
       return Err(`MCPServerAggregate: snapshot ${raw.id ?? raw.name} has neither url nor command`);
     }
 
-    const serverIdResult = toServerId(raw.id ?? raw.name);
+    const serverIdResult = ServerId.create(raw.id ?? raw.name);
     if (!serverIdResult.ok) return serverIdResult;
     const serverId = serverIdResult.value;
 

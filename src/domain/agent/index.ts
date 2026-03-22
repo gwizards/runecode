@@ -6,9 +6,9 @@
  */
 
 // ── Types & value objects ──────────────────────────────────────────────────
-export type { AgentId, AgentStatus, RawLiveAgent } from './types';
+export type { AgentStatus, RawLiveAgent } from './types';
 export {
-  toAgentId,
+  AgentId,
   isTerminalStatus,
   isActiveStatus,
   AgentName,

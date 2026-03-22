@@ -15,7 +15,7 @@ import { ProjectPath, ProjectName, ProjectAggregate } from './types';
 import { PROJECT_EVENT_TYPES } from './events';
 import type { ProjectCreatedEvent, ProjectOpenedEvent, ProjectRenamedEvent } from './events';
 import { InMemoryProjectRepository } from './repository';
-import { toProjectId } from './types';
+import { ProjectId } from './types';
 import { unwrap } from '../shared/result';
 
 // ─── 1. ProjectPath VO ────────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ describe('InMemoryProjectRepository', () => {
     const agg  = unwrap(ProjectAggregate.create('proj-r1', '/home/user/roundtrip', 'RoundTrip'));
 
     await repo.saveProject(agg);
-    const found = await repo.getProject(unwrap(toProjectId('proj-r1')));
+    const found = await repo.getProject(unwrap(ProjectId.create('proj-r1')));
 
     expect(found).not.toBeNull();
     expect(found?.id.toString()).toBe('proj-r1');
@@ -196,8 +196,8 @@ describe('InMemoryProjectRepository', () => {
     const agg  = unwrap(ProjectAggregate.create('proj-del', '/del/me', 'ToDelete'));
     repo.seed(agg);
 
-    await repo.deleteProject(unwrap(toProjectId('proj-del')));
-    const found = await repo.getProject(unwrap(toProjectId('proj-del')));
+    await repo.deleteProject(unwrap(ProjectId.create('proj-del')));
+    const found = await repo.getProject(unwrap(ProjectId.create('proj-del')));
     expect(found).toBeNull();
   });
 });

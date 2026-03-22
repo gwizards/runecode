@@ -12,13 +12,13 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import { Ok, Err } from '../shared/result';
 import type { Result } from '../shared/result';
-import { toProjectId } from '../shared/project-id';
 import type { IConsentRepository } from './ports/IConsentRepository';
 import type { IAnalyticsTracker } from './ports/IAnalyticsTracker';
 import {
   ConsentAggregate,
-  toConsentId,
-  toAnalyticsSessionId,
+  AnalyticsSessionId,
+  ConsentId,
+  ProjectId,
   type ConsentStatus,
   type CapturedEvent,
   UserId,
@@ -64,10 +64,10 @@ export class AnalyticsApplicationService {
     userId: UserId,
   ): Promise<Result<ConsentAggregate>> {
     try {
-      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = AnalyticsSessionId.create(rawSessionId);
       if (!sessionIdResult.ok) return Err(sessionIdResult.error);
       const sessionId = sessionIdResult.value;
-      const projectIdResult = toProjectId(rawProjectId);
+      const projectIdResult = ProjectId.create(rawProjectId);
       if (!projectIdResult.ok) return Err(projectIdResult.error);
       const projectId = projectIdResult.value;
 
@@ -98,7 +98,7 @@ export class AnalyticsApplicationService {
    */
   async revokeConsent(rawConsentId: string): Promise<Result<void>> {
     try {
-      const consentIdResult = toConsentId(rawConsentId);
+      const consentIdResult = ConsentId.create(rawConsentId);
       if (!consentIdResult.ok) return Err(consentIdResult.error);
       const consent = this.repository.findById(consentIdResult.value);
       if (consent === undefined) {
@@ -120,7 +120,7 @@ export class AnalyticsApplicationService {
 
   async getConsentStatus(rawConsentId: string): Promise<Result<ConsentStatus>> {
     try {
-      const consentIdResult = toConsentId(rawConsentId);
+      const consentIdResult = ConsentId.create(rawConsentId);
       if (!consentIdResult.ok) return Err(consentIdResult.error);
       const consent = this.repository.findById(consentIdResult.value);
       if (consent === undefined) {
@@ -148,7 +148,7 @@ export class AnalyticsApplicationService {
     data: Record<string, unknown> = {},
   ): Promise<Result<void>> {
     try {
-      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = AnalyticsSessionId.create(rawSessionId);
       if (!sessionIdResult.ok) return Err(sessionIdResult.error);
       const sessionId = sessionIdResult.value;
 
@@ -187,7 +187,7 @@ export class AnalyticsApplicationService {
     properties?: Record<string, unknown>,
   ): Promise<Result<void>> {
     try {
-      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = AnalyticsSessionId.create(rawSessionId);
       if (!sessionIdResult.ok) return Err(sessionIdResult.error);
       const sessionId = sessionIdResult.value;
 
@@ -237,7 +237,7 @@ export class AnalyticsApplicationService {
 
   async queryEvents(rawSessionId: string): Promise<Result<CapturedEvent[]>> {
     try {
-      const sessionIdResult = toAnalyticsSessionId(rawSessionId);
+      const sessionIdResult = AnalyticsSessionId.create(rawSessionId);
       if (!sessionIdResult.ok) return Err(sessionIdResult.error);
       const sessionId = sessionIdResult.value;
       const log = capturedEventLog.get(sessionId.toString()) ?? [];

@@ -10,7 +10,7 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { ProjectAggregate, toProjectId } from './types';
+import { ProjectAggregate, ProjectId } from './types';
 import type { IProjectRepository } from './repository';
 
 export class ProjectApplicationService {
@@ -49,7 +49,7 @@ export class ProjectApplicationService {
 
   async openProject(id: string): Promise<Result<ProjectAggregate>> {
     try {
-      const pidResult = toProjectId(id);
+      const pidResult = ProjectId.create(id);
       if (!pidResult.ok) return Err(pidResult.error);
       const project = await this.repo.getProject(pidResult.value);
       if (project === null) {
@@ -70,7 +70,7 @@ export class ProjectApplicationService {
 
   async renameProject(id: string, newName: string): Promise<Result<void>> {
     try {
-      const pidResult = toProjectId(id);
+      const pidResult = ProjectId.create(id);
       if (!pidResult.ok) return Err(pidResult.error);
       const project = await this.repo.getProject(pidResult.value);
       if (project === null) {
@@ -92,7 +92,7 @@ export class ProjectApplicationService {
 
   async deleteProject(id: string): Promise<Result<void>> {
     try {
-      const pidResult = toProjectId(id);
+      const pidResult = ProjectId.create(id);
       if (!pidResult.ok) return Err(pidResult.error);
       const pid = pidResult.value;
       const project = await this.repo.getProject(pid);
@@ -111,7 +111,7 @@ export class ProjectApplicationService {
 
   async getProject(id: string): Promise<Result<ProjectAggregate>> {
     try {
-      const pidResult = toProjectId(id);
+      const pidResult = ProjectId.create(id);
       if (!pidResult.ok) return Err(pidResult.error);
       const project = await this.repo.getProject(pidResult.value);
       if (project === null) {

@@ -9,7 +9,7 @@ import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
 import type { ServerTransport } from './types';
-import { MCPServerAggregate, toServerId } from './types';
+import { MCPServerAggregate, ServerId } from './types';
 import type { IMCPRepository } from './repository';
 
 export class MCPApplicationService {
@@ -44,7 +44,7 @@ export class MCPApplicationService {
   }
 
   async removeServer(id: string): Promise<Result<void>> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     try {
       const server = await this.repo.getServer(serverIdResult.value);
@@ -62,7 +62,7 @@ export class MCPApplicationService {
   }
 
   async connectServer(id: string): Promise<Result<void>> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     try {
       const server = await this.repo.getServer(serverIdResult.value);
@@ -78,7 +78,7 @@ export class MCPApplicationService {
   }
 
   async disconnectServer(id: string): Promise<Result<void>> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     try {
       const server = await this.repo.getServer(serverIdResult.value);
@@ -94,7 +94,7 @@ export class MCPApplicationService {
   }
 
   async markServerError(id: string, reason: string): Promise<Result<void>> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     try {
       const server = await this.repo.getServer(serverIdResult.value);
@@ -110,7 +110,7 @@ export class MCPApplicationService {
   }
 
   async enableServer(id: string): Promise<Result<void>> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     try {
       const server = await this.repo.getServer(serverIdResult.value);
@@ -127,7 +127,7 @@ export class MCPApplicationService {
   }
 
   async disableServer(id: string): Promise<Result<void>> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     try {
       const server = await this.repo.getServer(serverIdResult.value);
@@ -144,7 +144,7 @@ export class MCPApplicationService {
   }
 
   async getServer(id: string): Promise<Result<MCPServerAggregate>> {
-    const serverIdResult = toServerId(id);
+    const serverIdResult = ServerId.create(id);
     if (!serverIdResult.ok) return serverIdResult;
     try {
       const server = await this.repo.getServer(serverIdResult.value);

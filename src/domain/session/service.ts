@@ -8,7 +8,7 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { SessionAggregate, toProjectId, SessionIdVO } from './types';
+import { SessionAggregate, ProjectId, SessionId } from './types';
 import type { RawSession, RawTokenUsage } from './types';
 import type { ISessionRepository } from './repository';
 
@@ -37,7 +37,7 @@ export class SessionApplicationService {
   // ── Append output ──────────────────────────────────────────────────────────
 
   async appendOutput(sessionId: string, chunk: string): Promise<Result<void>> {
-    const sidResult = SessionIdVO.create(sessionId);
+    const sidResult = SessionId.create(sessionId);
     if (!sidResult.ok) return sidResult;
     try {
       const session = await this.repo.getSession(sidResult.value);
@@ -57,7 +57,7 @@ export class SessionApplicationService {
   // ── Complete ───────────────────────────────────────────────────────────────
 
   async completeSession(sessionId: string): Promise<Result<void>> {
-    const sidResult = SessionIdVO.create(sessionId);
+    const sidResult = SessionId.create(sessionId);
     if (!sidResult.ok) return sidResult;
     try {
       const session = await this.repo.getSession(sidResult.value);
@@ -78,7 +78,7 @@ export class SessionApplicationService {
   // ── Fail ───────────────────────────────────────────────────────────────────
 
   async failSession(sessionId: string, reason: string): Promise<Result<void>> {
-    const sidResult = SessionIdVO.create(sessionId);
+    const sidResult = SessionId.create(sessionId);
     if (!sidResult.ok) return sidResult;
     try {
       const session = await this.repo.getSession(sidResult.value);
@@ -102,7 +102,7 @@ export class SessionApplicationService {
     sessionId: string,
     usage: RawTokenUsage,
   ): Promise<Result<void>> {
-    const sidResult = SessionIdVO.create(sessionId);
+    const sidResult = SessionId.create(sessionId);
     if (!sidResult.ok) return sidResult;
     try {
       const session = await this.repo.getSession(sidResult.value);
@@ -122,7 +122,7 @@ export class SessionApplicationService {
   // ── Delete ─────────────────────────────────────────────────────────────────
 
   async deleteSession(sessionId: string): Promise<Result<void>> {
-    const sidResult = SessionIdVO.create(sessionId);
+    const sidResult = SessionId.create(sessionId);
     if (!sidResult.ok) return sidResult;
     try {
       await this.repo.deleteSession(sidResult.value);
@@ -135,7 +135,7 @@ export class SessionApplicationService {
   // ── Get ────────────────────────────────────────────────────────────────────
 
   async getSession(sessionId: string): Promise<Result<SessionAggregate>> {
-    const sidResult = SessionIdVO.create(sessionId);
+    const sidResult = SessionId.create(sessionId);
     if (!sidResult.ok) return sidResult;
     try {
       const session = await this.repo.getSession(sidResult.value);
@@ -151,7 +151,7 @@ export class SessionApplicationService {
   // ── List by project ────────────────────────────────────────────────────────
 
   async listSessions(projectId: string): Promise<Result<SessionAggregate[]>> {
-    const pidResult = toProjectId(projectId);
+    const pidResult = ProjectId.create(projectId);
     if (!pidResult.ok) return pidResult;
     try {
       const sessions = await this.repo.listSessionsByProject(pidResult.value);

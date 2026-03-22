@@ -6,7 +6,7 @@
 
 // Types, value objects, aggregate
 export type { ServerId, ServerTransport, ServerStatusValue, RawMCPServer } from './types';
-export { toServerId, ServerUrl, ServerName, MCPServerAggregate } from './types';
+export { ServerUrl, ServerName, MCPServerAggregate } from './types';
 
 // Events
 export { MCP_EVENT_TYPES } from './events';

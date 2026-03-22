@@ -31,9 +31,6 @@ export class ProjectId {
   toString(): string { return this.value; }
 }
 
-/** @deprecated Use ProjectId.create() */
-export function toProjectId(id: string): Result<ProjectId> { return ProjectId.create(id); }
-
 // ─── Value Object: ProjectPath ────────────────────────────────────────────────
 
 /**
@@ -133,7 +130,7 @@ export class ProjectAggregate {
     const pathVO = pathResult.value;
     const nameVO = nameResult.value;
     const now    = Date.now();
-    const projIdResult = toProjectId(id);
+    const projIdResult = ProjectId.create(id);
     if (!projIdResult.ok) return Err(projIdResult.error);
 
     const aggregate = new ProjectAggregate(projIdResult.value, pathVO, nameVO, now, null, []);

@@ -11,8 +11,7 @@ import type { DomainEvent } from '../shared/event-bus';
 import { InMemoryWorkspaceRepository } from './repository';
 import { WorkspaceApplicationService } from './service';
 import { WORKSPACE_EVENT_TYPES } from './events';
-import type { WorkspaceId, TabId } from './types';
-import { toTabId, toWorkspaceId } from './types';
+import { WorkspaceId, TabId } from './types';
 import { unwrap } from '../shared/result';
 import { SessionId } from '../session/types';
 import { ProjectId } from '../project/types';
@@ -188,7 +187,7 @@ describe('WorkspaceApplicationService.openTab()', () => {
   });
 
   it('returns Err for an unknown workspaceId', async () => {
-    const result = await svc.openTab(unwrap(toWorkspaceId('ws-does-not-exist')), '/a.ts', 'a.ts');
+    const result = await svc.openTab(unwrap(WorkspaceId.create('ws-does-not-exist')), '/a.ts', 'a.ts');
 
     expect(result.ok).toBe(false);
   });
@@ -217,8 +216,8 @@ describe('WorkspaceApplicationService.closeTab()', () => {
     const r1 = await svc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
     const r2 = await svc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
     if (!r1.ok || !r2.ok) throw new Error('setup failed');
-    tabA = unwrap(toTabId('tab-a'));
-    tabB = unwrap(toTabId('tab-b'));
+    tabA = unwrap(TabId.create('tab-a'));
+    tabB = unwrap(TabId.create('tab-b'));
     collected.length = 0;
   });
 
@@ -288,7 +287,7 @@ describe('WorkspaceApplicationService.closeTab()', () => {
   });
 
   it('returns Err for an unknown workspaceId', async () => {
-    const result = await svc.closeTab(unwrap(toWorkspaceId('ws-unknown')), tabA);
+    const result = await svc.closeTab(unwrap(WorkspaceId.create('ws-unknown')), tabA);
 
     expect(result.ok).toBe(false);
   });
@@ -317,8 +316,8 @@ describe('WorkspaceApplicationService.activateTab()', () => {
     const r1 = await svc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
     const r2 = await svc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
     if (!r1.ok || !r2.ok) throw new Error('setup failed');
-    tabA = unwrap(toTabId('tab-a'));
-    tabB = unwrap(toTabId('tab-b'));
+    tabA = unwrap(TabId.create('tab-a'));
+    tabB = unwrap(TabId.create('tab-b'));
     collected.length = 0;
   });
 
@@ -354,13 +353,13 @@ describe('WorkspaceApplicationService.activateTab()', () => {
   });
 
   it('activating a non-existent tabId is a no-op — returns Ok', async () => {
-    const result = await svc.activateTab(workspaceId, unwrap(toTabId('tab-ghost')));
+    const result = await svc.activateTab(workspaceId, unwrap(TabId.create('tab-ghost')));
 
     expect(result.ok).toBe(true);
   });
 
   it('returns Err for an unknown workspaceId', async () => {
-    const result = await svc.activateTab(unwrap(toWorkspaceId('ws-unknown')), tabA);
+    const result = await svc.activateTab(unwrap(WorkspaceId.create('ws-unknown')), tabA);
 
     expect(result.ok).toBe(false);
   });
@@ -391,9 +390,9 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
     const r2 = await svc.openTab(workspaceId, '/b.ts', 'b.ts', 'tab-b');
     const r3 = await svc.openTab(workspaceId, '/c.ts', 'c.ts', 'tab-c');
     if (!r1.ok || !r2.ok || !r3.ok) throw new Error('setup failed');
-    tabA = unwrap(toTabId('tab-a'));
-    tabB = unwrap(toTabId('tab-b'));
-    tabC = unwrap(toTabId('tab-c'));
+    tabA = unwrap(TabId.create('tab-a'));
+    tabB = unwrap(TabId.create('tab-b'));
+    tabC = unwrap(TabId.create('tab-c'));
     collected.length = 0;
   });
 
@@ -434,7 +433,7 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
   });
 
   it('unknown tabIds in newOrder are ignored — existing tabs are appended', async () => {
-    const result = await svc.reorderTabs(workspaceId, [unwrap(toTabId('no-such-tab')), tabA]);
+    const result = await svc.reorderTabs(workspaceId, [unwrap(TabId.create('no-such-tab')), tabA]);
 
     expect(result.ok).toBe(true);
     const ws = await svc.getWorkspace(workspaceId);
@@ -445,7 +444,7 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
   });
 
   it('returns Err for an unknown workspaceId', async () => {
-    const result = await svc.reorderTabs(unwrap(toWorkspaceId('ws-unknown')), [tabA]);
+    const result = await svc.reorderTabs(unwrap(WorkspaceId.create('ws-unknown')), [tabA]);
 
     expect(result.ok).toBe(false);
   });
@@ -472,7 +471,7 @@ describe('WorkspaceApplicationService.renameTab()', () => {
 
     const r1 = await svc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-rename-a');
     if (!r1.ok) throw new Error('setup failed');
-    tabA = unwrap(toTabId('tab-rename-a'));
+    tabA = unwrap(TabId.create('tab-rename-a'));
     collected.length = 0;
   });
 
@@ -511,7 +510,7 @@ describe('WorkspaceApplicationService.renameTab()', () => {
   });
 
   it('returns Err for an unknown workspaceId', async () => {
-    const result = await svc.renameTab(unwrap(toWorkspaceId('ws-unknown')), tabA, 'Title');
+    const result = await svc.renameTab(unwrap(WorkspaceId.create('ws-unknown')), tabA, 'Title');
 
     expect(result.ok).toBe(false);
   });
@@ -544,7 +543,7 @@ describe('WorkspaceApplicationService.getWorkspace()', () => {
   });
 
   it('returns Err for an unknown workspaceId', async () => {
-    const result = await svc.getWorkspace(unwrap(toWorkspaceId('ws-ghost')));
+    const result = await svc.getWorkspace(unwrap(WorkspaceId.create('ws-ghost')));
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -595,7 +594,7 @@ describe('WorkspaceApplicationService.deleteWorkspace()', () => {
   });
 
   it('returns Ok even for an unknown workspaceId (no-op delete)', async () => {
-    const result = await svc.deleteWorkspace(unwrap(toWorkspaceId('ws-never-existed')));
+    const result = await svc.deleteWorkspace(unwrap(WorkspaceId.create('ws-never-existed')));
 
     expect(result.ok).toBe(true);
   });

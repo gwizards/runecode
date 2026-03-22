@@ -8,7 +8,7 @@
  */
 
 import type { DomainEvent } from '../shared/event-bus';
-import { ProjectId, toProjectId } from '../shared/project-id';
+import { ProjectId } from '../shared/project-id';
 import { UserId } from '../identity/types';
 import { Result, Ok, Err } from '../shared/result';
 import {
@@ -49,11 +49,6 @@ export class AnalyticsSessionId {
   }
 }
 
-/** @deprecated Use AnalyticsSessionId.create() */
-export function toAnalyticsSessionId(raw: string): Result<AnalyticsSessionId> {
-  return AnalyticsSessionId.create(raw);
-}
-
 // ─── ConsentId ────────────────────────────────────────────────────────────────
 
 export class ConsentId {
@@ -75,11 +70,6 @@ export class ConsentId {
   toString(): string {
     return this.value;
   }
-}
-
-/** @deprecated Use ConsentId.create() */
-export function toConsentId(raw: string): Result<ConsentId> {
-  return ConsentId.create(raw);
 }
 
 // ─── ConsentStatus ────────────────────────────────────────────────────────────
@@ -171,10 +161,10 @@ export class ConsentAggregate {
 
     // Snapshots come from trusted storage; a missing/empty projectId is a data
     // error — fall back to the sentinel 'unknown' rather than crashing the repo.
-    const projectIdResult = toProjectId(raw.projectId);
+    const projectIdResult = ProjectId.create(raw.projectId);
     const projectId = projectIdResult.ok
       ? projectIdResult.value
-      : (toProjectId('unknown') as { ok: true; value: ProjectId }).value;
+      : (ProjectId.create('unknown') as { ok: true; value: ProjectId }).value;
 
     return new ConsentAggregate(
       id,

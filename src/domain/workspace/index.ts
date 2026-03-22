@@ -6,8 +6,8 @@
  */
 
 // Types and Value Objects
-export type { TabId, WorkspaceId, RawTab, RawWorkspace } from './types';
-export { toTabId, toWorkspaceId, TabRecord, WorkspaceAggregate } from './types';
+export type { RawTab, RawWorkspace } from './types';
+export { TabId, WorkspaceId, TabRecord, WorkspaceAggregate } from './types';
 
 // Events
 export { WORKSPACE_EVENT_TYPES, DOMAIN_EVENT_TYPES } from './events';

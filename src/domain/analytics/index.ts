@@ -19,8 +19,6 @@ export type {
 
 export {
   ConsentAggregate,
-  toConsentId,
-  toAnalyticsSessionId,
 } from './types';
 
 // ─── Domain Events ────────────────────────────────────────────────────────────

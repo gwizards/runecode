@@ -10,7 +10,7 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { toAgentId, LiveAgentAggregate } from './types';
+import { AgentId, LiveAgentAggregate } from './types';
 import type { IAgentRepository } from './repository';
 
 export class AgentApplicationService {
@@ -22,7 +22,7 @@ export class AgentApplicationService {
   // ── Private helpers ───────────────────────────────────────────────────────
 
   private async load(agentId: string): Promise<Result<LiveAgentAggregate | null>> {
-    const idResult = toAgentId(agentId);
+    const idResult = AgentId.create(agentId);
     if (!idResult.ok) return idResult;
     return Ok(await this.repo.getAgent(idResult.value));
   }

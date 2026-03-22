@@ -6,7 +6,7 @@
 
 // ── Types & Value Objects ────────────────────────────────────────────────────
 export type { ProjectId, RawProject } from './types';
-export { toProjectId, ProjectPath, ProjectName, ProjectAggregate } from './types';
+export { ProjectPath, ProjectName, ProjectAggregate } from './types';
 
 // ── Events ───────────────────────────────────────────────────────────────────
 export { PROJECT_EVENT_TYPES } from './events';

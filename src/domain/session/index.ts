@@ -7,13 +7,10 @@
 
 // Types and aggregate
 export {
-  toSessionId,
-  toProjectId,
   emptyTokenUsage,
   addTokenUsage,
   SessionAggregate,
   SessionTitle,
-  SessionIdVO,
 } from './types';
 export type { SessionId, ProjectId, TokenUsage, RawTokenUsage, RawSession, SessionStatus } from './types';
 

@@ -51,16 +51,6 @@ export class SessionId {
   }
 }
 
-/** @deprecated Use SessionId directly. */
-export type SessionIdVO = SessionId;
-/** @deprecated Use SessionId directly. */
-export const SessionIdVO = SessionId;
-
-/** @deprecated Use SessionId.create() instead. */
-export function toSessionId(id: string): Result<SessionId> {
-  if (id === '__unknown__') return Ok(SessionId._unsafe(id)); // sentinel allowed
-  return SessionId.create(id);
-}
 
 // ─── ProjectId Value Object ───────────────────────────────────────────────────
 
@@ -91,10 +81,6 @@ export class ProjectId {
   }
 }
 
-/** @deprecated Use ProjectId.create() instead. */
-export function toProjectId(id: string): Result<ProjectId> {
-  return ProjectId.create(id);
-}
 
 // ─── Value Object: TokenUsage ─────────────────────────────────────────────────
 
@@ -251,9 +237,9 @@ export class SessionAggregate {
   // ── Factory: create from raw data ──────────────────────────────────────────
 
   static create(raw: RawSession): Result<SessionAggregate> {
-    const sidResult = toSessionId(raw.id);
+    const sidResult = raw.id === '__unknown__' ? Ok(SessionId._unsafe(raw.id)) : SessionId.create(raw.id);
     if (!sidResult.ok) return sidResult;
-    const pidResult = toProjectId(raw.projectId);
+    const pidResult = ProjectId.create(raw.projectId);
     if (!pidResult.ok) return pidResult;
 
     const createdAt = raw.createdAt ? Date.parse(raw.createdAt) : Date.now();
@@ -288,9 +274,9 @@ export class SessionAggregate {
    * Reconstitutes an aggregate from a persisted snapshot. No events are raised.
    */
   static fromSnapshot(raw: RawSession): Result<SessionAggregate> {
-    const sidResult = toSessionId(raw.id);
+    const sidResult = raw.id === '__unknown__' ? Ok(SessionId._unsafe(raw.id)) : SessionId.create(raw.id);
     if (!sidResult.ok) return sidResult;
-    const pidResult = toProjectId(raw.projectId);
+    const pidResult = ProjectId.create(raw.projectId);
     if (!pidResult.ok) return pidResult;
 
     const createdAt = raw.createdAt ? Date.parse(raw.createdAt) : 0;

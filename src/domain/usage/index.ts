@@ -5,9 +5,8 @@
  * Do not import internal modules directly from outside this directory.
  */
 
-// ── Branded types & guards ─────────────────────────────────────────────────
-export type { LedgerId, SessionId, ProjectId } from './types';
-export { toLedgerId, toSessionId, toProjectId } from './types';
+// ── Value Objects ──────────────────────────────────────────────────────────
+export { LedgerId, SessionId, ProjectId } from './types';
 
 // ── Cross-context Value Objects ────────────────────────────────────────────
 export { UserId } from './types';

@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { isTerminalStatus, isActiveStatus, unsafeAgentId } from './types';
+import { isTerminalStatus, isActiveStatus, AgentId } from './types';
 import { AgentName } from './types';
 import { LiveAgentAggregate } from './types';
 import { InMemoryAgentRepository } from './repository';
@@ -146,7 +146,7 @@ describe('InMemoryAgentRepository', () => {
     const repo = new InMemoryAgentRepository();
     const agent = unwrap(LiveAgentAggregate.start('agent-7', 'Rune'));
     await repo.saveAgent(agent);
-    const retrieved = await repo.getAgent(unsafeAgentId('agent-7'));
+    const retrieved = await repo.getAgent(unwrap(AgentId.create('agent-7')));
     expect(retrieved).not.toBeNull();
     expect(retrieved!.id.toString()).toBe('agent-7');
     expect(retrieved!.name).toBe('Rune');

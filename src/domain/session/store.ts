@@ -8,8 +8,7 @@
 
 import { create } from 'zustand';
 import { globalEventBus } from '../shared/event-bus';
-import { SessionAggregate, toSessionId } from './types';
-import type { SessionId } from './types';
+import { SessionAggregate, SessionId } from './types';
 import { InMemorySessionRepository } from './repository';
 import { SessionApplicationService } from './service';
 
@@ -100,7 +99,7 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
   // ── Select / focus a session ───────────────────────────────────────────────
 
   selectSession(id: string): void {
-    const result = toSessionId(id);
+    const result = SessionId.create(id);
     if (result.ok) {
       set({ currentSessionId: result.value });
     }

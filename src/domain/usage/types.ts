@@ -76,23 +76,6 @@ export class ProjectId {
   toString(): string { return this.value; }
 }
 
-// ─── Deprecated bridge functions (keep for backward compatibility) ──────────
-
-/** @deprecated Use LedgerId.create() instead. */
-export function toLedgerId(id: string): Result<LedgerId> {
-  return LedgerId.create(id);
-}
-
-/** @deprecated Use SessionId.create() instead. */
-export function toSessionId(id: string): Result<SessionId> {
-  return SessionId.create(id);
-}
-
-/** @deprecated Use ProjectId.create() instead. */
-export function toProjectId(id: string): Result<ProjectId> {
-  return ProjectId.create(id);
-}
-
 /**
  * Unsafe constructors — only for internal code where the id has already been
  * validated (e.g. reconstructing from a trusted persistence snapshot).
@@ -220,11 +203,11 @@ export class UsageLedger {
    * @param raw.userId - A pre-validated UserId value object from the Identity context.
    */
   static open(raw: { id: string; sessionId: string; projectId: string; userId: UserId }): Result<UsageLedger> {
-    const ledgerIdResult  = toLedgerId(raw.id);
+    const ledgerIdResult  = LedgerId.create(raw.id);
     if (!ledgerIdResult.ok)  return ledgerIdResult;
-    const sessionIdResult = toSessionId(raw.sessionId);
+    const sessionIdResult = SessionId.create(raw.sessionId);
     if (!sessionIdResult.ok) return sessionIdResult;
-    const projectIdResult = toProjectId(raw.projectId);
+    const projectIdResult = ProjectId.create(raw.projectId);
     if (!projectIdResult.ok) return projectIdResult;
     const ledgerId  = ledgerIdResult.value;
     const sessionId = sessionIdResult.value;

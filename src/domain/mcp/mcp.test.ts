@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { ServerUrl, ServerName, MCPServerAggregate } from './types';
 import { MCP_EVENT_TYPES } from './events';
 import { InMemoryMCPRepository } from './repository';
-import { toServerId } from './types';
+import { ServerId } from './types';
 import { unwrap } from '../shared/result';
 
 // ─── 1. ServerUrl Value Object ────────────────────────────────────────────
@@ -121,7 +121,7 @@ describe('InMemoryMCPRepository', () => {
     const server = unwrap(MCPServerAggregate.add('repo-1', 'Repo Server', 'stdio', '/bin/r1'));
 
     await repo.saveServer(server);
-    const found = await repo.getServer(unwrap(toServerId('repo-1')));
+    const found = await repo.getServer(unwrap(ServerId.create('repo-1')));
 
     expect(found).not.toBeNull();
     expect(found?.name).toBe('Repo Server');
@@ -159,8 +159,8 @@ describe('InMemoryMCPRepository', () => {
     const server = unwrap(MCPServerAggregate.add('rem-1', 'ToRemove', 'stdio', '/bin/rm'));
     await repo.saveServer(server);
 
-    await repo.removeServer(unwrap(toServerId('rem-1')));
-    const found = await repo.getServer(unwrap(toServerId('rem-1')));
+    await repo.removeServer(unwrap(ServerId.create('rem-1')));
+    const found = await repo.getServer(unwrap(ServerId.create('rem-1')));
 
     expect(found).toBeNull();
   });

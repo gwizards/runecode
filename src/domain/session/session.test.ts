@@ -14,8 +14,8 @@ import {
   emptyTokenUsage,
   addTokenUsage,
   SessionAggregate,
-  toSessionId,
-  toProjectId,
+  SessionId,
+  ProjectId,
 } from './types';
 import { unwrap } from '../shared/result';
 import { SESSION_EVENT_TYPES } from './events';
@@ -144,7 +144,7 @@ describe('InMemorySessionRepository', () => {
     }));
 
     await repo.saveSession(session);
-    const retrieved = await repo.getSession(unwrap(toSessionId('sess-100')));
+    const retrieved = await repo.getSession(unwrap(SessionId.create('sess-100')));
 
     expect(retrieved).not.toBeNull();
     expect(retrieved?.id.toString()).toBe('sess-100');
@@ -174,7 +174,7 @@ describe('InMemorySessionRepository', () => {
     await repo.saveSession(sessionB);
     await repo.saveSession(sessionC);
 
-    const proj1Sessions = await repo.listSessionsByProject(unwrap(toProjectId('proj-1')));
+    const proj1Sessions = await repo.listSessionsByProject(unwrap(ProjectId.create('proj-1')));
     expect(proj1Sessions).toHaveLength(2);
     const ids = proj1Sessions.map(s => s.id.toString());
     expect(ids).toContain('sess-A');

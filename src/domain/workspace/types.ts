@@ -11,7 +11,7 @@
 import { Result, Ok, Err } from '../shared/result';
 import type { DomainEvent } from '../shared/event-bus';
 import { SessionId } from '../session/types';
-import { ProjectId, toProjectId } from '../project/types';
+import { ProjectId } from '../project/types';
 import {
   makeTabOpened,
   makeTabClosed,
@@ -65,12 +65,6 @@ export class WorkspaceId {
     return this.value;
   }
 }
-
-/** @deprecated Use TabId.create() */
-export function toTabId(raw: string): Result<TabId> { return TabId.create(raw); }
-
-/** @deprecated Use WorkspaceId.create() */
-export function toWorkspaceId(raw: string): Result<WorkspaceId> { return WorkspaceId.create(raw); }
 
 // ─── Raw snapshot shapes ──────────────────────────────────────────────────────
 
@@ -134,7 +128,7 @@ export class TabRecord {
   }
 
   static fromRaw(raw: RawTab): Result<TabRecord> {
-    const idResult = toTabId(raw.id);
+    const idResult = TabId.create(raw.id);
     if (!idResult.ok) return idResult;
     return Ok(new TabRecord(
       idResult.value,
@@ -245,7 +239,7 @@ export class WorkspaceAggregate {
       tabs.push(tabResult.value);
     }
 
-    const idResult = toWorkspaceId(raw.id);
+    const idResult = WorkspaceId.create(raw.id);
     if (!idResult.ok) return idResult;
 
     const activeTab = tabs.find(t => t.isActive) ?? tabs[0] ?? null;
@@ -253,10 +247,10 @@ export class WorkspaceAggregate {
 
     // Snapshots come from trusted storage; fall back to the 'unknown' sentinel
     // rather than crashing the repository on a missing or empty projectId.
-    const rawProjectIdResult = toProjectId(raw.projectId);
+    const rawProjectIdResult = ProjectId.create(raw.projectId);
     const projectId = rawProjectIdResult.ok
       ? rawProjectIdResult.value
-      : (toProjectId('unknown') as { ok: true; value: ProjectId }).value;
+      : (ProjectId.create('unknown') as { ok: true; value: ProjectId }).value;
 
     return Ok(new WorkspaceAggregate(
       idResult.value,

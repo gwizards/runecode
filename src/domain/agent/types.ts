@@ -31,22 +31,6 @@ export class AgentId {
   toString(): string { return this.value; }
 }
 
-/** @deprecated Use AgentId.create() */
-export function toAgentId(raw: string): Result<AgentId> { return AgentId.create(raw); }
-
-/**
- * Unsafe coercion bridge — retained for test compatibility.
- * Only for trusted internal IDs already validated through another path.
- * @deprecated Use AgentId.create() and propagate Result.
- * @internal
- */
-export function unsafeAgentId(raw: string): AgentId {
-  const result = AgentId.create(raw);
-  // Callers guarantee raw is non-empty; if not, fall back to a sentinel so
-  // the domain never throws (programming error surfaced at test-assertion time).
-  return result.ok ? result.value : AgentId.generate();
-}
-
 // ─── Value Object: AgentStatus ─────────────────────────────────────────────
 
 export type AgentStatus = 'running' | 'thinking' | 'completed' | 'failed' | 'idle';
@@ -118,7 +102,7 @@ export class LiveAgentAggregate {
    * Returns Err if the name is invalid.
    */
   static start(id: string, name: string): Result<LiveAgentAggregate> {
-    const agentIdResult = toAgentId(id);
+    const agentIdResult = AgentId.create(id);
     if (!agentIdResult.ok) return agentIdResult;
     const agentId = agentIdResult.value;
     const nameResult = AgentName.create(name);
@@ -144,7 +128,7 @@ export class LiveAgentAggregate {
    * Returns Err if the stored name fails validation.
    */
   static fromSnapshot(raw: RawLiveAgent): Result<LiveAgentAggregate> {
-    const agentIdResult = toAgentId(raw.id);
+    const agentIdResult = AgentId.create(raw.id);
     if (!agentIdResult.ok) return agentIdResult;
     const nameResult = AgentName.create(raw.name);
     if (!nameResult.ok) return nameResult;

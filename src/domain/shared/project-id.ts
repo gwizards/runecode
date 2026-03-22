@@ -5,4 +5,4 @@
  * This file exists for backward-compat imports by contexts that need the type
  * without depending on the full project domain module.
  */
-export { ProjectId, toProjectId } from '../project/types';
+export { ProjectId } from '../project/types';

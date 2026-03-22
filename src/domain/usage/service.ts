@@ -11,7 +11,7 @@
 import type { DomainEventBus } from '../shared/event-bus';
 import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
-import { toLedgerId, toSessionId, toProjectId, UsageLedger, UserId } from './types';
+import { LedgerId, SessionId, ProjectId, UsageLedger, UserId } from './types';
 import type { RawUsageRecord, UsageSummary } from './types';
 import type { IUsageLedgerRepository } from './repository';
 
@@ -71,7 +71,7 @@ export class UsageApplicationService {
     record: RawUsageRecord;
   }): Promise<Result<UsageSummary>> {
     try {
-      const sessionIdResult = toSessionId(cmd.sessionId);
+      const sessionIdResult = SessionId.create(cmd.sessionId);
       if (!sessionIdResult.ok) return sessionIdResult;
       const ledger = await this.repo.getBySession(sessionIdResult.value);
       if (!ledger) {
@@ -92,7 +92,7 @@ export class UsageApplicationService {
    */
   async sealLedger(cmd: { sessionId: string }): Promise<Result<UsageSummary>> {
     try {
-      const sessionIdResult = toSessionId(cmd.sessionId);
+      const sessionIdResult = SessionId.create(cmd.sessionId);
       if (!sessionIdResult.ok) return sessionIdResult;
       const ledger = await this.repo.getBySession(sessionIdResult.value);
       if (!ledger) {
@@ -115,7 +115,7 @@ export class UsageApplicationService {
    */
   async getLedgerSummary(sessionId: string): Promise<Result<UsageSummary>> {
     try {
-      const sidResult = toSessionId(sessionId);
+      const sidResult = SessionId.create(sessionId);
       if (!sidResult.ok) return sidResult;
       const ledger = await this.repo.getBySession(sidResult.value);
       if (!ledger) {
@@ -140,7 +140,7 @@ export class UsageApplicationService {
       let ledgers: UsageLedger[];
 
       if (cmd.projectId !== undefined) {
-        const projectIdResult = toProjectId(cmd.projectId);
+        const projectIdResult = ProjectId.create(cmd.projectId);
         if (!projectIdResult.ok) return projectIdResult;
         ledgers = await this.repo.listByProject(projectIdResult.value);
         // Apply date range filter if provided
@@ -167,7 +167,7 @@ export class UsageApplicationService {
    */
   async getLedgerById(ledgerId: string): Promise<Result<UsageSummary>> {
     try {
-      const lidResult = toLedgerId(ledgerId);
+      const lidResult = LedgerId.create(ledgerId);
       if (!lidResult.ok) return lidResult;
       const ledger = await this.repo.getById(lidResult.value);
       if (!ledger) {
@@ -195,7 +195,7 @@ export class UsageApplicationService {
     costUsd: number,
   ): Promise<Result<UsageLedger>> {
     try {
-      const sidResult = toSessionId(sessionId);
+      const sidResult = SessionId.create(sessionId);
       if (!sidResult.ok) return sidResult;
       const ledger = await this.repo.getBySession(sidResult.value);
       if (!ledger) {
@@ -225,7 +225,7 @@ export class UsageApplicationService {
    */
   async getLedger(sessionId: string): Promise<Result<UsageLedger>> {
     try {
-      const sidResult = toSessionId(sessionId);
+      const sidResult = SessionId.create(sessionId);
       if (!sidResult.ok) return sidResult;
       const ledger = await this.repo.getBySession(sidResult.value);
       if (!ledger) {
