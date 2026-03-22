@@ -25,8 +25,10 @@ export {
   makeServerDisabled,
 } from './events';
 
-// Repository
-export type { IMCPRepository } from './repository';
+// Repository port
+export type { IMCPRepository } from './ports';
+
+// Repository implementation
 export { InMemoryMCPRepository } from './repository';
 
 // Application service

@@ -57,10 +57,10 @@ export class AnalyticsApplicationService {
    * @param rawProjectId - Project identifier (non-empty string).
    * @returns Ok(ConsentAggregate) on success; Err(message) on validation failure.
    */
-  grantConsent(
+  async grantConsent(
     rawSessionId: string,
     rawProjectId: string,
-  ): Result<ConsentAggregate> {
+  ): Promise<Result<ConsentAggregate>> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
       const projectId = toProjectId(rawProjectId);
@@ -90,7 +90,7 @@ export class AnalyticsApplicationService {
    * @param rawConsentId - Consent record identifier.
    * @returns Ok(void) on success; Err(message) if the record is not found.
    */
-  revokeConsent(rawConsentId: string): Result<void> {
+  async revokeConsent(rawConsentId: string): Promise<Result<void>> {
     try {
       const consentId = toConsentId(rawConsentId);
       const consent = this.repository.findById(consentId);
@@ -111,7 +111,7 @@ export class AnalyticsApplicationService {
 
   // ── Get consent status ──────────────────────────────────────────────────────
 
-  getConsentStatus(rawConsentId: string): Result<ConsentStatus> {
+  async getConsentStatus(rawConsentId: string): Promise<Result<ConsentStatus>> {
     try {
       const consentId = toConsentId(rawConsentId);
       const consent = this.repository.findById(consentId);
@@ -135,10 +135,10 @@ export class AnalyticsApplicationService {
    * @param data - Arbitrary session metadata.
    * @returns Ok(void) always (consent check is a silent drop, not an error).
    */
-  trackSession(
+  async trackSession(
     rawSessionId: string,
     data: Record<string, unknown> = {},
-  ): Result<void> {
+  ): Promise<Result<void>> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
 
@@ -171,11 +171,11 @@ export class AnalyticsApplicationService {
    * @param properties - Optional event properties.
    * @returns Ok(void) always (consent check is a silent drop, not an error).
    */
-  captureEvent(
+  async captureEvent(
     rawSessionId: string,
     name: string,
     properties?: Record<string, unknown>,
-  ): Result<void> {
+  ): Promise<Result<void>> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
 
@@ -213,17 +213,17 @@ export class AnalyticsApplicationService {
   /**
    * @deprecated Use captureEvent() instead.
    */
-  trackEvent(
+  async trackEvent(
     rawSessionId: string,
     eventType: string,
     payload: Record<string, unknown>,
-  ): Result<void> {
+  ): Promise<Result<void>> {
     return this.captureEvent(rawSessionId, eventType, payload);
   }
 
   // ── Query events ────────────────────────────────────────────────────────────
 
-  queryEvents(rawSessionId: string): Result<CapturedEvent[]> {
+  async queryEvents(rawSessionId: string): Promise<Result<CapturedEvent[]>> {
     try {
       const sessionId = toAnalyticsSessionId(rawSessionId);
       const log = capturedEventLog.get(sessionId) ?? [];

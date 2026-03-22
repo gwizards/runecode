@@ -38,7 +38,7 @@ export class WorkspaceApplicationService {
    * Creates a new workspace for the given session + project pair.
    * Returns the new WorkspaceId on success.
    */
-  createWorkspace(sessionId: SessionId, projectId: ProjectId): Result<WorkspaceId> {
+  async createWorkspace(sessionId: SessionId, projectId: ProjectId): Promise<Result<WorkspaceId>> {
     try {
       const workspace = WorkspaceAggregate.create(sessionId, projectId);
       const saveResult = this.repository.save(workspace);
@@ -53,7 +53,7 @@ export class WorkspaceApplicationService {
   /**
    * Retrieves the full aggregate snapshot for a workspace.
    */
-  getWorkspace(workspaceId: WorkspaceId): Result<RawWorkspace> {
+  async getWorkspace(workspaceId: WorkspaceId): Promise<Result<RawWorkspace>> {
     try {
       const result = this.repository.findById(workspaceId);
       if (!result.ok) return result;
@@ -66,7 +66,7 @@ export class WorkspaceApplicationService {
   /**
    * Deletes a workspace by ID.
    */
-  deleteWorkspace(workspaceId: WorkspaceId): Result<void> {
+  async deleteWorkspace(workspaceId: WorkspaceId): Promise<Result<void>> {
     try {
       return this.repository.delete(workspaceId);
     } catch (err) {
@@ -86,13 +86,13 @@ export class WorkspaceApplicationService {
    * @param rawTabId    - optional caller-supplied ID (e.g. the existing React tab id)
    * @param opts        - optional extended tab metadata (tabType, status, sessionId, etc.)
    */
-  openTab(
+  async openTab(
     workspaceId: WorkspaceId,
     path: string,
     label: string,
     rawTabId?: string,
     opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
-  ): Result<WorkspaceAggregate> {
+  ): Promise<Result<WorkspaceAggregate>> {
     return this._withWorkspace(workspaceId, (ws) => {
       const tabId = rawTabId
         ? toTabId(rawTabId)
@@ -108,7 +108,7 @@ export class WorkspaceApplicationService {
    * No-op (returns Ok) if the workspace has only one tab — the last tab
    * invariant is enforced by the aggregate.
    */
-  closeTab(workspaceId: WorkspaceId, tabId: TabId): Result<void> {
+  async closeTab(workspaceId: WorkspaceId, tabId: TabId): Promise<Result<void>> {
     return this._withWorkspace(workspaceId, (ws) => {
       ws.closeTab(tabId);
       return Ok(undefined);
@@ -119,7 +119,7 @@ export class WorkspaceApplicationService {
    * Makes the specified tab active.
    * Returns the updated WorkspaceAggregate on success.
    */
-  activateTab(workspaceId: WorkspaceId, tabId: TabId): Result<WorkspaceAggregate> {
+  async activateTab(workspaceId: WorkspaceId, tabId: TabId): Promise<Result<WorkspaceAggregate>> {
     return this._withWorkspace(workspaceId, (ws) => {
       ws.activateTab(tabId);
       return Ok(ws);
@@ -130,7 +130,7 @@ export class WorkspaceApplicationService {
    * Reorders the tabs in the workspace to match the supplied order array.
    * Returns the updated WorkspaceAggregate on success.
    */
-  reorderTabs(workspaceId: WorkspaceId, newOrder: TabId[]): Result<WorkspaceAggregate> {
+  async reorderTabs(workspaceId: WorkspaceId, newOrder: TabId[]): Promise<Result<WorkspaceAggregate>> {
     return this._withWorkspace(workspaceId, (ws) => {
       ws.reorderTabs(newOrder);
       return Ok(ws);
@@ -141,7 +141,7 @@ export class WorkspaceApplicationService {
    * Renames the specified tab.
    * Returns the updated WorkspaceAggregate on success.
    */
-  renameTab(workspaceId: WorkspaceId, tabId: TabId, label: string): Result<WorkspaceAggregate> {
+  async renameTab(workspaceId: WorkspaceId, tabId: TabId, label: string): Promise<Result<WorkspaceAggregate>> {
     return this._withWorkspace(workspaceId, (ws) => {
       ws.renameTab(tabId, label);
       return Ok(ws);

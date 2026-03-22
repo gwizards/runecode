@@ -124,6 +124,27 @@ export class TokenUsage {
   }
 }
 
+// ─── Value Object: SessionTitle ───────────────────────────────────────────────
+
+export class SessionTitle {
+  private constructor(readonly value: string) {}
+
+  static create(raw: string): Result<SessionTitle> {
+    if (raw.length > 200) return Err('Session title too long (max 200 chars)');
+    return Ok(new SessionTitle(raw));
+  }
+
+  static untitled(): SessionTitle { return new SessionTitle('Untitled Session'); }
+
+  static fromPath(path: string): SessionTitle {
+    const name = path.split('/').pop() ?? path;
+    return new SessionTitle(name.replace(/\.md$/i, '') || 'Untitled Session');
+  }
+
+  isEmpty(): boolean { return this.value.trim().length === 0; }
+  toString(): string { return this.value; }
+}
+
 /** Backward-compatible helper — returns an empty TokenUsage VO instance. */
 export function emptyTokenUsage(): TokenUsage {
   return TokenUsage.empty();

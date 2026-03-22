@@ -24,8 +24,10 @@ export {
   makeProjectDeleted,
 } from './events';
 
-// ── Repository ───────────────────────────────────────────────────────────────
-export type { IProjectRepository } from './repository';
+// ── Repository port ───────────────────────────────────────────────────────────
+export type { IProjectRepository } from './ports';
+
+// ── Repository implementation ─────────────────────────────────────────────────
 export { InMemoryProjectRepository } from './repository';
 
 // ── Application Service ───────────────────────────────────────────────────────

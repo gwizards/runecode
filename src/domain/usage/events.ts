@@ -16,6 +16,8 @@ export const USAGE_EVENT_TYPES = {
   LEDGER_SEALED: 'usage/ledger.sealed',
 } as const;
 
+export const DOMAIN_EVENT_TYPES = USAGE_EVENT_TYPES;
+
 export type UsageEventType = (typeof USAGE_EVENT_TYPES)[keyof typeof USAGE_EVENT_TYPES];
 
 // ─── Event interfaces ──────────────────────────────────────────────────────

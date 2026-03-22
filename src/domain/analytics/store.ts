@@ -41,15 +41,15 @@ interface AnalyticsStoreState {
     sessionId: string,
     name: string,
     properties?: Record<string, unknown>,
-  ): Result<void>;
-  trackSession(sessionId: string, data?: Record<string, unknown>): Result<void>;
+  ): Promise<Result<void>>;
+  trackSession(sessionId: string, data?: Record<string, unknown>): Promise<Result<void>>;
   /** @deprecated Use captureEvent() instead. */
   trackEvent(
     sessionId: string,
     eventType: string,
     payload: Record<string, unknown>,
-  ): Result<void>;
-  queryEvents(sessionId: string): Result<CapturedEvent[]>;
+  ): Promise<Result<void>>;
+  queryEvents(sessionId: string): Promise<Result<CapturedEvent[]>>;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ export const useAnalyticsStore = create<AnalyticsStoreState>((set, _get) => ({
 
   grantConsent: async (sessionId, projectId) => {
     set({ loading: true, error: null });
-    const result = _service.grantConsent(sessionId, projectId);
+    const result = await _service.grantConsent(sessionId, projectId);
     if (result.ok) {
       const aggregate = result.value;
       set({
@@ -78,9 +78,9 @@ export const useAnalyticsStore = create<AnalyticsStoreState>((set, _get) => ({
 
   revokeConsent: async (consentId) => {
     set({ loading: true, error: null });
-    const result = _service.revokeConsent(consentId);
+    const result = await _service.revokeConsent(consentId);
     if (result.ok) {
-      const statusResult = _service.getConsentStatus(consentId);
+      const statusResult = await _service.getConsentStatus(consentId);
       set({
         consentStatus: statusResult.ok ? statusResult.value : null,
         loading: false,
@@ -91,26 +91,26 @@ export const useAnalyticsStore = create<AnalyticsStoreState>((set, _get) => ({
     return result;
   },
 
-  refreshStatus: (consentId) => {
-    const result = _service.getConsentStatus(consentId);
+  refreshStatus: async (consentId) => {
+    const result = await _service.getConsentStatus(consentId);
     if (result.ok) {
       set({ consentStatus: result.value });
     }
   },
 
-  captureEvent: (sessionId, name, properties) => {
+  captureEvent: async (sessionId, name, properties) => {
     return _service.captureEvent(sessionId, name, properties);
   },
 
-  trackSession: (sessionId, data) => {
+  trackSession: async (sessionId, data) => {
     return _service.trackSession(sessionId, data);
   },
 
-  trackEvent: (sessionId, eventType, payload) => {
+  trackEvent: async (sessionId, eventType, payload) => {
     return _service.trackEvent(sessionId, eventType, payload);
   },
 
-  queryEvents: (sessionId) => {
+  queryEvents: async (sessionId) => {
     return _service.queryEvents(sessionId);
   },
 }));

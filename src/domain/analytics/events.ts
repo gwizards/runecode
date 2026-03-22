@@ -18,6 +18,8 @@ export const ANALYTICS_EVENT_TYPES = {
   EVENT_CAPTURED: 'analytics/event.captured',
 } as const;
 
+export const DOMAIN_EVENT_TYPES = ANALYTICS_EVENT_TYPES;
+
 export type AnalyticsEventType =
   (typeof ANALYTICS_EVENT_TYPES)[keyof typeof ANALYTICS_EVENT_TYPES];
 

@@ -33,3 +33,6 @@ export { WorkspaceApplicationService } from './service';
 // Zustand Store
 export type { WorkspaceState, WorkspaceActions, WorkspaceStore } from './store';
 export { createWorkspaceStore, useWorkspaceStore } from './store';
+
+// Class-based Value Objects
+export { TabLabel, TabPath } from './value-objects/tab-label';

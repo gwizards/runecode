@@ -53,3 +53,6 @@ export { CommandApplicationService } from './service';
 
 // ── Zustand store ──────────────────────────────────────────────────────────
 export { useCommandDomainStore } from './store';
+
+// ── Class-based Value Objects ──────────────────────────────────────────────
+export { CommandDescription, CommandCategory } from './value-objects/command-description';

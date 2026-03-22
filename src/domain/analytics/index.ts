@@ -58,3 +58,8 @@ export { AnalyticsApplicationService } from './service';
 // ─── Zustand Store (UI adapter) ───────────────────────────────────────────────
 
 export { useAnalyticsStore, analyticsService, analyticsBus } from './store';
+
+// ─── Class-based Value Objects ────────────────────────────────────────────────
+
+export type { ConsentStatusValue } from './value-objects/consent-status';
+export { ConsentStatusVO, AnalyticsEventName } from './value-objects/consent-status';

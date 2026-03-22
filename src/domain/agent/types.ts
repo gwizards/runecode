@@ -6,6 +6,7 @@
  */
 
 import type { DomainEvent } from '../shared/event-bus';
+import { Ok, Err, type Result } from '../shared/result';
 import {
   makeAgentStarted,
   makeAgentThinking,
@@ -46,6 +47,21 @@ export class AgentName {
     }
     return new AgentName(v);
   }
+}
+
+// ─── Value Object: AgentModel ──────────────────────────────────────────────
+
+export class AgentModel {
+  private constructor(readonly value: string) {}
+
+  static create(raw: string): Result<AgentModel> {
+    if (!raw || raw.trim().length === 0) return Err('Agent model cannot be empty');
+    if (raw.length > 100) return Err('Agent model name too long');
+    return Ok(new AgentModel(raw.trim()));
+  }
+
+  static unknown(): AgentModel { return new AgentModel('unknown'); }
+  toString(): string { return this.value; }
 }
 
 // ─── Raw shape (mirrors agentStore.ts LiveAgent) ───────────────────────────

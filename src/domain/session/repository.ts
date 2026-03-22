@@ -1,7 +1,7 @@
 /**
  * Session bounded context — Repository interface and in-memory implementation.
  *
- * ISessionRepository defines the persistence contract for the session context.
+ * ISessionRepository is the domain-facing port (defined in ./ports/ISessionRepository).
  * InMemorySessionRepository is suitable for tests and local dev.
  *
  * Storage uses QuantizedSnapshotStore<RawSession, SessionId> for ~76% memory
@@ -14,15 +14,9 @@ import {
   SessionSnapshotQuantizer,
   QuantizedSnapshotStore,
 } from '../shared/quantization';
+import type { ISessionRepository } from './ports/ISessionRepository';
 
-// ─── Repository interface ─────────────────────────────────────────────────────
-
-export interface ISessionRepository {
-  getSession(id: SessionId): Promise<SessionAggregate | null>;
-  saveSession(session: SessionAggregate): Promise<void>;
-  deleteSession(id: SessionId): Promise<void>;
-  listSessionsByProject(projectId: ProjectId): Promise<SessionAggregate[]>;
-}
+export type { ISessionRepository };
 
 // ─── In-memory implementation ─────────────────────────────────────────────────
 

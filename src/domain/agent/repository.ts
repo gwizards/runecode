@@ -1,32 +1,16 @@
 /**
  * Agent bounded context — Repository interface and in-memory implementation.
  *
- * IAgentRepository is the domain-facing port.
+ * IAgentRepository is the domain-facing port (defined in ./ports/IAgentRepository).
  * InMemoryAgentRepository is the default adapter (suitable for tests and dev).
  */
 
 import type { AgentId, RawLiveAgent } from './types';
 import { LiveAgentAggregate } from './types';
 import { AgentSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
+import type { IAgentRepository } from './ports/IAgentRepository';
 
-// ─── Repository Interface ──────────────────────────────────────────────────
-
-export interface IAgentRepository {
-  /** Return the aggregate for the given id, or null if not found. */
-  getAgent(id: AgentId): Promise<LiveAgentAggregate | null>;
-
-  /** Persist (upsert) an aggregate. */
-  saveAgent(agent: LiveAgentAggregate): Promise<void>;
-
-  /** Remove an agent by id. No-op if not found. */
-  removeAgent(id: AgentId): Promise<void>;
-
-  /** Return all agents whose status is active (running or thinking). */
-  listActiveAgents(): Promise<LiveAgentAggregate[]>;
-
-  /** Return all tracked agents regardless of status. */
-  listAll(): Promise<LiveAgentAggregate[]>;
-}
+export type { IAgentRepository };
 
 // ─── In-Memory Implementation ──────────────────────────────────────────────
 

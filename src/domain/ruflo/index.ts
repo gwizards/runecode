@@ -26,3 +26,5 @@ export type {
 // Value Objects
 export { SwarmTopology } from './value-objects/swarm-topology';
 export type { SwarmTopologyValue } from './value-objects/swarm-topology';
+export { MemoryBackend } from './value-objects/memory-backend';
+export type { MemoryBackendValue } from './value-objects/memory-backend';

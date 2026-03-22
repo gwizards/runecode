@@ -1,21 +1,15 @@
 /**
  * MCP bounded context — Repository interface and in-memory implementation.
+ *
+ * IMCPRepository is the domain-facing port (defined in ./ports/IMCPRepository).
  */
 
 import type { ServerId, RawMCPServer } from './types';
 import { MCPServerAggregate } from './types';
 import { MCPSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
+import type { IMCPRepository } from './ports/IMCPRepository';
 
-// ─── Repository interface ─────────────────────────────────────────────────
-
-export interface IMCPRepository {
-  getServer(id: ServerId): Promise<MCPServerAggregate | null>;
-  findByName(name: string): Promise<MCPServerAggregate | null>;
-  saveServer(server: MCPServerAggregate): Promise<void>;
-  removeServer(id: ServerId): Promise<void>;
-  listServers(): Promise<MCPServerAggregate[]>;
-  listEnabledServers(): Promise<MCPServerAggregate[]>;
-}
+export type { IMCPRepository };
 
 // ─── In-memory implementation ─────────────────────────────────────────────
 

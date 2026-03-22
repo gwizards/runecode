@@ -12,6 +12,7 @@ export {
   emptyTokenUsage,
   addTokenUsage,
   SessionAggregate,
+  SessionTitle,
 } from './types';
 export type { SessionId, ProjectId, TokenUsage, RawTokenUsage, RawSession, SessionStatus } from './types';
 
@@ -33,9 +34,11 @@ export type {
   TokenUsageUpdatedEvent,
 } from './events';
 
-// Repository
+// Repository port
+export type { ISessionRepository } from './ports';
+
+// Repository implementation
 export { InMemorySessionRepository } from './repository';
-export type { ISessionRepository } from './repository';
 
 // Application service
 export { SessionApplicationService } from './service';

@@ -1,35 +1,17 @@
 /**
  * Project bounded context — Repository interface and in-memory implementation.
  *
- * Application services depend on IProjectRepository; concrete implementations
- * (Tauri backend, IndexedDB, in-memory for tests) are injected at runtime.
+ * IProjectRepository is the domain-facing port (defined in ./ports/IProjectRepository).
+ * Concrete implementations (Tauri backend, IndexedDB, in-memory for tests) are
+ * injected at runtime.
  */
 
 import type { ProjectId, RawProject } from './types';
 import { ProjectAggregate } from './types';
 import { ProjectSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
+import type { IProjectRepository } from './ports/IProjectRepository';
 
-// ─── Repository Interface ─────────────────────────────────────────────────────
-
-export interface IProjectRepository {
-  /** Retrieve a project by its ID, or null if not found. */
-  getProject(id: ProjectId): Promise<ProjectAggregate | null>;
-
-  /** Find a project whose path matches exactly, or null if not found. */
-  findByPath(path: string): Promise<ProjectAggregate | null>;
-
-  /**
-   * Persist a project (insert or update).
-   * Overwrites any existing entry with the same ID.
-   */
-  saveProject(project: ProjectAggregate): Promise<void>;
-
-  /** Remove a project by ID. Silently succeeds if not present. */
-  deleteProject(id: ProjectId): Promise<void>;
-
-  /** Return all persisted projects, ordered by insertion. */
-  listProjects(): Promise<ProjectAggregate[]>;
-}
+export type { IProjectRepository };
 
 // ─── In-Memory Implementation ─────────────────────────────────────────────────
 

@@ -189,7 +189,7 @@ describe('SessionAnalyticsAcl', () => {
     const analyticsSvc = new AnalyticsApplicationService(consentRepo, analyticsBus);
 
     // Grant consent via analytics service (own bus)
-    const consentResult = analyticsSvc.grantConsent('s10', 'proj-1');
+    const consentResult = await analyticsSvc.grantConsent('s10', 'proj-1');
     expect(consentResult.ok).toBe(true);
 
     // Complete a session via session service (session bus → ACL)
@@ -328,18 +328,18 @@ describe('Session → Workspace flow', () => {
     const sessResult = await sessionSvc.createSession(makeSessionRaw('w1'));
     expect(sessResult.ok).toBe(true);
 
-    const wsResult = workspaceSvc.createWorkspace('w1' as ReturnType<typeof String> & { _brand: 'SessionId' }, 'proj-1' as ReturnType<typeof String> & { _brand: 'ProjectId' });
+    const wsResult = await workspaceSvc.createWorkspace('w1' as ReturnType<typeof String> & { _brand: 'SessionId' }, 'proj-1' as ReturnType<typeof String> & { _brand: 'ProjectId' });
     expect(wsResult.ok).toBe(true);
   });
 
   it('opens a tab in the workspace and retrieves the updated state', async () => {
-    const wsResult = workspaceSvc.createWorkspace('w2' as any, 'proj-1' as any);
+    const wsResult = await workspaceSvc.createWorkspace('w2' as any, 'proj-1' as any);
     expect(wsResult.ok).toBe(true);
     const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
 
-    workspaceSvc.openTab(workspaceId, '/src/index.ts', 'index.ts', 'tab-1');
+    await workspaceSvc.openTab(workspaceId, '/src/index.ts', 'index.ts', 'tab-1');
 
-    const getResult = workspaceSvc.getWorkspace(workspaceId);
+    const getResult = await workspaceSvc.getWorkspace(workspaceId);
     expect(getResult.ok).toBe(true);
     if (getResult.ok) {
       expect(getResult.value.tabs).toHaveLength(1);
@@ -349,13 +349,13 @@ describe('Session → Workspace flow', () => {
   });
 
   it('opening a second tab adds it and makes it active', async () => {
-    const wsResult = workspaceSvc.createWorkspace('w3' as any, 'proj-1' as any);
+    const wsResult = await workspaceSvc.createWorkspace('w3' as any, 'proj-1' as any);
     const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
 
-    workspaceSvc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
-    workspaceSvc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
+    await workspaceSvc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
+    await workspaceSvc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
 
-    const getResult = workspaceSvc.getWorkspace(workspaceId);
+    const getResult = await workspaceSvc.getWorkspace(workspaceId);
     expect(getResult.ok).toBe(true);
     if (getResult.ok) {
       expect(getResult.value.tabs).toHaveLength(2);
@@ -365,14 +365,14 @@ describe('Session → Workspace flow', () => {
   });
 
   it('closing a tab removes it from the workspace', async () => {
-    const wsResult = workspaceSvc.createWorkspace('w4' as any, 'proj-1' as any);
+    const wsResult = await workspaceSvc.createWorkspace('w4' as any, 'proj-1' as any);
     const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
 
-    workspaceSvc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
-    workspaceSvc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
-    workspaceSvc.closeTab(workspaceId, 'tab-a' as TabId);
+    await workspaceSvc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-a');
+    await workspaceSvc.openTab(workspaceId, '/src/b.ts', 'b.ts', 'tab-b');
+    await workspaceSvc.closeTab(workspaceId, 'tab-a' as TabId);
 
-    const getResult = workspaceSvc.getWorkspace(workspaceId);
+    const getResult = await workspaceSvc.getWorkspace(workspaceId);
     expect(getResult.ok).toBe(true);
     if (getResult.ok) {
       expect(getResult.value.tabs).toHaveLength(1);
@@ -381,15 +381,15 @@ describe('Session → Workspace flow', () => {
   });
 
   it('getWorkspace returns correct tab state after multiple operations', async () => {
-    const wsResult = workspaceSvc.createWorkspace('w5' as any, 'proj-1' as any);
+    const wsResult = await workspaceSvc.createWorkspace('w5' as any, 'proj-1' as any);
     const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
 
-    workspaceSvc.openTab(workspaceId, '/a.ts', 'a.ts', 'tab-a');
-    workspaceSvc.openTab(workspaceId, '/b.ts', 'b.ts', 'tab-b');
-    workspaceSvc.openTab(workspaceId, '/c.ts', 'c.ts', 'tab-c');
-    workspaceSvc.closeTab(workspaceId, 'tab-b' as TabId);
+    await workspaceSvc.openTab(workspaceId, '/a.ts', 'a.ts', 'tab-a');
+    await workspaceSvc.openTab(workspaceId, '/b.ts', 'b.ts', 'tab-b');
+    await workspaceSvc.openTab(workspaceId, '/c.ts', 'c.ts', 'tab-c');
+    await workspaceSvc.closeTab(workspaceId, 'tab-b' as TabId);
 
-    const getResult = workspaceSvc.getWorkspace(workspaceId);
+    const getResult = await workspaceSvc.getWorkspace(workspaceId);
     expect(getResult.ok).toBe(true);
     if (getResult.ok) {
       const paths = getResult.value.tabs.map(t => t.path);
@@ -404,9 +404,9 @@ describe('Session → Workspace flow', () => {
     const workspaceEvents: DomainEvent[] = [];
     workspaceBus.on(WORKSPACE_EVENT_TYPES.TAB_OPENED, (e) => { workspaceEvents.push(e); });
 
-    const wsResult = workspaceSvc.createWorkspace('w6' as any, 'proj-1' as any);
+    const wsResult = await workspaceSvc.createWorkspace('w6' as any, 'proj-1' as any);
     const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
-    workspaceSvc.openTab(workspaceId, '/src/x.ts', 'x.ts', 'tab-x');
+    await workspaceSvc.openTab(workspaceId, '/src/x.ts', 'x.ts', 'tab-x');
 
     expect(workspaceEvents.length).toBeGreaterThan(0);
     // Session bus must not carry workspace events
@@ -458,12 +458,12 @@ describe('Cross-domain bus isolation', () => {
     expect(analyticsTypesOnSessionBus).toHaveLength(0);
   });
 
-  it('workspace bus events do NOT appear on usage bus', () => {
+  it('workspace bus events do NOT appear on usage bus', async () => {
     const usageEvents = collectEvents(usageBus);
 
-    const wsResult = workspaceSvc.createWorkspace('iso-3' as any, 'proj-1' as any);
+    const wsResult = await workspaceSvc.createWorkspace('iso-3' as any, 'proj-1' as any);
     const workspaceId = wsResult.ok ? wsResult.value : '' as WorkspaceId;
-    workspaceSvc.openTab(workspaceId, '/src/z.ts', 'z.ts', 'tab-z');
+    await workspaceSvc.openTab(workspaceId, '/src/z.ts', 'z.ts', 'tab-z');
 
     const workspaceTypesOnUsageBus = usageEvents.filter(e => e.type.startsWith('workspace.'));
     expect(workspaceTypesOnUsageBus).toHaveLength(0);

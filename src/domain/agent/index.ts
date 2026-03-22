@@ -12,6 +12,7 @@ export {
   isTerminalStatus,
   isActiveStatus,
   AgentName,
+  AgentModel,
   LiveAgentAggregate,
 } from './types';
 
@@ -31,8 +32,10 @@ export {
   makeAgentFailed,
 } from './events';
 
-// ── Repository ─────────────────────────────────────────────────────────────
-export type { IAgentRepository } from './repository';
+// ── Repository port ────────────────────────────────────────────────────────
+export type { IAgentRepository } from './ports';
+
+// ── Repository implementation ──────────────────────────────────────────────
 export { InMemoryAgentRepository } from './repository';
 
 // ── Application service ────────────────────────────────────────────────────

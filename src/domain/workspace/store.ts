@@ -34,26 +34,26 @@ export interface WorkspaceState {
 
 export interface WorkspaceActions {
   /** Create a new workspace for the given session + project. */
-  createWorkspace(sessionId: SessionId, projectId: ProjectId): void;
+  createWorkspace(sessionId: SessionId, projectId: ProjectId): Promise<void>;
   /** Load an existing workspace by ID. */
-  loadWorkspace(workspaceId: WorkspaceId): void;
+  loadWorkspace(workspaceId: WorkspaceId): Promise<void>;
   /** Open a tab in the current workspace, with optional extended metadata. */
   openTab(
     path: string,
     title: string,
     rawTabId?: string,
     opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
-  ): void;
+  ): Promise<void>;
   /** Close a tab by ID. */
-  closeTab(tabId: TabId): void;
+  closeTab(tabId: TabId): Promise<void>;
   /** Activate a tab by ID. */
-  activateTab(tabId: TabId): void;
+  activateTab(tabId: TabId): Promise<void>;
   /** Reorder tabs by providing the desired tab ID order. */
-  reorderTabs(newOrder: TabId[]): void;
+  reorderTabs(newOrder: TabId[]): Promise<void>;
   /** Rename a tab. */
-  renameTab(tabId: TabId, title: string): void;
+  renameTab(tabId: TabId, title: string): Promise<void>;
   /** Delete the current workspace. */
-  deleteWorkspace(): void;
+  deleteWorkspace(): Promise<void>;
   /** Clear any stored error message. */
   clearError(): void;
 }
@@ -85,12 +85,12 @@ export function createWorkspaceStore(
 
     // ── Actions ────────────────────────────────────────────────────────────
 
-    createWorkspace(sessionId, projectId) {
+    async createWorkspace(sessionId, projectId) {
       set({ loading: true, error: null });
-      const result = service.createWorkspace(sessionId, projectId);
+      const result = await service.createWorkspace(sessionId, projectId);
       if (result.ok) {
         const workspaceId = result.value;
-        const wsResult = service.getWorkspace(workspaceId);
+        const wsResult = await service.getWorkspace(workspaceId);
         if (wsResult.ok) {
           set({ workspace: wsResult.value, currentWorkspaceId: workspaceId, loading: false });
         } else {
@@ -101,9 +101,9 @@ export function createWorkspaceStore(
       }
     },
 
-    loadWorkspace(workspaceId) {
+    async loadWorkspace(workspaceId) {
       set({ loading: true, error: null });
-      const result = service.getWorkspace(workspaceId);
+      const result = await service.getWorkspace(workspaceId);
       if (result.ok) {
         set({ workspace: result.value, currentWorkspaceId: workspaceId, loading: false });
       } else {
@@ -111,13 +111,13 @@ export function createWorkspaceStore(
       }
     },
 
-    openTab(path, title, rawTabId, opts) {
+    async openTab(path, title, rawTabId, opts) {
       const { currentWorkspaceId } = get();
       if (!currentWorkspaceId) {
         set({ error: 'No active workspace' });
         return;
       }
-      const result = service.openTab(currentWorkspaceId, path, title, rawTabId, opts);
+      const result = await service.openTab(currentWorkspaceId, path, title, rawTabId, opts);
       if (!result.ok) {
         set({ error: result.error });
         return;
@@ -125,22 +125,22 @@ export function createWorkspaceStore(
       set({ workspace: result.value.toSnapshot() });
     },
 
-    closeTab(tabId) {
+    async closeTab(tabId) {
       const { currentWorkspaceId } = get();
       if (!currentWorkspaceId) return;
-      const result = service.closeTab(currentWorkspaceId, tabId);
+      const result = await service.closeTab(currentWorkspaceId, tabId);
       if (!result.ok) {
         set({ error: result.error });
         return;
       }
-      const wsResult = service.getWorkspace(currentWorkspaceId);
+      const wsResult = await service.getWorkspace(currentWorkspaceId);
       if (wsResult.ok) set({ workspace: wsResult.value });
     },
 
-    activateTab(tabId) {
+    async activateTab(tabId) {
       const { currentWorkspaceId } = get();
       if (!currentWorkspaceId) return;
-      const result = service.activateTab(currentWorkspaceId, tabId);
+      const result = await service.activateTab(currentWorkspaceId, tabId);
       if (!result.ok) {
         set({ error: result.error });
         return;
@@ -148,10 +148,10 @@ export function createWorkspaceStore(
       set({ workspace: result.value.toSnapshot() });
     },
 
-    reorderTabs(newOrder) {
+    async reorderTabs(newOrder) {
       const { currentWorkspaceId } = get();
       if (!currentWorkspaceId) return;
-      const result = service.reorderTabs(currentWorkspaceId, newOrder);
+      const result = await service.reorderTabs(currentWorkspaceId, newOrder);
       if (!result.ok) {
         set({ error: result.error });
         return;
@@ -159,10 +159,10 @@ export function createWorkspaceStore(
       set({ workspace: result.value.toSnapshot() });
     },
 
-    renameTab(tabId, title) {
+    async renameTab(tabId, title) {
       const { currentWorkspaceId } = get();
       if (!currentWorkspaceId) return;
-      const result = service.renameTab(currentWorkspaceId, tabId, title);
+      const result = await service.renameTab(currentWorkspaceId, tabId, title);
       if (!result.ok) {
         set({ error: result.error });
         return;
@@ -170,11 +170,11 @@ export function createWorkspaceStore(
       set({ workspace: result.value.toSnapshot() });
     },
 
-    deleteWorkspace() {
+    async deleteWorkspace() {
       const { currentWorkspaceId } = get();
       if (!currentWorkspaceId) return;
       set({ loading: true, error: null });
-      const result = service.deleteWorkspace(currentWorkspaceId);
+      const result = await service.deleteWorkspace(currentWorkspaceId);
       if (result.ok) {
         set({ workspace: null, currentWorkspaceId: null, loading: false });
       } else {
