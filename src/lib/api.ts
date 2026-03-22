@@ -453,6 +453,7 @@ export interface RuFloStatus {
   version: string | null;
   mcp_active: boolean;
   slash_command_exists: boolean;
+  is_supported?: boolean;
 }
 
 export interface RuFloProjectStatus {

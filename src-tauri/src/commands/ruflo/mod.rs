@@ -168,13 +168,15 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn activate_ruflo_mcp() -> Result<String, String> {
+pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Emitter;
     let output = crate::claude_binary::create_command_with_env("claude")
         .args(["mcp", "add", "claude-flow", "--", "npx", "-y", "@claude-flow/cli@latest"])
         .output()
         .map_err(|e| format!("Failed to run claude mcp add: {e}"))?;
 
     if output.status.success() {
+        let _ = app.emit("ruflo-mcp-changed", "activated");
         Ok("MCP server activated".to_string())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -183,13 +185,15 @@ pub async fn activate_ruflo_mcp() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn deactivate_ruflo_mcp() -> Result<String, String> {
+pub async fn deactivate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Emitter;
     let output = crate::claude_binary::create_command_with_env("claude")
         .args(["mcp", "remove", "claude-flow"])
         .output()
         .map_err(|e| format!("Failed to run claude mcp remove: {e}"))?;
 
     if output.status.success() {
+        let _ = app.emit("ruflo-mcp-changed", "deactivated");
         Ok("MCP server deactivated".to_string())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -339,7 +343,8 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
 }
 
 #[tauri::command]
-pub async fn init_ruflo_project(path: String) -> Result<String, String> {
+pub async fn init_ruflo_project(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    use tauri::Emitter;
     let project_path = std::path::Path::new(&path);
     if !project_path.exists() {
         return Err(format!("Project path does not exist: {}", project_path.display()));
@@ -365,6 +370,7 @@ pub async fn init_ruflo_project(path: String) -> Result<String, String> {
         .map_err(|e| format!("Failed to run ruflo init: {e}"))?;
 
     if output.status.success() {
+        let _ = app.emit("ruflo-project-changed", project_path.to_string_lossy().as_ref());
         Ok("RuFlo initialized in project".to_string())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -407,7 +413,8 @@ pub async fn get_ruflo_memory_stats() -> Result<serde_json::Value, String> {
 
 /// Sync memory to local file (export as JSON)
 #[tauri::command]
-pub async fn sync_ruflo_memory_local(output_path: String) -> Result<String, String> {
+pub async fn sync_ruflo_memory_local(app: tauri::AppHandle, output_path: String) -> Result<String, String> {
+    use tauri::Emitter;
     // Validate path is within home dir
     let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
     let resolved = std::path::Path::new(&output_path);
@@ -434,6 +441,7 @@ pub async fn sync_ruflo_memory_local(output_path: String) -> Result<String, Stri
         .map_err(|e| format!("Failed to run memory export: {e}"))?;
 
     if output.status.success() {
+        let _ = app.emit("ruflo-memory-changed", "synced");
         Ok(format!("Memory synced to {}", output_path))
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -443,7 +451,8 @@ pub async fn sync_ruflo_memory_local(output_path: String) -> Result<String, Stri
 
 /// Consolidate memory (compress + cleanup stale entries)
 #[tauri::command]
-pub async fn consolidate_ruflo_memory() -> Result<String, String> {
+pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Emitter;
     // Run compress first
     let compress = crate::claude_binary::create_command_with_env("npx")
         .args(["-y", "@claude-flow/cli@latest", "memory", "compress"])
@@ -462,6 +471,7 @@ pub async fn consolidate_ruflo_memory() -> Result<String, String> {
         .map_err(|e| format!("Failed to run memory cleanup: {e}"))?;
 
     if cleanup.status.success() {
+        let _ = app.emit("ruflo-memory-changed", "consolidated");
         Ok("Memory consolidated (compressed + cleaned up stale entries)".to_string())
     } else {
         let stderr = String::from_utf8_lossy(&cleanup.stderr);
@@ -471,7 +481,8 @@ pub async fn consolidate_ruflo_memory() -> Result<String, String> {
 
 /// Set memory backend (agentdb, hnsw, or hybrid)
 #[tauri::command]
-pub async fn set_ruflo_memory_backend(backend: String) -> Result<String, String> {
+pub async fn set_ruflo_memory_backend(app: tauri::AppHandle, backend: String) -> Result<String, String> {
+    use tauri::Emitter;
     // Validate backend value
     if !["agentdb", "hnsw", "hybrid"].contains(&backend.as_str()) {
         return Err(format!(
@@ -493,6 +504,7 @@ pub async fn set_ruflo_memory_backend(backend: String) -> Result<String, String>
         .map_err(|e| format!("Failed to run memory configure: {e}"))?;
 
     if output.status.success() {
+        let _ = app.emit("ruflo-memory-changed", backend.as_str());
         Ok(format!("Memory backend set to {}", backend))
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);

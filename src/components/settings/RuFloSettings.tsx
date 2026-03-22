@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ruFloService, useRuFloStore, isFullyConfigured, isVersionSupported } from '@/domain/ruflo';
+import { ruFloService, useRuFloStore, isFullyConfigured } from '@/domain/ruflo';
 import { Loader2 } from 'lucide-react';
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -89,9 +89,9 @@ export function RuFloSettings() {
         <div className="flex items-center gap-2">
           <StatusRow active={status?.installed ?? false} label={status?.installed ? 'Installed' : 'Not installed'} />
           {status?.version && (
-            <span className={`text-xs ${isVersionSupported(status.version) ? 'text-green-400/70' : 'text-amber-400'}`}>
+            <span className={`text-xs ${status.isSupported ? 'text-green-400/70' : 'text-amber-400'}`}>
               v{status.version}
-              {!isVersionSupported(status.version) && ' ⚠ upgrade recommended'}
+              {!status.isSupported && ' ⚠ upgrade recommended'}
             </span>
           )}
         </div>

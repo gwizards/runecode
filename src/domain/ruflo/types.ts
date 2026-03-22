@@ -47,6 +47,7 @@ export interface RuFloInstallation {
   version: string | null;
   mcpActive: boolean;
   slashCommandExists: boolean;
+  isSupported: boolean;
 }
 
 export interface RuFloAgent {
@@ -84,6 +85,7 @@ export function toRuFloInstallation(raw: RuFloStatus): RuFloInstallation {
     version: raw.version ?? null,
     mcpActive: raw.mcp_active,
     slashCommandExists: raw.slash_command_exists,
+    isSupported: raw.is_supported ?? false,
   };
 }
 

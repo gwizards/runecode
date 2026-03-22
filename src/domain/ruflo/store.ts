@@ -12,8 +12,10 @@ interface RuFloState {
   loading: boolean;
   actionInProgress: string | null; // which action is running (install/uninstall/mcp/etc)
   error: string | null;
+  _listenersSetup: boolean;
 
   // ── Read actions ───────────────────────────────────────────────────────
+  setupListeners: () => Promise<void>;
   fetchInstallation: () => Promise<void>;
   fetchSwarm: () => Promise<void>;
   fetchProjectStatus: (projectPath: string) => Promise<void>;
@@ -42,10 +44,31 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   loading: false,
   actionInProgress: null,
   error: null,
+  _listenersSetup: false,
 
   // ── Read actions ─────────────────────────────────────────────────────────
 
+  setupListeners: async () => {
+    if (get()._listenersSetup) return;
+    set({ _listenersSetup: true });
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      await listen('ruflo-mcp-changed', () => {
+        get().fetchInstallation();
+      });
+      await listen('ruflo-memory-changed', () => {
+        get().fetchMemoryStats();
+      });
+      await listen('ruflo-project-changed', () => {
+        // project status refresh handled per-component with path
+      });
+    } catch {
+      // Tauri events not available (e.g., in test env) — silently skip
+    }
+  },
+
   fetchInstallation: async () => {
+    void get().setupListeners(); // non-blocking, idempotent
     set({ loading: true, error: null });
     try {
       const installation = await ruFloService.getInstallation();
