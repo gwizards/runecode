@@ -1,7 +1,7 @@
 /**
  * Workspace bounded context — Repository adapter and re-exports.
  *
- * IWorkspaceRepository is the hexagonal port defined in ports/workspace-repository.port.ts.
+ * IWorkspaceRepository is the hexagonal port defined in ports/IWorkspaceRepository.ts.
  * InMemoryWorkspaceRepository is the default in-process adapter.
  *
  * No imports from React, Tauri, window, or localStorage are permitted here.
@@ -14,11 +14,11 @@ import type { QuantizedBuffer } from '../shared/quantization';
 import { WorkspaceAggregate } from './types';
 import type { WorkspaceId, RawWorkspace, RawTab } from './types';
 import type { SessionId } from '../session/types';
-import type { IWorkspaceRepository } from './ports/workspace-repository.port';
+import type { IWorkspaceRepository } from './ports/IWorkspaceRepository';
 
 // ─── IWorkspaceRepository (re-exported from ports/) ──────────────────────────
 
-export type { IWorkspaceRepository } from './ports/workspace-repository.port';
+export type { IWorkspaceRepository } from './ports/IWorkspaceRepository';
 
 // ─── WorkspaceSnapshotQuantizer ───────────────────────────────────────────────
 

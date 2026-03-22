@@ -22,7 +22,7 @@ export type {
 } from './events';
 
 // Repository port (hexagonal architecture interface)
-export type { IWorkspaceRepository } from './ports/workspace-repository.port';
+export type { IWorkspaceRepository } from './ports/IWorkspaceRepository';
 
 // Repository adapter
 export { InMemoryWorkspaceRepository, seed } from './repository';
