@@ -1,38 +1,60 @@
-use serde::{Deserialize, Serialize};
+pub mod domain;
+pub mod repository;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuFloStatus {
-    pub installed: bool,
-    pub version: Option<String>,
-    pub mcp_active: bool,
-    pub slash_command_exists: bool,
+use domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloStatus, RuFloSwarmStatus};
+
+// ---------------------------------------------------------------------------
+// Cache TTLs
+// ---------------------------------------------------------------------------
+const RUFLO_STATUS_CACHE_TTL_SECS: u64 = 60;
+const RUFLO_SWARM_CACHE_TTL_SECS: u64 = 10;
+
+// ---------------------------------------------------------------------------
+// File-based cache helpers — best-effort, silently skip on any error
+// ---------------------------------------------------------------------------
+
+fn try_read_cache<T: for<'de> serde::Deserialize<'de>>(
+    filename: &str,
+    ttl_secs: u64,
+) -> Option<T> {
+    let cache_path = std::env::temp_dir().join(filename);
+    let content = std::fs::read_to_string(&cache_path).ok()?;
+    let cached: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let ts = cached["timestamp"].as_u64()?;
+    let value: T = serde_json::from_value(cached["value"].clone()).ok()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let age = now.saturating_sub(ts);
+    if age < ttl_secs {
+        Some(value)
+    } else {
+        None
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RuFloProjectStatus {
-    pub initialized: bool,
-    pub pending: usize,
-    pub completed: usize,
-    pub blocked: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuFloAgent {
-    pub id: String,
-    pub name: String,
-    pub agent_type: String,
-    pub status: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuFloSwarmStatus {
-    pub swarm_active: bool,
-    pub agents: Vec<RuFloAgent>,
-    pub memory_entries: usize,
+fn write_cache<T: serde::Serialize>(filename: &str, value: &T) {
+    let cache_path = std::env::temp_dir().join(filename);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    if let Ok(json) = serde_json::to_string(&serde_json::json!({
+        "timestamp": now,
+        "value": value,
+    })) {
+        let _ = std::fs::write(cache_path, json);
+    }
 }
 
 #[tauri::command]
 pub fn check_ruflo_installed() -> RuFloStatus {
+    // Return cached result if still within TTL (60 s) to avoid repeated npx/claude calls
+    if let Some(cached) = try_read_cache::<RuFloStatus>("runecode_ruflo_cache.json", RUFLO_STATUS_CACHE_TTL_SECS) {
+        return cached;
+    }
+
     // Single npx call: --no-install means "don't download if not cached"
     // Use create_command_with_env to inherit PATH/NVM
     let output = crate::claude_binary::create_command_with_env("npx")
@@ -68,16 +90,25 @@ pub fn check_ruflo_installed() -> RuFloStatus {
             // Check for "claude-flow" as a standalone server name (not just substring)
             s.lines().any(|line| {
                 let trimmed = line.trim();
-                trimmed == "claude-flow" || trimmed.starts_with("claude-flow ") || trimmed.starts_with("claude-flow\t")
+                trimmed == "claude-flow"
+                    || trimmed.starts_with("claude-flow ")
+                    || trimmed.starts_with("claude-flow\t")
             })
         })
         .unwrap_or(false);
 
     let slash_command_exists = dirs::home_dir()
-        .map(|h| h.join(".claude").join("commands").join("setup-ruflo.md").exists())
+        .map(|h| {
+            h.join(".claude")
+                .join("commands")
+                .join("setup-ruflo.md")
+                .exists()
+        })
         .unwrap_or(false);
 
-    RuFloStatus { installed, version, mcp_active, slash_command_exists }
+    let result = RuFloStatus { installed, version, mcp_active, slash_command_exists };
+    write_cache("runecode_ruflo_cache.json", &result);
+    result
 }
 
 #[tauri::command]
@@ -242,6 +273,11 @@ pub fn get_ruflo_project_status(path: String) -> RuFloProjectStatus {
 
 #[tauri::command]
 pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
+    // Return cached result if still within TTL (10 s) to avoid repeated npx calls
+    if let Some(cached) = try_read_cache::<RuFloSwarmStatus>("runecode_swarm_cache.json", RUFLO_SWARM_CACHE_TTL_SECS) {
+        return cached;
+    }
+
     let agents_output = crate::claude_binary::create_command_with_env("npx")
         .args(["--no-install", "@claude-flow/cli", "agent", "list", "--json"])
         .output()
@@ -252,7 +288,8 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
             let stdout = String::from_utf8_lossy(&o.stdout);
             match serde_json::from_str::<serde_json::Value>(stdout.trim()) {
                 Ok(v) => {
-                    let agents = v.as_array()
+                    let agents = v
+                        .as_array()
                         .cloned()
                         .unwrap_or_default()
                         .iter()
@@ -260,7 +297,8 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
                             id: a["id"].as_str().unwrap_or("").to_string(),
                             name: a["name"].as_str().unwrap_or("agent").to_string(),
                             agent_type: a["type"].as_str().unwrap_or("agent").to_string(),
-                            status: a["status"].as_str().unwrap_or("idle").to_string(),
+                            status: serde_json::from_value(a["status"].clone())
+                                .unwrap_or(AgentStatus::Unknown),
                         })
                         .collect::<Vec<_>>();
                     (agents, None)
@@ -281,10 +319,7 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
 
     let _ = parse_error; // logged above; callers see empty agents
 
-    let swarm_active = !agents.is_empty()
-        && agents.iter().any(|a| {
-            matches!(a.status.as_str(), "running" | "waiting" | "active" | "busy" | "initializing")
-        });
+    let swarm_active = !agents.is_empty() && agents.iter().any(|a| a.status.is_active());
 
     let memory_entries = crate::claude_binary::create_command_with_env("npx")
         .args(["--no-install", "@claude-flow/cli", "memory", "list", "--json"])
@@ -295,7 +330,9 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
         .and_then(|v| v.as_array().map(|a| a.len()))
         .unwrap_or(0);
 
-    RuFloSwarmStatus { swarm_active, agents, memory_entries }
+    let result = RuFloSwarmStatus { swarm_active, agents, memory_entries };
+    write_cache("runecode_swarm_cache.json", &result);
+    result
 }
 
 #[tauri::command]
