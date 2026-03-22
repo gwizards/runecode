@@ -298,7 +298,8 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
                         .map(|a| RuFloAgent {
                             id: a["id"].as_str().unwrap_or("").to_string(),
                             name: a["name"].as_str().unwrap_or("agent").to_string(),
-                            agent_type: a["type"].as_str().unwrap_or("agent").to_string(),
+                            agent_type: serde_json::from_value(a["type"].clone())
+                                .unwrap_or(crate::commands::ruflo::domain::agent::AgentType::Custom),
                             status: serde_json::from_value(a["status"].clone())
                                 .unwrap_or(AgentStatus::Unknown),
                         })

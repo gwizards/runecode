@@ -1,5 +1,43 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentType {
+    Coder,
+    Reviewer,
+    Tester,
+    Planner,
+    Researcher,
+    Analyst,
+    #[serde(rename = "security-architect")]
+    SecurityArchitect,
+    #[serde(rename = "performance-engineer")]
+    PerformanceEngineer,
+    #[serde(rename = "memory-specialist")]
+    MemorySpecialist,
+    #[serde(other)]
+    Custom,
+}
+
+impl std::fmt::Display for AgentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Coder => "coder",
+            Self::Reviewer => "reviewer",
+            Self::Tester => "tester",
+            Self::Planner => "planner",
+            Self::Researcher => "researcher",
+            Self::Analyst => "analyst",
+            Self::SecurityArchitect => "security-architect",
+            Self::PerformanceEngineer => "performance-engineer",
+            Self::MemorySpecialist => "memory-specialist",
+            Self::Custom => "custom",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentStatus {
@@ -43,6 +81,6 @@ impl std::fmt::Display for AgentStatus {
 pub struct RuFloAgent {
     pub id: String,
     pub name: String,
-    pub agent_type: String,
+    pub agent_type: AgentType,
     pub status: AgentStatus,
 }
