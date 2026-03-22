@@ -1,6 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// TTL-based cache for expensive CLI results stored in the app's SQLite database.
+#[allow(dead_code)]
 pub struct CliResultCache {
     conn: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>,
 }

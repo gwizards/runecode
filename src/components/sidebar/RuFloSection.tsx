@@ -35,6 +35,9 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [isIniting, setIsIniting] = useState(false);
+  const [memoryBackend, setMemoryBackend] = useState<string>('hybrid');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isConsolidating, setIsConsolidating] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -50,6 +53,13 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
     } catch {
       setIsStale(true);
     }
+    try {
+      const stats = await ruFloService.getMemoryStats();
+      if (stats && typeof stats === 'object') {
+        const s = stats as Record<string, unknown>;
+        setMemoryBackend(String(s.backend ?? 'hybrid'));
+      }
+    } catch { /* non-critical */ }
   }, [projectPath]);
 
   // Check install status once on mount
@@ -163,20 +173,23 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
 
           {/* Memory bar */}
           {(swarmStatus?.memoryEntries ?? 0) > 0 && (
-            <div className="flex items-center gap-2 px-1">
-              <span className="text-[9px] text-muted-foreground/50 w-12 flex-shrink-0">Memory</span>
-              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-purple-500/60 rounded-full"
-                  style={{ width: `${Math.min(100, ((swarmStatus?.memoryEntries ?? 0) / 100) * 100)}%` }}
-                />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-[9px] text-muted-foreground/50 w-12 flex-shrink-0">Memory</span>
+                <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-purple-500/60 rounded-full"
+                    style={{ width: `${Math.min(100, ((swarmStatus?.memoryEntries ?? 0) / 100) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-purple-400/70">{swarmStatus?.memoryEntries}</span>
+                <span className="text-[9px] text-white/20 bg-white/5 rounded px-1">{memoryBackend}</span>
               </div>
-              <span className="text-[9px] text-purple-400/70">{swarmStatus?.memoryEntries}</span>
             </div>
           )}
 
           {/* Quick actions */}
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 flex-wrap">
             <button
               onClick={async () => {
                 setIsIniting(true);
@@ -193,6 +206,32 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
               className="flex-1 py-1 text-[10px] bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
             >
               {isIniting ? '...' : 'Run Init'}
+            </button>
+            <button
+              onClick={async () => {
+                setIsSyncing(true);
+                try {
+                  await ruFloService.syncMemoryLocal(`${projectPath}/ruflo-memory-backup.json`);
+                } catch (e) { console.warn('sync failed:', e); }
+                finally { setIsSyncing(false); }
+              }}
+              disabled={isSyncing}
+              className="flex-1 py-1 text-[10px] bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
+            >
+              {isSyncing ? '...' : 'Sync'}
+            </button>
+            <button
+              onClick={async () => {
+                setIsConsolidating(true);
+                try {
+                  await ruFloService.consolidateMemory();
+                } catch (e) { console.warn('consolidate failed:', e); }
+                finally { setIsConsolidating(false); }
+              }}
+              disabled={isConsolidating}
+              className="flex-1 py-1 text-[10px] bg-white/5 rounded-md text-muted-foreground/60 hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              {isConsolidating ? '...' : 'Compact'}
             </button>
             <button
               onClick={async () => {

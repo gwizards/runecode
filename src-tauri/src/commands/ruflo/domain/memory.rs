@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum MemoryBackend {
@@ -21,6 +22,7 @@ impl std::fmt::Display for MemoryBackend {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryStats {
     pub total_entries: usize,
@@ -29,6 +31,7 @@ pub struct MemoryStats {
     pub namespaces: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemorySyncResult {
     pub exported_entries: usize,
