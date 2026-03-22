@@ -28,7 +28,7 @@ mod tests {
     use super::super::agent::{AgentStatus, AgentType};
 
     fn make_agent(id: &str, status: AgentStatus) -> RuFloAgent {
-        RuFloAgent { id: id.to_string(), name: id.to_string(), agent_type: AgentType::Coder, status }
+        RuFloAgent { id: id.to_string(), name: id.to_string(), agent_type: AgentType::Coder, status, capabilities: vec![] }
     }
 
     #[test]

@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod capabilities;
 pub mod events;
 pub mod installation;
 pub mod memory;
@@ -7,6 +8,7 @@ pub mod swarm;
 pub mod value_objects;
 
 pub use agent::{AgentStatus, AgentType, RuFloAgent};
+pub use capabilities::{AgentCapability, SwarmTopology, TaskPriority};
 pub use events::RuFloEvent;
 pub use installation::{RuFloStatus, RuFloVersion};
 pub use memory::{MemoryBackend, MemoryStats, MemorySyncResult};

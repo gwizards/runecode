@@ -11,6 +11,12 @@ pub enum MemoryBackend {
     Unknown,
 }
 
+impl Default for MemoryBackend {
+    fn default() -> Self {
+        Self::Agentdb
+    }
+}
+
 impl std::fmt::Display for MemoryBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -26,6 +32,7 @@ impl std::fmt::Display for MemoryBackend {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryStats {
     pub total_entries: usize,
+    #[serde(default)]
     pub backend: MemoryBackend,
     pub size_bytes: Option<u64>,
     pub namespaces: Vec<String>,

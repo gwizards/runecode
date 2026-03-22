@@ -17,6 +17,8 @@ import { recommendMode } from './quantization';
 // on QuantizedMemoryStore directly (entries are a cache, not source of truth).
 
 const CODEBOOK_KEY = 'runecode-ruflo-pq-codebook';
+/** localStorage key tracking whether we've applied the default agentdb backend */
+const BACKEND_INIT_KEY = 'runecode-ruflo-backend-initialized';
 
 function loadPersistedMode(): QuantizationMode {
   try {
@@ -166,6 +168,13 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   },
 
   fetchMemoryStats: async () => {
+    // On first launch, ensure agentdb is set as the active backend
+    try {
+      if (!localStorage.getItem(BACKEND_INIT_KEY)) {
+        localStorage.setItem(BACKEND_INIT_KEY, '1');
+        await ruFloService.setMemoryBackend('agentdb');
+      }
+    } catch { /* non-critical — CLI may not be installed yet */ }
     try {
       const memoryStats = await ruFloService.getMemoryStats();
       const localStore = getLocalMemoryStore();

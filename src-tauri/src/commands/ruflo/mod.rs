@@ -306,6 +306,7 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
                                 .unwrap_or(crate::commands::ruflo::domain::agent::AgentType::Custom),
                             status: serde_json::from_value(a["status"].clone())
                                 .unwrap_or(AgentStatus::Unknown),
+                            capabilities: vec![],
                         })
                         .collect::<Vec<_>>();
                     (agents, None)
@@ -403,8 +404,13 @@ pub async fn get_ruflo_memory_stats() -> Result<serde_json::Value, String> {
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        serde_json::from_str(stdout.trim())
-            .or_else(|_| Ok(serde_json::json!({ "raw": stdout.trim() })))
+        let mut val: serde_json::Value = serde_json::from_str(stdout.trim())
+            .unwrap_or_else(|_| serde_json::json!({ "raw": stdout.trim() }));
+        // Inject agentdb as the default backend when the CLI omits it
+        if let Some(obj) = val.as_object_mut() {
+            obj.entry("backend").or_insert_with(|| serde_json::json!("agentdb"));
+        }
+        Ok(val)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         Err(format!("memory stats failed: {stderr}"))

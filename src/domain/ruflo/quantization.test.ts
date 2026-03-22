@@ -9,6 +9,10 @@ import {
   quantizationSavings,
   recommendMode,
   ProductQuantizer,
+  CalibratedQuantizer,
+  calibrate,
+  quantizeCalibrated,
+  dequantizeCalibrated,
 } from './quantization';
 
 describe('quantizeEmbedding / dequantizeEmbedding', () => {
@@ -152,5 +156,107 @@ describe('ProductQuantizer', () => {
   it('throws on encode before training', () => {
     const pq = new ProductQuantizer({ dims: 8, numSubspaces: 2 });
     expect(() => pq.encode([1, 0, 0, 0, 0, 0, 0, 0])).toThrow('trained');
+  });
+});
+
+describe('CalibratedQuantizer', () => {
+  const makeSamples = (): number[][] => [
+    [0.5, 10.0, -5.0, 0.1],
+    [0.8, 12.0, -3.0, 0.4],
+    [0.2, 8.0,  -7.0, 0.0],
+    [1.0, 15.0, -1.0, 0.9],
+  ];
+
+  it('isFitted starts false', () => {
+    const q = new CalibratedQuantizer(4);
+    expect(q.isFitted).toBe(false);
+  });
+
+  it('encode throws before fit', () => {
+    const q = new CalibratedQuantizer(4);
+    expect(() => q.encode([0, 0, 0, 0])).toThrow('must be fitted');
+  });
+
+  it('fit makes isFitted true', () => {
+    const q = new CalibratedQuantizer(4);
+    q.fit(makeSamples());
+    expect(q.isFitted).toBe(true);
+  });
+
+  it('calibrate builds min/max per dimension', () => {
+    const cal = calibrate(makeSamples());
+    expect(cal.min[0]).toBeCloseTo(0.2);   // dim 0 min
+    expect(cal.min[1]).toBeCloseTo(8.0);   // dim 1 min
+    expect(cal.min[2]).toBeCloseTo(-7.0);  // dim 2 min
+    // scale = 1 / (max - min)
+    expect(cal.scale[1]).toBeCloseTo(1 / 7, 5); // dim 1: max=15, min=8, range=7
+  });
+
+  it('quantizeCalibrated maps min→0 and max→255', () => {
+    const samples = makeSamples();
+    const cal = calibrate(samples);
+    // min vector → all 0
+    const minVec = [0.2, 8.0, -7.0, 0.0];
+    const codes = quantizeCalibrated(minVec, cal);
+    expect(codes[0]).toBe(0);
+    expect(codes[1]).toBe(0);
+    // max vector → all 255
+    const maxVec = [1.0, 15.0, -1.0, 0.9];
+    const maxCodes = quantizeCalibrated(maxVec, cal);
+    expect(maxCodes[0]).toBe(255);
+    expect(maxCodes[1]).toBe(255);
+  });
+
+  it('encode+decode round-trip has low RMSE for calibrated range', () => {
+    const q = new CalibratedQuantizer(4);
+    const samples = makeSamples();
+    q.fit(samples);
+    const vec = [0.6, 11.0, -4.0, 0.3];
+    const decoded = q.decode(q.encode(vec));
+    let rmse = 0;
+    for (let i = 0; i < vec.length; i++) rmse += (vec[i] - decoded[i]) ** 2;
+    rmse = Math.sqrt(rmse / vec.length);
+    expect(rmse).toBeLessThan(0.1); // calibrated: very small error
+  });
+
+  it('calibrated RMSE lower than global SQ for out-of-range dims', () => {
+    // dim 0 is in [10, 20] — way outside [-1, 1], so global SQ is terrible
+    const samples: number[][] = Array.from({ length: 10 }, (_, i) => [10 + i, 0.1 * i]);
+    const q = new CalibratedQuantizer(2);
+    q.fit(samples);
+
+    const testVec = [15.0, 0.5];
+    // Calibrated RMSE
+    const calDecoded = q.decode(q.encode(testVec));
+    let calRmse = 0;
+    for (let i = 0; i < testVec.length; i++) calRmse += (testVec[i] - calDecoded[i]) ** 2;
+    calRmse = Math.sqrt(calRmse / testVec.length);
+
+    // Global SQ RMSE (dim 0 = 15 → clamps to 1 → huge error)
+    const globalDecoded = dequantizeEmbedding(quantizeEmbedding(testVec));
+    let globalRmse = 0;
+    for (let i = 0; i < testVec.length; i++) globalRmse += (testVec[i] - globalDecoded[i]) ** 2;
+    globalRmse = Math.sqrt(globalRmse / testVec.length);
+
+    expect(calRmse).toBeLessThan(globalRmse);
+  });
+
+  it('exportCalibration returns null before fit', () => {
+    const q = new CalibratedQuantizer(4);
+    expect(q.exportCalibration()).toBeNull();
+  });
+
+  it('exportCalibration/importCalibration round-trip gives same encode output', () => {
+    const q1 = new CalibratedQuantizer(4);
+    q1.fit(makeSamples());
+    const exported = q1.exportCalibration()!;
+
+    const q2 = new CalibratedQuantizer(4);
+    q2.importCalibration(exported);
+
+    const vec = [0.6, 11.0, -4.0, 0.3];
+    const codes1 = q1.encode(vec);
+    const codes2 = q2.encode(vec);
+    expect(Array.from(codes1)).toEqual(Array.from(codes2));
   });
 });

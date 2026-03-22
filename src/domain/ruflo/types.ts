@@ -42,6 +42,25 @@ export type AgentType =
   | 'researcher'
   | string; // extensible
 
+/** Agent capability — mirrors Rust AgentCapability enum */
+export type AgentCapability =
+  | 'code-generation'
+  | 'code-review'
+  | 'testing'
+  | 'security-audit'
+  | 'performance-analysis'
+  | 'memory-optimization'
+  | 'documentation'
+  | 'planning'
+  | 'research'
+  | 'unknown';
+
+export const ALL_AGENT_CAPABILITIES: readonly AgentCapability[] = [
+  'code-generation', 'code-review', 'testing', 'security-audit',
+  'performance-analysis', 'memory-optimization', 'documentation',
+  'planning', 'research',
+] as const;
+
 export interface RuFloInstallation {
   installed: boolean;
   version: string | null;
@@ -56,12 +75,14 @@ export interface RuFloAgent {
   agentType: AgentType;
   status: AgentStatus;
   isActive: boolean; // derived: status is running/waiting/active/busy/initializing
+  capabilities: AgentCapability[];
 }
 
 export interface RuFloSwarm {
   active: boolean;
   agents: RuFloAgent[];
   memoryEntries: number;
+  maxAgents?: number;
 }
 
 export interface RuFloProjectStatus {
@@ -97,6 +118,7 @@ export function toRuFloAgent(raw: ApiAgent): RuFloAgent {
     agentType: raw.agent_type,
     status,
     isActive: isActiveStatus(status),
+    capabilities: ((raw as any).capabilities ?? []) as AgentCapability[],
   };
 }
 
@@ -140,6 +162,20 @@ export function isVersionSupported(versionStr: string | null): boolean {
   const v = parseVersion(versionStr);
   if (!v) return false;
   return v.major >= 3;
+}
+
+/** Returns true if the agent has the specified capability. */
+export function agentHasCapability(agent: RuFloAgent, cap: AgentCapability): boolean {
+  return agent.capabilities.includes(cap);
+}
+
+/**
+ * Returns the fraction of agent slots currently used (0.0–1.0).
+ * Returns 0 if maxAgents is not set.
+ */
+export function swarmCapacityRatio(swarm: RuFloSwarm): number {
+  if (!swarm.maxAgents || swarm.maxAgents === 0) return 0;
+  return Math.min(1, swarm.agents.length / swarm.maxAgents);
 }
 
 /** Summarize swarm health as a string */

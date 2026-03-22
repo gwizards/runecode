@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::capabilities::AgentCapability;
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -83,6 +85,14 @@ pub struct RuFloAgent {
     pub name: String,
     pub agent_type: AgentType,
     pub status: AgentStatus,
+    #[serde(default)]
+    pub capabilities: Vec<AgentCapability>,
+}
+
+impl RuFloAgent {
+    pub fn has_capability(&self, cap: &AgentCapability) -> bool {
+        self.capabilities.contains(cap)
+    }
 }
 
 #[cfg(test)]
@@ -119,5 +129,18 @@ mod tests {
     fn test_agent_status_unknown_fallback() {
         let back: AgentStatus = serde_json::from_str("\"some-unknown-status\"").unwrap();
         assert_eq!(back, AgentStatus::Unknown);
+    }
+
+    #[test]
+    fn test_agent_has_capability() {
+        let agent = RuFloAgent {
+            id: "a1".into(),
+            name: "coder".into(),
+            agent_type: AgentType::Coder,
+            status: AgentStatus::Running,
+            capabilities: vec![AgentCapability::CodeGeneration],
+        };
+        assert!(agent.has_capability(&AgentCapability::CodeGeneration));
+        assert!(!agent.has_capability(&AgentCapability::Testing));
     }
 }

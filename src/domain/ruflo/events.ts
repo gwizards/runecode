@@ -26,3 +26,23 @@ export function onRuFloEvent(
   window.addEventListener(name, handler as EventListener);
   return () => window.removeEventListener(name, handler as EventListener);
 }
+
+/** Payload for STATUS_CHANGED event */
+export interface RuFloStatusChangedPayload {
+  isInstalled: boolean;
+  isSupported: boolean;
+  version?: string;
+}
+
+/** Payload for memory changed event */
+export interface RuFloMemoryChangedPayload {
+  backend: string;
+  totalEntries: number;
+  bytesUsed: number;
+}
+
+/** Payload for project changed event */
+export interface RuFloProjectChangedPayload {
+  completionRate: number;
+  hasBlockedTasks: boolean;
+}

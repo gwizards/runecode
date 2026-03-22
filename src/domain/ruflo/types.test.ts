@@ -7,6 +7,8 @@ import {
   toRuFloAgent,
   toRuFloInstallation,
   toRuFloProjectStatus,
+  agentHasCapability,
+  swarmCapacityRatio,
 } from './types';
 
 describe('parseVersion', () => {
@@ -77,7 +79,7 @@ describe('swarmHealthLabel', () => {
   it('healthy when active agents present', () => {
     expect(swarmHealthLabel({
       active: true,
-      agents: [{ id: 'a1' as any, name: 'coder', agentType: 'coder', status: 'running', isActive: true }],
+      agents: [{ id: 'a1' as any, name: 'coder', agentType: 'coder', status: 'running', isActive: true, capabilities: [] }],
       memoryEntries: 5,
     })).toBe('healthy');
   });
@@ -85,7 +87,7 @@ describe('swarmHealthLabel', () => {
   it('idle when active but no running agents', () => {
     expect(swarmHealthLabel({
       active: true,
-      agents: [{ id: 'a1' as any, name: 'coder', agentType: 'coder', status: 'idle', isActive: false }],
+      agents: [{ id: 'a1' as any, name: 'coder', agentType: 'coder', status: 'idle', isActive: false, capabilities: [] }],
       memoryEntries: 0,
     })).toBe('idle');
   });
@@ -157,5 +159,50 @@ describe('toRuFloProjectStatus', () => {
     const raw = { initialized: false, pending: 0, completed: 0, blocked: 0 };
     const status = toRuFloProjectStatus(raw as any);
     expect(status.total).toBe(0);
+  });
+});
+
+describe('agentHasCapability', () => {
+  it('returns true when the capability is present', () => {
+    const raw = { id: 'a1', name: 'coder-01', agent_type: 'coder', status: 'running', capabilities: ['code-generation', 'testing'] };
+    const agent = toRuFloAgent(raw as any);
+    expect(agentHasCapability(agent, 'code-generation')).toBe(true);
+    expect(agentHasCapability(agent, 'testing')).toBe(true);
+  });
+
+  it('returns false when the capability is absent', () => {
+    const raw = { id: 'a2', name: 'coder-02', agent_type: 'coder', status: 'running', capabilities: ['code-generation'] };
+    const agent = toRuFloAgent(raw as any);
+    expect(agentHasCapability(agent, 'security-audit')).toBe(false);
+  });
+});
+
+describe('swarmCapacityRatio', () => {
+  it('returns 0 when maxAgents is undefined', () => {
+    expect(swarmCapacityRatio({ active: true, agents: [], memoryEntries: 0 })).toBe(0);
+  });
+
+  it('returns correct fraction (4 agents / 10 max = 0.4)', () => {
+    const agents = Array.from({ length: 4 }, (_, i) => ({
+      id: `a${i}` as any,
+      name: `agent-${i}`,
+      agentType: 'coder',
+      status: 'running' as const,
+      isActive: true,
+      capabilities: [],
+    }));
+    expect(swarmCapacityRatio({ active: true, agents, memoryEntries: 0, maxAgents: 10 })).toBe(0.4);
+  });
+
+  it('caps at 1.0 when over-subscribed', () => {
+    const agents = Array.from({ length: 15 }, (_, i) => ({
+      id: `a${i}` as any,
+      name: `agent-${i}`,
+      agentType: 'coder',
+      status: 'running' as const,
+      isActive: true,
+      capabilities: [],
+    }));
+    expect(swarmCapacityRatio({ active: true, agents, memoryEntries: 0, maxAgents: 10 })).toBe(1);
   });
 });

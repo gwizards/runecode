@@ -340,3 +340,128 @@ export function recommendMode(entryCount: number, requireHighAccuracy = false): 
   if (entryCount < 10_000) return 'scalar';
   return 'product';
 }
+
+// ─── Calibrated Scalar Quantization ─────────────────────────────────────────
+
+/**
+ * Per-dimension calibration data.
+ * Stores min and scale (1/(max-min)) for each dimension so quantization
+ * maps the actual data range to [0, 255] instead of clamping to [-1, 1].
+ */
+export interface DimCalibration {
+  min: Float32Array;
+  /** Precomputed 1 / (max - min). 1.0 if max === min (degenerate dim). */
+  scale: Float32Array;
+}
+
+/**
+ * Build per-dimension calibration from sample embeddings.
+ * Call once on a representative sample (≥100 vectors recommended).
+ */
+export function calibrate(samples: (Float32Array | number[])[]): DimCalibration {
+  if (samples.length === 0) throw new Error('calibrate() requires at least one sample');
+  const dims = samples[0].length;
+  const minArr = new Float32Array(dims).fill(Infinity);
+  const maxArr = new Float32Array(dims).fill(-Infinity);
+
+  for (const s of samples) {
+    for (let d = 0; d < dims; d++) {
+      const v = (s as Float32Array)[d] ?? (s as number[])[d];
+      if (v < minArr[d]) minArr[d] = v;
+      if (v > maxArr[d]) maxArr[d] = v;
+    }
+  }
+
+  const scale = new Float32Array(dims);
+  for (let d = 0; d < dims; d++) {
+    const range = maxArr[d] - minArr[d];
+    scale[d] = range > 1e-9 ? 1.0 / range : 1.0;
+  }
+
+  return { min: minArr, scale };
+}
+
+/**
+ * Quantize one embedding using per-dimension calibration.
+ * Maps each dimension's value from its calibrated range into [0, 255].
+ */
+export function quantizeCalibrated(
+  floats: Float32Array | number[],
+  cal: DimCalibration,
+): Uint8Array {
+  const out = new Uint8Array(floats.length);
+  for (let i = 0; i < floats.length; i++) {
+    const v = (floats as Float32Array)[i] ?? (floats as number[])[i];
+    const normalized = (v - cal.min[i]) * cal.scale[i];
+    out[i] = Math.round(Math.max(0, Math.min(1, normalized)) * 255);
+  }
+  return out;
+}
+
+/** Dequantize one embedding using per-dimension calibration. */
+export function dequantizeCalibrated(
+  bytes: Uint8Array,
+  cal: DimCalibration,
+): Float32Array {
+  const out = new Float32Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    out[i] = cal.min[i] + (bytes[i] / 255) / cal.scale[i];
+  }
+  return out;
+}
+
+/**
+ * CalibratedQuantizer — stateful scalar quantizer with per-dimension calibration.
+ *
+ * Workflow:
+ *   const q = new CalibratedQuantizer(384);
+ *   q.fit(trainingSamples);         // build per-dim calibration
+ *   const codes = q.encode(vector); // Float32Array → Uint8Array
+ *   const approx = q.decode(codes); // Uint8Array → Float32Array
+ */
+export class CalibratedQuantizer {
+  private readonly dims: number;
+  private cal: DimCalibration | null = null;
+
+  constructor(dims: number) {
+    this.dims = dims;
+  }
+
+  get isFitted(): boolean {
+    return this.cal !== null;
+  }
+
+  /** Fit calibration from sample vectors. Must be called before encode/decode. */
+  fit(samples: (Float32Array | number[])[]): void {
+    if (samples.length === 0) throw new Error('fit() requires at least one sample');
+    this.cal = calibrate(samples);
+  }
+
+  encode(floats: Float32Array | number[]): Uint8Array {
+    if (!this.cal) throw new Error('CalibratedQuantizer must be fitted before encode()');
+    return quantizeCalibrated(floats, this.cal);
+  }
+
+  decode(bytes: Uint8Array): Float32Array {
+    if (!this.cal) throw new Error('CalibratedQuantizer must be fitted before decode()');
+    return dequantizeCalibrated(bytes, this.cal);
+  }
+
+  /** Export calibration for persistence (plain arrays for JSON serialization). */
+  exportCalibration(): { dims: number; min: number[]; scale: number[] } | null {
+    if (!this.cal) return null;
+    return {
+      dims: this.dims,
+      min: Array.from(this.cal.min),
+      scale: Array.from(this.cal.scale),
+    };
+  }
+
+  /** Restore from a previously exported calibration. */
+  importCalibration(data: { min: number[]; scale: number[] }): void {
+    this.cal = {
+      min: new Float32Array(data.min),
+      scale: new Float32Array(data.scale),
+    };
+  }
+}

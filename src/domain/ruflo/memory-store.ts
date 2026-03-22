@@ -28,6 +28,7 @@ export interface QuantizedEntry {
   data: Uint8Array;
   metadata?: Record<string, unknown>;
   addedAt: number;
+  ttlMs?: number;
 }
 
 export interface SearchResult {
@@ -40,6 +41,10 @@ export interface QuantizedMemoryStoreConfig {
   mode?: QuantizationMode;
   dims?: number;
   pq?: Partial<PQConfig>;
+  /** Maximum entries before LRU eviction triggers. Default: unlimited. */
+  maxEntries?: number;
+  /** Default TTL in milliseconds for new entries. Default: no expiry. */
+  defaultTtlMs?: number;
 }
 
 export class QuantizedMemoryStore {
@@ -47,17 +52,29 @@ export class QuantizedMemoryStore {
   private dims: number;
   private entries: Map<string, QuantizedEntry> = new Map();
   private pq?: ProductQuantizer;
+  private readonly maxEntries: number;
+  private readonly defaultTtlMs: number | undefined;
 
   constructor(config: QuantizedMemoryStoreConfig = {}) {
     this.mode = config.mode ?? 'scalar';
     this.dims = config.dims ?? 384;
+    this.maxEntries = config.maxEntries ?? 0;
+    this.defaultTtlMs = config.defaultTtlMs;
 
     if (this.mode === 'product') {
       this.pq = new ProductQuantizer({ dims: this.dims, ...config.pq });
     }
   }
 
+  private isExpired(entry: QuantizedEntry): boolean {
+    if (entry.ttlMs === undefined) return false;
+    return Date.now() - entry.addedAt > entry.ttlMs;
+  }
+
   get size(): number {
+    for (const [key, entry] of this.entries) {
+      if (this.isExpired(entry)) this.entries.delete(key);
+    }
     return this.entries.size;
   }
 
@@ -76,7 +93,7 @@ export class QuantizedMemoryStore {
   }
 
   /** Store an embedding with the given key */
-  add(key: string, embedding: Float32Array | number[], metadata?: Record<string, unknown>): void {
+  add(key: string, embedding: Float32Array | number[], metadata?: Record<string, unknown>, ttlMs?: number): void {
     let data: Uint8Array;
 
     if (this.mode === 'scalar') {
@@ -89,7 +106,16 @@ export class QuantizedMemoryStore {
       data = quantizeEmbedding(embedding);
     }
 
-    this.entries.set(key, { key, data, metadata, addedAt: Date.now() });
+    this.entries.set(key, { key, data, metadata, addedAt: Date.now(), ttlMs: ttlMs ?? this.defaultTtlMs });
+
+    if (this.maxEntries > 0 && this.entries.size > this.maxEntries) {
+      let oldestKey: string | undefined;
+      let oldestTime = Infinity;
+      for (const [k, e] of this.entries) {
+        if (e.addedAt < oldestTime) { oldestTime = e.addedAt; oldestKey = k; }
+      }
+      if (oldestKey !== undefined) this.entries.delete(oldestKey);
+    }
   }
 
   /** Remove an entry */
@@ -99,7 +125,10 @@ export class QuantizedMemoryStore {
 
   /** Check if a key exists */
   has(key: string): boolean {
-    return this.entries.has(key);
+    const entry = this.entries.get(key);
+    if (!entry) return false;
+    if (this.isExpired(entry)) { this.entries.delete(key); return false; }
+    return true;
   }
 
   /**
@@ -120,6 +149,7 @@ export class QuantizedMemoryStore {
     const results: SearchResult[] = [];
 
     for (const entry of this.entries.values()) {
+      if (this.isExpired(entry)) { this.entries.delete(entry.key); continue; }
       let similarity: number;
       if (this.mode === 'product') {
         similarity = this.pq!.similarity(queryData, entry.data);
@@ -138,6 +168,7 @@ export class QuantizedMemoryStore {
   get(key: string): Float32Array | null {
     const entry = this.entries.get(key);
     if (!entry) return null;
+    if (this.isExpired(entry)) { this.entries.delete(key); return null; }
 
     if (this.mode === 'product') {
       return this.pq?.decode(entry.data) ?? null;
@@ -152,6 +183,31 @@ export class QuantizedMemoryStore {
       dims: this.dims,
       entries: Array.from(this.entries.entries()),
     };
+  }
+
+  /**
+   * Import entries from a previous export() call.
+   * Skips expired entries automatically.
+   */
+  importEntries(entries: [string, QuantizedEntry][]): void {
+    for (const [key, entry] of entries) {
+      if (!this.isExpired(entry)) {
+        this.entries.set(key, entry);
+      }
+    }
+  }
+
+  /**
+   * Warm up the store with calibration embeddings.
+   * For 'product' mode: trains the PQ codebook if not already trained.
+   * For 'scalar'/'none': no-op (accepted for API consistency).
+   * Returns the active quantization mode.
+   */
+  warmUp(calibrationEmbeddings: (Float32Array | number[])[]): QuantizationMode {
+    if (this.mode === 'product' && this.pq && !this.pq.isTrained) {
+      this.pq.train(calibrationEmbeddings);
+    }
+    return this.mode;
   }
 
   /** Memory usage report */
