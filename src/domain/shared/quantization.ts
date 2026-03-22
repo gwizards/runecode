@@ -757,6 +757,58 @@ export class QuantizedSnapshotStore<T, K extends string> {
     }
     return total;
   }
+
+  /**
+   * Nearest-neighbour search over the int8-quantized numeric fields.
+   * Returns up to `topK` keys sorted by cosine similarity (descending).
+   *
+   * The query vector is quantized to int8 using symmetric per-vector scaling
+   * (max|v|/127) before comparison — the same scheme used during encoding.
+   * Cosine similarity is computed directly in the int8 domain, which is
+   * mathematically equivalent to float cosine when scales are close (and
+   * sufficient for ranking purposes).
+   *
+   * Falls back gracefully: if the quantizer encodes no int8 numeric fields
+   * (i.e. all stored buffers have int8.length === 0), returns [] immediately.
+   */
+  searchNearest(
+    queryVector: number[],
+    topK = 5,
+  ): Array<{ key: K; score: number; value: T }> {
+    // Determine the int8 vector length from the first stored entry.
+    // If there are no entries, or int8 dimension is zero, nothing to search.
+    const firstBuf = this.store.values().next().value as QuantizedBuffer | undefined;
+    if (firstBuf === undefined || firstBuf.fixed.int8.length === 0) {
+      return [];
+    }
+    const dim = firstBuf.fixed.int8.length;
+
+    // Quantize query to int8 using symmetric scaling (max|v|/127).
+    const qQuery = new Int8Array(dim);
+    let maxAbs = 0;
+    for (let i = 0; i < dim; i++) {
+      const abs = Math.abs(queryVector[i] ?? 0);
+      if (abs > maxAbs) maxAbs = abs;
+    }
+    const queryScale = maxAbs === 0 ? 1 : maxAbs / 127;
+    for (let i = 0; i < dim; i++) {
+      const v = queryVector[i] ?? 0;
+      qQuery[i] = Math.max(-127, Math.min(127, Math.round(v / queryScale)));
+    }
+
+    // Score every stored entry and collect results.
+    const results: Array<{ key: K; score: number; value: T }> = [];
+    for (const [key, buf] of this.store.entries()) {
+      const stored = buf.fixed.int8;
+      // Skip entries whose int8 dimension doesn't match (schema mismatch guard).
+      if (stored.length !== dim) continue;
+      const score = int8CosineSimilarity(qQuery, stored);
+      results.push({ key, score, value: this.quantizer.decode(buf) });
+    }
+
+    results.sort((a, b) => b.score - a.score);
+    return results.slice(0, topK);
+  }
 }
 
 // ─── HNSW QuantizedVectorStore ────────────────────────────────────────────────

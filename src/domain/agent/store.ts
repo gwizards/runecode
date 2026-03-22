@@ -18,10 +18,42 @@ import { AgentApplicationService } from './service';
 const _repo = new InMemoryAgentRepository();
 const _service = new AgentApplicationService(_repo, globalEventBus);
 
+// ─── Live agent record shape (O(1) lookup by ID) ───────────────────────────
+
+export interface LiveAgentRecord {
+  id: string;
+  name: string;
+  status: string;
+  model?: string;
+  /** Tab ID this agent is displayed in (populated by callers). */
+  tabId?: string;
+  startedAt?: number;
+  elapsedMs?: number;
+  tokenCount?: number;
+}
+
+/** Derive a flat record map from the aggregate array. */
+function toRecordMap(agents: LiveAgentAggregate[]): Record<string, LiveAgentRecord> {
+  const map: Record<string, LiveAgentRecord> = {};
+  for (const a of agents) {
+    map[a.id] = {
+      id: a.id,
+      name: a.name,
+      status: a.status,
+      startedAt: a.startedAt,
+      elapsedMs: a.elapsedMs,
+      tokenCount: a.tokenCount,
+    };
+  }
+  return map;
+}
+
 // ─── Store shape ───────────────────────────────────────────────────────────
 
 interface AgentDomainState {
   agents: LiveAgentAggregate[];
+  /** Record-keyed mirror of `agents` for O(1) lookup by agent ID. */
+  liveAgents: Record<string, LiveAgentRecord>;
   loading: boolean;
   error: string | null;
 
@@ -31,12 +63,20 @@ interface AgentDomainState {
   completeAgent(id: string): Promise<void>;
   failAgent(id: string, reason: string): Promise<void>;
   getActiveAgents(): Promise<LiveAgentAggregate[]>;
+
+  /** Add or replace an agent in the liveAgents map (used by lifecycle hooks). */
+  addLiveAgent(agent: LiveAgentRecord): void;
+  /** Partially update a live agent record. */
+  updateLiveAgent(id: string, patch: Partial<LiveAgentRecord>): void;
+  /** Remove a live agent from the map (e.g. when a tab is force-closed). */
+  removeLiveAgent(id: string): void;
 }
 
 // ─── Store implementation ──────────────────────────────────────────────────
 
 export const useAgentDomainStore = create<AgentDomainState>((set, get) => ({
   agents: [],
+  liveAgents: {},
   loading: false,
   error: null,
 
@@ -49,7 +89,7 @@ export const useAgentDomainStore = create<AgentDomainState>((set, get) => ({
     }
     const allResult = await _service.listActiveAgents();
     const agents = allResult.ok ? allResult.value : get().agents;
-    set({ loading: false, agents });
+    set({ loading: false, agents, liveAgents: toRecordMap(agents) });
   },
 
   async markThinking(id) {
@@ -61,7 +101,7 @@ export const useAgentDomainStore = create<AgentDomainState>((set, get) => ({
     }
     const allResult = await _service.listActiveAgents();
     const agents = allResult.ok ? allResult.value : get().agents;
-    set({ loading: false, agents });
+    set({ loading: false, agents, liveAgents: toRecordMap(agents) });
   },
 
   async tickAgent(id, elapsedMs, tokenCount) {
@@ -73,7 +113,7 @@ export const useAgentDomainStore = create<AgentDomainState>((set, get) => ({
     }
     const allResult = await _service.listActiveAgents();
     if (allResult.ok) {
-      set({ agents: allResult.value });
+      set({ agents: allResult.value, liveAgents: toRecordMap(allResult.value) });
     }
   },
 
@@ -86,7 +126,7 @@ export const useAgentDomainStore = create<AgentDomainState>((set, get) => ({
     }
     const allResult = await _service.listActiveAgents();
     const agents = allResult.ok ? allResult.value : get().agents;
-    set({ loading: false, agents });
+    set({ loading: false, agents, liveAgents: toRecordMap(agents) });
   },
 
   async failAgent(id, reason) {
@@ -98,7 +138,7 @@ export const useAgentDomainStore = create<AgentDomainState>((set, get) => ({
     }
     const allResult = await _service.listActiveAgents();
     const agents = allResult.ok ? allResult.value : get().agents;
-    set({ loading: false, agents });
+    set({ loading: false, agents, liveAgents: toRecordMap(agents) });
   },
 
   async getActiveAgents() {
@@ -107,7 +147,36 @@ export const useAgentDomainStore = create<AgentDomainState>((set, get) => ({
       set({ error: result.error });
       return [];
     }
-    set({ agents: result.value });
+    set({ agents: result.value, liveAgents: toRecordMap(result.value) });
     return result.value;
+  },
+
+  // ── Direct liveAgents map mutations ────────────────────────────────────────
+
+  addLiveAgent(agent: LiveAgentRecord): void {
+    set(state => ({
+      liveAgents: { ...state.liveAgents, [agent.id]: agent },
+    }));
+  },
+
+  updateLiveAgent(id: string, patch: Partial<LiveAgentRecord>): void {
+    set(state => {
+      const existing = state.liveAgents[id];
+      if (!existing) return state;
+      return {
+        liveAgents: {
+          ...state.liveAgents,
+          [id]: { ...existing, ...patch },
+        },
+      };
+    });
+  },
+
+  removeLiveAgent(id: string): void {
+    set(state => {
+      const next = { ...state.liveAgents };
+      delete next[id];
+      return { liveAgents: next };
+    });
   },
 }));

@@ -17,6 +17,13 @@ export interface IConsentRepository {
   findById(id: ConsentId): ConsentAggregate | undefined;
   findBySession(sessionId: AnalyticsSessionId): ConsentAggregate | undefined;
   save(consent: ConsentAggregate): void;
+  /**
+   * Semantic nearest-neighbour search over the int8-quantized numeric fields
+   * of stored consent snapshots.  Returns up to `topK` matches sorted by
+   * descending cosine similarity.  Returns [] when the backing store contains
+   * no int8-quantized dimensions (i.e. all fields are strings/uint).
+   */
+  searchByEmbedding(queryVector: number[], topK?: number): Array<{ consentId: ConsentId; score: number }>;
 }
 
 // ─── ConsentSnapshotQuantizer ─────────────────────────────────────────────────
@@ -131,6 +138,15 @@ export class InMemoryConsentRepository implements IConsentRepository {
     const snapshot = consent.toSnapshot();
     this.store.set(toConsentId(snapshot.id), snapshot);
     this.sessionIndex.set(snapshot.sessionId as AnalyticsSessionId, toConsentId(snapshot.id));
+  }
+
+  searchByEmbedding(
+    queryVector: number[],
+    topK = 5,
+  ): Array<{ consentId: ConsentId; score: number }> {
+    return this.store
+      .searchNearest(queryVector, topK)
+      .map(({ key, score }) => ({ consentId: key, score }));
   }
 
   /**

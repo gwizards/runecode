@@ -20,11 +20,26 @@ const _service = new SessionApplicationService(_repo, globalEventBus);
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
+export interface LiveUsage {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
 export interface SessionStoreState {
   sessions: SessionAggregate[];
   currentSessionId: SessionId | null;
   loading: boolean;
   error: string | null;
+
+  /** Maps sessionId → array of raw output chunks. */
+  sessionOutputs: Record<string, string[]>;
+
+  /** Currently active skill names (populated by StreamMessage as skills are invoked). */
+  activeSkills: string[];
+
+  /** Accumulates live token usage for the currently-open session. */
+  liveUsage: LiveUsage;
 
   // Actions
   loadSessions(projectId: string): Promise<void>;
@@ -40,6 +55,19 @@ export interface SessionStoreState {
   failSession(id: string, reason: string): Promise<void>;
   deleteSession(id: string): Promise<void>;
   clearError(): void;
+
+  // Session output actions
+  appendSessionOutput(sessionId: string, chunk: string): void;
+  clearSessionOutputs(sessionId: string): void;
+
+  // Active skill actions
+  addActiveSkill(skill: string): void;
+  removeActiveSkill(skill: string): void;
+  clearActiveSkills(): void;
+
+  // Live usage actions
+  updateLiveUsage(delta: { inputTokens?: number; outputTokens?: number; costUsd?: number }): void;
+  resetLiveUsage(): void;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -49,6 +77,10 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
   currentSessionId: null,
   loading: false,
   error: null,
+
+  sessionOutputs: {},
+  activeSkills: [],
+  liveUsage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
 
   // ── Load all sessions for a project ───────────────────────────────────────
 
@@ -161,5 +193,60 @@ export const useSessionStore = create<SessionStoreState>((set, _get) => ({
 
   clearError(): void {
     set({ error: null });
+  },
+
+  // ── Session output tracking ────────────────────────────────────────────────
+
+  appendSessionOutput(sessionId: string, chunk: string): void {
+    set(state => ({
+      sessionOutputs: {
+        ...state.sessionOutputs,
+        [sessionId]: [...(state.sessionOutputs[sessionId] ?? []), chunk],
+      },
+    }));
+  },
+
+  clearSessionOutputs(sessionId: string): void {
+    set(state => {
+      const next = { ...state.sessionOutputs };
+      delete next[sessionId];
+      return { sessionOutputs: next };
+    });
+  },
+
+  // ── Active skill tracking ──────────────────────────────────────────────────
+
+  addActiveSkill(skill: string): void {
+    set(state => ({
+      activeSkills: state.activeSkills.includes(skill)
+        ? state.activeSkills
+        : [...state.activeSkills, skill],
+    }));
+  },
+
+  removeActiveSkill(skill: string): void {
+    set(state => ({
+      activeSkills: state.activeSkills.filter(s => s !== skill),
+    }));
+  },
+
+  clearActiveSkills(): void {
+    set({ activeSkills: [] });
+  },
+
+  // ── Live usage tracking ────────────────────────────────────────────────────
+
+  updateLiveUsage(delta: { inputTokens?: number; outputTokens?: number; costUsd?: number }): void {
+    set(state => ({
+      liveUsage: {
+        inputTokens: (delta.inputTokens ?? state.liveUsage.inputTokens),
+        outputTokens: (delta.outputTokens ?? state.liveUsage.outputTokens),
+        costUsd: (delta.costUsd ?? state.liveUsage.costUsd),
+      },
+    }));
+  },
+
+  resetLiveUsage(): void {
+    set({ liveUsage: { inputTokens: 0, outputTokens: 0, costUsd: 0 } });
   },
 }));

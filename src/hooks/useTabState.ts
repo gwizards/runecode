@@ -1,444 +1,177 @@
 // @deprecated — use src/domain/workspace instead
-import { useCallback, useMemo } from 'react';
-import { useTabContext } from '@/contexts/TabContext';
-import { Tab, type LayoutMode, type GridConfig, type GridSpan } from '@/contexts/TabContext';
+//
+// Thin adapter: re-exports the TabContext surface under the legacy
+// useTabState name so all existing call sites compile without changes.
+//
+// Migration note: the workspace domain store (useWorkspaceStore) tracks a
+// single workspace's tab records. Until it fully replaces TabContext — i.e.
+// until RawTab carries status, type, sessionId, agentRunId, etc. — this hook
+// bridges the gap by delegating to TabContext.
 
-interface UseTabStateReturn {
-  // State
-  tabs: Tab[];
-  activeTab: Tab | undefined;
-  activeTabId: string | null;
-  tabCount: number;
-  chatTabCount: number;
-  agentTabCount: number;
-  
-  // Operations
-  createChatTab: (projectId?: string, title?: string, projectPath?: string) => string;
-  createAgentTab: (agentRunId: string, agentName: string) => string;
-  createAgentExecutionTab: (agent: any, tabId: string, projectPath?: string) => string;
-  createProjectsTab: () => string | null;
-  createAgentsTab: () => string | null;
-  createUsageTab: () => string | null;
-  createMCPTab: () => string | null;
-  createSettingsTab: () => string | null;
-  createClaudeMdTab: () => string | null;
-  createClaudeFileTab: (fileId: string, fileName: string) => string;
-  createCreateAgentTab: () => string;
-  createImportAgentTab: () => string;
-  createResourceDetailsTab: () => string;
-  createTerminalTab: (sessionId?: string, projectPath?: string, flags?: string[]) => string;
-  createBrowserTab: (url?: string, projectPath?: string) => string;
-  activeProjectPath: string | null;
-  setActiveProjectPath: (path: string | null) => void;
-  closeTab: (id: string, force?: boolean) => Promise<boolean>;
-  closeCurrentTab: () => Promise<boolean>;
-  switchToTab: (id: string) => void;
-  switchToNextTab: () => void;
-  switchToPreviousTab: () => void;
-  switchToTabByIndex: (index: number) => void;
-  updateTab: (id: string, updates: Partial<Tab>) => void;
-  updateTabTitle: (id: string, title: string) => void;
-  updateTabStatus: (id: string, status: Tab['status']) => void;
-  markTabAsChanged: (id: string, hasChanges: boolean) => void;
-  findTabBySessionId: (sessionId: string) => Tab | undefined;
-  findTabByAgentRunId: (agentRunId: string) => Tab | undefined;
-  findTabByType: (type: Tab['type']) => Tab | undefined;
-  canAddTab: () => boolean;
-  layoutMode: LayoutMode;
-  setLayoutMode: (mode: LayoutMode) => void;
-  gridConfig: GridConfig;
-  setGridColumns: (cols: number) => void;
-  setGridRows: (rows: number) => void;
-  setGridOrder: (order: string[]) => void;
-  setGridSpan: (tabId: string, span: Partial<GridSpan>) => void;
-}
+import { useMemo, useCallback } from 'react';
+import {
+  useTabContext,
+  type Tab,
+  type LayoutMode,
+  type GridConfig,
+  type GridSpan,
+} from '@/contexts/TabContext';
 
-export const useTabState = (): UseTabStateReturn => {
+export type { Tab, LayoutMode, GridConfig, GridSpan };
+
+export const useTabState = () => {
+  const ctx = useTabContext();
   const {
-    tabs,
-    activeTabId,
-    layoutMode,
-    setLayoutMode,
-    gridConfig,
-    setGridColumns,
-    setGridRows,
-    setGridOrder,
-    setGridSpan,
-    activeProjectPath,
-    setActiveProjectPath,
-    addTab,
-    removeTab,
-    updateTab,
-    setActiveTab,
-    getTabById,
-  } = useTabContext();
+    tabs, activeTabId, layoutMode, setLayoutMode, gridConfig,
+    setGridColumns, setGridRows, setGridOrder, setGridSpan,
+    activeProjectPath, setActiveProjectPath,
+    addTab, removeTab, updateTab, setActiveTab, getTabById,
+  } = ctx;
 
-  const activeTab = useMemo(() =>
-    activeTabId ? tabs.find(t => t.id === activeTabId) : undefined,
-    [activeTabId, tabs]
+  const activeTab = useMemo(
+    () => (activeTabId ? tabs.find(t => t.id === activeTabId) : undefined),
+    [activeTabId, tabs],
   );
 
-  const tabCount = tabs.length;
-  const chatTabCount = useMemo(() => tabs.filter(t => t.type === 'chat').length, [tabs]);
-  const agentTabCount = useMemo(() => tabs.filter(t => t.type === 'agent').length, [tabs]);
+  // ── singleton helpers ────────────────────────────────────────────────────────
+  const singletonOrAdd = useCallback(
+    (type: Tab['type'], data: Omit<Tab, 'id' | 'order' | 'createdAt' | 'updatedAt'>): string => {
+      const existing = tabs.find(t => t.type === type);
+      if (existing) { setActiveTab(existing.id); return existing.id; }
+      return addTab(data);
+    },
+    [tabs, addTab, setActiveTab],
+  );
 
-  const createChatTab = useCallback((projectId?: string, title?: string, projectPath?: string): string => {
-    const tabTitle = title || `Chat ${chatTabCount + 1}`;
-    return addTab({
-      type: 'chat',
-      title: tabTitle,
-      sessionId: projectId,
-      initialProjectPath: projectPath,
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'message-square'
-    });
-  }, [addTab, chatTabCount]);
+  // ── tab factories ────────────────────────────────────────────────────────────
+  const createChatTab = useCallback(
+    (projectId?: string, title?: string, projectPath?: string) =>
+      addTab({ type: 'chat', title: title || `Chat ${tabs.filter(t => t.type === 'chat').length + 1}`, sessionId: projectId, initialProjectPath: projectPath, status: 'idle', hasUnsavedChanges: false, icon: 'message-square' }),
+    [addTab, tabs],
+  );
 
-  const createAgentTab = useCallback((agentRunId: string, agentName: string): string => {
-    // Check if tab already exists
-    const existingTab = tabs.find(tab => tab.agentRunId === agentRunId);
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
+  const createAgentTab = useCallback(
+    (agentRunId: string, agentName: string) => {
+      const existing = tabs.find(t => t.agentRunId === agentRunId);
+      if (existing) { setActiveTab(existing.id); return existing.id; }
+      return addTab({ type: 'agent', title: agentName, agentRunId, status: 'running', hasUnsavedChanges: false, icon: 'bot' });
+    },
+    [addTab, tabs, setActiveTab],
+  );
 
-    return addTab({
-      type: 'agent',
-      title: agentName,
-      agentRunId,
-      status: 'running',
-      hasUnsavedChanges: false,
-      icon: 'bot'
-    });
-  }, [addTab, tabs, setActiveTab]);
+  const createAgentExecutionTab = useCallback(
+    (agent: any, _tabId: string, projectPath?: string) =>
+      addTab({ type: 'agent-execution', title: `Run: ${agent.name}`, agentData: agent, projectPath, status: 'idle', hasUnsavedChanges: false, icon: 'bot' }),
+    [addTab],
+  );
 
-  const createProjectsTab = useCallback((): string | null => {
-    // Allow multiple projects tabs
-    return addTab({
-      type: 'projects',
-      title: 'Projects',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'folder'
-    });
-  }, [addTab]);
+  const createProjectsTab      = useCallback(() => addTab({ type: 'projects',         title: 'Projects',      status: 'idle', hasUnsavedChanges: false, icon: 'folder'      }), [addTab]);
+  const createAgentsTab        = useCallback(() => singletonOrAdd('agents',         { type: 'agents',          title: 'Agents',       status: 'idle', hasUnsavedChanges: false, icon: 'bot'         }), [singletonOrAdd]);
+  const createUsageTab         = useCallback(() => singletonOrAdd('usage',          { type: 'usage',           title: 'Usage',        status: 'idle', hasUnsavedChanges: false, icon: 'bar-chart'   }), [singletonOrAdd]);
+  const createMCPTab           = useCallback(() => singletonOrAdd('mcp',            { type: 'mcp',             title: 'MCP Servers',  status: 'idle', hasUnsavedChanges: false, icon: 'server'      }), [singletonOrAdd]);
+  const createSettingsTab      = useCallback(() => singletonOrAdd('settings',       { type: 'settings',        title: 'Settings',     status: 'idle', hasUnsavedChanges: false, icon: 'settings'    }), [singletonOrAdd]);
+  const createClaudeMdTab      = useCallback(() => singletonOrAdd('claude-md',      { type: 'claude-md',       title: 'CLAUDE.md',    status: 'idle', hasUnsavedChanges: false, icon: 'file-text'   }), [singletonOrAdd]);
+  const createCreateAgentTab   = useCallback(() => singletonOrAdd('create-agent',   { type: 'create-agent',    title: 'Create Agent', status: 'idle', hasUnsavedChanges: false, icon: 'plus'        }), [singletonOrAdd]);
+  const createImportAgentTab   = useCallback(() => singletonOrAdd('import-agent',   { type: 'import-agent',    title: 'Import Agent', status: 'idle', hasUnsavedChanges: false, icon: 'import'      }), [singletonOrAdd]);
+  const createResourceDetailsTab = useCallback(() => singletonOrAdd('resource-details', { type: 'resource-details', title: 'Processes', status: 'idle', hasUnsavedChanges: false, icon: 'cpu'      }), [singletonOrAdd]);
 
-  const createAgentsTab = useCallback((): string | null => {
-    // Check if agents tab already exists (singleton)
-    const existingTab = tabs.find(tab => tab.type === 'agents');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
+  const createClaudeFileTab = useCallback(
+    (fileId: string, fileName: string) => {
+      const existing = tabs.find(t => t.type === 'claude-file' && t.claudeFileId === fileId);
+      if (existing) { setActiveTab(existing.id); return existing.id; }
+      return addTab({ type: 'claude-file', title: fileName, claudeFileId: fileId, status: 'idle', hasUnsavedChanges: false, icon: 'file-text' });
+    },
+    [addTab, tabs, setActiveTab],
+  );
 
-    return addTab({
-      type: 'agents',
-      title: 'Agents',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'bot'
-    });
-  }, [addTab, tabs, setActiveTab]);
+  const createTerminalTab = useCallback(
+    (sessionId?: string, projectPath?: string, flags?: string[]) => {
+      const base = projectPath?.split('/').pop() || (sessionId ? sessionId.slice(0, 8) : 'Terminal');
+      const name = flags?.includes('--shell') ? `\u2B1B ${base}` : `\uD83D\uDD2E ${base}`;
+      return addTab({ type: 'claude-terminal', title: name, sessionId, projectPath, terminalFlags: flags, status: 'active', hasUnsavedChanges: false, icon: 'terminal' });
+    },
+    [addTab],
+  );
 
-  const createUsageTab = useCallback((): string | null => {
-    // Check if usage tab already exists (singleton)
-    const existingTab = tabs.find(tab => tab.type === 'usage');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
+  const createBrowserTab = useCallback(
+    (url?: string, projectPath?: string) => {
+      const resolved = projectPath || activeProjectPath || (activeTab ? (activeTab.projectPath || activeTab.initialProjectPath) : null) || undefined;
+      return addTab({ type: 'browser', title: 'Browser', browserUrl: url, projectPath: resolved, status: 'active', hasUnsavedChanges: false, icon: 'globe' });
+    },
+    [addTab, activeProjectPath, activeTab],
+  );
 
-    return addTab({
-      type: 'usage',
-      title: 'Usage',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'bar-chart'
-    });
-  }, [addTab, tabs, setActiveTab]);
+  // ── tab lifecycle ────────────────────────────────────────────────────────────
+  const closeTab = useCallback(
+    async (id: string, force = false): Promise<boolean> => {
+      const tab = getTabById(id);
+      if (!tab) return true;
+      if (!force && tab.hasUnsavedChanges) {
+        if (!window.confirm(`Tab "${tab.title}" has unsaved changes. Close anyway?`)) return false;
+      }
+      removeTab(id);
+      return true;
+    },
+    [getTabById, removeTab],
+  );
 
-  const createMCPTab = useCallback((): string | null => {
-    // Check if MCP tab already exists (singleton)
-    const existingTab = tabs.find(tab => tab.type === 'mcp');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
-
-    return addTab({
-      type: 'mcp',
-      title: 'MCP Servers',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'server'
-    });
-  }, [addTab, tabs, setActiveTab]);
-
-  const createSettingsTab = useCallback((): string | null => {
-    // Check if settings tab already exists (singleton)
-    const existingTab = tabs.find(tab => tab.type === 'settings');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
-
-    return addTab({
-      type: 'settings',
-      title: 'Settings',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'settings'
-    });
-  }, [addTab, tabs, setActiveTab]);
-
-  const createClaudeMdTab = useCallback((): string | null => {
-    // Check if claude-md tab already exists (singleton)
-    const existingTab = tabs.find(tab => tab.type === 'claude-md');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
-
-    return addTab({
-      type: 'claude-md',
-      title: 'CLAUDE.md',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'file-text'
-    });
-  }, [addTab, tabs, setActiveTab]);
-
-  const createClaudeFileTab = useCallback((fileId: string, fileName: string): string => {
-    // Check if tab already exists for this file
-    const existingTab = tabs.find(tab => tab.type === 'claude-file' && tab.claudeFileId === fileId);
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
-
-    return addTab({
-      type: 'claude-file',
-      title: fileName,
-      claudeFileId: fileId,
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'file-text'
-    });
-  }, [addTab, tabs, setActiveTab]);
-
-  const createAgentExecutionTab = useCallback((agent: any, _tabId: string, projectPath?: string): string => {
-    return addTab({
-      type: 'agent-execution',
-      title: `Run: ${agent.name}`,
-      agentData: agent,
-      projectPath: projectPath,
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'bot'
-    });
-  }, [addTab]);
-
-  const createCreateAgentTab = useCallback((): string => {
-    // Check if create agent tab already exists (singleton)
-    const existingTab = tabs.find(tab => tab.type === 'create-agent');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
-
-    return addTab({
-      type: 'create-agent',
-      title: 'Create Agent',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'plus'
-    });
-  }, [addTab, tabs, setActiveTab]);
-
-  const createImportAgentTab = useCallback((): string => {
-    // Check if import agent tab already exists (singleton)
-    const existingTab = tabs.find(tab => tab.type === 'import-agent');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
-
-    return addTab({
-      type: 'import-agent',
-      title: 'Import Agent',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'import'
-    });
-  }, [addTab, tabs, setActiveTab]);
-
-  const createResourceDetailsTab = useCallback((): string => {
-    const existingTab = tabs.find(tab => tab.type === 'resource-details');
-    if (existingTab) {
-      setActiveTab(existingTab.id);
-      return existingTab.id;
-    }
-
-    return addTab({
-      type: 'resource-details',
-      title: 'Processes',
-      status: 'idle',
-      hasUnsavedChanges: false,
-      icon: 'cpu'
-    });
-  }, [addTab, tabs, setActiveTab]);
-
-  const createTerminalTab = useCallback((sessionId?: string, projectPath?: string, flags?: string[]): string => {
-    const baseName = projectPath?.split('/').pop() || (sessionId ? sessionId.slice(0, 8) : 'Terminal');
-    const isShell = flags?.includes('--shell');
-    const name = isShell ? `⬛ ${baseName}` : `🔮 ${baseName}`;
-    return addTab({
-      type: 'claude-terminal',
-      title: name,
-      sessionId,
-      projectPath,
-      terminalFlags: flags,
-      status: 'active',
-      hasUnsavedChanges: false,
-      icon: 'terminal'
-    });
-  }, [addTab]);
-
-  const createBrowserTab = useCallback((url?: string, projectPath?: string): string => {
-    // Resolve project path: explicit > activeProjectPath > active tab's project
-    const resolvedProject = projectPath || activeProjectPath ||
-      (activeTab ? (activeTab.projectPath || activeTab.initialProjectPath) : null) || undefined;
-
-    // Always create a new browser tab (allow multiple per project)
-    return addTab({
-      type: 'browser',
-      title: 'Browser',
-      browserUrl: url,
-      projectPath: resolvedProject,
-      status: 'active',
-      hasUnsavedChanges: false,
-      icon: 'globe'
-    });
-  }, [addTab, activeProjectPath, activeTab]);
-
-  const closeTab = useCallback(async (id: string, force: boolean = false): Promise<boolean> => {
-    const tab = getTabById(id);
-    if (!tab) return true;
-
-    // Check for unsaved changes
-    if (!force && tab.hasUnsavedChanges) {
-      // In a real implementation, you'd show a confirmation dialog here
-      const confirmed = window.confirm(`Tab "${tab.title}" has unsaved changes. Close anyway?`);
-      if (!confirmed) return false;
-    }
-
-    removeTab(id);
-    return true;
-  }, [getTabById, removeTab]);
-
-  const closeCurrentTab = useCallback(async (): Promise<boolean> => {
-    if (!activeTabId) return true;
-    return closeTab(activeTabId);
-  }, [activeTabId, closeTab]);
+  const closeCurrentTab = useCallback(
+    async () => (activeTabId ? closeTab(activeTabId) : true),
+    [activeTabId, closeTab],
+  );
 
   const switchToNextTab = useCallback(() => {
-    if (tabs.length === 0) return;
-    
-    const currentIndex = tabs.findIndex(tab => tab.id === activeTabId);
-    const nextIndex = (currentIndex + 1) % tabs.length;
-    setActiveTab(tabs[nextIndex].id);
+    if (!tabs.length) return;
+    const idx = tabs.findIndex(t => t.id === activeTabId);
+    setActiveTab(tabs[(idx + 1) % tabs.length].id);
   }, [tabs, activeTabId, setActiveTab]);
 
   const switchToPreviousTab = useCallback(() => {
-    if (tabs.length === 0) return;
-    
-    const currentIndex = tabs.findIndex(tab => tab.id === activeTabId);
-    const previousIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
-    setActiveTab(tabs[previousIndex].id);
+    if (!tabs.length) return;
+    const idx = tabs.findIndex(t => t.id === activeTabId);
+    setActiveTab(tabs[idx === 0 ? tabs.length - 1 : idx - 1].id);
   }, [tabs, activeTabId, setActiveTab]);
 
-  const switchToTabByIndex = useCallback((index: number) => {
-    if (index >= 0 && index < tabs.length) {
-      setActiveTab(tabs[index].id);
-    }
-  }, [tabs, setActiveTab]);
+  const switchToTabByIndex = useCallback(
+    (index: number) => { if (tabs[index]) setActiveTab(tabs[index].id); },
+    [tabs, setActiveTab],
+  );
 
-  const updateTabTitle = useCallback((id: string, title: string) => {
-    updateTab(id, { title });
-  }, [updateTab]);
+  // ── update helpers ───────────────────────────────────────────────────────────
+  const updateTabTitle  = useCallback((id: string, title: string)             => updateTab(id, { title }),               [updateTab]);
+  const updateTabStatus = useCallback((id: string, status: Tab['status'])     => updateTab(id, { status }),              [updateTab]);
+  const markTabAsChanged = useCallback((id: string, hasChanges: boolean)      => updateTab(id, { hasUnsavedChanges: hasChanges }), [updateTab]);
 
-  const updateTabStatus = useCallback((id: string, status: Tab['status']) => {
-    updateTab(id, { status });
-  }, [updateTab]);
-
-  const markTabAsChanged = useCallback((id: string, hasChanges: boolean) => {
-    updateTab(id, { hasUnsavedChanges: hasChanges });
-  }, [updateTab]);
-
-  const findTabBySessionId = useCallback((sessionId: string): Tab | undefined => {
-    return tabs.find(tab => tab.type === 'chat' && tab.sessionId === sessionId);
-  }, [tabs]);
-
-  const findTabByAgentRunId = useCallback((agentRunId: string): Tab | undefined => {
-    return tabs.find(tab => tab.type === 'agent' && tab.agentRunId === agentRunId);
-  }, [tabs]);
-
-  const findTabByType = useCallback((type: Tab['type']): Tab | undefined => {
-    return tabs.find(tab => tab.type === type);
-  }, [tabs]);
-
-  const canAddTab = useCallback((): boolean => {
-    return tabs.length < 20; // MAX_TABS from context
-  }, [tabs.length]);
+  // ── finders ──────────────────────────────────────────────────────────────────
+  const findTabBySessionId  = useCallback((sid: string)   => tabs.find(t => t.type === 'chat'  && t.sessionId  === sid),  [tabs]);
+  const findTabByAgentRunId = useCallback((rid: string)   => tabs.find(t => t.type === 'agent' && t.agentRunId === rid),  [tabs]);
+  const findTabByType       = useCallback((type: Tab['type']) => tabs.find(t => t.type === type),                          [tabs]);
+  const canAddTab           = useCallback(() => tabs.length < 20,                                                          [tabs]);
 
   return {
-    // State
+    // state
     tabs,
     activeTab,
     activeTabId,
-    tabCount,
-    chatTabCount,
-    agentTabCount,
-    
-    // Operations
-    createChatTab,
-    createAgentTab,
-    createAgentExecutionTab,
-    createProjectsTab,
-    createAgentsTab,
-    createUsageTab,
-    createMCPTab,
-    createSettingsTab,
-    createClaudeMdTab,
-    createClaudeFileTab,
-    createCreateAgentTab,
-    createImportAgentTab,
-    createResourceDetailsTab,
-    createTerminalTab,
-    createBrowserTab,
-    closeTab,
-    closeCurrentTab,
-    switchToTab: setActiveTab,
-    switchToNextTab,
-    switchToPreviousTab,
-    switchToTabByIndex,
-    updateTab,
-    updateTabTitle,
-    updateTabStatus,
-    markTabAsChanged,
-    findTabBySessionId,
-    findTabByAgentRunId,
-    findTabByType,
-    canAddTab,
-    layoutMode,
-    setLayoutMode,
-    gridConfig,
-    setGridColumns,
-    setGridRows,
-    setGridOrder,
-    setGridSpan,
-    activeProjectPath,
-    setActiveProjectPath,
+    tabCount:      tabs.length,
+    chatTabCount:  tabs.filter(t => t.type === 'chat').length,
+    agentTabCount: tabs.filter(t => t.type === 'agent').length,
+    // factories
+    createChatTab, createAgentTab, createAgentExecutionTab,
+    createProjectsTab, createAgentsTab, createUsageTab, createMCPTab,
+    createSettingsTab, createClaudeMdTab, createClaudeFileTab,
+    createCreateAgentTab, createImportAgentTab, createResourceDetailsTab,
+    createTerminalTab, createBrowserTab,
+    // lifecycle
+    closeTab, closeCurrentTab,
+    switchToTab: setActiveTab, switchToNextTab, switchToPreviousTab, switchToTabByIndex,
+    // updates
+    updateTab, updateTabTitle, updateTabStatus, markTabAsChanged,
+    // finders
+    findTabBySessionId, findTabByAgentRunId, findTabByType, canAddTab,
+    // layout
+    layoutMode, setLayoutMode, gridConfig,
+    setGridColumns, setGridRows, setGridOrder, setGridSpan,
+    activeProjectPath, setActiveProjectPath,
   };
 };

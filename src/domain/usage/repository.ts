@@ -7,6 +7,7 @@
 
 import type { LedgerId, SessionId, ProjectId, RawLedger } from './types';
 import { UsageLedger } from './types';
+import { quantizeVector, int8CosineSimilarity } from '../shared/quantization';
 
 // ─── Repository interface ──────────────────────────────────────────────────
 
@@ -31,6 +32,58 @@ export interface IUsageLedgerRepository {
    * Both bounds are optional; omitting one makes the range open-ended.
    */
   listByDateRange(from?: number, to?: number): Promise<UsageLedger[]>;
+
+  /**
+   * Semantic nearest-neighbour search using cosine similarity over a numeric
+   * feature vector derived from each ledger's quantized snapshot fields.
+   * Returns up to `topK` matches sorted by descending similarity score.
+   *
+   * Feature vector per ledger (6 dimensions):
+   *   [0] openedAt (Unix ms)
+   *   [1] sealedAt (Unix ms; 0 when unsealed)
+   *   [2] total inputTokens across all records
+   *   [3] total outputTokens across all records
+   *   [4] total cacheCreationTokens across all records
+   *   [5] total cacheReadTokens across all records
+   */
+  searchByEmbedding(queryVector: number[], topK?: number): Array<{ ledgerId: LedgerId; score: number }>;
+}
+
+// ─── Feature-vector extraction ─────────────────────────────────────────────
+
+/**
+ * Derive a 6-element float32 feature vector from a RawLedger snapshot.
+ *
+ * Dimensions:
+ *   [0] openedAt              — Unix ms timestamp
+ *   [1] sealedAt              — Unix ms timestamp (0 when unsealed)
+ *   [2] total inputTokens     — sum across all usage records
+ *   [3] total outputTokens    — sum across all usage records
+ *   [4] total cacheCreationTokens
+ *   [5] total cacheReadTokens
+ *
+ * These dimensions give a lightweight semantic fingerprint of a ledger's
+ * temporal position and token consumption pattern.
+ */
+function ledgerFeatureVector(snapshot: RawLedger): Float32Array {
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheCreationTokens = 0;
+  let cacheReadTokens = 0;
+  for (const rec of snapshot.records) {
+    inputTokens         += rec.inputTokens;
+    outputTokens        += rec.outputTokens;
+    cacheCreationTokens += rec.cacheCreationTokens;
+    cacheReadTokens     += rec.cacheReadTokens;
+  }
+  return new Float32Array([
+    snapshot.openedAt,
+    snapshot.sealedAt ?? 0,
+    inputTokens,
+    outputTokens,
+    cacheCreationTokens,
+    cacheReadTokens,
+  ]);
 }
 
 // ─── In-memory implementation ──────────────────────────────────────────────
@@ -76,6 +129,28 @@ export class InMemoryUsageLedgerRepository implements IUsageLedgerRepository {
         return true;
       })
       .map(UsageLedger.fromSnapshot);
+  }
+
+  searchByEmbedding(
+    queryVector: number[],
+    topK = 5,
+  ): Array<{ ledgerId: LedgerId; score: number }> {
+    // Quantize the query once and reuse across all entries.
+    const queryFloat32 = new Float32Array(queryVector);
+    const { quantized: qQuery } = quantizeVector(queryFloat32);
+
+    const results: Array<{ ledgerId: LedgerId; score: number }> = [];
+    for (const [id, snapshot] of this.ledgers.entries()) {
+      const featureVec = ledgerFeatureVector(snapshot);
+      const { quantized: qEntry } = quantizeVector(featureVec);
+      // Pad or truncate to match query length so int8CosineSimilarity doesn't throw.
+      const len = Math.min(qQuery.length, qEntry.length);
+      const score = int8CosineSimilarity(qQuery.slice(0, len), qEntry.slice(0, len));
+      results.push({ ledgerId: id as LedgerId, score });
+    }
+
+    results.sort((a, b) => b.score - a.score);
+    return results.slice(0, topK);
   }
 
   /**

@@ -1,8 +1,5 @@
 import React from 'react';
 import { useAgentDomainStore } from '@/domain/agent/store';
-// TODO: migrate to domain store — domain AgentDomainState uses `agents: LiveAgentAggregate[]`,
-//       not `liveAgents: Record<string, LiveAgent>`. Casting to `any` until the domain store
-//       exposes a record-keyed agents map.
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -41,8 +38,7 @@ function formatElapsed(ms: number): string {
 }
 
 export const AgentStatusBadge: React.FC<AgentStatusBadgeProps> = ({ onAgentClick }) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const liveAgents: Record<string, any> = useAgentDomainStore((state) => (state as any).liveAgents ?? {});
+  const liveAgents = useAgentDomainStore((state) => state.liveAgents);
 
   const agents = Object.values(liveAgents);
   const runningCount = agents.filter(
@@ -79,7 +75,7 @@ export const AgentStatusBadge: React.FC<AgentStatusBadgeProps> = ({ onAgentClick
             />
             <span className="flex-1 truncate">{agent.name}</span>
             <span className="text-xs text-muted-foreground flex-shrink-0">
-              {formatElapsed(agent.elapsedMs)}
+              {formatElapsed(agent.elapsedMs ?? 0)}
             </span>
           </DropdownMenuItem>
         ))}

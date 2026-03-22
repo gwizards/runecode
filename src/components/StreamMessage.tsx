@@ -45,9 +45,6 @@ import {
 import { SkillBadgeWidget } from "./widgets/SkillBadgeWidget";
 import { TaskNotificationWidget } from "./widgets/TaskNotificationWidget";
 import { useSessionStore } from "../domain/session/store";
-// TODO: migrate to domain store — domain SessionStoreState has no `addActiveSkill` or
-//       `removeActiveSkill`. Accesses below are cast to `any` until these are promoted
-//       to the domain store.
 
 /**
  * Collapsible wrapper for tool outputs
@@ -149,11 +146,8 @@ interface StreamMessageProps {
  */
 const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, className, streamMessages, onLinkDetected }) => {
   // Active skill tracking (hooks must be unconditional)
-  // TODO: migrate to domain store — `addActiveSkill`/`removeActiveSkill` are not in domain SessionStoreState.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const addActiveSkill = useSessionStore(state => (state as any).addActiveSkill as (name: string) => void | undefined);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const removeActiveSkill = useSessionStore(state => (state as any).removeActiveSkill as (name: string) => void | undefined);
+  const addActiveSkill = useSessionStore(state => state.addActiveSkill);
+  const removeActiveSkill = useSessionStore(state => state.removeActiveSkill);
 
   // Detect if this message contains a Skill tool call
   const skillName = useMemo(() => {

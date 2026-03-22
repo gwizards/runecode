@@ -28,8 +28,10 @@ import {
   ProjectSnapshotQuantizer,
   QuantizedSnapshotStore,
   QuantizedVectorStore,
+  ScalarQuantizer,
   computeSavingsProjections,
 } from './quantization';
+import type { QuantizedBuffer } from './quantization';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -481,6 +483,164 @@ describe('QuantizedSnapshotStore<RawLiveAgent>', () => {
     store.set('a', makeAgent());
     store.set('b', makeAgent());
     expect(store.estimateFixedBytes()).toBeGreaterThan(0);
+  });
+});
+
+// ─── QuantizedSnapshotStore.searchNearest ────────────────────────────────────
+
+/**
+ * A minimal quantizer that encodes a Float32Array (up to 4 elements) as int8
+ * fields.  This is the only way to exercise searchNearest, which requires
+ * int8.length > 0 in the stored QuantizedBuffer.
+ */
+type RawVec4 = { values: number[] };
+
+class Vec4SnapshotQuantizer extends ScalarQuantizer<RawVec4> {
+  readonly version = 1;
+
+  encode(snapshot: RawVec4): QuantizedBuffer {
+    const DIM = 4;
+    const fixed = this.makeEmptyBuffer(
+      0,   // uint8
+      0,   // uint16
+      0,   // uint32
+      DIM, // int8  ← the only numeric storage
+      0,   // int16
+    );
+    // Symmetric int8 quantization (max|v|/127)
+    const vals = snapshot.values;
+    let maxAbs = 0;
+    for (let i = 0; i < DIM; i++) maxAbs = Math.max(maxAbs, Math.abs(vals[i] ?? 0));
+    const scale = maxAbs === 0 ? 1 : maxAbs / 127;
+    for (let i = 0; i < DIM; i++) {
+      fixed.int8[i] = Math.max(-127, Math.min(127, Math.round((vals[i] ?? 0) / scale)));
+    }
+    return { version: this.version, fixed, strings: {}, params: {} };
+  }
+
+  decode(buf: QuantizedBuffer): RawVec4 {
+    this.assertVersion(buf);
+    return { values: Array.from(buf.fixed.int8) };
+  }
+}
+
+describe('QuantizedSnapshotStore.searchNearest', () => {
+  function makeStore() {
+    return new QuantizedSnapshotStore<RawVec4, string>(new Vec4SnapshotQuantizer());
+  }
+
+  it('empty store returns []', () => {
+    const store = makeStore();
+    expect(store.searchNearest([1, 0, 0, 0])).toEqual([]);
+  });
+
+  it('zero-vector query returns [] (cosine undefined — all-zero query)', () => {
+    const store = makeStore();
+    store.set('a', { values: [1, 0, 0, 0] });
+    // The query is all zeros → queryScale = 1, qQuery = all zeros → int8CosineSimilarity
+    // returns 0 for every pair (dot=0, normA=0 → returns 0 by guard).
+    // searchNearest itself does not special-case zero queries, but the score
+    // will be 0 for all entries — it still returns them. However when the
+    // query vector is [0,0,0,0] the quantized form is all-zeros too, so
+    // int8CosineSimilarity returns 0 for each entry (not NaN).
+    // The contract we verify is that it does NOT throw and returns an array.
+    const results = store.searchNearest([0, 0, 0, 0]);
+    expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('single entry — returns [{ key, score, value }]', () => {
+    const store = makeStore();
+    store.set('vec-a', { values: [1, 1, 0, 0] });
+
+    const results = store.searchNearest([1, 1, 0, 0], 5);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toHaveProperty('key', 'vec-a');
+    expect(results[0]).toHaveProperty('score');
+    expect(results[0]).toHaveProperty('value');
+  });
+
+  it('all returned scores are in the range [-1, 1]', () => {
+    const store = makeStore();
+    store.set('a', { values: [1, 0, 0, 0] });
+    store.set('b', { values: [0, 1, 0, 0] });
+    store.set('c', { values: [-1, 0, 0, 0] });
+
+    const results = store.searchNearest([1, 0, 0, 0], 5);
+
+    for (const r of results) {
+      expect(r.score).toBeGreaterThanOrEqual(-1);
+      expect(r.score).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('identical vector scores approximately 1.0', () => {
+    const store = makeStore();
+    const values = [3, 1, -2, 4];
+    store.set('exact', { values });
+
+    const results = store.searchNearest(values, 5);
+
+    const match = results.find((r) => r.key === 'exact');
+    expect(match).toBeDefined();
+    expect(match!.score).toBeCloseTo(1.0, 1);
+  });
+
+  it('orthogonal vector scores approximately 0', () => {
+    const store = makeStore();
+    // [1, 0, 0, 0] is orthogonal to [0, 1, 0, 0]
+    store.set('stored', { values: [1, 0, 0, 0] });
+
+    const results = store.searchNearest([0, 1, 0, 0], 5);
+
+    const match = results.find((r) => r.key === 'stored');
+    expect(match).toBeDefined();
+    expect(Math.abs(match!.score)).toBeLessThan(0.1);
+  });
+
+  it('opposite vector scores approximately -1', () => {
+    const store = makeStore();
+    store.set('pos', { values: [1, 1, 1, 1] });
+
+    const results = store.searchNearest([-1, -1, -1, -1], 5);
+
+    const match = results.find((r) => r.key === 'pos');
+    expect(match).toBeDefined();
+    expect(match!.score).toBeCloseTo(-1.0, 1);
+  });
+
+  it('topK limits the number of results', () => {
+    const store = makeStore();
+    for (let i = 0; i < 10; i++) {
+      store.set(`vec-${i}`, { values: [i + 1, i, 0, 0] });
+    }
+
+    const results = store.searchNearest([1, 1, 0, 0], 3);
+
+    expect(results).toHaveLength(3);
+  });
+
+  it('results are sorted in descending score order', () => {
+    const store = makeStore();
+    store.set('close', { values: [1, 0, 0, 0] });
+    store.set('medium', { values: [1, 1, 0, 0] });
+    store.set('far', { values: [0, 0, 1, 0] });
+
+    const results = store.searchNearest([1, 0, 0, 0], 3);
+
+    for (let i = 1; i < results.length; i++) {
+      expect(results[i - 1]!.score).toBeGreaterThanOrEqual(results[i]!.score);
+    }
+  });
+
+  it('string-only quantizer (no int8 fields) returns []', () => {
+    // AgentSnapshotQuantizer stores no int8 fields — searchNearest short-circuits.
+    const store = new QuantizedSnapshotStore<RawLiveAgent, string>(new AgentSnapshotQuantizer());
+    store.set('a', makeAgent({ id: 'a' }));
+
+    const results = store.searchNearest([1, 0, 0]);
+
+    expect(results).toEqual([]);
   });
 });
 

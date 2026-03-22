@@ -8,10 +8,6 @@ import { cn } from '@/lib/utils';
 import { TooltipProvider, TooltipSimple } from '@/components/ui/tooltip-modern';
 import { useTrackEvent } from '@/hooks';
 import { useAgentDomainStore } from '@/domain/agent/store';
-// TODO: migrate to domain store — domain AgentDomainState uses `agents: LiveAgentAggregate[]`
-//       not `liveAgents: Record<string, LiveAgent>`. Fields `liveAgents` and `removeLiveAgent`
-//       are accessed via `any` cast until the domain store exposes equivalent record-keyed
-//       access and a remove action.
 import { AgentStatusBadge } from './AgentStatusBadge';
 import {
   DropdownMenu,
@@ -246,13 +242,8 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   }, []);
 
   // Live agent tracking
-  // TODO: migrate to domain store — domain store has `agents: LiveAgentAggregate[]`, not
-  //       `liveAgents: Record<string, LiveAgent>` or `removeLiveAgent`. Casting to `any`
-  //       until the domain store exposes equivalent record-keyed lookup and a remove action.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const liveAgents: Record<string, any> = useAgentDomainStore((state) => (state as any).liveAgents ?? {});
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const removeLiveAgent: (id: string) => void = useAgentDomainStore((state) => (state as any).removeLiveAgent ?? (() => {}));
+  const liveAgents = useAgentDomainStore((state) => state.liveAgents);
+  const removeLiveAgent = useAgentDomainStore((state) => state.removeLiveAgent);
 
   // Analytics tracking
   const trackEvent = useTrackEvent();
@@ -262,7 +253,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
     if (tab.type !== 'agent-execution') return undefined;
     // Find live agent associated with this tab
     for (const agent of Object.values(liveAgents)) {
-      if (agent.tabId === tab.id) return agent.status;
+      if (agent.tabId === tab.id) return agent.status as AgentStatus;
     }
     return undefined;
   };

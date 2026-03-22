@@ -391,6 +391,86 @@ describe('UsageApplicationService.getLedgerSummary()', () => {
   });
 });
 
+// ─── InMemoryUsageLedgerRepository.searchByEmbedding ─────────────────────────
+
+/**
+ * searchByEmbedding derives a 6-dim float32 feature vector per ledger:
+ *   [openedAt, sealedAt, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens]
+ * It quantizes both the query and each feature vector to int8, then computes
+ * cosine similarity and returns up to topK results sorted descending.
+ */
+describe('InMemoryUsageLedgerRepository.searchByEmbedding', () => {
+  it('returns [] for an empty repository', () => {
+    const repo = new InMemoryUsageLedgerRepository();
+    const results = repo.searchByEmbedding([1, 0, 0, 0, 0, 0]);
+    expect(results).toEqual([]);
+  });
+
+  it('returns ledger records ranked by feature vector similarity', async () => {
+    const repo = new InMemoryUsageLedgerRepository();
+    const svc = new UsageApplicationService(repo, new DomainEventBus());
+
+    // Ledger A: high token counts
+    await svc.openLedger({ id: 'embed-ledger-a', sessionId: 'embed-sess-a', projectId: 'embed-proj' });
+    await svc.recordUsage({ sessionId: 'embed-sess-a', record: { ...RECORD_A, inputTokens: 1000, outputTokens: 800 } });
+
+    // Ledger B: low token counts
+    await svc.openLedger({ id: 'embed-ledger-b', sessionId: 'embed-sess-b', projectId: 'embed-proj' });
+    await svc.recordUsage({ sessionId: 'embed-sess-b', record: { ...RECORD_A, inputTokens: 1, outputTokens: 1 } });
+
+    // Query resembling high-token ledger: large inputTokens and outputTokens
+    const results = repo.searchByEmbedding([0, 0, 1000, 800, 0, 0]);
+
+    expect(results.length).toBeGreaterThan(0);
+    // The high-token ledger should score higher
+    const idA = results.find((r) => r.ledgerId === 'embed-ledger-a');
+    const idB = results.find((r) => r.ledgerId === 'embed-ledger-b');
+    expect(idA).toBeDefined();
+    expect(idB).toBeDefined();
+    expect(idA!.score).toBeGreaterThanOrEqual(idB!.score);
+  });
+
+  it('topK limits the result count', async () => {
+    const repo = new InMemoryUsageLedgerRepository();
+    const svc = new UsageApplicationService(repo, new DomainEventBus());
+
+    // Create 5 ledgers
+    for (let i = 0; i < 5; i++) {
+      await svc.openLedger({
+        id: `embed-topk-${i}`,
+        sessionId: `embed-topk-sess-${i}`,
+        projectId: 'embed-topk-proj',
+      });
+      await svc.recordUsage({
+        sessionId: `embed-topk-sess-${i}`,
+        record: { ...RECORD_A, inputTokens: (i + 1) * 100, outputTokens: (i + 1) * 50 },
+      });
+    }
+
+    const results = repo.searchByEmbedding([0, 0, 1, 1, 0, 0], 3);
+
+    expect(results).toHaveLength(3);
+  });
+
+  it('returned items have { ledgerId, score } shape', async () => {
+    const repo = new InMemoryUsageLedgerRepository();
+    const svc = new UsageApplicationService(repo, new DomainEventBus());
+
+    await svc.openLedger({ id: 'embed-shape-ledger', sessionId: 'embed-shape-sess', projectId: 'embed-shape-proj' });
+    await svc.recordUsage({ sessionId: 'embed-shape-sess', record: RECORD_A });
+
+    const results = repo.searchByEmbedding([0, 0, 100, 50, 0, 0], 5);
+
+    expect(results.length).toBeGreaterThan(0);
+    for (const item of results) {
+      expect(item).toHaveProperty('ledgerId');
+      expect(item).toHaveProperty('score');
+      expect(typeof item.ledgerId).toBe('string');
+      expect(typeof item.score).toBe('number');
+    }
+  });
+});
+
 describe('UsageApplicationService.queryUsage()', () => {
   let repo: InMemoryUsageLedgerRepository;
   let svc: UsageApplicationService;
