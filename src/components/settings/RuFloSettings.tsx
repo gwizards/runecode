@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { ruFloService, RUFLO_EVENTS, dispatchRuFloEvent, type RuFloInstallation } from '@/domain/ruflo';
+import { useState, useEffect } from 'react';
+import { ruFloService, useRuFloStore } from '@/domain/ruflo';
 import { Loader2 } from 'lucide-react';
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -20,11 +20,9 @@ function StatusRow({ active, label }: { active: boolean; label: string }) {
 }
 
 export function RuFloSettings() {
-  const [status, setStatus] = useState<RuFloInstallation | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { installation: status, loading, fetchInstallation, install, uninstall, activateMcp, deactivateMcp, createSlashCommand } = useRuFloStore();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const [memoryStats, setMemoryStats] = useState<{ total?: number; backend?: string } | null>(null);
   const [memoryBackend, setMemoryBackend] = useState<'agentdb' | 'hnsw' | 'hybrid'>('hybrid');
@@ -37,21 +35,9 @@ export function RuFloSettings() {
   });
   const [autoInit, setAutoInit] = useState(() => localStorage.getItem('runecode-ruflo-auto-init') !== 'false');
 
-  const refresh = useCallback(async () => {
-    setRefreshError(null);
-    try {
-      const s = await ruFloService.getInstallation();
-      setStatus(s);
-      dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
-    } catch (e) {
-      setRefreshError(String(e));
-      // keep stale status rather than resetting to null
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const refresh = fetchInstallation;
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { fetchInstallation(); }, [fetchInstallation]);
 
   const runAction = async (key: string, fn: () => Promise<unknown>) => {
     setActionLoading(key);
@@ -86,12 +72,6 @@ export function RuFloSettings() {
           {error}
         </div>
       )}
-      {refreshError && (
-        <div className="text-sm text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
-          Status check failed: {refreshError}
-        </div>
-      )}
-
       {/* Card 1: Install Status */}
       <Card>
         <CardTitle>Installation</CardTitle>
@@ -101,7 +81,7 @@ export function RuFloSettings() {
           {status?.installed ? (
             <>
               <button
-                onClick={() => runAction('update', () => ruFloService.install())}
+                onClick={() => runAction('update', () => install())}
                 disabled={actionLoading !== null}
                 className="px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs hover:bg-purple-600/30 transition-colors disabled:opacity-50"
               >
@@ -110,7 +90,7 @@ export function RuFloSettings() {
               <button
                 onClick={() => {
                   if (window.confirm('Uninstall RuFlo? This removes the global CLI.')) {
-                    runAction('uninstall', () => ruFloService.uninstall());
+                    runAction('uninstall', () => uninstall());
                   }
                 }}
                 disabled={actionLoading !== null}
@@ -121,7 +101,7 @@ export function RuFloSettings() {
             </>
           ) : (
             <button
-              onClick={() => runAction('install', () => ruFloService.install())}
+              onClick={() => runAction('install', () => install())}
               disabled={actionLoading !== null}
               className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs hover:bg-purple-500 transition-colors disabled:opacity-50"
             >
@@ -141,7 +121,7 @@ export function RuFloSettings() {
         <div className="flex gap-2">
           {!status?.mcpActive ? (
             <button
-              onClick={() => runAction('mcp-activate', () => ruFloService.activateMcp())}
+              onClick={() => runAction('mcp-activate', () => activateMcp())}
               disabled={actionLoading !== null || !status?.installed}
               className="px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs hover:bg-purple-600/30 transition-colors disabled:opacity-50"
             >
@@ -149,7 +129,7 @@ export function RuFloSettings() {
             </button>
           ) : (
             <button
-              onClick={() => runAction('mcp-deactivate', () => ruFloService.deactivateMcp())}
+              onClick={() => runAction('mcp-deactivate', () => deactivateMcp())}
               disabled={actionLoading !== null}
               className="px-3 py-1.5 rounded-lg bg-zinc-700 text-white/60 text-xs hover:bg-zinc-600 transition-colors disabled:opacity-50"
             >
@@ -165,7 +145,7 @@ export function RuFloSettings() {
         <StatusRow active={status?.slashCommandExists ?? false} label={status?.slashCommandExists ? 'Present' : 'Missing'} />
         <p className="text-xs text-white/40">~/.claude/commands/setup-ruflo.md</p>
         <button
-          onClick={() => runAction('slash', () => ruFloService.createSlashCommand())}
+          onClick={() => runAction('slash', () => createSlashCommand())}
           disabled={actionLoading !== null || !status?.installed}
           className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
         >

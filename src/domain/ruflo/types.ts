@@ -6,6 +6,24 @@ import type {
   RuFloProjectStatus as ApiProjectStatus,
 } from '@/lib/api';
 
+// ─── Branded / Newtype IDs ────────────────────────────────────────────────────
+
+declare const _agentId: unique symbol;
+/** Branded type for agent identifiers — prevents mixing with other string IDs */
+export type AgentId = string & { readonly [_agentId]: true };
+
+declare const _swarmId: unique symbol;
+/** Branded type for swarm identifiers */
+export type SwarmId = string & { readonly [_swarmId]: true };
+
+export function toAgentId(raw: string): AgentId {
+  return raw as AgentId;
+}
+
+export function toSwarmId(raw: string): SwarmId {
+  return raw as SwarmId;
+}
+
 export type AgentStatus =
   | 'running'
   | 'waiting'
@@ -32,7 +50,7 @@ export interface RuFloInstallation {
 }
 
 export interface RuFloAgent {
-  id: string;
+  id: AgentId;
   name: string;
   agentType: AgentType;
   status: AgentStatus;
@@ -72,7 +90,7 @@ export function toRuFloInstallation(raw: RuFloStatus): RuFloInstallation {
 export function toRuFloAgent(raw: ApiAgent): RuFloAgent {
   const status = (raw.status as AgentStatus) ?? 'unknown';
   return {
-    id: raw.id,
+    id: toAgentId(raw.id),
     name: raw.name,
     agentType: raw.agent_type,
     status,
@@ -97,4 +115,34 @@ export function toRuFloProjectStatus(raw: ApiProjectStatus): RuFloProjectStatus 
     blocked: raw.blocked,
     total: raw.pending + raw.completed + raw.blocked,
   };
+}
+
+// ─── Domain Invariants ────────────────────────────────────────────────────────
+
+/** Parse a semantic version string "X.Y.Z" or "vX.Y.Z" */
+export function parseVersion(raw: string): { major: number; minor: number; patch: number } | null {
+  const cleaned = raw.trim().replace(/^v/, '');
+  const match = cleaned.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) };
+}
+
+/** True if installation is fully configured (installed + MCP + slash command) */
+export function isFullyConfigured(inst: RuFloInstallation): boolean {
+  return inst.installed && inst.mcpActive && inst.slashCommandExists;
+}
+
+/** True if version is >= minimum supported (3.0.0) */
+export function isVersionSupported(versionStr: string | null): boolean {
+  if (!versionStr) return false;
+  const v = parseVersion(versionStr);
+  if (!v) return false;
+  return v.major >= 3;
+}
+
+/** Summarize swarm health as a string */
+export function swarmHealthLabel(swarm: RuFloSwarm): 'healthy' | 'idle' | 'inactive' {
+  if (!swarm.active) return 'inactive';
+  const activeCount = swarm.agents.filter(a => a.isActive).length;
+  return activeCount > 0 ? 'healthy' : 'idle';
 }

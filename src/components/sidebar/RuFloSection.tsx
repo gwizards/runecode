@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Zap } from 'lucide-react';
 import {
   ruFloService,
+  useRuFloStore,
   onRuFloEvent,
   RUFLO_EVENTS,
   type RuFloProjectStatus,
-  type RuFloSwarm,
   type RuFloAgent,
 } from '@/domain/ruflo';
 
@@ -29,10 +29,10 @@ function StatusDot({ active }: { active: boolean }) {
 }
 
 export function RuFloSection({ projectPath }: RuFloSectionProps) {
+  const { swarm: swarmStatus, installation, fetchInstallation, fetchSwarm } = useRuFloStore();
+  const isInstalled: boolean | null = installation === null ? null : installation.installed;
   const [isExpanded, setIsExpanded] = useState(false);
   const [projectStatus, setProjectStatus] = useState<RuFloProjectStatus | null>(null);
-  const [swarmStatus, setSwarmStatus] = useState<RuFloSwarm | null>(null);
-  const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [isIniting, setIsIniting] = useState(false);
   const [memoryBackend, setMemoryBackend] = useState<string>('hybrid');
@@ -43,12 +43,9 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
   const fetchData = useCallback(async () => {
     if (!projectPath) return;
     try {
-      const [proj, swarm] = await Promise.all([
-        ruFloService.getProjectStatus(projectPath),
-        ruFloService.getSwarmStatus(),
-      ]);
+      const proj = await ruFloService.getProjectStatus(projectPath);
       setProjectStatus(proj);
-      setSwarmStatus(swarm);
+      await fetchSwarm();
       setIsStale(false);
     } catch {
       setIsStale(true);
@@ -60,23 +57,19 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
         setMemoryBackend(String(s.backend ?? 'hybrid'));
       }
     } catch { /* non-critical */ }
-  }, [projectPath]);
+  }, [projectPath, fetchSwarm]);
 
   // Check install status once on mount
   useEffect(() => {
-    ruFloService.getInstallation()
-      .then((s) => setIsInstalled(s.installed))
-      .catch(() => setIsInstalled(false));
-  }, []);
+    fetchInstallation();
+  }, [fetchInstallation]);
 
   // Re-check install status when Settings triggers a ruflo status change
   useEffect(() => {
     return onRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED, () => {
-      ruFloService.getInstallation()
-        .then((s) => setIsInstalled(s.installed))
-        .catch(() => setIsInstalled(false));
+      fetchInstallation();
     });
-  }, []);
+  }, [fetchInstallation]);
 
   // Fetch + poll only when expanded
   useEffect(() => {
