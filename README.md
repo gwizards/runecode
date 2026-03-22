@@ -9,10 +9,19 @@
   </p>
 
   <p>
-    <a href="https://runecode.sh"><img src="https://img.shields.io/badge/runecode.sh-8b5cf6?style=for-the-badge" alt="Website"></a>
-    <a href="#features"><img src="https://img.shields.io/badge/Features-✨-blue?style=for-the-badge" alt="Features"></a>
-    <a href="#installation"><img src="https://img.shields.io/badge/Install-🚀-green?style=for-the-badge" alt="Installation"></a>
+    <a href="https://github.com/gwizards/runecode/releases/tag/v0.5.20"><img src="https://img.shields.io/badge/v0.5.20-Latest-8b5cf6?style=for-the-badge" alt="Latest Release"></a>
+    <a href="https://runecode.sh"><img src="https://img.shields.io/badge/runecode.sh-website-6d28d9?style=for-the-badge" alt="Website"></a>
     <a href="https://discord.com/invite/KYwhHVzUsY"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+    <a href="https://github.com/gwizards/runecode/releases"><img src="https://img.shields.io/badge/All_Releases-📦-gray?style=for-the-badge" alt="All Releases"></a>
+  </p>
+
+  <h3>⬇️ Download v0.5.20</h3>
+
+  <p>
+    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64.msi"><img src="https://img.shields.io/badge/Windows-.msi-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows MSI"></a>
+    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64_setup.exe"><img src="https://img.shields.io/badge/Windows-.exe-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows EXE"></a>
+    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.AppImage"><img src="https://img.shields.io/badge/Linux-.AppImage-f97316?style=for-the-badge&logo=linux&logoColor=white" alt="Linux AppImage"></a>
+    <a href="https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.deb"><img src="https://img.shields.io/badge/Linux-.deb-f97316?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Linux DEB"></a>
   </p>
 
   <p>
@@ -139,15 +148,15 @@ Access the full UI from any browser. The frontend is embedded in the binary — 
 
 ### Download
 
-Pre-built binaries are available for macOS, Windows, and Linux:
+**Latest release: [v0.5.20](https://github.com/gwizards/runecode/releases/tag/v0.5.20)** · [All releases](https://github.com/gwizards/runecode/releases)
 
-**[Download the latest release](https://github.com/gwizards/runecode/releases)**
+| Platform | Download | Format |
+|----------|----------|--------|
+| Windows | [RuneCode_0.5.20_windows_x64.msi](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64.msi) · [.exe](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_windows_x64_setup.exe) | `.msi` or `.exe` |
+| Linux | [RuneCode_0.5.20_linux_amd64.AppImage](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.AppImage) · [.deb](https://github.com/gwizards/runecode/releases/download/v0.5.20/RuneCode_0.5.20_linux_amd64.deb) | `.AppImage` or `.deb` |
+| macOS | [GitHub Releases page](https://github.com/gwizards/runecode/releases/tag/v0.5.20) | `.dmg` (when available) |
 
-| Platform | Format |
-|----------|--------|
-| macOS (Apple Silicon + Intel) | `.dmg` |
-| Windows | `.msi`, `.exe` |
-| Linux | `.AppImage`, `.deb` |
+SHA256 checksums: [SHA256SUMS.txt](https://github.com/gwizards/runecode/releases/download/v0.5.20/SHA256SUMS.txt)
 
 ## Build from Source
 
@@ -199,30 +208,42 @@ runecode serve        # Headless server mode
 runecode/
 ├── src/                        # React frontend
 │   ├── components/             # UI components
-│   │   ├── widgets/            # Individual tool widgets (21 files)
-│   │   ├── sidebar/            # Sidebar sections
+│   │   ├── widgets/            # Individual tool widgets
+│   │   ├── sidebar/            # Sidebar sections (RuFlo, resources, agents)
 │   │   └── ui/                 # shadcn/ui primitives
+│   ├── domain/                 # Domain-Driven Design bounded contexts
+│   │   ├── agent/              # AgentId VO, agent aggregates
+│   │   ├── analytics/          # Analytics session tracking
+│   │   ├── identity/           # UserId, Email, DisplayName VOs
+│   │   ├── mcp/                # MCP server management
+│   │   ├── project/            # ProjectId VO, project status
+│   │   ├── ruflo/              # RuFlo swarm integration (AgentId, SwarmId VOs)
+│   │   ├── session/            # Session aggregates
+│   │   ├── shared/             # Result<T> monad, shared kernel
+│   │   ├── usage/              # Token/cost tracking (integer micro-USD)
+│   │   └── workspace/          # TabId, WorkspaceId VOs
 │   ├── integrations/           # Partner integration framework
-│   │   ├── compute/            # Resource monitor, cloud eject
-│   │   ├── security/           # .env scanner, warnings
-│   │   ├── intelligence/       # LLM gateway recommendation
-│   │   └── observability/      # Helicone cost guard
-│   ├── stores/                 # Zustand state (agent, session)
 │   ├── hooks/                  # Custom React hooks
 │   └── lib/                    # API client, utilities
 ├── src-tauri/                  # Rust backend
 │   └── src/
-│       ├── commands/           # Tauri commands (claude, agents, resources, skills, helicone)
+│       ├── commands/           # Tauri commands (claude, agents, resources, usage)
+│       ├── path_guard.rs       # Path traversal protection
+│       ├── ws_types.rs         # WebSocket protocol (9 message types)
 │       ├── web_server.rs       # Axum server for headless mode
 │       └── main.rs             # Desktop entry point
+├── docs/
+│   ├── adr/                    # Architecture Decision Records
+│   └── rust-migration/         # Rust migration plan & audit reports
 └── public/                     # Static assets
 ```
 
 ## Security
 
 - **Process Isolation** — agents run in separate processes
-- **Permission Control** — configure file and network access per agent
-- **Local Storage** — all data stays on your machine
+- **Permission Control** — configurable permission modes per session (default, acceptEdits, bypassPermissions)
+- **Path Guard** — all file operations canonicalize paths and enforce home-directory boundaries (prevents traversal attacks)
+- **Local Storage** — all data stays on your machine; SQLite with WAL mode for crash safety
 - **Secret Detection** — warns about plaintext .env files
 - **Open Source** — full transparency through AGPL-3.0
 
