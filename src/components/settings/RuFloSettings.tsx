@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ruFloService, useRuFloStore } from '@/domain/ruflo';
+import { ruFloService, useRuFloStore, isFullyConfigured, isVersionSupported } from '@/domain/ruflo';
 import { Loader2 } from 'lucide-react';
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -74,8 +74,27 @@ export function RuFloSettings() {
       )}
       {/* Card 1: Install Status */}
       <Card>
-        <CardTitle>Installation</CardTitle>
-        <StatusRow active={status?.installed ?? false} label={status?.installed ? `Installed · v${status.version ?? '?'}` : 'Not installed'} />
+        <div className="flex items-center justify-between">
+          <CardTitle>Installation</CardTitle>
+          {status?.installed && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+              isFullyConfigured(status)
+                ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+            }`}>
+              {isFullyConfigured(status) ? 'Fully configured' : 'Setup incomplete'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusRow active={status?.installed ?? false} label={status?.installed ? 'Installed' : 'Not installed'} />
+          {status?.version && (
+            <span className={`text-xs ${isVersionSupported(status.version) ? 'text-green-400/70' : 'text-amber-400'}`}>
+              v{status.version}
+              {!isVersionSupported(status.version) && ' ⚠ upgrade recommended'}
+            </span>
+          )}
+        </div>
         <p className="text-xs text-white/40">Global npm package · @claude-flow/cli</p>
         <div className="flex gap-2 pt-1">
           {status?.installed ? (

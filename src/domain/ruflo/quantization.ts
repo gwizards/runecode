@@ -324,3 +324,19 @@ export function quantizationSavings(
     pqConfig: { subspaces: pqSubspaces, centroids: pqCentroids, codebookBytes },
   };
 }
+
+import type { QuantizationMode } from './memory-store';
+export type { QuantizationMode } from './memory-store';
+
+/**
+ * Recommend a quantization mode based on corpus size and quality requirements.
+ *
+ * - < 100 entries: 'none' (overhead not worth it)
+ * - 100–10,000 entries: 'scalar' (4x reduction, near-lossless)
+ * - > 10,000 entries: 'product' (192x reduction, requires training)
+ */
+export function recommendMode(entryCount: number, requireHighAccuracy = false): QuantizationMode {
+  if (requireHighAccuracy || entryCount < 100) return 'none';
+  if (entryCount < 10_000) return 'scalar';
+  return 'product';
+}

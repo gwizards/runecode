@@ -108,7 +108,7 @@ pub fn check_ruflo_installed() -> RuFloStatus {
         })
         .unwrap_or(false);
 
-    let result = RuFloStatus { installed, version, mcp_active, slash_command_exists };
+    let result = RuFloStatus::build(installed, version, mcp_active, slash_command_exists);
     write_cache("runecode_ruflo_cache.json", &result);
     result
 }

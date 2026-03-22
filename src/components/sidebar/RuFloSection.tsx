@@ -5,6 +5,8 @@ import {
   useRuFloStore,
   onRuFloEvent,
   RUFLO_EVENTS,
+  swarmHealthLabel,
+  isFullyConfigured,
   type RuFloProjectStatus,
   type RuFloAgent,
 } from '@/domain/ruflo';
@@ -109,7 +111,12 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
 
   return (
     <div className="px-3 py-1">
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50 px-1 pb-1">RuFlo</div>
+      <div className="flex items-center gap-1.5 px-1 pb-1">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">RuFlo</div>
+        {installation && !isFullyConfigured(installation) && installation.installed && (
+          <span className="text-[9px] text-amber-400/60">setup incomplete</span>
+        )}
+      </div>
 
       {/* Collapsible header */}
       <button
@@ -127,6 +134,15 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
           <span className="text-[10px] text-muted-foreground/50">
             {agentCount} agent{agentCount !== 1 ? 's' : ''} · {totalTasks} task{totalTasks !== 1 ? 's' : ''}
           </span>
+          {swarmStatus && (
+            <span className={`text-[9px] px-1 rounded ${
+              swarmHealthLabel(swarmStatus) === 'healthy' ? 'text-green-400/70' :
+              swarmHealthLabel(swarmStatus) === 'idle' ? 'text-white/40' :
+              'text-red-400/50'
+            }`}>
+              {swarmHealthLabel(swarmStatus)}
+            </span>
+          )}
           {isStale && <span className="text-[9px] text-yellow-500/70">• stale</span>}
         </div>
         <span className="text-muted-foreground/40 text-[10px]">{isExpanded ? '▴' : '▾'}</span>

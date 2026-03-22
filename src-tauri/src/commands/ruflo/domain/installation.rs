@@ -69,9 +69,27 @@ pub struct RuFloStatus {
     pub version: Option<String>,
     pub mcp_active: bool,
     pub slash_command_exists: bool,
+    /// True if version >= 3.0.0 (minimum supported), false if unknown or too old
+    #[serde(default)]
+    pub is_supported: bool,
 }
 
 impl RuFloStatus {
+    /// Build a fully-populated status, computing derived fields.
+    pub fn build(
+        installed: bool,
+        version: Option<String>,
+        mcp_active: bool,
+        slash_command_exists: bool,
+    ) -> Self {
+        let is_supported = version
+            .as_deref()
+            .and_then(RuFloVersion::parse)
+            .map(|v| v.is_supported())
+            .unwrap_or(false);
+        Self { installed, version, mcp_active, slash_command_exists, is_supported }
+    }
+
     /// Parse the version string into a typed value object, if present.
     #[allow(dead_code)]
     pub fn parsed_version(&self) -> Option<RuFloVersion> {
