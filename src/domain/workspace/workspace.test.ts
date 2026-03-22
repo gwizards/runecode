@@ -448,6 +448,72 @@ describe('WorkspaceApplicationService.reorderTabs()', () => {
   });
 });
 
+// ─── renameTab ────────────────────────────────────────────────────────────────
+
+describe('WorkspaceApplicationService.renameTab()', () => {
+  let repo: InMemoryWorkspaceRepository;
+  let bus: DomainEventBus;
+  let collected: DomainEvent[];
+  let svc: WorkspaceApplicationService;
+  let workspaceId: WorkspaceId;
+  let tabA: TabId;
+
+  beforeEach(() => {
+    repo = new InMemoryWorkspaceRepository();
+    ({ bus, collected } = makeCollectingBus());
+    svc = new WorkspaceApplicationService(repo, bus);
+
+    const wsResult = svc.createWorkspace(uniqueSessionId(), uniqueProjectId());
+    if (!wsResult.ok) throw new Error('setup failed');
+    workspaceId = wsResult.value;
+
+    const r1 = svc.openTab(workspaceId, '/src/a.ts', 'a.ts', 'tab-rename-a');
+    if (!r1.ok) throw new Error('setup failed');
+    tabA = r1.value;
+    collected.length = 0;
+  });
+
+  it('returns Ok when renaming an existing tab', () => {
+    const result = svc.renameTab(workspaceId, tabA, 'New Title');
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('persists the new title so getWorkspace reflects it', () => {
+    svc.renameTab(workspaceId, tabA, 'Renamed Title');
+
+    const ws = svc.getWorkspace(workspaceId);
+    expect(ws.ok).toBe(true);
+    if (!ws.ok) return;
+    const tab = ws.value.tabs.find(t => t.id === tabA);
+    expect(tab).toBeDefined();
+    expect(tab?.title).toBe('Renamed Title');
+  });
+
+  it('dispatches TAB_RENAMED event on success', () => {
+    svc.renameTab(workspaceId, tabA, 'Renamed Title');
+
+    const renamed = collected.filter(e => e.type === WORKSPACE_EVENT_TYPES.TAB_RENAMED);
+    expect(renamed).toHaveLength(1);
+  });
+
+  it('TAB_RENAMED event carries the correct tabId and new title', () => {
+    svc.renameTab(workspaceId, tabA, 'My New Name');
+
+    const evt = collected.find(e => e.type === WORKSPACE_EVENT_TYPES.TAB_RENAMED);
+    expect(evt).toBeDefined();
+    const typed = evt as unknown as { tabId: TabId; newTitle: string };
+    expect(typed.tabId).toBe(tabA);
+    expect(typed.newTitle).toBe('My New Name');
+  });
+
+  it('returns Err for an unknown workspaceId', () => {
+    const result = svc.renameTab(toWorkspaceId('ws-unknown'), tabA, 'Title');
+
+    expect(result.ok).toBe(false);
+  });
+});
+
 // ─── getWorkspace ─────────────────────────────────────────────────────────────
 
 describe('WorkspaceApplicationService.getWorkspace()', () => {

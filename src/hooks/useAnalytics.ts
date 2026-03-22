@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { analytics, ANALYTICS_EVENTS, eventBuilders } from '@/lib/analytics';
-import type { EventName } from '@/lib/analytics/types';
+import { analytics, ANALYTICS_EVENTS, eventBuilders } from '@/infrastructure/analytics';
+import type { EventName } from '@/infrastructure/analytics';
 
 // Screen name mapping for tab types
 const TAB_SCREEN_NAMES: Record<string, string> = {

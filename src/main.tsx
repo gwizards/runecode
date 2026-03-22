@@ -9,7 +9,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AnalyticsErrorBoundary } from "./components/AnalyticsErrorBoundary";
-import { analytics } from "./lib/analytics";
+import { analytics } from "./infrastructure/analytics";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import "./assets/shimmer.css";

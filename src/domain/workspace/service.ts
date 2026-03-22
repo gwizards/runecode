@@ -18,7 +18,7 @@ import type { Result } from '../shared/result';
 import { Ok, Err } from '../shared/result';
 import type { DomainEventBus } from '../shared/event-bus';
 import { WorkspaceAggregate } from './types';
-import type { WorkspaceId, TabId, RawWorkspace } from './types';
+import type { WorkspaceId, TabId, RawWorkspace, RawTab } from './types';
 import type { IWorkspaceRepository } from './repository';
 import type { SessionId } from '../session/types';
 import type { ProjectId } from '../project/types';
@@ -79,22 +79,25 @@ export class WorkspaceApplicationService {
   /**
    * Opens a new tab (or focuses it if already open) in the workspace.
    *
-   * @param tabId - caller-supplied ID (e.g. the existing React tab id)
-   * @param path  - filesystem or virtual path for the tab
-   * @param title - display title
+   * @param workspaceId - target workspace
+   * @param path        - filesystem or virtual path for the tab
+   * @param title       - display title
+   * @param rawTabId    - optional caller-supplied ID (e.g. the existing React tab id)
+   * @param opts        - optional extended tab metadata (tabType, status, sessionId, etc.)
    */
   openTab(
     workspaceId: WorkspaceId,
     path: string,
     title: string,
     rawTabId?: string,
+    opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
   ): Result<TabId> {
     return this._withWorkspace(workspaceId, (ws) => {
       const tabId = rawTabId
         ? toTabId(rawTabId)
         : toTabId(`tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
 
-      ws.openTab(tabId, path, title);
+      ws.openTab(tabId, path, title, opts);
       return Ok(tabId);
     });
   }

@@ -6,9 +6,9 @@
  * No domain logic — business rules live in src/domain/analytics/.
  */
 
-import { ConsentManager } from '../../lib/analytics/consent';
-import { sanitizers } from '../../lib/analytics/events';
-import type { AnalyticsConfig, AnalyticsEvent, EventName, AnalyticsSettings } from '../../lib/analytics/types';
+import { ConsentManager } from './consent';
+import { sanitizers } from './events';
+import type { AnalyticsConfig, AnalyticsEvent, EventName, AnalyticsSettings } from './types';
 import {
   initPosthog,
   trackEvent as posthogTrack,
@@ -18,8 +18,8 @@ import {
 } from './posthog-adapter';
 
 // Re-export domain vocabulary so callers can import from one place.
-export { ANALYTICS_EVENTS, eventBuilders, sanitizers } from '../../lib/analytics/events';
-export { ConsentManager } from '../../lib/analytics/consent';
+export { ANALYTICS_EVENTS, eventBuilders, sanitizers } from './events';
+export { ConsentManager } from './consent';
 
 class AnalyticsService {
   private static instance: AnalyticsService;

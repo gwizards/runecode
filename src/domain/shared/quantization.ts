@@ -626,6 +626,220 @@ export class WorkspaceSnapshotQuantizer extends ScalarQuantizer<RawWorkspace> {
   }
 }
 
+// ─── SessionSnapshotQuantizer ─────────────────────────────────────────────────
+
+import type { RawSession } from '../session/types';
+
+// SessionStatus codec (4 values fit in a uint8)
+const SESSION_STATUS_ENCODE: Record<string, number> = {
+  running: 0,
+  completed: 1,
+  error: 2,
+  idle: 3,
+};
+
+const SESSION_STATUS_DECODE = ['running', 'completed', 'error', 'idle'] as const;
+
+/**
+ * Quantizes RawSession snapshots.
+ *
+ * Fixed buffer layout (version 1):
+ *   uint8[0]  — status code (0=running, 1=completed, 2=error, 3=idle)
+ *   uint32[0] — createdAt            (seconds since epoch; 0 = not set)
+ *   uint32[1] — inputTokens          (lossless: max ~4.29B)
+ *   uint32[2] — outputTokens         (lossless: max ~4.29B)
+ *   uint32[3] — cacheReadTokens      (lossless)
+ *   uint32[4] — cacheCreationTokens  (lossless)
+ *
+ * Memory per record (quantized fixed fields only):
+ *   Before: status string ~9 + 2×ISO-8601~24 + 5×float64 = ~88 bytes
+ *   After:  1×uint8 + 5×uint32 = 21 bytes
+ *   Saving: ~76% on quantizable fields
+ *
+ * String fields (id, projectId, title) are preserved as-is.
+ * updatedAt is preserved as an ISO string in the strings map.
+ */
+export class SessionSnapshotQuantizer extends ScalarQuantizer<RawSession> {
+  readonly version = 1;
+
+  encode(snapshot: RawSession): QuantizedBuffer {
+    const fixed = this.makeEmptyBuffer(
+      1,  // uint8:  [status]
+      0,  // uint16: (none)
+      5,  // uint32: [createdAt, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens]
+      0,  // int8:   (none)
+      0,  // int16:  (none)
+    );
+
+    fixed.uint8[0] = SESSION_STATUS_ENCODE[snapshot.status ?? 'idle'] ?? 3;
+    fixed.uint32[0] = this.encodeIsoTimestamp(snapshot.createdAt);
+    fixed.uint32[1] = Math.min(snapshot.tokenUsage?.inputTokens ?? 0, 0xFFFFFFFF) >>> 0;
+    fixed.uint32[2] = Math.min(snapshot.tokenUsage?.outputTokens ?? 0, 0xFFFFFFFF) >>> 0;
+    fixed.uint32[3] = Math.min(snapshot.tokenUsage?.cacheReadTokens ?? 0, 0xFFFFFFFF) >>> 0;
+    fixed.uint32[4] = Math.min(snapshot.tokenUsage?.cacheCreationTokens ?? 0, 0xFFFFFFFF) >>> 0;
+
+    const strings: Record<string, string> = {
+      id: snapshot.id,
+      projectId: snapshot.projectId,
+    };
+    if (snapshot.title !== undefined) strings['title'] = snapshot.title;
+    if (snapshot.updatedAt !== undefined) strings['updatedAt'] = snapshot.updatedAt;
+    if (snapshot.tokenUsage?.costUsd !== undefined) strings['costUsd'] = String(snapshot.tokenUsage.costUsd);
+
+    return {
+      version: this.version,
+      fixed,
+      strings,
+      params: {
+        createdAt: { scale: 1000, zeroPoint: 0 },
+        inputTokens: { scale: 1, zeroPoint: 0 },
+        outputTokens: { scale: 1, zeroPoint: 0 },
+        cacheReadTokens: { scale: 1, zeroPoint: 0 },
+        cacheCreationTokens: { scale: 1, zeroPoint: 0 },
+      },
+    };
+  }
+
+  decode(buf: QuantizedBuffer): RawSession {
+    this.assertVersion(buf);
+
+    const statusCode = buf.fixed.uint8[0] ?? 3;
+    const createdAtSec = buf.fixed.uint32[0] ?? 0;
+    const inputTokens = buf.fixed.uint32[1] ?? 0;
+    const outputTokens = buf.fixed.uint32[2] ?? 0;
+    const cacheReadTokens = buf.fixed.uint32[3] ?? 0;
+    const cacheCreationTokens = buf.fixed.uint32[4] ?? 0;
+
+    const result: RawSession = {
+      id: buf.strings['id'] ?? '',
+      projectId: buf.strings['projectId'] ?? '',
+      status: SESSION_STATUS_DECODE[statusCode] ?? 'idle',
+      createdAt: this.decodeIsoTimestamp(createdAtSec),
+      tokenUsage: {
+        inputTokens: inputTokens >>> 0,
+        outputTokens: outputTokens >>> 0,
+        costUsd: parseFloat(buf.strings['costUsd'] ?? '0'),
+        cacheReadTokens: cacheReadTokens >>> 0,
+        cacheCreationTokens: cacheCreationTokens >>> 0,
+      },
+    };
+
+    if (buf.strings['title'] !== undefined) result.title = buf.strings['title'];
+    if (buf.strings['updatedAt'] !== undefined) result.updatedAt = buf.strings['updatedAt'];
+
+    return result;
+  }
+}
+
+// ─── CommandSnapshotQuantizer ─────────────────────────────────────────────────
+
+import type { RawCommandSnapshot, CommandScope } from '../command/types';
+
+// CommandScope codec (4 values fit in a uint8)
+const COMMAND_SCOPE_ENCODE: Record<CommandScope, number> = {
+  builtin: 0,
+  user: 1,
+  project: 2,
+  skill: 3,
+};
+
+const COMMAND_SCOPE_DECODE: CommandScope[] = ['builtin', 'user', 'project', 'skill'];
+
+/**
+ * Quantizes RawCommandSnapshot snapshots.
+ *
+ * Fixed buffer layout (version 1):
+ *   uint8[0]  — scope code (0=builtin, 1=user, 2=project, 3=skill)
+ *   uint8[1]  — capabilities flags: bit0=hasBashCommands, bit1=hasFileReferences,
+ *               bit2=acceptsArguments
+ *   uint32[0] — registeredAt (seconds since epoch)
+ *
+ * Memory per record (quantized fixed fields only):
+ *   Before: scope string ~7 + 3×boolean + 1×float64 = ~32 bytes
+ *   After:  2×uint8 + 1×uint32 = 6 bytes
+ *   Saving: ~81% on quantizable fields
+ *
+ * String fields (id, name, fullCommand, content) are preserved as-is.
+ * Optional strings (namespace, filePath, description) are stored if present.
+ * allowedTools array is serialized as a JSON string.
+ */
+export class CommandSnapshotQuantizer extends ScalarQuantizer<RawCommandSnapshot> {
+  readonly version = 1;
+
+  encode(snapshot: RawCommandSnapshot): QuantizedBuffer {
+    const fixed = this.makeEmptyBuffer(
+      2,  // uint8:  [scope, capabilitiesFlags]
+      0,  // uint16: (none)
+      1,  // uint32: [registeredAt]
+      0,  // int8:   (none)
+      0,  // int16:  (none)
+    );
+
+    fixed.uint8[0] = COMMAND_SCOPE_ENCODE[snapshot.scope] ?? 0;
+
+    let capFlags = 0;
+    if (snapshot.capabilities.hasBashCommands)   capFlags |= 0b001;
+    if (snapshot.capabilities.hasFileReferences) capFlags |= 0b010;
+    if (snapshot.capabilities.acceptsArguments)  capFlags |= 0b100;
+    fixed.uint8[1] = capFlags;
+
+    fixed.uint32[0] = this.encodeTimestampMs(snapshot.registeredAt);
+
+    const strings: Record<string, string> = {
+      id: snapshot.id,
+      name: snapshot.name,
+      fullCommand: snapshot.fullCommand,
+      content: snapshot.content,
+      allowedTools: JSON.stringify(snapshot.capabilities.allowedTools),
+    };
+    if (snapshot.namespace !== undefined)   strings['namespace'] = snapshot.namespace;
+    if (snapshot.filePath !== undefined)    strings['filePath'] = snapshot.filePath;
+    if (snapshot.description !== undefined) strings['description'] = snapshot.description;
+
+    return {
+      version: this.version,
+      fixed,
+      strings,
+      params: {
+        registeredAt: { scale: 1000, zeroPoint: 0 },
+      },
+    };
+  }
+
+  decode(buf: QuantizedBuffer): RawCommandSnapshot {
+    this.assertVersion(buf);
+
+    const scopeCode = buf.fixed.uint8[0] ?? 0;
+    const capFlags = buf.fixed.uint8[1] ?? 0;
+    const registeredAtSec = buf.fixed.uint32[0] ?? 0;
+
+    const scope: CommandScope = COMMAND_SCOPE_DECODE[scopeCode] ?? 'user';
+
+    const allowedToolsRaw = buf.strings['allowedTools'];
+    const allowedTools: string[] = allowedToolsRaw !== undefined
+      ? (JSON.parse(allowedToolsRaw) as string[])
+      : [];
+
+    return {
+      id: buf.strings['id'] ?? '',
+      name: buf.strings['name'] ?? '',
+      fullCommand: buf.strings['fullCommand'] ?? '',
+      scope,
+      namespace: buf.strings['namespace'],
+      filePath: buf.strings['filePath'],
+      content: buf.strings['content'] ?? '',
+      description: buf.strings['description'],
+      capabilities: {
+        hasBashCommands:   (capFlags & 0b001) !== 0,
+        hasFileReferences: (capFlags & 0b010) !== 0,
+        acceptsArguments:  (capFlags & 0b100) !== 0,
+        allowedTools,
+      },
+      registeredAt: this.decodeTimestampMs(registeredAtSec),
+    };
+  }
+}
+
 // ─── ProjectSnapshotQuantizer ─────────────────────────────────────────────────
 
 import type { RawProject } from '../project/types';

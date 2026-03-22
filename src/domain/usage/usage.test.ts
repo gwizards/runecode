@@ -471,6 +471,42 @@ describe('InMemoryUsageLedgerRepository.searchByEmbedding', () => {
   });
 });
 
+describe('UsageApplicationService.getLedgerById()', () => {
+  let repo: InMemoryUsageLedgerRepository;
+  let svc: UsageApplicationService;
+
+  beforeEach(async () => {
+    repo = new InMemoryUsageLedgerRepository();
+    svc = new UsageApplicationService(repo, new DomainEventBus());
+    await svc.openLedger({ id: 'ledger-byid-001', sessionId: 'sess-byid-001', projectId: 'proj-byid' });
+    await svc.recordUsage({ sessionId: 'sess-byid-001', record: RECORD_A });
+  });
+
+  it('returns Ok with the correct summary for a known ledger id', async () => {
+    const result = await svc.getLedgerById('ledger-byid-001');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ledgerId).toBe('ledger-byid-001');
+    expect(result.value.recordCount).toBe(1);
+    expect(result.value.totalInputTokens).toBe(RECORD_A.inputTokens);
+  });
+
+  it('returns Err for an unknown ledger id', async () => {
+    const result = await svc.getLedgerById('no-such-ledger');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('no-such-ledger');
+  });
+
+  it('returns Err when ledger id is empty', async () => {
+    const result = await svc.getLedgerById('');
+
+    expect(result.ok).toBe(false);
+  });
+});
+
 describe('UsageApplicationService.queryUsage()', () => {
   let repo: InMemoryUsageLedgerRepository;
   let svc: UsageApplicationService;
@@ -546,5 +582,42 @@ describe('UsageApplicationService.queryUsage()', () => {
     if (!result.ok) return;
     // Only the two proj-query-A ledgers fall in range
     expect(result.value).toHaveLength(2);
+  });
+
+  it('only from filter (no to) returns all ledgers opened after from', async () => {
+    const result = await svc.queryUsage({ from: now - 5000 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // All three ledgers were opened recently, all should pass
+    expect(result.value).toHaveLength(3);
+  });
+
+  it('only to filter (no from) returns all ledgers opened before to', async () => {
+    const result = await svc.queryUsage({ to: now + 5000 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(3);
+  });
+
+  it('no filters at all returns all ledgers', async () => {
+    const result = await svc.queryUsage({});
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(3);
+  });
+
+  it('projectId + only from filter returns matching ledgers after from', async () => {
+    const result = await svc.queryUsage({
+      projectId: 'proj-query-A',
+      from: now - 5000,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(2);
+    result.value.forEach(s => expect(s.ledgerId).toMatch(/ledger-q-[12]/));
   });
 });

@@ -14,7 +14,7 @@ import { StepCard, type StepStatus } from '@/components/onboarding/StepCard';
 import { TerminalOutput } from '@/components/onboarding/TerminalOutput';
 import { api } from '@/lib/api';
 import { useSessionConfig } from '@/hooks/useSessionConfig';
-import { ConsentManager } from '@/lib/analytics/consent';
+import { ConsentManager } from '@/infrastructure/analytics';
 import type { PermissionMode } from '@/hooks/useSessionConfig';
 
 const TOTAL_STEPS = 9;

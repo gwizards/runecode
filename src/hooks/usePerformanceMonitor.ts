@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { eventBuilders, analytics } from '@/lib/analytics';
+import { eventBuilders, analytics } from '@/infrastructure/analytics';
 
 interface PerformanceThresholds {
   renderTime?: number;  // ms

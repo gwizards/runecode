@@ -6,7 +6,7 @@
  */
 
 import type { DomainEvent } from '../shared/event-bus';
-import type { TabId, WorkspaceId } from './types';
+import type { TabId, WorkspaceId, RawTab } from './types';
 
 // ─── Event type discriminators ────────────────────────────────────────────────
 
@@ -27,6 +27,13 @@ export interface TabOpenedEvent extends DomainEvent {
   readonly tabId: TabId;
   readonly path: string;
   readonly title: string;
+  // Extended metadata — mirrors the optional fields in RawTab.
+  readonly tabType?: RawTab['tabType'];
+  readonly status?: RawTab['status'];
+  readonly sessionId?: string;
+  readonly agentRunId?: string;
+  readonly icon?: string;
+  readonly hasUnsavedChanges?: boolean;
 }
 
 export interface TabClosedEvent extends DomainEvent {
@@ -64,6 +71,7 @@ export function makeTabOpened(
   tabId: TabId,
   path: string,
   title: string,
+  opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
 ): TabOpenedEvent {
   return {
     type: WORKSPACE_EVENT_TYPES.TAB_OPENED,
@@ -72,6 +80,12 @@ export function makeTabOpened(
     tabId,
     path,
     title,
+    tabType: opts?.tabType,
+    status: opts?.status,
+    sessionId: opts?.sessionId,
+    agentRunId: opts?.agentRunId,
+    icon: opts?.icon,
+    hasUnsavedChanges: opts?.hasUnsavedChanges,
   };
 }
 

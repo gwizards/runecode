@@ -388,6 +388,44 @@ describe('MCPApplicationService — listServers', () => {
   });
 });
 
+// ─── 7b. listEnabledServers ───────────────────────────────────────────────────
+
+describe('MCPApplicationService — listEnabledServers', () => {
+  it('listEnabledServers returns empty array when no servers exist', async () => {
+    const { svc } = makeService();
+    const result = await svc.listEnabledServers();
+    expect(result.ok).toBe(true);
+    expect(unwrap(result)).toHaveLength(0);
+  });
+
+  it('listEnabledServers returns only enabled servers', async () => {
+    const { svc } = makeService();
+    await svc.addServer('le-1', 'Enabled1', 'stdio', STDIO_URL);
+    await svc.addServer('le-2', 'Enabled2', 'stdio', STDIO_URL);
+    await svc.addServer('le-3', 'Disabled1', 'stdio', STDIO_URL);
+    await svc.disableServer('le-3');
+
+    const result = await svc.listEnabledServers();
+    expect(result.ok).toBe(true);
+    const servers = unwrap(result);
+    expect(servers).toHaveLength(2);
+    const ids = servers.map((s) => s.id).sort();
+    expect(ids).toEqual(['le-1', 'le-2']);
+  });
+
+  it('listEnabledServers returns empty when all servers are disabled', async () => {
+    const { svc } = makeService();
+    await svc.addServer('le-off-1', 'Off1', 'stdio', STDIO_URL);
+    await svc.addServer('le-off-2', 'Off2', 'stdio', STDIO_URL);
+    await svc.disableServer('le-off-1');
+    await svc.disableServer('le-off-2');
+
+    const result = await svc.listEnabledServers();
+    expect(result.ok).toBe(true);
+    expect(unwrap(result)).toHaveLength(0);
+  });
+});
+
 // ─── 8. duplicate registration ───────────────────────────────────────────────
 
 describe('MCPApplicationService — duplicate server id', () => {

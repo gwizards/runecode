@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { eventBuilders, analytics } from '@/lib/analytics';
+import { eventBuilders, analytics } from '@/infrastructure/analytics';
 
 interface Props {
   children: ReactNode;

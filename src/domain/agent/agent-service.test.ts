@@ -202,6 +202,75 @@ describe('AgentApplicationService — happy paths', () => {
   });
 });
 
+// ─── 2b. resumeAgent ─────────────────────────────────────────────────────────
+
+describe('AgentApplicationService — resumeAgent', () => {
+  let svc: AgentApplicationService;
+
+  beforeEach(() => {
+    ({ svc } = makeService());
+  });
+
+  it('resumeAgent returns Err when agent does not exist', async () => {
+    const result = await svc.resumeAgent('no-such-agent');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('no-such-agent');
+    }
+  });
+
+  it('resumeAgent transitions a thinking agent back to running', async () => {
+    await svc.startAgent('resume-1', 'Resumable');
+    await svc.markThinking('resume-1');
+
+    const resumeResult = await svc.resumeAgent('resume-1');
+    expect(resumeResult.ok).toBe(true);
+
+    const getResult = await svc.getAgent('resume-1');
+    const agent = unwrap(getResult);
+    expect(agent.status).toBe('running');
+  });
+
+  it('resumeAgent on a running agent returns Ok (no-op — domain does not throw)', async () => {
+    await svc.startAgent('resume-2', 'Already Running');
+    // resume() only throws for terminal agents; running → running is allowed
+    const result = await svc.resumeAgent('resume-2');
+    expect(result.ok).toBe(true);
+  });
+
+  it('resumeAgent on a terminal (completed) agent returns Err', async () => {
+    await svc.startAgent('resume-3', 'Done');
+    await svc.completeAgent('resume-3');
+    const result = await svc.resumeAgent('resume-3');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/terminal/i);
+    }
+  });
+});
+
+// ─── 2c. tickAgent happy path ─────────────────────────────────────────────────
+
+describe('AgentApplicationService — tickAgent happy path', () => {
+  let svc: AgentApplicationService;
+
+  beforeEach(() => {
+    ({ svc } = makeService());
+  });
+
+  it('tickAgent returns Ok when agent exists', async () => {
+    await svc.startAgent('tick-1', 'Ticker');
+    const result = await svc.tickAgent('tick-1', 1000, 50);
+    expect(result.ok).toBe(true);
+  });
+
+  it('tickAgent with zero elapsed and zero tokens returns Ok', async () => {
+    await svc.startAgent('tick-2', 'ZeroTicker');
+    const result = await svc.tickAgent('tick-2', 0, 0);
+    expect(result.ok).toBe(true);
+  });
+});
+
 // ─── 3. domain error propagation ─────────────────────────────────────────────
 
 describe('AgentApplicationService — domain error propagation', () => {

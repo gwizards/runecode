@@ -42,6 +42,13 @@ export interface RawTab {
   title: string;
   isPinned: boolean;
   isActive: boolean;
+  // Extended metadata — all optional so existing code keeps compiling.
+  tabType?: 'chat' | 'agent' | 'settings' | 'projects' | 'browser' | 'terminal' | 'agentExecution';
+  status?: 'idle' | 'running' | 'completed' | 'error';
+  sessionId?: string;
+  agentRunId?: string;
+  icon?: string;
+  hasUnsavedChanges?: boolean;
 }
 
 export interface RawWorkspace {
@@ -65,12 +72,27 @@ export class TabRecord {
     readonly title: string,
     readonly isPinned: boolean,
     readonly isActive: boolean,
+    // Extended optional metadata
+    readonly tabType?: RawTab['tabType'],
+    readonly status?: RawTab['status'],
+    readonly sessionId?: string,
+    readonly agentRunId?: string,
+    readonly icon?: string,
+    readonly hasUnsavedChanges?: boolean,
   ) {}
 
-  static create(id: TabId, path: string, title: string): TabRecord {
+  static create(
+    id: TabId,
+    path: string,
+    title: string,
+    opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
+  ): TabRecord {
     if (!path.trim()) throw new Error('TabRecord.path cannot be empty');
     if (!title.trim()) throw new Error('TabRecord.title cannot be empty');
-    return new TabRecord(id, path, title, false, false);
+    return new TabRecord(
+      id, path, title, false, false,
+      opts?.tabType, opts?.status, opts?.sessionId, opts?.agentRunId, opts?.icon, opts?.hasUnsavedChanges,
+    );
   }
 
   static fromRaw(raw: RawTab): TabRecord {
@@ -80,20 +102,35 @@ export class TabRecord {
       raw.title,
       raw.isPinned,
       raw.isActive,
+      raw.tabType,
+      raw.status,
+      raw.sessionId,
+      raw.agentRunId,
+      raw.icon,
+      raw.hasUnsavedChanges,
     );
   }
 
   withTitle(title: string): TabRecord {
     if (!title.trim()) throw new Error('TabRecord.title cannot be empty');
-    return new TabRecord(this.id, this.path, title, this.isPinned, this.isActive);
+    return new TabRecord(
+      this.id, this.path, title, this.isPinned, this.isActive,
+      this.tabType, this.status, this.sessionId, this.agentRunId, this.icon, this.hasUnsavedChanges,
+    );
   }
 
   withActive(isActive: boolean): TabRecord {
-    return new TabRecord(this.id, this.path, this.title, this.isPinned, isActive);
+    return new TabRecord(
+      this.id, this.path, this.title, this.isPinned, isActive,
+      this.tabType, this.status, this.sessionId, this.agentRunId, this.icon, this.hasUnsavedChanges,
+    );
   }
 
   withPinned(isPinned: boolean): TabRecord {
-    return new TabRecord(this.id, this.path, this.title, isPinned, this.isActive);
+    return new TabRecord(
+      this.id, this.path, this.title, isPinned, this.isActive,
+      this.tabType, this.status, this.sessionId, this.agentRunId, this.icon, this.hasUnsavedChanges,
+    );
   }
 
   toRaw(): RawTab {
@@ -103,6 +140,12 @@ export class TabRecord {
       title: this.title,
       isPinned: this.isPinned,
       isActive: this.isActive,
+      tabType: this.tabType,
+      status: this.status,
+      sessionId: this.sessionId,
+      agentRunId: this.agentRunId,
+      icon: this.icon,
+      hasUnsavedChanges: this.hasUnsavedChanges,
     };
   }
 }
@@ -173,8 +216,15 @@ export class WorkspaceAggregate {
   /**
    * Opens a new tab and makes it active.
    * Raises TabOpened then TabActivated.
+   *
+   * @param opts - Optional extended metadata (tabType, status, sessionId, etc.)
    */
-  openTab(tabId: TabId, path: string, title: string): void {
+  openTab(
+    tabId: TabId,
+    path: string,
+    title: string,
+    opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
+  ): void {
     const existing = this._tabs.find(t => t.id === tabId);
     if (existing) {
       // Tab already open — just activate it.
@@ -182,9 +232,9 @@ export class WorkspaceAggregate {
       return;
     }
 
-    const tab = TabRecord.create(tabId, path, title);
+    const tab = TabRecord.create(tabId, path, title, opts);
     this._tabs = [...this._tabs, tab];
-    this._events.push(makeTabOpened(this.id, tabId, path, title));
+    this._events.push(makeTabOpened(this.id, tabId, path, title, opts));
 
     this._setActive(tabId);
   }

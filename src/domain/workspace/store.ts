@@ -11,7 +11,7 @@
 
 import { create } from 'zustand';
 import { globalEventBus } from '../shared/event-bus';
-import type { WorkspaceId, TabId, RawWorkspace } from './types';
+import type { WorkspaceId, TabId, RawWorkspace, RawTab } from './types';
 import type { SessionId } from '../session/types';
 import type { ProjectId } from '../project/types';
 import { InMemoryWorkspaceRepository } from './repository';
@@ -37,8 +37,13 @@ export interface WorkspaceActions {
   createWorkspace(sessionId: SessionId, projectId: ProjectId): void;
   /** Load an existing workspace by ID. */
   loadWorkspace(workspaceId: WorkspaceId): void;
-  /** Open a tab in the current workspace. */
-  openTab(path: string, title: string, rawTabId?: string): void;
+  /** Open a tab in the current workspace, with optional extended metadata. */
+  openTab(
+    path: string,
+    title: string,
+    rawTabId?: string,
+    opts?: Pick<RawTab, 'tabType' | 'status' | 'sessionId' | 'agentRunId' | 'icon' | 'hasUnsavedChanges'>,
+  ): void;
   /** Close a tab by ID. */
   closeTab(tabId: TabId): void;
   /** Activate a tab by ID. */
@@ -106,13 +111,13 @@ export function createWorkspaceStore(
       }
     },
 
-    openTab(path, title, rawTabId) {
+    openTab(path, title, rawTabId, opts) {
       const { currentWorkspaceId } = get();
       if (!currentWorkspaceId) {
         set({ error: 'No active workspace' });
         return;
       }
-      const result = service.openTab(currentWorkspaceId, path, title, rawTabId);
+      const result = service.openTab(currentWorkspaceId, path, title, rawTabId, opts);
       if (!result.ok) {
         set({ error: result.error });
         return;
