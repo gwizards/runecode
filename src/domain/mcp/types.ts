@@ -19,6 +19,7 @@ import {
 export type ServerId = string & { readonly _brand: 'ServerId' };
 
 export function toServerId(id: string): ServerId {
+  if (!id || !id.trim()) throw new Error('ServerId cannot be empty');
   return id as ServerId;
 }
 
@@ -68,6 +69,7 @@ export class ServerName {
 // ─── Raw snapshot shape ───────────────────────────────────────────────────
 
 export interface RawMCPServer {
+  id?: string;
   name: string;
   transport: ServerTransport;
   url?: string;
@@ -120,13 +122,20 @@ export class MCPServerAggregate {
   }
 
   /**
-   * Reconstruct from a persisted snapshot. id = raw.name. No events raised.
+   * Reconstruct from a persisted snapshot. No events raised.
    */
   static fromSnapshot(raw: RawMCPServer): MCPServerAggregate {
-    const serverId = toServerId(raw.name);
+    const serverId = toServerId(raw.id ?? raw.name);
     const serverName = ServerName.create(raw.name);
-    const urlStr = raw.url ?? raw.command ?? '';
-    const serverUrl = ServerUrl.create(urlStr || '_placeholder', raw.transport);
+
+    let serverUrl: ServerUrl;
+    if (raw.url) {
+      serverUrl = ServerUrl.create(raw.url, raw.transport);
+    } else if (raw.command) {
+      serverUrl = ServerUrl.create(raw.command, raw.transport);
+    } else {
+      throw new Error('MCPServerAggregate.fromSnapshot: url or command required');
+    }
 
     return new MCPServerAggregate(
       serverId,
@@ -217,6 +226,7 @@ export class MCPServerAggregate {
 
   toSnapshot(): RawMCPServer {
     return {
+      id: this.id,
       name: this._name.value,
       transport: this.transport,
       url: this._url.value,

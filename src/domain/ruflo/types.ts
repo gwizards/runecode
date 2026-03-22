@@ -17,10 +17,12 @@ declare const _swarmId: unique symbol;
 export type SwarmId = string & { readonly [_swarmId]: true };
 
 export function toAgentId(raw: string): AgentId {
+  if (!raw || !raw.trim()) throw new Error('AgentId cannot be empty');
   return raw as AgentId;
 }
 
 export function toSwarmId(raw: string): SwarmId {
+  if (!raw || !raw.trim()) throw new Error('SwarmId cannot be empty');
   return raw as SwarmId;
 }
 

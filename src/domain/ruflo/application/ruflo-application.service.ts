@@ -47,7 +47,8 @@ export class RuFloApplicationService {
     try {
       const installation = await this.repo.getInstallation();
       installation.markFailed(reason);
-      await this.repo.saveInstallation(installation);
+      const result = await this.repo.saveInstallation(installation);
+      if (!result.ok) return result;
       this.eventBus.dispatch(installation.events);
       installation.clearEvents();
       return Ok(undefined);

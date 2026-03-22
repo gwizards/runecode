@@ -19,23 +19,23 @@ export interface IMCPRepository {
 // ─── In-memory implementation ─────────────────────────────────────────────
 
 export class InMemoryMCPRepository implements IMCPRepository {
-  private readonly servers = new Map<string, MCPServerAggregate>();
+  private readonly servers = new Map<string, ReturnType<MCPServerAggregate['toSnapshot']>>();
 
   async getServer(id: ServerId): Promise<MCPServerAggregate | null> {
-    return this.servers.get(id) ?? null;
+    const snapshot = this.servers.get(id);
+    if (!snapshot) return null;
+    return MCPServerAggregate.fromSnapshot(snapshot);
   }
 
   async findByName(name: string): Promise<MCPServerAggregate | null> {
-    for (const server of this.servers.values()) {
-      if (server.name === name) {
-        return server;
-      }
+    for (const snapshot of this.servers.values()) {
+      if (snapshot.name === name) return MCPServerAggregate.fromSnapshot(snapshot);
     }
     return null;
   }
 
   async saveServer(server: MCPServerAggregate): Promise<void> {
-    this.servers.set(server.id, server);
+    this.servers.set(server.id, server.toSnapshot());
   }
 
   async removeServer(id: ServerId): Promise<void> {
@@ -43,15 +43,17 @@ export class InMemoryMCPRepository implements IMCPRepository {
   }
 
   async listServers(): Promise<MCPServerAggregate[]> {
-    return Array.from(this.servers.values());
+    return Array.from(this.servers.values()).map(MCPServerAggregate.fromSnapshot);
   }
 
   async listEnabledServers(): Promise<MCPServerAggregate[]> {
-    return Array.from(this.servers.values()).filter(s => s.isEnabled);
+    return Array.from(this.servers.values())
+      .map(MCPServerAggregate.fromSnapshot)
+      .filter((s) => s.isEnabled);
   }
 
   /** Test helper: seed an aggregate directly without triggering any events. */
   seed(server: MCPServerAggregate): void {
-    this.servers.set(server.id, server);
+    this.servers.set(server.id, server.toSnapshot());
   }
 }

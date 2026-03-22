@@ -5,7 +5,7 @@
  * InMemorySessionRepository is suitable for tests and local dev.
  */
 
-import type { SessionAggregate } from './types';
+import { SessionAggregate } from './types';
 import type { SessionId, ProjectId } from './types';
 
 // ─── Repository interface ─────────────────────────────────────────────────────
@@ -20,14 +20,16 @@ export interface ISessionRepository {
 // ─── In-memory implementation ─────────────────────────────────────────────────
 
 export class InMemorySessionRepository implements ISessionRepository {
-  private sessions = new Map<string, SessionAggregate>();
+  private sessions = new Map<string, ReturnType<SessionAggregate['toSnapshot']>>();
 
   async getSession(id: SessionId): Promise<SessionAggregate | null> {
-    return this.sessions.get(id) ?? null;
+    const snapshot = this.sessions.get(id);
+    if (!snapshot) return null;
+    return SessionAggregate.fromSnapshot(snapshot);
   }
 
   async saveSession(session: SessionAggregate): Promise<void> {
-    this.sessions.set(session.id, session);
+    this.sessions.set(session.id, session.toSnapshot());
   }
 
   async deleteSession(id: SessionId): Promise<void> {
@@ -36,9 +38,9 @@ export class InMemorySessionRepository implements ISessionRepository {
 
   async listSessionsByProject(projectId: ProjectId): Promise<SessionAggregate[]> {
     const result: SessionAggregate[] = [];
-    for (const session of this.sessions.values()) {
-      if (session.projectId === projectId) {
-        result.push(session);
+    for (const snapshot of this.sessions.values()) {
+      if (snapshot.projectId === projectId) {
+        result.push(SessionAggregate.fromSnapshot(snapshot));
       }
     }
     return result;
@@ -49,6 +51,6 @@ export class InMemorySessionRepository implements ISessionRepository {
    * Useful for setting up pre-conditions in unit tests.
    */
   seed(session: SessionAggregate): void {
-    this.sessions.set(session.id, session);
+    this.sessions.set(session.id, session.toSnapshot());
   }
 }

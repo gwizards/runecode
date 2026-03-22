@@ -37,21 +37,23 @@ export interface IProjectRepository {
  * Intended for tests and development stubs — not for production persistence.
  */
 export class InMemoryProjectRepository implements IProjectRepository {
-  private readonly projects = new Map<string, ProjectAggregate>();
+  private readonly projects = new Map<string, ReturnType<ProjectAggregate['toSnapshot']>>();
 
   async getProject(id: ProjectId): Promise<ProjectAggregate | null> {
-    return this.projects.get(id) ?? null;
+    const snapshot = this.projects.get(id);
+    if (!snapshot) return null;
+    return ProjectAggregate.fromSnapshot(snapshot);
   }
 
   async findByPath(path: string): Promise<ProjectAggregate | null> {
-    for (const project of this.projects.values()) {
-      if (project.path === path) return project;
+    for (const snapshot of this.projects.values()) {
+      if (snapshot.path === path) return ProjectAggregate.fromSnapshot(snapshot);
     }
     return null;
   }
 
   async saveProject(project: ProjectAggregate): Promise<void> {
-    this.projects.set(project.id, project);
+    this.projects.set(project.id, project.toSnapshot());
   }
 
   async deleteProject(id: ProjectId): Promise<void> {
@@ -59,7 +61,7 @@ export class InMemoryProjectRepository implements IProjectRepository {
   }
 
   async listProjects(): Promise<ProjectAggregate[]> {
-    return Array.from(this.projects.values());
+    return Array.from(this.projects.values()).map(ProjectAggregate.fromSnapshot);
   }
 
   /**
@@ -67,6 +69,6 @@ export class InMemoryProjectRepository implements IProjectRepository {
    * Useful to pre-populate state before exercising a use-case.
    */
   seed(project: ProjectAggregate): void {
-    this.projects.set(project.id, project);
+    this.projects.set(project.id, project.toSnapshot());
   }
 }

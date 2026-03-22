@@ -18,6 +18,7 @@ import {
 export type AgentId = string & { readonly _brand: 'AgentId' };
 
 export function toAgentId(id: string): AgentId {
+  if (!id || !id.trim()) throw new Error('AgentId cannot be empty');
   return id as AgentId;
 }
 

@@ -30,14 +30,16 @@ export interface IAgentRepository {
 // ─── In-Memory Implementation ──────────────────────────────────────────────
 
 export class InMemoryAgentRepository implements IAgentRepository {
-  private readonly agents = new Map<string, LiveAgentAggregate>();
+  private readonly agents = new Map<string, ReturnType<LiveAgentAggregate['toSnapshot']>>();
 
   async getAgent(id: AgentId): Promise<LiveAgentAggregate | null> {
-    return this.agents.get(id) ?? null;
+    const snapshot = this.agents.get(id);
+    if (!snapshot) return null;
+    return LiveAgentAggregate.fromSnapshot(snapshot);
   }
 
   async saveAgent(agent: LiveAgentAggregate): Promise<void> {
-    this.agents.set(agent.id, agent);
+    this.agents.set(agent.id, agent.toSnapshot());
   }
 
   async removeAgent(id: AgentId): Promise<void> {
@@ -45,11 +47,13 @@ export class InMemoryAgentRepository implements IAgentRepository {
   }
 
   async listActiveAgents(): Promise<LiveAgentAggregate[]> {
-    return Array.from(this.agents.values()).filter((a) => a.isActive);
+    return Array.from(this.agents.values())
+      .map(LiveAgentAggregate.fromSnapshot)
+      .filter((a) => a.isActive);
   }
 
   async listAll(): Promise<LiveAgentAggregate[]> {
-    return Array.from(this.agents.values());
+    return Array.from(this.agents.values()).map(LiveAgentAggregate.fromSnapshot);
   }
 
   /**
@@ -58,6 +62,6 @@ export class InMemoryAgentRepository implements IAgentRepository {
    * any service-layer side effects.
    */
   seed(agent: LiveAgentAggregate): void {
-    this.agents.set(agent.id, agent);
+    this.agents.set(agent.id, agent.toSnapshot());
   }
 }
