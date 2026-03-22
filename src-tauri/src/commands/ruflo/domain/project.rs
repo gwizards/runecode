@@ -25,3 +25,34 @@ impl RuFloProjectStatus {
         self.blocked > 0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_total() {
+        let p = RuFloProjectStatus { initialized: true, pending: 3, completed: 5, blocked: 1 };
+        assert_eq!(p.total(), 9);
+    }
+
+    #[test]
+    fn test_completion_rate() {
+        let p = RuFloProjectStatus { initialized: true, pending: 0, completed: 4, blocked: 0 };
+        assert!((p.completion_rate() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_completion_rate_empty() {
+        let p = RuFloProjectStatus::default();
+        assert_eq!(p.completion_rate(), 0.0);
+    }
+
+    #[test]
+    fn test_has_blocked_tasks() {
+        let mut p = RuFloProjectStatus::default();
+        assert!(!p.has_blocked_tasks());
+        p.blocked = 1;
+        assert!(p.has_blocked_tasks());
+    }
+}

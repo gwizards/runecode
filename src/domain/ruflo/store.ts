@@ -2,6 +2,64 @@ import { create } from 'zustand';
 import { ruFloService } from './service';
 import { dispatchRuFloEvent, RUFLO_EVENTS } from './events';
 import type { RuFloInstallation, RuFloSwarm, RuFloProjectStatus } from './types';
+import {
+  QuantizedMemoryStore,
+  createRuFloMemoryStore,
+  type QuantizationMode,
+  type SearchResult,
+} from './memory-store';
+import { recommendMode } from './quantization';
+
+// ── Singleton quantized local memory cache ────────────────────────────────────
+// Used to cache embedding-like data locally with scalar/product quantization.
+// The active quantization mode is persisted to localStorage so recreating the
+// store on reload uses the same mode. Full PQ codebook export is not available
+// on QuantizedMemoryStore directly (entries are a cache, not source of truth).
+
+const CODEBOOK_KEY = 'runecode-ruflo-pq-codebook';
+
+function loadPersistedMode(): QuantizationMode {
+  try {
+    const raw = localStorage.getItem(CODEBOOK_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { mode?: QuantizationMode };
+      if (parsed.mode === 'scalar' || parsed.mode === 'product' || parsed.mode === 'none') {
+        return parsed.mode;
+      }
+    }
+  } catch { /* ignore */ }
+  return 'scalar';
+}
+
+function savePersistedMode(mode: QuantizationMode): void {
+  try {
+    localStorage.setItem(CODEBOOK_KEY, JSON.stringify({ mode }));
+  } catch { /* ignore */ }
+}
+
+/** Lazily initialized local memory store. Mode is loaded from localStorage on first access. */
+let _localStore: QuantizedMemoryStore | null = null;
+
+export function getLocalMemoryStore(): QuantizedMemoryStore {
+  if (!_localStore) {
+    const persistedMode = loadPersistedMode();
+    _localStore = createRuFloMemoryStore(persistedMode);
+  }
+  return _localStore;
+}
+
+/** Re-initialize store with the recommended mode based on current entry count. */
+export function upgradeMemoryStoreMode(): QuantizationMode {
+  const store = getLocalMemoryStore();
+  const snapshot = store.export();
+  const recommended = recommendMode(store.size);
+  if (recommended !== snapshot.mode) {
+    // Entries are caches, not source of truth — safe to recreate fresh
+    _localStore = createRuFloMemoryStore(recommended);
+    savePersistedMode(recommended);
+  }
+  return recommended;
+}
 
 interface RuFloState {
   // ── State ──────────────────────────────────────────────────────────────
@@ -13,6 +71,10 @@ interface RuFloState {
   actionInProgress: string | null; // which action is running (install/uninstall/mcp/etc)
   error: string | null;
   _listenersSetup: boolean;
+
+  // ── Local cache state ──────────────────────────────────────────────────
+  localMemoryMode: QuantizationMode;
+  localCacheSize: number;
 
   // ── Read actions ───────────────────────────────────────────────────────
   setupListeners: () => Promise<void>;
@@ -34,6 +96,10 @@ interface RuFloState {
   syncMemoryLocal: (outputPath: string) => Promise<string>;
   consolidateMemory: () => Promise<string>;
   setMemoryBackend: (backend: 'agentdb' | 'hnsw' | 'hybrid') => Promise<string>;
+
+  // ── Local cache actions ───────────────────────────────────────────────
+  cacheEntry: (key: string, embedding: number[], metadata?: Record<string, unknown>) => void;
+  searchCache: (query: number[], topK?: number) => SearchResult[];
 }
 
 export const useRuFloStore = create<RuFloState>((set, get) => ({
@@ -45,6 +111,8 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   actionInProgress: null,
   error: null,
   _listenersSetup: false,
+  localMemoryMode: loadPersistedMode(),
+  localCacheSize: 0,
 
   // ── Read actions ─────────────────────────────────────────────────────────
 
@@ -100,7 +168,17 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   fetchMemoryStats: async () => {
     try {
       const memoryStats = await ruFloService.getMemoryStats();
-      set({ memoryStats });
+      const localStore = getLocalMemoryStore();
+      const localSnapshot = localStore.export();
+      set({
+        memoryStats: {
+          ...memoryStats,
+          localCacheSize: localStore.size,
+          localMode: localSnapshot.mode,
+        },
+        localMemoryMode: localSnapshot.mode as QuantizationMode,
+        localCacheSize: localStore.size,
+      });
     } catch {
       // non-critical
     }
@@ -244,6 +322,26 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
       throw e;
     } finally {
       set({ actionInProgress: null });
+    }
+  },
+
+  // ── Local cache actions ───────────────────────────────────────────────────
+
+  cacheEntry: (key, embedding, metadata) => {
+    try {
+      const store = getLocalMemoryStore();
+      store.add(key, embedding, metadata);
+      const newMode = upgradeMemoryStoreMode();
+      savePersistedMode(newMode);
+      set({ localCacheSize: getLocalMemoryStore().size, localMemoryMode: newMode });
+    } catch { /* non-critical */ }
+  },
+
+  searchCache: (query, topK = 5) => {
+    try {
+      return getLocalMemoryStore().search(query, topK);
+    } catch {
+      return [];
     }
   },
 }));

@@ -84,3 +84,40 @@ pub struct RuFloAgent {
     pub agent_type: AgentType,
     pub status: AgentStatus,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_agent_status_is_active() {
+        assert!(AgentStatus::Running.is_active());
+        assert!(AgentStatus::Waiting.is_active());
+        assert!(AgentStatus::Active.is_active());
+        assert!(AgentStatus::Busy.is_active());
+        assert!(AgentStatus::Initializing.is_active());
+        assert!(!AgentStatus::Idle.is_active());
+        assert!(!AgentStatus::Stopped.is_active());
+        assert!(!AgentStatus::Unknown.is_active());
+    }
+
+    #[test]
+    fn test_agent_status_display() {
+        assert_eq!(AgentStatus::Running.to_string(), "running");
+        assert_eq!(AgentStatus::Unknown.to_string(), "unknown");
+    }
+
+    #[test]
+    fn test_agent_status_serde_roundtrip() {
+        let json = serde_json::to_string(&AgentStatus::Running).unwrap();
+        assert_eq!(json, "\"running\"");
+        let back: AgentStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, AgentStatus::Running);
+    }
+
+    #[test]
+    fn test_agent_status_unknown_fallback() {
+        let back: AgentStatus = serde_json::from_str("\"some-unknown-status\"").unwrap();
+        assert_eq!(back, AgentStatus::Unknown);
+    }
+}

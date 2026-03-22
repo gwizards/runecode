@@ -120,3 +120,75 @@ impl RuFloStatus {
         self.installed && self.mcp_active && self.slash_command_exists
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_parse_basic() {
+        let v = RuFloVersion::parse("3.5.42").unwrap();
+        assert_eq!(v.major, 3);
+        assert_eq!(v.minor, 5);
+        assert_eq!(v.patch, 42);
+    }
+
+    #[test]
+    fn test_version_parse_with_v_prefix() {
+        let v = RuFloVersion::parse("v3.0.0").unwrap();
+        assert_eq!(v.major, 3);
+    }
+
+    #[test]
+    fn test_version_parse_invalid() {
+        assert!(RuFloVersion::parse("not-a-version").is_none());
+        assert!(RuFloVersion::parse("").is_none());
+        assert!(RuFloVersion::parse("1.2").is_none());
+    }
+
+    #[test]
+    fn test_version_ordering() {
+        let v300 = RuFloVersion::parse("3.0.0").unwrap();
+        let v350 = RuFloVersion::parse("3.5.0").unwrap();
+        let v290 = RuFloVersion::parse("2.9.9").unwrap();
+        assert!(v350 > v300);
+        assert!(v300 > v290);
+    }
+
+    #[test]
+    fn test_version_is_supported() {
+        assert!(RuFloVersion::parse("3.0.0").unwrap().is_supported());
+        assert!(RuFloVersion::parse("3.5.42").unwrap().is_supported());
+        assert!(!RuFloVersion::parse("2.9.9").unwrap().is_supported());
+    }
+
+    #[test]
+    fn test_version_display() {
+        let v = RuFloVersion::parse("3.5.42").unwrap();
+        assert_eq!(v.to_string(), "3.5.42");
+    }
+
+    #[test]
+    fn test_status_build_computes_is_supported() {
+        let s = RuFloStatus::build(true, Some("3.5.0".to_string()), true, true);
+        assert!(s.is_supported);
+        assert!(s.is_fully_operational());
+        assert!(s.is_mcp_ready());
+        assert!(s.is_fully_configured());
+    }
+
+    #[test]
+    fn test_status_build_unsupported_version() {
+        let s = RuFloStatus::build(true, Some("2.9.9".to_string()), true, true);
+        assert!(!s.is_supported);
+        assert!(!s.is_fully_operational());
+    }
+
+    #[test]
+    fn test_status_not_installed() {
+        let s = RuFloStatus::build(false, None, false, false);
+        assert!(!s.is_fully_operational());
+        assert!(!s.is_mcp_ready());
+        assert!(!s.is_fully_configured());
+    }
+}
