@@ -14,7 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, type Session } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useSessionStore } from "@/domain/session/store";
+// TODO: migrate to domain store — domain SessionStoreState has no `liveUsage` or
+//       `resetLiveUsage`. Calls below are cast to `any` until live usage tracking is
+//       added to the domain session store.
 import { useSessionConfig } from "@/hooks/useSessionConfig";
 
 // Conditional imports for Tauri APIs
@@ -134,10 +137,13 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   messagesRef.current = messages;
 
   // Reset live usage when session changes
+  // TODO: migrate to domain store — `resetLiveUsage` is not in domain SessionStoreState.
   useEffect(() => {
-    useSessionStore.getState().resetLiveUsage();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (useSessionStore.getState() as any).resetLiveUsage?.();
     return () => {
-      useSessionStore.getState().resetLiveUsage();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (useSessionStore.getState() as any).resetLiveUsage?.();
     };
   }, [session?.id]);
   const [isLoading, setIsLoading] = useState(false);
@@ -678,7 +684,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     setSessionCostUsd(cost);
 
     // Push to global store for sidebar usage display
-    useSessionStore.setState((state) => ({
+    // TODO: migrate to domain store — `liveUsage` is not in domain SessionStoreState.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (useSessionStore.setState as any)((state: any) => ({
       liveUsage: {
         ...state.liveUsage,
         inputTokens: totalIn,

@@ -1,3 +1,4 @@
+// @deprecated — use src/domain/workspace instead
 import { useCallback, useMemo } from 'react';
 import { useTabContext } from '@/contexts/TabContext';
 import { Tab, type LayoutMode, type GridConfig, type GridSpan } from '@/contexts/TabContext';

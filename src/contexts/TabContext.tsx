@@ -1,3 +1,4 @@
+// @deprecated — use src/domain/workspace instead
 import React, { createContext, useState, useContext, useCallback, useEffect, useRef, useMemo } from 'react';
 import { TabPersistenceService } from '@/services/tabPersistence';
 import { SessionPersistenceService } from '@/services/sessionPersistence';

@@ -464,6 +464,168 @@ export class MCPSnapshotQuantizer extends ScalarQuantizer<RawMCPServer> {
   }
 }
 
+// ─── AnalyticsSnapshotQuantizer ──────────────────────────────────────────────
+
+import type { RawConsent, ConsentStatus } from '../analytics/types';
+
+// ConsentStatus codec (3 values fit in a uint8)
+const CONSENT_STATUS_ENCODE: Record<ConsentStatus, number> = {
+  pending: 0,
+  granted: 1,
+  revoked: 2,
+};
+
+const CONSENT_STATUS_DECODE: ConsentStatus[] = ['pending', 'granted', 'revoked'];
+
+function encodeConsentStatus(status: ConsentStatus | undefined): number {
+  return CONSENT_STATUS_ENCODE[status ?? 'pending'];
+}
+
+function decodeConsentStatus(code: number): ConsentStatus {
+  const s = CONSENT_STATUS_DECODE[code];
+  if (s === undefined) throw new Error(`Unknown ConsentStatus code: ${code}`);
+  return s;
+}
+
+/**
+ * Quantizes RawConsent snapshots.
+ *
+ * Fixed buffer layout (version 1):
+ *   uint8[0]  — status code (0=pending, 1=granted, 2=revoked)
+ *   uint32[0] — grantedAt  (seconds since epoch; 0 = not set / null)
+ *   uint32[1] — revokedAt  (seconds since epoch; 0 = not set / null)
+ *
+ * Memory per record (quantized fixed fields only):
+ *   Before: status string ~7 chars + 2 × float64 timestamps = ~23 bytes
+ *   After:  1×uint8 + 2×uint32 = 9 bytes
+ *   Saving: ~61% on quantizable fields
+ *
+ * String fields (id, sessionId, projectId) are preserved as-is.
+ */
+export class AnalyticsSnapshotQuantizer extends ScalarQuantizer<RawConsent> {
+  readonly version = 1;
+
+  encode(snapshot: RawConsent): QuantizedBuffer {
+    const fixed = this.makeEmptyBuffer(
+      1,  // uint8:  [status]
+      0,  // uint16: (none)
+      2,  // uint32: [grantedAt, revokedAt]
+      0,  // int8:   (none)
+      0,  // int16:  (none)
+    );
+
+    fixed.uint8[0] = encodeConsentStatus(snapshot.status);
+    // Timestamps are Unix ms; encode to uint32 seconds (0 = not set).
+    fixed.uint32[0] = snapshot.grantedAt !== undefined
+      ? this.encodeTimestampMs(snapshot.grantedAt)
+      : 0;
+    fixed.uint32[1] = snapshot.revokedAt !== undefined
+      ? this.encodeTimestampMs(snapshot.revokedAt)
+      : 0;
+
+    return {
+      version: this.version,
+      fixed,
+      strings: {
+        id: snapshot.id,
+        sessionId: snapshot.sessionId,
+        projectId: snapshot.projectId,
+      },
+      params: {
+        grantedAt: { scale: 1000, zeroPoint: 0 },
+        revokedAt: { scale: 1000, zeroPoint: 0 },
+      },
+    };
+  }
+
+  decode(buf: QuantizedBuffer): RawConsent {
+    this.assertVersion(buf);
+
+    const statusCode = buf.fixed.uint8[0] ?? 0;
+    const grantedAtSec = buf.fixed.uint32[0] ?? 0;
+    const revokedAtSec = buf.fixed.uint32[1] ?? 0;
+
+    return {
+      id: buf.strings['id'] ?? '',
+      sessionId: buf.strings['sessionId'] ?? '',
+      projectId: buf.strings['projectId'] ?? '',
+      status: decodeConsentStatus(statusCode),
+      grantedAt: grantedAtSec !== 0 ? this.decodeTimestampMs(grantedAtSec) : undefined,
+      revokedAt: revokedAtSec !== 0 ? this.decodeTimestampMs(revokedAtSec) : undefined,
+    };
+  }
+}
+
+// ─── WorkspaceSnapshotQuantizer ───────────────────────────────────────────────
+
+// TODO: Replace this placeholder with `import type { RawWorkspace } from '../workspace/types'`
+// once src/domain/workspace/types.ts is created by the workspace-domain agent.
+export interface RawWorkspace {
+  readonly workspaceId: string;
+  readonly sessionId: string;
+  readonly projectId: string;
+  readonly tabCount: number;        // uint8 — expected range 0-255
+  readonly activeTabIndex: number;  // uint8 — expected range 0-254 (255 = none)
+}
+
+/**
+ * Quantizes RawWorkspace snapshots.
+ *
+ * Fixed buffer layout (version 1):
+ *   uint8[0] — tabCount       (0-255)
+ *   uint8[1] — activeTabIndex (0-255; 255 = no active tab)
+ *
+ * String fields (workspaceId, sessionId, projectId) are stored length-prefixed
+ * in a flat Uint8Array via TextEncoder so they survive round-trips exactly.
+ * For simplicity this quantizer stores them in the `strings` map (same as
+ * the other quantizers) which already provides UTF-8 round-trip fidelity.
+ *
+ * Memory per record (quantized fixed fields only):
+ *   Before: 2 × float64 numerics = 16 bytes
+ *   After:  2 × uint8 = 2 bytes
+ *   Saving: ~88% on quantizable fields
+ */
+export class WorkspaceSnapshotQuantizer extends ScalarQuantizer<RawWorkspace> {
+  readonly version = 1;
+
+  encode(snapshot: RawWorkspace): QuantizedBuffer {
+    const fixed = this.makeEmptyBuffer(
+      2,  // uint8:  [tabCount, activeTabIndex]
+      0,  // uint16: (none)
+      0,  // uint32: (none)
+      0,  // int8:   (none)
+      0,  // int16:  (none)
+    );
+
+    // Clamp to uint8 range to avoid overflow; callers should not exceed 255.
+    fixed.uint8[0] = Math.max(0, Math.min(255, snapshot.tabCount)) & 0xff;
+    fixed.uint8[1] = Math.max(0, Math.min(255, snapshot.activeTabIndex)) & 0xff;
+
+    return {
+      version: this.version,
+      fixed,
+      strings: {
+        workspaceId: snapshot.workspaceId,
+        sessionId: snapshot.sessionId,
+        projectId: snapshot.projectId,
+      },
+      params: {},
+    };
+  }
+
+  decode(buf: QuantizedBuffer): RawWorkspace {
+    this.assertVersion(buf);
+
+    return {
+      workspaceId: buf.strings['workspaceId'] ?? '',
+      sessionId: buf.strings['sessionId'] ?? '',
+      projectId: buf.strings['projectId'] ?? '',
+      tabCount: buf.fixed.uint8[0] ?? 0,
+      activeTabIndex: buf.fixed.uint8[1] ?? 0,
+    };
+  }
+}
+
 // ─── ProjectSnapshotQuantizer ─────────────────────────────────────────────────
 
 import type { RawProject } from '../project/types';

@@ -9,51 +9,20 @@ import {
   type SearchResult,
 } from './memory-store';
 import { recommendMode } from './quantization';
+// Persistence delegated to infrastructure layer — see src/infrastructure/
+import {
+  loadPersistedMode,
+  savePersistedMode,
+  saveCalibration,
+  restoreCalibration,
+  checkAndMarkBackendInitialized,
+} from '../../infrastructure/persistence/ruflo-persistence';
 
 // ── Singleton quantized local memory cache ────────────────────────────────────
 // Used to cache embedding-like data locally with scalar/product quantization.
-// The active quantization mode is persisted to localStorage so recreating the
-// store on reload uses the same mode. Full PQ codebook export is not available
-// on QuantizedMemoryStore directly (entries are a cache, not source of truth).
-
-const CODEBOOK_KEY = 'runecode-ruflo-pq-codebook';
-/** localStorage key for persisting CalibratedQuantizer min/max calibration across reloads */
-const CALIBRATION_KEY = 'runecode-ruflo-calibration';
-/** localStorage key tracking whether we've applied the default agentdb backend */
-const BACKEND_INIT_KEY = 'runecode-ruflo-backend-initialized';
-
-function loadPersistedMode(): QuantizationMode {
-  try {
-    const raw = localStorage.getItem(CODEBOOK_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as { mode?: QuantizationMode };
-      if (parsed.mode === 'scalar' || parsed.mode === 'product' || parsed.mode === 'none') {
-        return parsed.mode;
-      }
-    }
-  } catch { /* ignore */ }
-  return 'scalar';
-}
-
-function savePersistedMode(mode: QuantizationMode): void {
-  try {
-    localStorage.setItem(CODEBOOK_KEY, JSON.stringify({ mode }));
-  } catch { /* ignore */ }
-}
-
-function saveCalibration(store: QuantizedMemoryStore): void {
-  try {
-    const cal = store.exportCalibration();
-    if (cal) localStorage.setItem(CALIBRATION_KEY, JSON.stringify(cal));
-  } catch { /* non-critical */ }
-}
-
-function restoreCalibration(store: QuantizedMemoryStore): void {
-  try {
-    const raw = localStorage.getItem(CALIBRATION_KEY);
-    if (raw) store.importCalibration(JSON.parse(raw));
-  } catch { /* non-critical — stale or malformed entry */ }
-}
+// The active quantization mode is loaded/saved via the infrastructure persistence
+// adapter. Full PQ codebook export is not available on QuantizedMemoryStore
+// directly (entries are a cache, not source of truth).
 
 /** Lazily initialized local memory store. Mode and calibration are loaded from localStorage on first access. */
 let _localStore: QuantizedMemoryStore | null = null;
@@ -100,7 +69,10 @@ interface RuFloState {
   fetchInstallation: () => Promise<void>;
   fetchSwarm: () => Promise<void>;
   fetchProjectStatus: (projectPath: string) => Promise<void>;
+  /** QUERY — reads current memory stats and local cache state; no side effects. */
   fetchMemoryStats: () => Promise<void>;
+  /** COMMAND — ensures backend is initialized on first launch, then refreshes stats. */
+  refreshMemoryStats: () => Promise<void>;
   fetchAll: (projectPath?: string) => Promise<void>;
 
   // ── Write actions ──────────────────────────────────────────────────────
@@ -186,13 +158,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   },
 
   fetchMemoryStats: async () => {
-    // On first launch, ensure agentdb is set as the active backend
-    try {
-      if (!localStorage.getItem(BACKEND_INIT_KEY)) {
-        localStorage.setItem(BACKEND_INIT_KEY, '1');
-        await ruFloService.setMemoryBackend('agentdb');
-      }
-    } catch { /* non-critical — CLI may not be installed yet */ }
+    // QUERY — reads current memory stats and local cache state; no side effects.
     try {
       const memoryStats = await ruFloService.getMemoryStats();
       const localStore = getLocalMemoryStore();
@@ -211,12 +177,24 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     }
   },
 
+  refreshMemoryStats: async () => {
+    // COMMAND — ensures agentdb backend is initialized on first launch (side
+    // effect tracked by infrastructure layer), then delegates to the query.
+    try {
+      const alreadyInitialized = checkAndMarkBackendInitialized();
+      if (!alreadyInitialized) {
+        await ruFloService.setMemoryBackend('agentdb');
+      }
+    } catch { /* non-critical — CLI may not be installed yet */ }
+    await get().fetchMemoryStats();
+  },
+
   fetchAll: async (projectPath?: string) => {
     set({ loading: true });
     const tasks: Promise<void>[] = [
       get().fetchInstallation(),
       get().fetchSwarm(),
-      get().fetchMemoryStats(),
+      get().refreshMemoryStats(), // COMMAND: handles first-launch backend init then reads stats
     ];
     if (projectPath) tasks.push(get().fetchProjectStatus(projectPath));
     await Promise.allSettled(tasks);

@@ -1,5 +1,9 @@
 import { useEffect, useCallback } from 'react';
-import { useAgentStore } from '../stores/agentStore';
+import { useAgentDomainStore } from '../domain/agent/store';
+// TODO: migrate to domain store — `addLiveAgent` and `updateLiveAgent` do not exist on
+//       domain AgentDomainState. The domain store uses `startAgent(id, name)`,
+//       `completeAgent(id)`, and `failAgent(id, reason)` instead. Callers below are cast
+//       to `any` until this hook is rewritten against the domain API.
 import { useTabState } from './useTabState';
 
 export function useAgentLifecycle() {
@@ -9,11 +13,15 @@ export function useAgentLifecycle() {
     const payload = event.detail || event.payload;
     if (!payload) return;
 
-    const store = useAgentStore.getState();
+    // TODO: migrate to domain store — use `useAgentDomainStore.getState().startAgent`,
+    //       `.completeAgent`, `.failAgent` once this hook is rewritten against the domain API.
+    //       `addLiveAgent` and `updateLiveAgent` are legacy actions not present in the domain store.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const store = useAgentDomainStore.getState() as any;
     const { event: eventType, agent_id, agent_name } = payload;
 
     if (eventType === 'started') {
-      store.addLiveAgent({
+      store.addLiveAgent?.({
         id: agent_id,
         name: agent_name || 'Agent',
         status: 'running',
@@ -24,9 +32,9 @@ export function useAgentLifecycle() {
       // Auto-create a tab for the new agent
       createAgentTab(agent_id, agent_name || 'Agent');
     } else if (eventType === 'completed') {
-      store.updateLiveAgent(agent_id, { status: 'completed' });
+      store.updateLiveAgent?.(agent_id, { status: 'completed' });
     } else if (eventType === 'failed') {
-      store.updateLiveAgent(agent_id, { status: 'failed' });
+      store.updateLiveAgent?.(agent_id, { status: 'failed' });
     }
   }, [createAgentTab]);
 

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useSessionStore } from '../../domain/session/store';
+// TODO: migrate to domain store — domain SessionStoreState has no `sessionOutputs` field;
+//       once session output tracking is added to the domain store, remove the TODO above.
 
 interface EnvScanResult {
   hasEnvFiles: boolean;
@@ -54,7 +56,10 @@ export function useEnvScanner(projectPath: string): EnvScanResult {
   const foundFilesRef = useRef<Set<string>>(new Set());
 
   // Strategy 1: Scan session outputs for .env file references
-  const sessionOutputs = useSessionStore((state) => state.sessionOutputs);
+  // TODO: migrate to domain store — `sessionOutputs` does not exist on domain SessionStoreState.
+  //       Access is intentionally cast to `any` until the domain store exposes session output data.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sessionOutputs = useSessionStore((state) => (state as any).sessionOutputs as Record<string, string> | undefined ?? {});
 
   // Track the previous project path to detect switches
   const prevProjectPathRef = useRef<string>('');

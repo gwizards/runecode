@@ -137,11 +137,19 @@ export class RuFloApplicationService {
 
   // ── Queries ───────────────────────────────────────────────────────────────
 
-  async getInstallation(): Promise<RuFloInstallationAggregate> {
-    return this.repo.getInstallation();
+  async getInstallation(): Promise<Result<RuFloInstallationAggregate>> {
+    try {
+      return Ok(await this.repo.getInstallation());
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
   }
 
-  async getSwarm(): Promise<RuFloSwarmAggregate | null> {
-    return this.repo.getSwarm();
+  async getSwarm(): Promise<Result<RuFloSwarmAggregate | null>> {
+    try {
+      return Ok(await this.repo.getSwarm());
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
   }
 }

@@ -1,3 +1,5 @@
+// @deprecated — use src/domain/analytics instead
+
 export interface AnalyticsEvent {
   event: string;
   properties?: {

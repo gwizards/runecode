@@ -1,3 +1,5 @@
+// @deprecated — use src/domain/analytics instead
+
 import type { AnalyticsSettings } from './types';
 
 const ANALYTICS_STORAGE_KEY = 'runecode-analytics-settings';

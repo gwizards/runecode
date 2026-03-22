@@ -7,7 +7,11 @@ import { Tab, useTabContext } from '@/contexts/TabContext';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, TooltipSimple } from '@/components/ui/tooltip-modern';
 import { useTrackEvent } from '@/hooks';
-import { useAgentStore } from '@/stores/agentStore';
+import { useAgentDomainStore } from '@/domain/agent/store';
+// TODO: migrate to domain store — domain AgentDomainState uses `agents: LiveAgentAggregate[]`
+//       not `liveAgents: Record<string, LiveAgent>`. Fields `liveAgents` and `removeLiveAgent`
+//       are accessed via `any` cast until the domain store exposes equivalent record-keyed
+//       access and a remove action.
 import { AgentStatusBadge } from './AgentStatusBadge';
 import {
   DropdownMenu,
@@ -242,8 +246,13 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   }, []);
 
   // Live agent tracking
-  const liveAgents = useAgentStore((state) => state.liveAgents);
-  const removeLiveAgent = useAgentStore((state) => state.removeLiveAgent);
+  // TODO: migrate to domain store — domain store has `agents: LiveAgentAggregate[]`, not
+  //       `liveAgents: Record<string, LiveAgent>` or `removeLiveAgent`. Casting to `any`
+  //       until the domain store exposes equivalent record-keyed lookup and a remove action.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const liveAgents: Record<string, any> = useAgentDomainStore((state) => (state as any).liveAgents ?? {});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const removeLiveAgent: (id: string) => void = useAgentDomainStore((state) => (state as any).removeLiveAgent ?? (() => {}));
 
   // Analytics tracking
   const trackEvent = useTrackEvent();

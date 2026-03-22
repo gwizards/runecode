@@ -1,4 +1,6 @@
-import type { 
+// @deprecated — use src/domain/analytics instead
+
+import type {
   EventName,
   FeatureUsageProperties,
   ErrorProperties,

@@ -1,3 +1,5 @@
+// @deprecated — use src/domain/analytics instead
+
 import posthog from 'posthog-js';
 import { ConsentManager } from './consent';
 import { sanitizers } from './events';
