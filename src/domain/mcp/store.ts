@@ -53,8 +53,7 @@ export const useMCPStore = create<MCPStoreState>((set) => ({
 
   async addServer(name: string, transport: ServerTransport, url: string) {
     set({ loading: true, error: null });
-    // Use name as id for simplicity; in production use a UUID generator
-    const result = await _service.addServer(name, name, transport, url);
+    const result = await _service.addServer(crypto.randomUUID(), name, transport, url);
     if (result.ok) {
       const listResult = await _service.listServers();
       if (listResult.ok) {

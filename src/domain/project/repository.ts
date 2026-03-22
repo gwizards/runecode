@@ -5,8 +5,9 @@
  * (Tauri backend, IndexedDB, in-memory for tests) are injected at runtime.
  */
 
-import type { ProjectId } from './types';
+import type { ProjectId, RawProject } from './types';
 import { ProjectAggregate } from './types';
+import { ProjectSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
 
 // ─── Repository Interface ─────────────────────────────────────────────────────
 
@@ -37,7 +38,9 @@ export interface IProjectRepository {
  * Intended for tests and development stubs — not for production persistence.
  */
 export class InMemoryProjectRepository implements IProjectRepository {
-  private readonly projects = new Map<string, ReturnType<ProjectAggregate['toSnapshot']>>();
+  private readonly projects = new QuantizedSnapshotStore<RawProject, string>(
+    new ProjectSnapshotQuantizer(),
+  );
 
   async getProject(id: ProjectId): Promise<ProjectAggregate | null> {
     const snapshot = this.projects.get(id);
@@ -61,7 +64,7 @@ export class InMemoryProjectRepository implements IProjectRepository {
   }
 
   async listProjects(): Promise<ProjectAggregate[]> {
-    return Array.from(this.projects.values()).map(ProjectAggregate.fromSnapshot);
+    return this.projects.values().map(ProjectAggregate.fromSnapshot);
   }
 
   /**

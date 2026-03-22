@@ -111,6 +111,21 @@ export class AgentApplicationService {
     }
   }
 
+  /**
+   * Resume a thinking agent back to 'running' state.
+   */
+  async resumeAgent(agentId: string): Promise<Result<void>> {
+    try {
+      const agent = await this.load(agentId);
+      if (!agent) return Err(`Agent '${agentId}' not found`);
+      agent.resume();
+      await this.persist(agent);
+      return Ok(undefined);
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   // ── Queries ───────────────────────────────────────────────────────────────
 
   /**

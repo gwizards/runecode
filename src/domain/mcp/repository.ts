@@ -2,8 +2,9 @@
  * MCP bounded context — Repository interface and in-memory implementation.
  */
 
-import type { ServerId } from './types';
+import type { ServerId, RawMCPServer } from './types';
 import { MCPServerAggregate } from './types';
+import { MCPSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
 
 // ─── Repository interface ─────────────────────────────────────────────────
 
@@ -19,7 +20,9 @@ export interface IMCPRepository {
 // ─── In-memory implementation ─────────────────────────────────────────────
 
 export class InMemoryMCPRepository implements IMCPRepository {
-  private readonly servers = new Map<string, ReturnType<MCPServerAggregate['toSnapshot']>>();
+  private readonly servers = new QuantizedSnapshotStore<RawMCPServer, string>(
+    new MCPSnapshotQuantizer(),
+  );
 
   async getServer(id: ServerId): Promise<MCPServerAggregate | null> {
     const snapshot = this.servers.get(id);
@@ -43,11 +46,11 @@ export class InMemoryMCPRepository implements IMCPRepository {
   }
 
   async listServers(): Promise<MCPServerAggregate[]> {
-    return Array.from(this.servers.values()).map(MCPServerAggregate.fromSnapshot);
+    return this.servers.values().map(MCPServerAggregate.fromSnapshot);
   }
 
   async listEnabledServers(): Promise<MCPServerAggregate[]> {
-    return Array.from(this.servers.values())
+    return this.servers.values()
       .map(MCPServerAggregate.fromSnapshot)
       .filter((s) => s.isEnabled);
   }

@@ -15,9 +15,7 @@ import type { DomainEventBus } from '../../shared/event-bus';
 import type { Result } from '../../shared/result';
 import { Ok, Err } from '../../shared/result';
 import type { IRuFloRepository } from './ruflo.repository';
-// @ts-ignore — aggregates created by parallel agent
 import { RuFloSwarmAggregate } from '../aggregates/swarm.aggregate';
-// @ts-ignore — aggregates created by parallel agent
 import { RuFloInstallationAggregate } from '../aggregates/installation.aggregate';
 import type { RuFloAgent } from '../types';
 

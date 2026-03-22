@@ -15,7 +15,7 @@ export const SESSION_EVENT_TYPES = {
   OUTPUT_APPENDED: 'session/OUTPUT_APPENDED',
   SESSION_COMPLETED: 'session/SESSION_COMPLETED',
   SESSION_FAILED: 'session/SESSION_FAILED',
-  PROJECT_CREATED: 'session/PROJECT_CREATED',
+  TOKEN_USAGE_UPDATED: 'session/token-usage.updated',
 } as const;
 
 export type SessionEventType =
@@ -56,13 +56,14 @@ export interface SessionFailedEvent extends DomainEvent {
   };
 }
 
-export interface ProjectCreatedEvent extends DomainEvent {
-  readonly type: typeof SESSION_EVENT_TYPES.PROJECT_CREATED;
-  readonly payload: {
-    readonly projectId: ProjectId;
-    readonly path: string;
-    readonly name: string;
-  };
+export interface TokenUsageUpdatedEvent extends DomainEvent {
+  readonly type: typeof SESSION_EVENT_TYPES.TOKEN_USAGE_UPDATED;
+  readonly sessionId: string;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cacheCreationTokens: number;
+  readonly cacheReadTokens: number;
+  readonly costUsd: number;
 }
 
 // ─── Factory functions ────────────────────────────────────────────────────────
@@ -116,15 +117,21 @@ export function makeSessionFailed(
   };
 }
 
-export function makeProjectCreated(
-  projectId: ProjectId,
-  path: string,
-  name: string,
-): ProjectCreatedEvent {
+export function makeTokenUsageUpdated(
+  sessionId: string,
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    costUsd: number;
+  },
+): TokenUsageUpdatedEvent {
   return {
-    type: SESSION_EVENT_TYPES.PROJECT_CREATED,
+    type: SESSION_EVENT_TYPES.TOKEN_USAGE_UPDATED,
     occurredAt: Date.now(),
-    aggregateId: projectId,
-    payload: { projectId, path, name },
+    aggregateId: sessionId,
+    sessionId,
+    ...usage,
   };
 }

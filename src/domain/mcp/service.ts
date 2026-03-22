@@ -18,6 +18,14 @@ export class MCPApplicationService {
     private readonly eventBus: DomainEventBus,
   ) {}
 
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  private async persist(server: MCPServerAggregate): Promise<void> {
+    await this.repo.saveServer(server);
+    this.eventBus.dispatch(server.events);
+    server.clearEvents();
+  }
+
   async addServer(
     id: string,
     name: string,
@@ -26,9 +34,7 @@ export class MCPApplicationService {
   ): Promise<Result<MCPServerAggregate>> {
     try {
       const server = MCPServerAggregate.add(id, name, transport, url);
-      await this.repo.saveServer(server);
-      this.eventBus.dispatch(server.events);
-      server.clearEvents();
+      await this.persist(server);
       return Ok(server);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -45,7 +51,7 @@ export class MCPApplicationService {
       server.remove();
       await this.repo.removeServer(serverId);
       this.eventBus.dispatch(server.events);
-      server.clearEvents();
+      server.clearEvents(); // events dispatched before physical removal
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -60,9 +66,7 @@ export class MCPApplicationService {
         return Err(`Server not found: ${id}`);
       }
       server.connect();
-      await this.repo.saveServer(server);
-      this.eventBus.dispatch(server.events);
-      server.clearEvents();
+      await this.persist(server);
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -77,9 +81,7 @@ export class MCPApplicationService {
         return Err(`Server not found: ${id}`);
       }
       server.disconnect();
-      await this.repo.saveServer(server);
-      this.eventBus.dispatch(server.events);
-      server.clearEvents();
+      await this.persist(server);
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -94,9 +96,7 @@ export class MCPApplicationService {
         return Err(`Server not found: ${id}`);
       }
       server.markError(reason);
-      await this.repo.saveServer(server);
-      this.eventBus.dispatch(server.events);
-      server.clearEvents();
+      await this.persist(server);
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -111,9 +111,7 @@ export class MCPApplicationService {
         return Err(`Server not found: ${id}`);
       }
       server.enable();
-      await this.repo.saveServer(server);
-      this.eventBus.dispatch(server.events);
-      server.clearEvents();
+      await this.persist(server);
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -128,9 +126,7 @@ export class MCPApplicationService {
         return Err(`Server not found: ${id}`);
       }
       server.disable();
-      await this.repo.saveServer(server);
-      this.eventBus.dispatch(server.events);
-      server.clearEvents();
+      await this.persist(server);
       return Ok(undefined);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));
@@ -153,6 +149,15 @@ export class MCPApplicationService {
   async listServers(): Promise<Result<MCPServerAggregate[]>> {
     try {
       const servers = await this.repo.listServers();
+      return Ok(servers);
+    } catch (err) {
+      return Err(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async listEnabledServers(): Promise<Result<MCPServerAggregate[]>> {
+    try {
+      const servers = await this.repo.listEnabledServers();
       return Ok(servers);
     } catch (err) {
       return Err(err instanceof Error ? err.message : String(err));

@@ -12,7 +12,14 @@ import {
   makeOutputAppended,
   makeSessionCompleted,
   makeSessionFailed,
+  makeTokenUsageUpdated,
 } from './events';
+
+// ─── Session status ───────────────────────────────────────────────────────────
+
+export type SessionStatus = 'running' | 'completed' | 'error' | 'idle';
+
+const VALID_SESSION_STATUSES = new Set<SessionStatus>(['running', 'completed', 'error', 'idle']);
 
 // ─── Branded IDs ──────────────────────────────────────────────────────────────
 
@@ -20,6 +27,7 @@ export type SessionId = string & { readonly _brand: 'SessionId' };
 export type ProjectId = string & { readonly _brand: 'ProjectId' };
 
 export function toSessionId(id: string): SessionId {
+  if (id === '__unknown__') return id as SessionId; // sentinel allowed
   if (!id || !id.trim()) throw new Error('SessionId cannot be empty');
   return id as SessionId;
 }
@@ -74,9 +82,9 @@ export interface RawSession {
 
 // ─── Terminal statuses ────────────────────────────────────────────────────────
 
-const TERMINAL_STATUSES = new Set(['completed', 'error']);
+const TERMINAL_STATUSES = new Set<SessionStatus>(['completed', 'error']);
 
-function isTerminal(status: string): boolean {
+function isTerminal(status: SessionStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
@@ -87,7 +95,7 @@ export class SessionAggregate {
     readonly id: SessionId,
     readonly projectId: ProjectId,
     private _title: string,
-    private _status: string,
+    private _status: SessionStatus,
     private _tokenUsage: TokenUsage,
     private _output: string[],
     readonly createdAt: number,
@@ -101,12 +109,15 @@ export class SessionAggregate {
     const tokenUsage = raw.tokenUsage
       ? addTokenUsage(emptyTokenUsage(), raw.tokenUsage)
       : emptyTokenUsage();
+    const status: SessionStatus = VALID_SESSION_STATUSES.has(raw.status as SessionStatus)
+      ? (raw.status as SessionStatus)
+      : 'idle';
 
     const aggregate = new SessionAggregate(
       toSessionId(raw.id),
       toProjectId(raw.projectId),
       raw.title ?? 'Untitled Session',
-      raw.status ?? 'idle',
+      status,
       tokenUsage,
       [],
       createdAt,
@@ -130,11 +141,14 @@ export class SessionAggregate {
     const tokenUsage = raw.tokenUsage
       ? addTokenUsage(emptyTokenUsage(), raw.tokenUsage)
       : emptyTokenUsage();
+    const status: SessionStatus = VALID_SESSION_STATUSES.has(raw.status as SessionStatus)
+      ? (raw.status as SessionStatus)
+      : 'idle';
     return new SessionAggregate(
       toSessionId(raw.id),
       toProjectId(raw.projectId),
       raw.title ?? 'Untitled Session',
-      raw.status ?? 'idle',
+      status,
       tokenUsage,
       [],
       createdAt,
@@ -145,9 +159,13 @@ export class SessionAggregate {
   // ── Factory: null/empty session ────────────────────────────────────────────
 
   static unknown(): SessionAggregate {
+    // Sentinel aggregate for "no active session" state.
+    // Uses a reserved sentinel ID that is distinguishable from real IDs.
+    const UNKNOWN_SENTINEL = '__unknown__' as SessionId;
+    const UNKNOWN_PROJECT  = '__unknown__' as ProjectId;
     return new SessionAggregate(
-      '' as SessionId,
-      '' as ProjectId,
+      UNKNOWN_SENTINEL,
+      UNKNOWN_PROJECT,
       '',
       'idle',
       emptyTokenUsage(),
@@ -155,6 +173,10 @@ export class SessionAggregate {
       0,
       [],
     );
+  }
+
+  get isUnknown(): boolean {
+    return this.id === '__unknown__';
   }
 
   // ── Commands ───────────────────────────────────────────────────────────────
@@ -186,6 +208,7 @@ export class SessionAggregate {
 
   updateTokenUsage(usage: Partial<TokenUsage>): void {
     this._tokenUsage = addTokenUsage(this._tokenUsage, usage);
+    this._events.push(makeTokenUsageUpdated(this.id, this._tokenUsage));
   }
 
   // ── Getters ────────────────────────────────────────────────────────────────
@@ -194,7 +217,7 @@ export class SessionAggregate {
     return this._title;
   }
 
-  get status(): string {
+  get status(): SessionStatus {
     return this._status;
   }
 

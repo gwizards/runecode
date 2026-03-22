@@ -8,9 +8,7 @@
 
 import type { Result } from '../../shared/result';
 import { Ok } from '../../shared/result';
-// @ts-ignore — aggregates created by parallel agent
 import { RuFloInstallationAggregate } from '../aggregates/installation.aggregate';
-// @ts-ignore — aggregates created by parallel agent
 import { RuFloSwarmAggregate } from '../aggregates/swarm.aggregate';
 
 // ─── MemoryStats ──────────────────────────────────────────────────────────────

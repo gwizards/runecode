@@ -150,15 +150,17 @@ export class MCPServerAggregate {
 
   // ── State transitions ─────────────────────────────────────────────────
 
-  /** Transition pending/disconnected → connected. */
+  /** Transition pending/disconnected → connected. Idempotent if already connected. */
   connect(): void {
+    if (this._status === 'connected') return; // idempotent
     const old = this._status;
     this._status = 'connected';
     this._events.push(makeServerStatusChanged(this.id, old, 'connected'));
   }
 
-  /** Transition → disconnected. */
+  /** Transition → disconnected. Idempotent if already disconnected. */
   disconnect(): void {
+    if (this._status === 'disconnected') return; // idempotent
     const old = this._status;
     this._status = 'disconnected';
     this._events.push(makeServerStatusChanged(this.id, old, 'disconnected'));

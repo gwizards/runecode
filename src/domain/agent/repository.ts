@@ -5,8 +5,9 @@
  * InMemoryAgentRepository is the default adapter (suitable for tests and dev).
  */
 
-import type { AgentId } from './types';
+import type { AgentId, RawLiveAgent } from './types';
 import { LiveAgentAggregate } from './types';
+import { AgentSnapshotQuantizer, QuantizedSnapshotStore } from '../shared/quantization';
 
 // ─── Repository Interface ──────────────────────────────────────────────────
 
@@ -30,7 +31,9 @@ export interface IAgentRepository {
 // ─── In-Memory Implementation ──────────────────────────────────────────────
 
 export class InMemoryAgentRepository implements IAgentRepository {
-  private readonly agents = new Map<string, ReturnType<LiveAgentAggregate['toSnapshot']>>();
+  private readonly agents = new QuantizedSnapshotStore<RawLiveAgent, string>(
+    new AgentSnapshotQuantizer(),
+  );
 
   async getAgent(id: AgentId): Promise<LiveAgentAggregate | null> {
     const snapshot = this.agents.get(id);
@@ -47,13 +50,13 @@ export class InMemoryAgentRepository implements IAgentRepository {
   }
 
   async listActiveAgents(): Promise<LiveAgentAggregate[]> {
-    return Array.from(this.agents.values())
+    return this.agents.values()
       .map(LiveAgentAggregate.fromSnapshot)
       .filter((a) => a.isActive);
   }
 
   async listAll(): Promise<LiveAgentAggregate[]> {
-    return Array.from(this.agents.values()).map(LiveAgentAggregate.fromSnapshot);
+    return this.agents.values().map(LiveAgentAggregate.fromSnapshot);
   }
 
   /**

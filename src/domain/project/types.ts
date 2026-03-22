@@ -7,6 +7,7 @@
 import type { DomainEvent } from '../shared/event-bus';
 import {
   makeProjectCreated,
+  makeProjectDeleted,
   makeProjectOpened,
   makeProjectRenamed,
 } from './events';
@@ -93,6 +94,8 @@ export interface RawProject {
  *   application service after persistence.
  */
 export class ProjectAggregate {
+  private _deleted = false;
+
   private constructor(
     readonly id: ProjectId,
     private _path: ProjectPath,
@@ -162,6 +165,15 @@ export class ProjectAggregate {
     this._events.push(makeProjectRenamed(this.id, oldName, this._name.value));
   }
 
+  /**
+   * Marks the project as deleted and records a ProjectDeletedEvent.
+   * Event is raised inside the aggregate and dispatched by the service.
+   */
+  markForDeletion(): void {
+    this._deleted = true;
+    this._events.push(makeProjectDeleted(this.id, this._path.value));
+  }
+
   // ─── Getters ──────────────────────────────────────────────────────────────
 
   get path(): string {
@@ -174,6 +186,10 @@ export class ProjectAggregate {
 
   get lastOpenedAt(): number | null {
     return this._lastOpenedAt;
+  }
+
+  get isDeleted(): boolean {
+    return this._deleted;
   }
 
   get events(): ReadonlyArray<DomainEvent> {

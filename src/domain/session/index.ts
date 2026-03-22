@@ -13,7 +13,7 @@ export {
   addTokenUsage,
   SessionAggregate,
 } from './types';
-export type { SessionId, ProjectId, TokenUsage, RawSession } from './types';
+export type { SessionId, ProjectId, TokenUsage, RawSession, SessionStatus } from './types';
 
 // Events
 export {
@@ -22,7 +22,7 @@ export {
   makeOutputAppended,
   makeSessionCompleted,
   makeSessionFailed,
-  makeProjectCreated,
+  makeTokenUsageUpdated,
 } from './events';
 export type {
   SessionEventType,
@@ -30,7 +30,7 @@ export type {
   OutputAppendedEvent,
   SessionCompletedEvent,
   SessionFailedEvent,
-  ProjectCreatedEvent,
+  TokenUsageUpdatedEvent,
 } from './events';
 
 // Repository
