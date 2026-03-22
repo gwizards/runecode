@@ -18,10 +18,9 @@ jobs:
 
     # Per-job concurrency: each platform gets its own group so a new push
     # cancels only its own platform's in-progress job.
-    # ARM64 is never cancelled (slow runner, ~13 min) — it always runs to completion.
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.platform.name }}-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: ${{ matrix.platform.name != 'Linux ARM64' }}
+      cancel-in-progress: true
 
     strategy:
       fail-fast: false
@@ -30,9 +29,6 @@ jobs:
           - name: Linux
             os: ubuntu-latest
             rust-target: x86_64-unknown-linux-gnu
-          - name: Linux ARM64
-            os: ubuntu-24.04-arm64
-            rust-target: aarch64-unknown-linux-gnu
           - name: Windows
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
