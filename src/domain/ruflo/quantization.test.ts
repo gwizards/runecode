@@ -12,7 +12,6 @@ import {
   CalibratedQuantizer,
   calibrate,
   quantizeCalibrated,
-  dequantizeCalibrated,
 } from './quantization';
 
 describe('quantizeEmbedding / dequantizeEmbedding', () => {

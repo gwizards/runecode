@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DomainEventBus } from '../shared/event-bus';
 import type { DomainEvent } from '../shared/event-bus';
-import { Ok, Err, unwrap, mapResult, flatMap } from '../shared/result';
+import { Ok, Err, mapResult, flatMap } from '../shared/result';
 import { RuFloSwarmAggregate } from './aggregates/swarm.aggregate';
 import { RuFloInstallationAggregate } from './aggregates/installation.aggregate';
 import { DOMAIN_EVENT_TYPES } from './domain-events';

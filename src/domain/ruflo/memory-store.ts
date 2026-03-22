@@ -16,6 +16,7 @@ import {
   cosineSimilarityQuantized,
   ProductQuantizer,
   quantizationSavings,
+  CalibratedQuantizer,
   type PQConfig,
   type MemorySavingsReport,
 } from './quantization';
@@ -54,12 +55,14 @@ export class QuantizedMemoryStore {
   private pq?: ProductQuantizer;
   private readonly maxEntries: number;
   private readonly defaultTtlMs: number | undefined;
+  private _quantizer: CalibratedQuantizer;
 
   constructor(config: QuantizedMemoryStoreConfig = {}) {
     this.mode = config.mode ?? 'scalar';
     this.dims = config.dims ?? 384;
     this.maxEntries = config.maxEntries ?? 0;
     this.defaultTtlMs = config.defaultTtlMs;
+    this._quantizer = new CalibratedQuantizer(this.dims);
 
     if (this.mode === 'product') {
       this.pq = new ProductQuantizer({ dims: this.dims, ...config.pq });
@@ -97,17 +100,23 @@ export class QuantizedMemoryStore {
     let data: Uint8Array;
 
     if (this.mode === 'scalar') {
-      data = quantizeEmbedding(embedding);
+      // Use CalibratedQuantizer if fitted (better range mapping), else fall back to global scalar
+      data = this._quantizer.isFitted
+        ? this._quantizer.encode(embedding)
+        : quantizeEmbedding(embedding);
     } else if (this.mode === 'product') {
       if (!this.pq?.isTrained) throw new Error('ProductQuantizer must be trained before add()');
       data = this.pq.encode(embedding);
     } else {
       // mode === 'none': store as uint8 via scalar for memory layout consistency
-      data = quantizeEmbedding(embedding);
+      data = this._quantizer.isFitted
+        ? this._quantizer.encode(embedding)
+        : quantizeEmbedding(embedding);
     }
 
     this.entries.set(key, { key, data, metadata, addedAt: Date.now(), ttlMs: ttlMs ?? this.defaultTtlMs });
 
+    // TODO: use recommendMode(this.size) to upgrade quantization strategy
     if (this.maxEntries > 0 && this.entries.size > this.maxEntries) {
       let oldestKey: string | undefined;
       let oldestTime = Infinity;
@@ -143,7 +152,10 @@ export class QuantizedMemoryStore {
       if (!this.pq?.isTrained) throw new Error('ProductQuantizer must be trained before search()');
       queryData = this.pq.encode(query);
     } else {
-      queryData = quantizeEmbedding(query);
+      // Use CalibratedQuantizer if fitted so query and stored vectors use the same space
+      queryData = this._quantizer.isFitted
+        ? this._quantizer.encode(query)
+        : quantizeEmbedding(query);
     }
 
     const results: SearchResult[] = [];
@@ -173,7 +185,10 @@ export class QuantizedMemoryStore {
     if (this.mode === 'product') {
       return this.pq?.decode(entry.data) ?? null;
     }
-    return dequantizeEmbedding(entry.data);
+    // Use CalibratedQuantizer if fitted for better fidelity
+    return this._quantizer.isFitted
+      ? this._quantizer.decode(entry.data)
+      : dequantizeEmbedding(entry.data);
   }
 
   /** Export all entries for persistence */
@@ -208,6 +223,26 @@ export class QuantizedMemoryStore {
       this.pq.train(calibrationEmbeddings);
     }
     return this.mode;
+  }
+
+  /**
+   * Fit the CalibratedQuantizer from representative sample embeddings.
+   * After fitting, add() and get() use per-dimension calibrated quantization
+   * instead of the global [-1, 1] clamping, improving fidelity for real data.
+   * No-op if samples is empty.
+   */
+  fitQuantizer(samples: Float32Array[]): void {
+    if (samples.length === 0) return;
+    this._quantizer.fit(samples);
+  }
+
+  /**
+   * Fit the CalibratedQuantizer then warm up the store with the same vectors.
+   * Convenience method combining fitQuantizer() and warmUp() in one call.
+   */
+  warmUpQuantizer(entries: Float32Array[]): void {
+    this.fitQuantizer(entries);
+    this.warmUp(entries);
   }
 
   /** Memory usage report */

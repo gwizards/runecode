@@ -12,6 +12,7 @@
 
 import type { DomainEvent } from '../../shared/event-bus';
 import type { RuFloAgent, AgentCapability } from '../types';
+import { type SwarmId, toSwarmId } from '../types';
 import {
   makeSwarmInitialized,
   makeSwarmAgentAdded,
@@ -23,7 +24,7 @@ export class RuFloSwarmAggregate {
   private _events: DomainEvent[] = [];
 
   private constructor(
-    private readonly _id: string,
+    private readonly _id: SwarmId,
     private readonly _topology: string,
     private readonly _maxAgents: number,
     private readonly _memoryNamespace: string,
@@ -50,8 +51,9 @@ export class RuFloSwarmAggregate {
     if (maxAgents < 1) throw new Error('maxAgents must be at least 1');
 
     const agents = params.agents ?? [];
+    const swarmId = toSwarmId(params.id);
     const swarm = new RuFloSwarmAggregate(
-      params.id,
+      swarmId,
       params.topology,
       maxAgents,
       params.memoryNamespace ?? 'default',
@@ -59,7 +61,7 @@ export class RuFloSwarmAggregate {
     );
 
     swarm._events.push(
-      makeSwarmInitialized(params.id, params.topology, agents.length, maxAgents),
+      makeSwarmInitialized(swarmId, params.topology, agents.length, maxAgents),
     );
     return swarm;
   }
@@ -75,7 +77,7 @@ export class RuFloSwarmAggregate {
     agents?: RuFloAgent[];
   }): RuFloSwarmAggregate {
     return new RuFloSwarmAggregate(
-      params.id,
+      toSwarmId(params.id),
       params.topology,
       params.maxAgents ?? 15,
       params.memoryNamespace ?? 'default',
@@ -85,7 +87,7 @@ export class RuFloSwarmAggregate {
 
   // ── Queries ───────────────────────────────────────────────────────────────
 
-  get id(): string { return this._id; }
+  get id(): SwarmId { return this._id; }
   get topology(): string { return this._topology; }
   get maxAgents(): number { return this._maxAgents; }
   get memoryNamespace(): string { return this._memoryNamespace; }
