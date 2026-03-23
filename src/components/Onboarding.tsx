@@ -13,9 +13,29 @@ import {
 import { StepCard, type StepStatus } from '@/components/onboarding/StepCard';
 import { TerminalOutput } from '@/components/onboarding/TerminalOutput';
 import { api } from '@/lib/api';
+import { getEnvironmentInfo } from '@/lib/apiAdapter';
 import { useSessionConfig } from '@/hooks/useSessionConfig';
 import { ConsentManager } from '@/infrastructure/analytics';
 import type { PermissionMode } from '@/hooks/useSessionConfig';
+
+// In web/server mode, Tauri IPC is unavailable — we can't detect or install
+// Node.js, Claude Code, or RuFlo. Show manual instructions instead.
+const IS_WEB_MODE = !getEnvironmentInfo().isTauri;
+
+/** Inline code block with a copy button — used in web-mode manual instruction steps. */
+function CopyBlock({ code }: { code: string }) {
+  return (
+    <div className="flex items-start gap-1.5 bg-black/30 rounded-lg px-3 py-2 font-mono text-[11px] text-purple-300/80">
+      <span className="flex-1 whitespace-pre-wrap break-all select-all leading-relaxed">{code}</span>
+      <button
+        onClick={() => navigator.clipboard.writeText(code).catch(() => {})}
+        className="text-white/30 hover:text-white/70 transition-colors flex-shrink-0 text-[10px] px-2 py-0.5 rounded border border-white/10 hover:border-white/20 mt-0.5"
+      >
+        Copy
+      </button>
+    </div>
+  );
+}
 
 const TOTAL_STEPS = 9;
 
@@ -118,8 +138,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
   }, [setStatus]);
 
-  // Auto-check on step enter (small delay to let Tauri IPC initialize on Windows)
+  // Auto-check on step enter — desktop mode only.
+  // In web/server mode, IPC is unavailable; steps are pre-skipped below.
   useEffect(() => {
+    if (IS_WEB_MODE) return;
     if (currentStep === 1 && !statuses[1]) {
       const timer = setTimeout(() => checkNode(), 500);
       return () => clearTimeout(timer);
@@ -127,18 +149,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [currentStep, statuses, checkNode]);
 
   useEffect(() => {
-    if (currentStep === 2 && !statuses[2]) {
-      checkClaude(2);
-    }
+    if (IS_WEB_MODE) return;
+    if (currentStep === 2 && !statuses[2]) checkClaude(2);
   }, [currentStep, statuses, checkClaude]);
 
   useEffect(() => {
-    if (currentStep === 3 && !statuses[3]) {
-      checkClaude(3);
-    }
+    if (IS_WEB_MODE) return;
+    if (currentStep === 3 && !statuses[3]) checkClaude(3);
   }, [currentStep, statuses, checkClaude]);
 
   const checkRuflo = useCallback(async () => {
+    if (IS_WEB_MODE) return;
     setStatus(4, 'checking');
     try {
       const result = await api.checkRufloInstalled();
@@ -152,9 +173,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [setStatus]);
 
   useEffect(() => {
-    if (currentStep === 4 && !statuses[4]) {
-      checkRuflo();
-    }
+    if (IS_WEB_MODE) return;
+    if (currentStep === 4 && !statuses[4]) checkRuflo();
   }, [currentStep, statuses, checkRuflo]);
 
   const handleInstallRuflo = async () => {
@@ -275,6 +295,30 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     switch (currentStep) {
       // Step 1: Node.js Runtime
       case 1:
+        if (IS_WEB_MODE) return (
+          <StepCard
+            key="step-1"
+            step={1}
+            totalSteps={TOTAL_STEPS}
+            title="Node.js Runtime"
+            description="RuneCode is running in server mode — install tools manually in your terminal."
+            icon={Box}
+            status="skipped"
+            onNext={nextStep}
+          >
+            <div className="flex flex-col gap-3">
+              <div className="text-xs text-white/50 leading-relaxed">
+                Install Node.js v22+ on the machine running the RuneCode server:
+              </div>
+              <CopyBlock code="# macOS / Linux (via nvm)\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash\nnvm install 22 && nvm use 22" />
+              <CopyBlock code="# Windows — download from nodejs.org/en/download" />
+              <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer"
+                className="text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                nodejs.org →
+              </a>
+            </div>
+          </StepCard>
+        );
         return (
           <StepCard
             key="step-1"
@@ -324,6 +368,26 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
       // Step 2: Claude Code CLI
       case 2:
+        if (IS_WEB_MODE) return (
+          <StepCard
+            key="step-2"
+            step={2}
+            totalSteps={TOTAL_STEPS}
+            title="Claude Code CLI"
+            description="Install Claude Code on the machine running the RuneCode server."
+            icon={Terminal}
+            status="skipped"
+            onNext={nextStep}
+          >
+            <div className="flex flex-col gap-3">
+              <CopyBlock code="npm install -g @anthropic-ai/claude-code" />
+              <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener noreferrer"
+                className="text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                docs.anthropic.com →
+              </a>
+            </div>
+          </StepCard>
+        );
         return (
           <StepCard
             key="step-2"
@@ -373,6 +437,25 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
       // Step 3: Verify Claude
       case 3:
+        if (IS_WEB_MODE) return (
+          <StepCard
+            key="step-3"
+            step={3}
+            totalSteps={TOTAL_STEPS}
+            title="Verify Claude"
+            description="Verify Claude Code is working on the server machine."
+            icon={CheckCircle}
+            status="skipped"
+            onNext={nextStep}
+          >
+            <div className="flex flex-col gap-3">
+              <div className="text-xs text-white/50">Run this in your terminal to verify:</div>
+              <CopyBlock code="claude --version" />
+              <div className="text-xs text-white/50">Then authenticate:</div>
+              <CopyBlock code="claude auth login" />
+            </div>
+          </StepCard>
+        );
         return (
           <StepCard
             key="step-3"
@@ -410,6 +493,32 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
       // Step 4: RuFlo — AI Swarm Manager
       case 4:
+        if (IS_WEB_MODE) return (
+          <StepCard
+            key="step-4"
+            step={4}
+            totalSteps={TOTAL_STEPS}
+            title="RuFlo — AI Swarm Manager"
+            description="Install RuFlo on the machine running the RuneCode server."
+            icon={Sparkles}
+            status="skipped"
+            onNext={nextStep}
+            onSkip={() => { localStorage.setItem('runecode-ruflo-skipped', 'true'); skipStep(); }}
+            canSkip
+          >
+            <div className="flex flex-col gap-3">
+              <ul className="flex flex-col gap-1.5">
+                {['Hierarchical swarms with 15+ agent types', 'Autonomous task execution pipeline', 'Claude Code MCP integration'].map((item) => (
+                  <li key={item} className="flex gap-2 text-xs text-white/60">
+                    <span className="text-purple-400">✦</span>{item}
+                  </li>
+                ))}
+              </ul>
+              <CopyBlock code="npm install -g @claude-flow/cli@latest" />
+              <CopyBlock code="claude mcp add claude-flow -- npx -y @claude-flow/cli@latest" />
+            </div>
+          </StepCard>
+        );
         return (
           <StepCard
             key="step-4"
