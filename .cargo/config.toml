@@ -12,6 +12,20 @@ linker = "aarch64-linux-gnu-gcc"
 # so src-tauri/Cargo.toml — which is inside this repo root — correctly picks up
 # this flag even though the two are in separate directories.  No duplicate flag
 # in src-tauri/.cargo/config.toml is needed or desired.
+# Round 8 (VC++ runtime audit): crt-static is intentionally NOT set here.
+#
+# Using +crt-static on MSVC would statically link the C runtime into the binary,
+# which conflicts with Tauri's WebView2 loader: WebView2's DLLs expect the
+# dynamic MSVCRT and will fail to load if the host binary uses a separate static
+# copy (DLL boundary mismatch for CRT objects like FILE* or CRITICAL_SECTION).
+#
+# Instead, Tauri's NSIS template (via tauri-bundler) automatically embeds a
+# VC++ Redistributable check/installer in the generated NSIS script, ensuring
+# VCRUNTIME140.dll is present on the target system before the app launches.
+# The installMode: "currentUser" in tauri.conf.json means the redistributable
+# installer also runs per-user, avoiding UAC prompts that can block the install.
+#
+# Do NOT add "-C target-feature=+crt-static" to this flag list.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-args=/STACK:8388608"]
 
