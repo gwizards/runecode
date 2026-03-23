@@ -116,6 +116,14 @@ pub async fn storage_read_table(
     pageSize: i64,
     searchQuery: Option<String>,
 ) -> Result<TableData, String> {
+    // Validate pagination parameters before acquiring the DB lock.
+    if pageSize == 0 || pageSize > 1000 {
+        return Err("pageSize must be between 1 and 1000".to_string());
+    }
+    if page == 0 {
+        return Err("page must be >= 1".to_string());
+    }
+
     let conn = db.0.lock().map_err(|e| e.to_string())?;
 
     // Validate table name to prevent SQL injection
@@ -210,7 +218,7 @@ pub async fn storage_read_table(
 
     // Calculate pagination
     let offset = (page - 1) * pageSize;
-    let total_pages = (total_rows as f64 / pageSize as f64).ceil() as i64;
+    let total_pages = (total_rows + pageSize - 1) / pageSize;
 
     // Query data with parameterized search
     let mut data_stmt = conn.prepare(&query).map_err(|e| e.to_string())?;

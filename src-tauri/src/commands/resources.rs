@@ -35,7 +35,7 @@ pub struct SystemResources {
 }
 
 #[tauri::command]
-pub fn get_system_resources() -> SystemResources {
+pub fn get_system_resources() -> Result<SystemResources, String> {
     let mut cache = match SYSTEM.lock() {
         Ok(c) => c,
         Err(poisoned) => poisoned.into_inner(),
@@ -58,10 +58,10 @@ pub fn get_system_resources() -> SystemResources {
         0.0
     };
 
-    SystemResources {
+    Ok(SystemResources {
         cpu_percent,
         ram_percent,
         ram_used_gb: (used_memory / 1_073_741_824.0) as f32,
         ram_total_gb: (total_memory / 1_073_741_824.0) as f32,
-    }
+    })
 }

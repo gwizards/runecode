@@ -50,7 +50,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       setOriginalContent(prompt);
     } catch (err) {
       console.error("Failed to load system prompt:", err);
-      setError("Failed to load CLAUDE.md file");
+      setError(`Failed to load CLAUDE.md file: ${err}`);
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       setToast({ message: "CLAUDE.md saved successfully", type: "success" });
     } catch (err) {
       console.error("Failed to save system prompt:", err);
-      setError("Failed to save CLAUDE.md file");
+      setError(`Failed to save CLAUDE.md file: ${err}`);
       setToast({ message: "Failed to save CLAUDE.md", type: "error" });
     } finally {
       setSaving(false);

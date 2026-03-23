@@ -80,7 +80,7 @@ export const CheckpointSettings: React.FC<CheckpointSettingsProps> = ({
       setTotalCheckpoints(settings.total_checkpoints);
     } catch (err) {
       console.error("Failed to load checkpoint settings:", err);
-      setError("Failed to load checkpoint settings");
+      setError(`Failed to load checkpoint settings: ${err}`);
     } finally {
       setIsLoading(false);
     }
@@ -105,7 +105,7 @@ export const CheckpointSettings: React.FC<CheckpointSettingsProps> = ({
       successTimerRef.current = setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       console.error("Failed to save checkpoint settings:", err);
-      setError("Failed to save checkpoint settings");
+      setError(`Failed to save checkpoint settings: ${err}`);
     } finally {
       setIsSaving(false);
     }
@@ -132,7 +132,7 @@ export const CheckpointSettings: React.FC<CheckpointSettingsProps> = ({
       await loadSettings();
     } catch (err) {
       console.error("Failed to cleanup checkpoints:", err);
-      setError("Failed to cleanup checkpoints");
+      setError(`Failed to cleanup checkpoints: ${err}`);
     } finally {
       setIsLoading(false);
     }

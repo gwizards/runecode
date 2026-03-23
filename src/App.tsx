@@ -235,7 +235,7 @@ function AppMain() {
     } catch (err) {
       if (!isMountedRef.current) return;
       console.error("Failed to load projects:", err);
-      setError("Failed to load projects. Please ensure ~/.claude directory exists.");
+      setError(`Failed to load projects: ${err}. Please ensure ~/.claude directory exists.`);
     } finally {
       if (isMountedRef.current) setLoading(false);
     }
@@ -253,7 +253,7 @@ function AppMain() {
       setSelectedProject(project);
     } catch (err) {
       console.error("Failed to load sessions:", err);
-      setError("Failed to load sessions for this project.");
+      setError(`Failed to load sessions for this project: ${err}`);
     } finally {
       setLoading(false);
     }
@@ -512,7 +512,7 @@ function AppMain() {
                     await handleProjectClick(project);
                   } catch (err) {
                     console.error('Failed to create project:', err);
-                    setError('Failed to create project for the selected directory.');
+                    setError(`Failed to create project for the selected directory: ${err}`);
                   }
                 }
               }}

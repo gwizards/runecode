@@ -1014,6 +1014,19 @@ pub async fn load_session_history(
         return Err(format!("Session file not found: {}", session_id));
     }
 
+    // Ownership check: ensure the resolved path stays under the projects root
+    // (canonicalize resolves symlinks so traversal attempts are caught).
+    let canonical = session_path
+        .canonicalize()
+        .map_err(|e| format!("Session path error: {e}"))?;
+    let projects_root = claude_dir.join("projects");
+    if !canonical.starts_with(&projects_root) {
+        return Err(format!(
+            "Session '{}' not found under projects root",
+            session_id
+        ));
+    }
+
     let file =
         fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {}", e))?;
 
@@ -1780,6 +1793,15 @@ pub async fn restore_checkpoint(
     validate_path_component(&session_id, "session_id")?;
     validate_path_component(&project_id, "project_id")?;
     validate_path_component(&checkpoint_id, "checkpoint_id")?;
+
+    // Guard: refuse to restore while the session is actively running to prevent
+    // concurrent JSONL mutation / data corruption races.
+    if app.has_active_manager(&session_id).await {
+        return Err(format!(
+            "Cannot restore checkpoint: session '{}' is currently active",
+            session_id
+        ));
+    }
 
     let manager = app
         .get_or_create_manager(

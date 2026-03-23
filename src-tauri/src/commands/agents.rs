@@ -1950,9 +1950,24 @@ pub async fn fetch_github_agents() -> Result<Vec<GitHubAgentFile>, String> {
 pub async fn fetch_github_agent_content(download_url: String) -> Result<AgentExport, String> {
     info!("Fetching agent content from: {}", download_url);
 
+    // SSRF guard: restrict fetches to known-safe GitHub domains only.
+    let allowed_domains = ["raw.githubusercontent.com", "api.github.com", "github.com"];
+    let parsed =
+        reqwest::Url::parse(&download_url).map_err(|e| format!("Invalid URL: {e}"))?;
+    let host = parsed.host_str().unwrap_or("");
+    if !allowed_domains
+        .iter()
+        .any(|d| host == *d || host.ends_with(&format!(".{d}")))
+    {
+        return Err(format!(
+            "URL host '{}' is not in the allowed domains list",
+            host
+        ));
+    }
+
     let client = reqwest::Client::new();
     let response = client
-        .get(&download_url)
+        .get(parsed)
         .header("Accept", "application/json")
         .header("User-Agent", "runecode-App")
         .send()

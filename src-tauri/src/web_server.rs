@@ -654,18 +654,12 @@ async fn get_project_info(
         }
     };
 
-    // Guard: reject paths that escape the user's home directory
-    {
-        let path_buf = std::path::PathBuf::from(&project_path);
-        let home = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .unwrap_or_default();
-        if home.is_empty() || !path_buf.starts_with(&home) {
-            return axum::Json(serde_json::json!({
-                "error": "Path outside home directory"
-            }))
-            .into_response();
-        }
+    // Guard: reject paths that escape the user's home directory (resolves symlinks)
+    if let Err(e) = crate::path_guard::require_within_home(std::path::Path::new(&project_path)) {
+        return axum::Json(serde_json::json!({
+            "error": format!("Path outside home directory: {}", e)
+        }))
+        .into_response();
     }
 
     let result = tokio::task::spawn_blocking(move || {
@@ -1015,6 +1009,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
 
     // -- Main message loop -------------------------------------------------
     println!("[WS] Listening for messages");
+    let mut init_received = false;
     'outer: while let Some(msg) = receiver.next().await {
         let msg = match msg {
             Ok(m) => m,
@@ -1056,6 +1051,19 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                         permission_mode,
                         ..
                     } => {
+                        if init_received {
+                            let err_json = serde_json::to_string(&WsServerMessage::Error {
+                                session_id: ws_session_id.clone(),
+                                error: "Session already initialized".to_string(),
+                            })
+                            .unwrap_or_default();
+                            let sessions = state.active_sessions.lock().await;
+                            if let Some(tx) = sessions.get(&ws_session_id) {
+                                let _ = tx.send(err_json).await;
+                            }
+                            continue 'outer;
+                        }
+                        init_received = true;
                         println!("[WS] Init -- project: {}  resume: {:?}", project_path, claude_session_id);
                         {
                             let mut cfg = state.session_config.lock().await;
@@ -1096,6 +1104,19 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                         permission_mode,
                         ..
                     } => {
+                        if init_received {
+                            let err_json = serde_json::to_string(&WsServerMessage::Error {
+                                session_id: ws_session_id.clone(),
+                                error: "Session already initialized".to_string(),
+                            })
+                            .unwrap_or_default();
+                            let sessions = state.active_sessions.lock().await;
+                            if let Some(tx) = sessions.get(&ws_session_id) {
+                                let _ = tx.send(err_json).await;
+                            }
+                            continue 'outer;
+                        }
+                        init_received = true;
                         println!("[WS] InitAgent -- agent: {}  project: {}", agent_name, project_path);
 
                         // Validate model string: only allow alphanumeric, '-', '.', '_', '/'
@@ -2078,13 +2099,9 @@ async fn read_claude_md_file(
     // Run blocking fs operations (canonicalize + read) on the blocking thread pool
     // to avoid stalling the async executor.
     let result = tokio::task::spawn_blocking(move || {
-        // Resolve symlinks and validate the canonical path doesn't escape expected dirs
-        let canonical = std::fs::canonicalize(&file_path)
-            .map_err(|e| format!("Failed to resolve path: {}", e))?;
-        let home = std::env::var("HOME").unwrap_or_default();
-        if !canonical.starts_with(&home) {
-            return Err("File path must be within the user's home directory".to_string());
-        }
+        // Resolve symlinks and validate the canonical path doesn't escape home directory
+        let canonical = crate::path_guard::require_within_home(std::path::Path::new(&file_path))
+            .map_err(|e| format!("File path must be within the user's home directory: {}", e))?;
         std::fs::read_to_string(&canonical)
             .map_err(|e| format!("Failed to read file: {}", e))
     })
