@@ -2119,9 +2119,20 @@ pub async fn get_checkpoint_state_stats(
     let active_count = app.active_count().await;
     let active_sessions = app.list_active_sessions().await;
 
+    // Check each active session for an active manager (uses has_active_manager for correctness)
+    let mut session_details = Vec::new();
+    for session_id in &active_sessions {
+        let has_manager = app.has_active_manager(session_id).await;
+        session_details.push(serde_json::json!({
+            "session_id": session_id,
+            "has_manager": has_manager,
+        }));
+    }
+
     Ok(serde_json::json!({
         "active_managers": active_count,
         "active_sessions": active_sessions,
+        "session_details": session_details,
     }))
 }
 

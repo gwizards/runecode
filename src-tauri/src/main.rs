@@ -202,6 +202,20 @@ fn main() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                // Clean up all checkpoint managers on window close to prevent data accumulation.
+                // This mirrors what clear_checkpoint_manager does per-session but for the full set.
+                let app = window.app_handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let state = app.state::<CheckpointState>();
+                    let cleared = state.clear_all_and_count().await;
+                    if cleared > 0 {
+                        log::info!("Cleared {} checkpoint manager(s) on window close", cleared);
+                    }
+                });
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             // Claude & Project Management
             list_projects,
