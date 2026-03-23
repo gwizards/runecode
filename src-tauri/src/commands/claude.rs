@@ -149,7 +149,7 @@ fn get_claude_dir() -> Result<PathBuf> {
 ///
 /// This prevents path-traversal attacks where a caller-supplied path like
 /// "../../etc/passwd" would escape the intended directory tree.
-fn guard_path_within_home(path: &PathBuf) -> Result<PathBuf, String> {
+pub(crate) fn guard_path_within_home(path: &PathBuf) -> Result<PathBuf, String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
@@ -713,9 +713,17 @@ pub async fn check_claude_version(app: AppHandle) -> Result<ClaudeVersionStatus,
 
     #[cfg(debug_assertions)]
     {
-        let output = std::process::Command::new(claude_path)
-            .arg("--version")
-            .output();
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            tokio::task::spawn_blocking(move || {
+                std::process::Command::new(claude_path)
+                    .arg("--version")
+                    .output()
+            }),
+        )
+        .await
+        .map_err(|_| "check_claude_version timed out".to_string())?
+        .map_err(|e| format!("spawn_blocking failed: {}", e))?;
 
         match output {
             Ok(output) => {
@@ -2360,13 +2368,22 @@ pub async fn update_hooks_config(
 pub async fn validate_hook_command(command: String) -> Result<serde_json::Value, String> {
     log::info!("Validating hook command syntax");
 
-    // Validate syntax without executing
-    let mut cmd = std::process::Command::new("bash");
-    cmd.arg("-n") // Syntax check only
-        .arg("-c")
-        .arg(&command);
+    // Validate syntax without executing — run blocking Command on a dedicated thread
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        tokio::task::spawn_blocking(move || {
+            let mut cmd = std::process::Command::new("bash");
+            cmd.arg("-n") // Syntax check only
+                .arg("-c")
+                .arg(&command);
+            cmd.output()
+        }),
+    )
+    .await
+    .map_err(|_| "validate_hook_command timed out".to_string())?
+    .map_err(|e| format!("spawn_blocking failed: {}", e))?;
 
-    match cmd.output() {
+    match result {
         Ok(output) => {
             if output.status.success() {
                 Ok(serde_json::json!({

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,12 +258,17 @@ pub fn collect_project_info(project_path: &str) -> ProjectInfo {
 /// Tauri IPC command to get project info
 #[tauri::command]
 pub async fn get_project_info(path: String) -> Result<ProjectInfo, String> {
-    Ok(collect_project_info(&path))
+    crate::commands::claude::guard_path_within_home(&PathBuf::from(&path))?;
+    let path_owned = path.clone();
+    tokio::task::spawn_blocking(move || collect_project_info(&path_owned))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {}", e))
 }
 
 /// Initialize a new project by creating .runecode/project.json
 #[tauri::command]
 pub fn initialize_project(project_path: String, project_name: String) -> Result<(), String> {
+    crate::commands::claude::guard_path_within_home(&PathBuf::from(&project_path))?;
     let runecode_dir = format!("{}/.runecode", project_path);
     std::fs::create_dir_all(&runecode_dir)
         .map_err(|e| format!("Failed to create .runecode directory: {}", e))?;

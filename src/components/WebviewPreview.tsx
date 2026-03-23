@@ -77,6 +77,14 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
   const contentRef = useRef<HTMLDivElement>(null);
   // const previewId = useRef(`preview-${Date.now()}`);
   const isIMEComposingRef = useRef(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any pending refresh timer on unmount to prevent setState after unmount.
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
 
   // Handle ESC key to exit full screen
   useEffect(() => {
@@ -171,7 +179,8 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
   const handleRefresh = () => {
     setIsLoading(true);
     // In real implementation, this would call webview.reload()
-    setTimeout(() => setIsLoading(false), 1000);
+    if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => setIsLoading(false), 1000);
   };
 
   const handleGoHome = () => {

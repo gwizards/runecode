@@ -79,6 +79,11 @@ function AppMain() {
 
   // Listen for agent lifecycle events
   useAgentLifecycle();
+  const isMountedRef = React.useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -225,12 +230,14 @@ function AppMain() {
       setLoading(true);
       setError(null);
       const projectList = await api.listProjects();
+      if (!isMountedRef.current) return;
       setProjects(projectList);
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error("Failed to load projects:", err);
       setError("Failed to load projects. Please ensure ~/.claude directory exists.");
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

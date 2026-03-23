@@ -33,7 +33,9 @@ class AnalyticsService {
   private constructor() {
     this.consentManager = ConsentManager.getInstance();
     this.config = {
-      apiKey: 'phc_6seRe1SJkFckJU2qQWeeIy62kaSoaUbCsdVCm1TQZg8',
+      // Key is injected at build time via the VITE_POSTHOG_KEY environment variable.
+      // Set it in .env.local (never commit the real key to source control).
+      apiKey: import.meta.env.VITE_POSTHOG_KEY ?? '',
       apiHost: 'https://us.i.posthog.com',
       persistence: 'localStorage',
       autocapture: false,

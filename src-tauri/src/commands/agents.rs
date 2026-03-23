@@ -1332,51 +1332,60 @@ pub async fn get_session_status(
 /// Cleanup finished processes and update their status
 #[tauri::command]
 pub async fn cleanup_finished_processes(db: State<'_, AgentDb>) -> Result<Vec<i64>, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    // Get all running processes
-    let mut stmt = conn
-        .prepare("SELECT id, pid FROM agent_runs WHERE status = 'running' AND pid IS NOT NULL")
-        .map_err(|e| e.to_string())?;
-
-    let running_processes = stmt
-        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    drop(stmt);
+    // Collect running processes then drop the mutex guard before any async work.
+    let running_processes = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT id, pid FROM agent_runs WHERE status = 'running' AND pid IS NOT NULL")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    }; // conn (MutexGuard) dropped here — safe to .await below
 
     let mut cleaned_up = Vec::new();
 
     for (run_id, pid) in running_processes {
-        // Check if the process is still running
-        let is_running = if cfg!(target_os = "windows") {
-            // On Windows, use tasklist to check if process exists
-            match std::process::Command::new("tasklist")
-                .args(["/FI", &format!("PID eq {}", pid)])
-                .args(["/FO", "CSV"])
-                .output()
-            {
-                Ok(output) => {
-                    let output_str = String::from_utf8_lossy(&output.stdout);
-                    output_str.lines().count() > 1 // Header + process line if exists
+        // Check if the process is still running.
+        // Use spawn_blocking + 5s timeout so we never block the tokio executor.
+        let is_running = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            tokio::task::spawn_blocking(move || {
+                if cfg!(target_os = "windows") {
+                    // On Windows, use tasklist to check if process exists
+                    match std::process::Command::new("tasklist")
+                        .args(["/FI", &format!("PID eq {}", pid)])
+                        .args(["/FO", "CSV"])
+                        .output()
+                    {
+                        Ok(output) => {
+                            let output_str = String::from_utf8_lossy(&output.stdout);
+                            output_str.lines().count() > 1 // Header + process line if exists
+                        }
+                        Err(_) => false,
+                    }
+                } else {
+                    // On Unix-like systems, use kill -0 to check if process exists
+                    match std::process::Command::new("kill")
+                        .args(["-0", &pid.to_string()])
+                        .output()
+                    {
+                        Ok(output) => output.status.success(),
+                        Err(_) => false,
+                    }
                 }
-                Err(_) => false,
-            }
-        } else {
-            // On Unix-like systems, use kill -0 to check if process exists
-            match std::process::Command::new("kill")
-                .args(["-0", &pid.to_string()])
-                .output()
-            {
-                Ok(output) => output.status.success(),
-                Err(_) => false,
-            }
-        };
+            }),
+        )
+        .await
+        .map_err(|_| format!("process check timed out for PID {}", pid))?
+        .map_err(|e| format!("spawn_blocking error for PID {}: {}", pid, e))?;
 
         if !is_running {
-            // Process has finished, update status
+            // Re-acquire the lock only for the DB write.
+            let conn = db.0.lock().map_err(|e| e.to_string())?;
             let updated = conn.execute(
                 "UPDATE agent_runs SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?1",
                 params![run_id],

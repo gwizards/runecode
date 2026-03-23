@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { 
   Wrench,
@@ -49,6 +49,14 @@ export const CheckpointSettings: React.FC<CheckpointSettingsProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any pending success-message timer on unmount to prevent setState after unmount.
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current !== null) clearTimeout(successTimerRef.current);
+    };
+  }, []);
 
   const strategyOptions: SelectOption[] = [
     { value: "manual", label: "Manual Only" },
@@ -93,7 +101,8 @@ export const CheckpointSettings: React.FC<CheckpointSettingsProps> = ({
       );
       
       setSuccessMessage("Settings saved successfully");
-      setTimeout(() => setSuccessMessage(null), 3000);
+      if (successTimerRef.current !== null) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       console.error("Failed to save checkpoint settings:", err);
       setError("Failed to save checkpoint settings");
@@ -116,7 +125,8 @@ export const CheckpointSettings: React.FC<CheckpointSettingsProps> = ({
       );
       
       setSuccessMessage(`Removed ${removed} old checkpoints`);
-      setTimeout(() => setSuccessMessage(null), 3000);
+      if (successTimerRef.current !== null) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSuccessMessage(null), 3000);
       
       // Reload settings to get updated count
       await loadSettings();

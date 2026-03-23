@@ -3,13 +3,12 @@ import { Zap } from 'lucide-react';
 import {
   ruFloService,
   useRuFloStore,
-  onRuFloEvent,
-  RUFLO_EVENTS,
   swarmHealthLabel,
   isFullyConfigured,
   type RuFloProjectStatus,
   type RuFloAgent,
 } from '@/domain/ruflo';
+import { onRuFloEvent, RUFLO_EVENTS } from '@/infrastructure/ruflo/browser-events-bridge';
 
 interface RuFloSectionProps {
   projectPath: string;
