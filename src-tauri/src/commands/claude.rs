@@ -60,6 +60,7 @@ pub struct Session {
 /// Represents a message entry in the JSONL file
 #[derive(Debug, Deserialize)]
 struct JsonlEntry {
+    // Captured for correct deserialization of the JSONL schema; not used in processing logic.
     #[serde(rename = "type")]
     #[allow(dead_code)]
     entry_type: Option<String>,

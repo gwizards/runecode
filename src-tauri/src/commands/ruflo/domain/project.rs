@@ -8,6 +8,7 @@ pub struct RuFloProjectStatus {
     pub blocked: usize,
 }
 
+// TODO(v0.6): total/completion_rate/has_blocked_tasks exposed by project-status IPC when task tracking lands
 #[allow(dead_code)]
 impl RuFloProjectStatus {
     pub fn total(&self) -> usize {

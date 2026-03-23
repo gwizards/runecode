@@ -1,3 +1,5 @@
+// RuFlo memory domain types — used as JSON response bodies for memory IPC commands.
+// TODO(v0.6): MemoryStats and MemorySyncResult fully wired when AgentDB bridge moves to Rust.
 use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
@@ -28,6 +30,7 @@ impl std::fmt::Display for MemoryBackend {
     }
 }
 
+// TODO(v0.6): returned by get_ruflo_memory_stats once stats endpoint reads live AgentDB data
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryStats {
@@ -38,6 +41,7 @@ pub struct MemoryStats {
     pub namespaces: Vec<String>,
 }
 
+// TODO(v0.6): returned by sync_ruflo_memory_local once local sync writes to disk
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemorySyncResult {

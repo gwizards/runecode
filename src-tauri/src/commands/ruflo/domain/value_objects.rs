@@ -1,3 +1,5 @@
+// DDD value objects for the RuFlo swarm context.
+// TODO(v0.6): SwarmId and ProjectPath will be used by typed IPC commands when orchestration moves to Rust.
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -24,6 +26,7 @@ impl std::fmt::Display for SwarmId {
 }
 
 /// Validated project path — must exist and be within home dir
+// TODO(v0.6): used by path-safe IPC commands once typed project-path parameters land
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectPath(PathBuf);

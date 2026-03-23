@@ -3,6 +3,7 @@ use std::fmt;
 
 /// Semantic version value object for the RuFlo CLI.
 /// Parsed from strings like "3.5.42" or "v3.5.42".
+// TODO(v0.6): RuFloVersion fields (major/minor/patch) exposed via typed version-compare IPC
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RuFloVersion {
@@ -91,12 +92,14 @@ impl RuFloStatus {
     }
 
     /// Parse the version string into a typed value object, if present.
+    // TODO(v0.6): used by version-gate checks in update handler
     #[allow(dead_code)]
     pub fn parsed_version(&self) -> Option<RuFloVersion> {
         self.version.as_deref().and_then(RuFloVersion::parse)
     }
 
     /// True if installed with a supported version (>= 3.0.0)
+    // TODO(v0.6): used by health-check IPC to gate RuFlo features
     #[allow(dead_code)]
     pub fn is_fully_operational(&self) -> bool {
         if !self.installed {
@@ -109,12 +112,14 @@ impl RuFloStatus {
     }
 
     /// True if MCP is ready (installed + mcp active)
+    // TODO(v0.6): used by setup wizard to show MCP configuration step
     #[allow(dead_code)]
     pub fn is_mcp_ready(&self) -> bool {
         self.installed && self.mcp_active
     }
 
     /// True if fully set up (installed + mcp + slash command)
+    // TODO(v0.6): used by onboarding checklist to show completion status
     #[allow(dead_code)]
     pub fn is_fully_configured(&self) -> bool {
         self.installed && self.mcp_active && self.slash_command_exists

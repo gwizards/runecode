@@ -81,6 +81,7 @@ impl ProcessRegistry {
     }
 
     /// Register a new running agent process using sidecar (similar to register_process but for sidecar children)
+    // TODO(v0.6): activate when sidecar launch mode is wired to IPC
     #[allow(dead_code)]
     pub fn register_sidecar_process(
         &self,
@@ -206,6 +207,7 @@ impl ProcessRegistry {
     }
 
     /// Get all running processes
+    // TODO(v0.6): expose via IPC when generic process listing is needed (currently filtered by agent)
     #[allow(dead_code)]
     pub fn get_running_processes(&self) -> Result<Vec<ProcessInfo>, String> {
         let processes = self.processes.lock().map_err(|e| e.to_string())?;
@@ -228,6 +230,7 @@ impl ProcessRegistry {
     }
 
     /// Get a specific running process
+    // TODO(v0.6): expose via get_agent_run_process IPC when single-process lookup is needed
     #[allow(dead_code)]
     pub fn get_process(&self, run_id: i64) -> Result<Option<ProcessInfo>, String> {
         let processes = self.processes.lock().map_err(|e| e.to_string())?;
@@ -433,6 +436,7 @@ impl ProcessRegistry {
     }
 
     /// Check if a process is still running by trying to get its status
+    // TODO(v0.6): used by cleanup_finished_processes; expose directly when status polling moves to Rust
     #[allow(dead_code)]
     pub async fn is_process_running(&self, run_id: i64) -> Result<bool, String> {
         let processes = self.processes.lock().map_err(|e| e.to_string())?;
@@ -503,6 +507,7 @@ impl ProcessRegistry {
     }
 
     /// Cleanup finished processes (available for periodic background cleanup tasks)
+    // TODO(v0.6): wire to a background interval task in main.rs for automatic process reaping
     #[allow(dead_code)]
     pub async fn cleanup_finished_processes(&self) -> Result<Vec<i64>, String> {
         let mut finished_runs = Vec::new();

@@ -1,5 +1,8 @@
 use clap::Parser;
 
+// These modules are compiled in the web-server binary so that web_server.rs can reference their
+// types (CheckpointState, AgentDb, etc.) without duplicating definitions.  Not all items in each
+// module are exercised by this binary, hence the dead_code suppression.
 #[allow(dead_code)]
 mod checkpoint;
 #[allow(dead_code)]
