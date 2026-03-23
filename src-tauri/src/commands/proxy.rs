@@ -166,11 +166,24 @@ pub fn apply_proxy_settings(settings: &ProxySettings) {
         }
     }
 
-    // Log current proxy environment variables for debugging
+    // Log current proxy environment variables for debugging (credentials redacted)
     log::info!("Current proxy environment variables:");
     for (key, value) in std::env::vars() {
         if key.contains("PROXY") || key.contains("proxy") {
-            log::info!("  {}={}", key, value);
+            // Redact user:password@ portion from URLs before logging.
+            // Pattern: <scheme>://<user>:<pass>@<host> → <scheme>://***@<host>
+            let redacted = if let Some(at_pos) = value.find('@') {
+                if let Some(scheme_end) = value.find("://") {
+                    let scheme = &value[..scheme_end + 3];
+                    let after_at = &value[at_pos + 1..];
+                    format!("{}***@{}", scheme, after_at)
+                } else {
+                    format!("***@{}", &value[at_pos + 1..])
+                }
+            } else {
+                value.clone()
+            };
+            log::info!("  {}={}", key, redacted);
         }
     }
 }

@@ -200,7 +200,7 @@ fn main() {
     // that silences stderr in Windows release builds.
     // -----------------------------------------------------------------------
     if let Some(f) = init_startup_log() {
-        *STARTUP_LOG.lock().unwrap() = Some(f);
+        *STARTUP_LOG.lock().unwrap_or_else(|e| e.into_inner()) = Some(f);
     }
 
     startup_log!(

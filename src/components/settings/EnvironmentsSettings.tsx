@@ -643,7 +643,9 @@ function DockerSection({ dockerContainer, setDockerContainer, setDockerImage }: 
       if (!data.success) {
         console.error('Claude install failed:', data.error);
       }
-    } catch {}
+    } catch (err) {
+      console.error('[EnvironmentsSettings] Failed to install Claude in container:', err);
+    }
     setInstallingClaude(null);
   };
 

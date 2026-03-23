@@ -29,8 +29,9 @@ function getOrCreateSocket(connectionId: string): WebSocket {
     sessionSockets.delete(connectionId);
     // Signal completion so the UI does not remain in a loading state when the
     // connection closes before a "done" message arrives (e.g. abrupt disconnect).
+    // Include connectionId in detail so listeners can filter to their own session.
     queueMicrotask(() => {
-      window.dispatchEvent(new CustomEvent('claude-complete', { detail: { aborted: true } }));
+      window.dispatchEvent(new CustomEvent('claude-complete', { detail: { aborted: true, connectionId } }));
     });
   };
   ws.onerror = () => {
@@ -144,7 +145,7 @@ async function initSession(params: {
         // Backend sends type:"done" when the turn is complete.
         if (msg.type === 'done') {
           queueMicrotask(() => {
-            window.dispatchEvent(new CustomEvent('claude-complete', { detail: true }));
+            window.dispatchEvent(new CustomEvent('claude-complete', { detail: { connectionId } }));
           });
           if (msg.session_id) {
             const sid = msg.session_id;
@@ -789,7 +790,7 @@ async function initAgentSession(params: {
         // Backend sends type:"done" when the turn is complete.
         if (msg.type === 'done') {
           queueMicrotask(() => {
-            window.dispatchEvent(new CustomEvent('claude-complete', { detail: true }));
+            window.dispatchEvent(new CustomEvent('claude-complete', { detail: { connectionId } }));
           });
           if (msg.session_id) {
             const sid = msg.session_id;

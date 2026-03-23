@@ -48,7 +48,9 @@ export function MCPSettings() {
         }
         setLiveStatus(statusMap);
       }
-    } catch {}
+    } catch (err) {
+      console.error('[MCPSettings] Failed to load MCP server status:', err);
+    }
   };
 
   useEffect(() => { loadServers(); loadLiveStatus(); }, []);

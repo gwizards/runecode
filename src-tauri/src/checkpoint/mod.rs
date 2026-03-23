@@ -138,6 +138,9 @@ pub struct CheckpointResult {
     pub files_processed: usize,
     /// Any warnings during the operation
     pub warnings: Vec<String>,
+    /// Number of fatal errors (file restore failures) during the operation.
+    /// Non-zero means the restore is incomplete and data may be lost.
+    pub fatal_count: usize,
 }
 
 /// Diff between two checkpoints

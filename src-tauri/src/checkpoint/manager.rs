@@ -131,7 +131,17 @@ impl CheckpointManager {
 
         // Read current file state
         let (hash, exists, _size, modified) = if full_path.exists() {
-            let content = fs::read_to_string(&full_path).unwrap_or_default();
+            let content = match fs::read_to_string(&full_path) {
+                Ok(c) => c,
+                Err(e) => {
+                    log::warn!(
+                        "Skipping unreadable file {} during tracking: {}",
+                        full_path.display(),
+                        e
+                    );
+                    return Ok(());
+                }
+            };
             let metadata = fs::metadata(&full_path)?;
             let modified = metadata
                 .modified()
@@ -250,8 +260,8 @@ impl CheckpointManager {
         let _ = collect_files(project_dir.as_path(), project_dir.as_path(), &mut all_files);
         for rel in all_files {
             if let Some(p) = rel.to_str() {
-                // Track each file for snapshot
-                let _ = self.track_file_modification(p).await;
+                // Track each file for snapshot; propagate traversal guard errors
+                self.track_file_modification(p).await?;
             }
         }
 
@@ -432,7 +442,17 @@ impl CheckpointManager {
             let full_path = self.project_path.join(rel_path);
 
             let (content, exists, permissions, size, current_hash) = if full_path.exists() {
-                let content = fs::read_to_string(&full_path).unwrap_or_default();
+                let content = match fs::read_to_string(&full_path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        log::warn!(
+                            "Skipping unreadable file {} during snapshot: {}",
+                            full_path.display(),
+                            e
+                        );
+                        continue;
+                    }
+                };
                 let current_hash = storage::CheckpointStorage::calculate_file_hash(&content);
 
                 // Don't skip based on hash - if is_modified is true, we should snapshot it
@@ -573,14 +593,18 @@ impl CheckpointManager {
         let _ = remove_empty_dirs(&self.project_path, &self.project_path);
 
         // Restore files from checkpoint
+        let mut fatal_count = 0usize;
         for snapshot in &file_snapshots {
             match self.restore_file_snapshot(snapshot).await {
                 Ok(_) => files_processed += 1,
-                Err(e) => warnings.push(format!(
-                    "Failed to restore {}: {}",
-                    snapshot.file_path.display(),
-                    e
-                )),
+                Err(e) => {
+                    fatal_count += 1;
+                    warnings.push(format!(
+                        "Failed to restore {}: {}",
+                        snapshot.file_path.display(),
+                        e
+                    ));
+                }
             }
         }
 
@@ -616,6 +640,7 @@ impl CheckpointManager {
             checkpoint: checkpoint.clone(),
             files_processed,
             warnings,
+            fatal_count,
         })
     }
 

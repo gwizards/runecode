@@ -26,6 +26,9 @@ export class ProjectId {
 
   static generate(): ProjectId { return new ProjectId(crypto.randomUUID()); }
 
+  /** Internal: construct without validation (e.g., for sentinels). */
+  static _unsafe(raw: string): ProjectId { return new ProjectId(raw); }
+
   equals(other: ProjectId): boolean { return this.value === other.value; }
 
   toString(): string { return this.value; }

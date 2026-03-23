@@ -127,7 +127,9 @@ export function CommandsHooksSettings({ onHooksChange }: CommandsHooksSettingsPr
         const map = new Map<string, string>();
         for (const c of list) map.set(c.name, c.id);
         setInstalledMap(map);
-      } catch {}
+      } catch (err) {
+        console.error('[CommandsHooksSettings] Failed to load installed commands:', err);
+      }
     })();
   }, [activeTab]);
 
@@ -136,7 +138,9 @@ export function CommandsHooksSettings({ onHooksChange }: CommandsHooksSettingsPr
     try {
       const saved = await api.slashCommandSave('user', cmd.name, undefined, cmd.content, cmd.desc, []);
       setInstalledMap(prev => new Map([...prev, [cmd.name, saved.id]]));
-    } catch {}
+    } catch (err) {
+      console.error('[CommandsHooksSettings] Failed to install command:', err);
+    }
     setBusy(null);
   };
 
@@ -147,7 +151,9 @@ export function CommandsHooksSettings({ onHooksChange }: CommandsHooksSettingsPr
     try {
       await api.slashCommandDelete(id);
       setInstalledMap(prev => { const m = new Map(prev); m.delete(cmd.name); return m; });
-    } catch {}
+    } catch (err) {
+      console.error('[CommandsHooksSettings] Failed to uninstall command:', err);
+    }
     setBusy(null);
   };
 
@@ -158,7 +164,9 @@ export function CommandsHooksSettings({ onHooksChange }: CommandsHooksSettingsPr
       try {
         const saved = await api.slashCommandSave('user', cmd.name, undefined, cmd.content, cmd.desc, []);
         setInstalledMap(prev => new Map([...prev, [cmd.name, saved.id]]));
-      } catch {}
+      } catch (err) {
+        console.error('[CommandsHooksSettings] Failed to install command in batch:', err);
+      }
     }
     setBusy(null);
   };

@@ -1774,6 +1774,7 @@ pub async fn create_checkpoint(
 
     validate_path_component(&session_id, "session_id")?;
     validate_path_component(&project_id, "project_id")?;
+    guard_path_within_home(&PathBuf::from(&project_path))?;
 
     let manager = app
         .get_or_create_manager(
@@ -1837,6 +1838,7 @@ pub async fn restore_checkpoint(
     validate_path_component(&session_id, "session_id")?;
     validate_path_component(&project_id, "project_id")?;
     validate_path_component(&checkpoint_id, "checkpoint_id")?;
+    guard_path_within_home(&PathBuf::from(&project_path))?;
 
     // Guard: refuse to restore while the session is actively running to prevent
     // concurrent JSONL mutation / data corruption races.

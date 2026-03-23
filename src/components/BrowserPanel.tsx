@@ -107,7 +107,9 @@ export function BrowserPanel({ tabId, initialUrl, projectName, onActivate }: Bro
             const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
             const wv = await WebviewWindow.getByLabel(wvId!);
             if (wv) await wv.close();
-          } catch {}
+          } catch (err) {
+            console.error('[BrowserPanel] Failed to close webview on unmount:', err);
+          }
         })();
       }
     };
