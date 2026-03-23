@@ -226,6 +226,8 @@ pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String>
         .map_err(|e| format!("Failed to run claude mcp add: {e}"))?;
 
     if output.status.success() {
+        // Bust the status cache so the next check_ruflo_installed call gets fresh data
+        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
         let _ = app.emit("ruflo-mcp-changed", "activated");
         Ok("MCP server activated".to_string())
     } else {

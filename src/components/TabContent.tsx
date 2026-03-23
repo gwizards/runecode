@@ -796,7 +796,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
                         terminalFlags: flags,
                         environmentId,
                       });
-                      // Fire-and-forget RuFlo init for non-shell sessions
+                      // Fire-and-forget RuFlo init + MCP activation for non-shell sessions
                       if (!isShell) {
                         void (async () => {
                           try {
@@ -805,6 +805,10 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
                               const autoInit = localStorage.getItem('runecode-ruflo-auto-init') !== 'false';
                               if (autoInit) {
                                 await api.initRufloProject(effectiveProjectPath);
+                                // Also activate MCP if not yet active so the swarm is ready
+                                if (!rufloStatus.mcp_active) {
+                                  await api.activateRufloMcp();
+                                }
                               }
                             }
                           } catch (err) {

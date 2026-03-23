@@ -21,6 +21,8 @@ import { MCPSettings } from "./settings/MCPSettings";
 import { PluginsSettings } from "./settings/PluginsSettings";
 import { ProjectExplorer } from "./settings/ProjectExplorer";
 import { RuFloSettings } from "./settings/RuFloSettings";
+import { CreditsSettings } from "./settings/CreditsSettings";
+import { version } from "../../package.json";
 
 interface SettingsProps {
   onBack: () => void;
@@ -230,6 +232,8 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
         return <StorageTab />;
       case 'ruflo':
         return <RuFloSettings />;
+      case 'credits':
+        return <CreditsSettings />;
 
       default:
         return <AppearanceSettings />;
@@ -244,6 +248,7 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
           <h1 className="text-heading-1">Settings</h1>
           <p className="mt-1 text-body-small text-muted-foreground">
             Configure Claude Code preferences
+            <span className="ml-2 text-[10px] text-muted-foreground/40">v{version}</span>
           </p>
         </div>
         <motion.div whileTap={{ scale: 0.97 }} transition={{ duration: 0.15 }}>
