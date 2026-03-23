@@ -33,6 +33,20 @@ export function setRuFloEventListener(listener: IRuFloEventListener): void {
   _eventListener = listener;
 }
 
+// Module-level array that holds the unlisten functions returned by listener.listen().
+// Stored outside Zustand state because functions are not serializable.
+// Call teardownRuFloListeners() to remove all subscriptions (useful in tests
+// and when the store needs to be recreated without leaking Tauri event handles).
+const _ruFloUnlistenFns: Array<() => void> = [];
+
+/** Remove all active ruflo event subscriptions. Safe to call multiple times. */
+export function teardownRuFloListeners(): void {
+  let fn: (() => void) | undefined;
+  while ((fn = _ruFloUnlistenFns.pop()) !== undefined) {
+    fn();
+  }
+}
+
 // ── Singleton quantized local memory cache ────────────────────────────────────
 // Used to cache embedding-like data locally with scalar/product quantization.
 // The active quantization mode is loaded/saved via the infrastructure persistence
@@ -129,15 +143,22 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     if (!_eventListener) return; // no adapter injected — skip (tests / web-only)
     try {
       const listener = _eventListener;
-      await listener.listen('ruflo-mcp-changed', () => {
+      // Store each unlisten function so teardownRuFloListeners() can remove them.
+      // Without this the Tauri event handles leaked for the lifetime of the process.
+      const unlistenMcp = await listener.listen('ruflo-mcp-changed', () => {
         get().fetchInstallation();
       });
-      await listener.listen('ruflo-memory-changed', () => {
+      _ruFloUnlistenFns.push(unlistenMcp);
+
+      const unlistenMemory = await listener.listen('ruflo-memory-changed', () => {
         get().fetchMemoryStats();
       });
-      await listener.listen('ruflo-project-changed', () => {
+      _ruFloUnlistenFns.push(unlistenMemory);
+
+      const unlistenProject = await listener.listen('ruflo-project-changed', () => {
         // project status refresh handled per-component with path
       });
+      _ruFloUnlistenFns.push(unlistenProject);
     } catch {
       // Listener unavailable at runtime — silently skip
     }

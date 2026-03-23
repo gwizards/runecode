@@ -222,17 +222,20 @@ const sessionStore: StateCreator<
     },
 
     updateLiveUsage: (tokens) => {
-      set({
+      // Use the functional set() form so messageCount increment and
+      // sessionStartTime read are both applied to the same consistent snapshot,
+      // preventing a race where two concurrent calls could read stale counts.
+      set((state) => ({
         liveUsage: {
           inputTokens: tokens.input,
           outputTokens: tokens.output,
           cacheCreationTokens: tokens.cacheCreation ?? 0,
           cacheReadTokens: tokens.cacheRead ?? 0,
           costUsd: tokens.cost,
-          messageCount: (get().liveUsage.messageCount || 0) + 1,
-          sessionStartTime: get().liveUsage.sessionStartTime,
+          messageCount: (state.liveUsage.messageCount || 0) + 1,
+          sessionStartTime: state.liveUsage.sessionStartTime,
         },
-      });
+      }));
     },
 
     resetLiveUsage: () => {
