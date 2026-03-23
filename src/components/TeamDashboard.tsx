@@ -25,7 +25,7 @@ interface TeamDashboardProps {
   className?: string;
 }
 
-export const TeamDashboard: React.FC<TeamDashboardProps> = ({ className }) => {
+const TeamDashboardComponent: React.FC<TeamDashboardProps> = ({ className }) => {
   const [teammates, setTeammates] = useState<Map<string, Teammate>>(new Map());
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -206,4 +206,8 @@ const TeammateCard: React.FC<{ teammate: Teammate }> = ({ teammate }) => {
   );
 };
 
+// Memoized export — TeamDashboard only receives a className prop and manages
+// all state internally via DOM event listeners. React.memo prevents it from
+// re-rendering on every ClaudeCodeSession streaming update.
+export const TeamDashboard = React.memo(TeamDashboardComponent);
 TeamDashboard.displayName = 'TeamDashboard';

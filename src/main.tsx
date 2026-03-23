@@ -22,11 +22,17 @@ const isWebMode = !tauriInternals || tauriInternals.__WEB_MODE_MOCK__;
 
 // Wire the Tauri event listener port for the ruflo domain.
 // Only injected when running inside Tauri — web/test environments get no-op behaviour.
+//
+// NOTE: The previous implementation used dynamic import('./domain/ruflo/store') which
+// Vite warned about (INEFFECTIVE_DYNAMIC_IMPORT) because domain/ruflo/index.ts already
+// statically re-exports store.ts, so the module is always eagerly bundled. We now
+// import setRuFloEventListener statically from the barrel (it is already in the main
+// chunk) and only lazy-load the Tauri infrastructure adapter, which IS a separate chunk.
+import { setRuFloEventListener } from './domain/ruflo';
+
 if (!isWebMode) {
   import('./infrastructure/ruflo/tauri-event-listener').then(({ tauriRuFloEventListener }) => {
-    import('./domain/ruflo/store').then(({ setRuFloEventListener }) => {
-      setRuFloEventListener(tauriRuFloEventListener);
-    });
+    setRuFloEventListener(tauriRuFloEventListener);
   });
 }
 

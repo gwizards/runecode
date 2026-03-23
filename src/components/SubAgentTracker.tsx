@@ -21,7 +21,7 @@ interface SubAgentTrackerProps {
   className?: string;
 }
 
-export const SubAgentTracker: React.FC<SubAgentTrackerProps> = ({ className }) => {
+const SubAgentTrackerComponent: React.FC<SubAgentTrackerProps> = ({ className }) => {
   const [agents, setAgents] = useState<Map<string, SubAgent>>(new Map());
   const [isExpanded, setIsExpanded] = useState(true);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
@@ -248,4 +248,8 @@ const SubAgentCard: React.FC<{
   );
 };
 
+// Memoized export — SubAgentTracker only receives a className prop and manages
+// all state internally via DOM event listeners. React.memo prevents it from
+// re-rendering on every ClaudeCodeSession streaming update.
+export const SubAgentTracker = React.memo(SubAgentTrackerComponent);
 SubAgentTracker.displayName = 'SubAgentTracker';
