@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { useAgentDomainStore } from '../domain/agent/store';
+import { useAgentDomainStore } from '../domain/agent';
 import { useTabState } from './useTabState';
 
 export function useAgentLifecycle() {

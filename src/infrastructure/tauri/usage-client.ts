@@ -5,7 +5,7 @@
 // Rust/SQLite Tauri commands after every mutation and rehydration on boot.
 
 import { apiCall } from '@/lib/apiAdapter';
-import type { RawLedger } from '@/domain/usage/types';
+import type { RawLedger } from '@/domain/usage';
 
 /** Shape of a row returned by the Rust `load_usage_ledgers` command. */
 export interface PersistedLedgerRow {

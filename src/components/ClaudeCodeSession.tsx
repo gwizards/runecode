@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, type Session } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useSessionStore } from "@/domain/session/store";
+import { useSessionStore } from "@/domain/session";
 import { useSessionConfig } from "@/hooks/useSessionConfig";
 
 // Conditional imports for Tauri APIs

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSessionStore } from '../../domain/session/store';
+import { useSessionStore } from '../../domain/session';
 
 interface EnvScanResult {
   hasEnvFiles: boolean;

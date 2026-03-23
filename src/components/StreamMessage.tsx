@@ -44,7 +44,7 @@ import {
 } from "./ToolWidgets";
 import { SkillBadgeWidget } from "./widgets/SkillBadgeWidget";
 import { TaskNotificationWidget } from "./widgets/TaskNotificationWidget";
-import { useSessionStore } from "../domain/session/store";
+import { useSessionStore } from "../domain/session";
 
 /**
  * Collapsible wrapper for tool outputs
