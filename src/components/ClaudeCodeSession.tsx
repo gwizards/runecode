@@ -432,12 +432,16 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 
   // (auto-scroll lock is now per-session, no localStorage listener needed)
 
-  // Call onProjectPathChange when component mounts with initial path
+  // Call onProjectPathChange when component mounts with initial path.
+  // Intentional mount-only effect: projectPath is set once from initialProjectPath / session prop
+  // (both captured in useState initialiser, so they never change for this instance). Adding
+  // projectPath or onProjectPathChange to the deps array would cause spurious calls on every
+  // parent re-render. The ESLint exhaustive-deps warning is a false positive here.
   useEffect(() => {
     if (onProjectPathChange && projectPath) {
       onProjectPathChange(projectPath);
     }
-  }, []); // Only run on mount
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Keep ref in sync with state
   useEffect(() => {
@@ -1567,11 +1571,14 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       if (effectiveSession) {
         trackEvent.sessionCompleted();
         
-        // Track session engagement
+        // Track session engagement.
+        // Use messagesRef.current instead of the captured `messages` snapshot to ensure
+        // the cleanup always reads the final message list, not a stale closure value.
         const sessionDuration = sessionStartTime.current ? Date.now() - sessionStartTime.current : 0;
-        const messageCount = messages.filter(m => m.user_message).length;
+        const currentMessages = messagesRef.current;
+        const messageCount = currentMessages.filter(m => m.user_message).length;
         const toolsUsed = new Set<string>();
-        messages.forEach(msg => {
+        currentMessages.forEach(msg => {
           if (msg.type === 'assistant' && msg.message?.content) {
             const tools = msg.message.content.filter((c: any) => c.type === 'tool_use');
             tools.forEach((tool: any) => toolsUsed.add(tool.name));
