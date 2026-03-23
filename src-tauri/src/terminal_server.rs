@@ -79,7 +79,24 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
     let shell = detect_shell();
 
     // Spawn the shell process with piped stdio so we can bridge it to the WS.
+    //
+    // PowerShell (pwsh / powershell) with piped stdin enters "non-interactive file"
+    // mode: it reads commands from stdin, and if no data arrives it may exit almost
+    // immediately.  -NoExit keeps it alive in the read loop; -NoLogo suppresses the
+    // copyright banner duplication.
+    //
+    // cmd.exe without /k runs a single command then exits; /k keeps it alive.
+    let shell_lower = shell.to_lowercase();
+    let extra_args: &[&str] = if shell_lower.contains("pwsh") || shell_lower.contains("powershell") {
+        &["-NoExit", "-NoLogo"]
+    } else if shell_lower.contains("cmd") {
+        &["/k"]
+    } else {
+        &[]
+    };
+
     let mut child = match Command::new(&shell)
+        .args(extra_args)
         .current_dir(&project_path)
         .env("TERM", "xterm-256color")
         .env("COLUMNS", cols.to_string())

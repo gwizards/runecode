@@ -65,66 +65,82 @@ fn write_cache<T: serde::Serialize>(filename: &str, value: &T) {
 }
 
 #[tauri::command]
-pub fn check_ruflo_installed() -> RuFloStatus {
+pub async fn check_ruflo_installed() -> RuFloStatus {
     // Return cached result if still within TTL (60 s) to avoid repeated npx/claude calls
     if let Some(cached) = try_read_cache::<RuFloStatus>("runecode_ruflo_cache.json", RUFLO_STATUS_CACHE_TTL_SECS) {
         return cached;
     }
 
-    // Single npx call: --no-install means "don't download if not cached"
-    // Use create_command_with_env to inherit PATH/NVM
-    let output = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args(["--no-install", "@claude-flow/cli", "--version"])
-        .output()
-        .ok();
+    // Run the blocking subprocess checks on a dedicated thread with a 10-second timeout.
+    // Without a timeout, npx.cmd / claude can hang indefinitely when the CLI is not
+    // installed or when PATH is incomplete (common in Windows GUI context).
+    const TIMEOUT_SECS: u64 = 10;
 
-    let installed = output.as_ref().map(|o| o.status.success()).unwrap_or(false);
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(TIMEOUT_SECS),
+        tokio::task::spawn_blocking(|| {
+            // npx --no-install: don't download if not cached, just check presence
+            let output = crate::claude_binary::create_command_with_env(npx_cmd())
+                .args(["--no-install", "@claude-flow/cli", "--version"])
+                .output()
+                .ok();
 
-    let version = if installed {
-        output
-            .as_ref()
-            .and_then(|o| {
-                // Strip UTF-8 BOM if present, then trim
-                String::from_utf8_lossy(&o.stdout)
-                    .trim_start_matches('\u{FEFF}')
-                    .trim()
-                    .to_string()
-                    .into()
-            })
-            .filter(|s: &String| !s.is_empty())
-    } else {
-        None
-    };
+            let installed = output.as_ref().map(|o| o.status.success()).unwrap_or(false);
 
-    // Check if MCP is active — use create_command_with_env for PATH/NVM
-    let mcp_active = crate::claude_binary::create_command_with_env("claude")
-        .args(["mcp", "list"])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| {
-            // Check for "claude-flow" as a standalone server name (not just substring)
-            s.lines().any(|line| {
-                let trimmed = line.trim();
-                trimmed == "claude-flow"
-                    || trimmed.starts_with("claude-flow ")
-                    || trimmed.starts_with("claude-flow\t")
-            })
-        })
-        .unwrap_or(false);
+            let version = if installed {
+                output
+                    .as_ref()
+                    .and_then(|o| {
+                        // Strip UTF-8 BOM if present, then trim
+                        String::from_utf8_lossy(&o.stdout)
+                            .trim_start_matches('\u{FEFF}')
+                            .trim()
+                            .to_string()
+                            .into()
+                    })
+                    .filter(|s: &String| !s.is_empty())
+            } else {
+                None
+            };
 
-    let slash_command_exists = dirs::home_dir()
-        .map(|h| {
-            h.join(".claude")
-                .join("commands")
-                .join("setup-ruflo.md")
-                .exists()
-        })
-        .unwrap_or(false);
+            // Check if MCP is active — use create_command_with_env for PATH/NVM
+            let mcp_active = crate::claude_binary::create_command_with_env("claude")
+                .args(["mcp", "list"])
+                .output()
+                .ok()
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .map(|s| {
+                    s.lines().any(|line| {
+                        let trimmed = line.trim();
+                        trimmed == "claude-flow"
+                            || trimmed.starts_with("claude-flow ")
+                            || trimmed.starts_with("claude-flow\t")
+                    })
+                })
+                .unwrap_or(false);
 
-    let result = RuFloStatus::build(installed, version, mcp_active, slash_command_exists);
-    write_cache("runecode_ruflo_cache.json", &result);
-    result
+            let slash_command_exists = dirs::home_dir()
+                .map(|h| {
+                    h.join(".claude")
+                        .join("commands")
+                        .join("setup-ruflo.md")
+                        .exists()
+                })
+                .unwrap_or(false);
+
+            RuFloStatus::build(installed, version, mcp_active, slash_command_exists)
+        }),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(status)) => {
+            write_cache("runecode_ruflo_cache.json", &status);
+            status
+        }
+        // Timed out or task panicked — return "not installed" immediately
+        _ => RuFloStatus::build(false, None, false, false),
+    }
 }
 
 #[tauri::command]

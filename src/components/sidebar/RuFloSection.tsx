@@ -97,14 +97,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
   }
 
   if (isInstalled === false) {
-    return (
-      <div className="px-4 py-2">
-        <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-2">RuFlo</div>
-        <div className="text-xs text-muted-foreground/60 bg-white/5 rounded-lg px-3 py-2">
-          RuFlo not installed
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
