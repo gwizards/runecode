@@ -71,9 +71,13 @@ pub async fn check_ruflo_installed() -> RuFloStatus {
         return cached;
     }
 
-    // Run the blocking subprocess checks on a dedicated thread with a 10-second timeout.
+    // Run the blocking subprocess checks on a dedicated thread with a timeout.
     // Without a timeout, npx.cmd / claude can hang indefinitely when the CLI is not
     // installed or when PATH is incomplete (common in Windows GUI context).
+    // Windows needs a longer timeout: Node.js cold-start on HDD can exceed 10 s.
+    #[cfg(target_os = "windows")]
+    const TIMEOUT_SECS: u64 = 30;
+    #[cfg(not(target_os = "windows"))]
     const TIMEOUT_SECS: u64 = 10;
 
     let result = tokio::time::timeout(
@@ -103,8 +107,11 @@ pub async fn check_ruflo_installed() -> RuFloStatus {
                 None
             };
 
-            // Check if MCP is active — use create_command_with_env for PATH/NVM
-            let mcp_active = crate::claude_binary::create_command_with_env("claude")
+            // Check if MCP is active — use create_command_with_env for PATH/NVM.
+            // On Windows, the npm-global install produces claude.cmd (a batch file);
+            // CreateProcess cannot run batch files without the .cmd extension.
+            let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
+            let mcp_active = crate::claude_binary::create_command_with_env(claude_cmd)
                 .args(["mcp", "list"])
                 .output()
                 .ok()
@@ -208,8 +215,13 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Emitter;
-    let output = crate::claude_binary::create_command_with_env("claude")
-        .args(["mcp", "add", "claude-flow", "--", "npx", "-y", "@claude-flow/cli@latest"])
+    // On Windows, Claude's MCP config stores the command that it will later
+    // spawn. "npx" (no extension) fails on Windows because CreateProcess
+    // cannot run batch files. Use "npx.cmd" so the stored config works.
+    let npx = if cfg!(windows) { "npx.cmd" } else { "npx" };
+    let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
+    let output = crate::claude_binary::create_command_with_env(claude_cmd)
+        .args(["mcp", "add", "claude-flow", "--", npx, "-y", "@claude-flow/cli@latest"])
         .output()
         .map_err(|e| format!("Failed to run claude mcp add: {e}"))?;
 

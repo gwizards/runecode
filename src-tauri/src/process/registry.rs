@@ -380,8 +380,11 @@ impl ProcessRegistry {
             match &term_result {
                 Ok(output) if output.status.success() => {
                     info!("Sent SIGTERM to PID {}", pid);
-                    // Give it 2 seconds to exit gracefully
-                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    // Give it 2 seconds to exit gracefully.
+                    // Use block_in_place so we don't starve the tokio async worker pool.
+                    tokio::task::block_in_place(|| {
+                        std::thread::sleep(std::time::Duration::from_secs(2));
+                    });
 
                     // Check if still running
                     let check_result = std::process::Command::new("kill")

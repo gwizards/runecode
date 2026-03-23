@@ -1114,7 +1114,10 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                         };
                         // Use -c (continue) which picks up the last session in the project.
                         // Best-effort: callers that need path-aware continuation should re-init.
-                        let project_path = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+                        let project_path = std::env::var("HOME").unwrap_or_else(|_| {
+                            std::env::var("USERPROFILE").unwrap_or_else(|_|
+                                std::env::temp_dir().to_string_lossy().into_owned())
+                        });
                         let ws_sid = ws_session_id.clone();
                         let st = state.clone();
                         tokio::spawn(async move {
@@ -1263,7 +1266,8 @@ async fn interrupt_session_process(state: &AppState, ws_session_id: &str) {
 
     #[cfg(windows)]
     {
-        let _ = std::process::Command::new("taskkill")
+        // Use silent_command to suppress the console flash in release builds.
+        let _ = crate::claude_binary::silent_command("taskkill")
             .args(["/F", "/PID", &pid.to_string()])
             .status();
         println!("[WS] taskkill /F /PID {}", pid);
@@ -2475,7 +2479,7 @@ async fn get_checkpoint_diff_handler(
     let result = tokio::task::spawn_blocking(move || {
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
-            .unwrap_or_else(|_| "/tmp".to_string());
+            .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into_owned());
         let claude_dir = std::path::PathBuf::from(&home).join(".claude");
         let storage = CheckpointStorage::new(claude_dir);
 

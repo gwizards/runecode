@@ -2,48 +2,34 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Allow app to be run from Homebrew installation -->
+    <!-- Non-sandboxed direct-distribution build (not App Store) -->
     <key>com.apple.security.app-sandbox</key>
     <false/>
-    
-    <!-- Network access for Claude API and other services -->
+
+    <!-- Network: Claude API calls + local WebSocket terminal server -->
     <key>com.apple.security.network.client</key>
     <true/>
     <key>com.apple.security.network.server</key>
     <true/>
-    
-    <!-- File system access -->
+
+    <!-- File system: user-opened project files -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
     <key>com.apple.security.files.downloads.read-write</key>
     <true/>
-    
-    <!-- Allow spawning subprocesses (needed for shell commands) -->
-    <key>com.apple.security.inherit</key>
-    <true/>
-    
-    <!-- Allow automation for Apple Events -->
+
+    <!-- Apple Events for shell automation -->
     <key>com.apple.security.automation.apple-events</key>
     <true/>
-    
-    <!-- Camera and microphone if needed -->
-    <key>com.apple.security.device.camera</key>
-    <true/>
-    <key>com.apple.security.device.microphone</key>
-    <true/>
-    
-    <!-- Printing -->
-    <key>com.apple.security.print</key>
-    <true/>
-    
-    <!-- Required for Hardened Runtime -->
-    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-    <true/>
+
+    <!-- Hardened Runtime: WebKit JIT only (allow-jit is sufficient) -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
+
+    <!-- Required for window-vibrancy and Tauri private APIs that load
+         Apple-signed private frameworks. Can be removed once window-vibrancy
+         is confirmed to work without it on all supported macOS versions. -->
     <key>com.apple.security.cs.disable-library-validation</key>
-    <true/>
-    <key>com.apple.security.cs.disable-executable-page-protection</key>
     <true/>
 </dict>
 </plist>

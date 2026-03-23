@@ -42,7 +42,7 @@ export function EmbeddedTerminal({
 
     const term = new Terminal({
       fontSize: 13,
-      fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", monospace',
+      fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Ubuntu Mono", "DejaVu Sans Mono", "Liberation Mono", "Noto Mono", "Courier New", monospace',
       cursorBlink: true,
       theme: {
         background: '#0a0a0f',

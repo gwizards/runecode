@@ -1,6 +1,6 @@
 [package]
 name = "runecode"
-version = "0.5.60"
+version = "0.5.61"
 description = "RuneCode - A blazingly fast desktop engine for Claude Code"
 authors = ["mufeedvh", "123vviekr"]
 license = "AGPL-3.0"
@@ -75,10 +75,8 @@ portable-pty = "0.8"
 
 
 [target.'cfg(target_os = "macos")'.dependencies]
-tauri = { version = "2", features = ["macos-private-api"] }
 window-vibrancy = "0.5"
-cocoa = "0.26"
-objc = "0.2"
+# cocoa and objc are transitive deps of window-vibrancy; no direct usage here.
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!

@@ -123,7 +123,17 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
     // Propagate essential env vars so claude/shells find their config.
     for key in &["HOME", "USERPROFILE", "USER", "USERNAME", "APPDATA",
                  "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "LANG", "LC_ALL",
-                 "NVM_DIR", "NVM_BIN", "VOLTA_HOME", "FNM_DIR"] {
+                 "NVM_DIR", "NVM_BIN", "VOLTA_HOME", "VOLTA_BINDIR", "FNM_DIR",
+                 "FNM_MULTISHELL_PATH"] {
+        if let Ok(val) = std::env::var(key) {
+            cmd.env(key, val);
+        }
+    }
+    // Linux: propagate D-Bus / display env vars so interactive tools work correctly.
+    #[cfg(target_os = "linux")]
+    for key in &["XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
+                 "XDG_DATA_DIRS", "XDG_CONFIG_DIRS",
+                 "WAYLAND_DISPLAY", "DISPLAY"] {
         if let Ok(val) = std::env::var(key) {
             cmd.env(key, val);
         }
@@ -256,6 +266,8 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
     // --- Cleanup -------------------------------------------------------------
     drop(in_tx); // signal writer thread to exit
     let _ = child.kill();
+    // Reap the child to prevent zombie processes on Unix.
+    let _ = child.wait();
     sender_task.abort();
 }
 
@@ -271,7 +283,14 @@ fn resolve_command(flags: &[String]) -> (String, Vec<String>) {
     let is_shell_mode = flags.is_empty() || flags.iter().any(|f| f == "--shell");
 
     if is_shell_mode {
-        (detect_shell(), vec![])
+        let shell = detect_shell();
+        // On macOS, launch as a LOGIN shell so that /etc/zprofile is sourced.
+        // path_helper then adds /opt/homebrew/bin, and ~/.zprofile adds NVM/volta.
+        // Without --login, Finder-launched apps only get /usr/bin:/bin:/usr/sbin:/sbin.
+        #[cfg(target_os = "macos")]
+        return (shell, vec!["--login".to_string()]);
+        #[cfg(not(target_os = "macos"))]
+        return (shell, vec![]);
     } else {
         // Find the Claude CLI binary on this machine.
         let claude = find_claude_binary().unwrap_or_else(|| "claude".to_string());
@@ -336,16 +355,47 @@ fn detect_shell_windows() -> String {
 
 #[cfg(not(target_os = "windows"))]
 fn detect_shell_unix() -> String {
+    // 1. $SHELL env var — set by launchd/PAM in interactive sessions.
     if let Ok(shell) = std::env::var("SHELL") {
         if !shell.is_empty() && std::path::Path::new(&shell).exists() {
             return shell;
         }
     }
-    for candidate in &["bash", "sh"] {
-        if which::which(candidate).is_ok() {
+
+    // 2. On macOS, /bin/zsh is the default since Catalina (10.15).
+    #[cfg(target_os = "macos")]
+    if std::path::Path::new("/bin/zsh").exists() {
+        return "/bin/zsh".to_string();
+    }
+
+    // 3. /etc/passwd lookup — works when launched from a .desktop file (Linux)
+    //    or Finder/Spotlight (macOS) where $SHELL may be unset by the display manager.
+    {
+        let uid = unsafe { libc::getuid() };
+        if let Ok(contents) = std::fs::read_to_string("/etc/passwd") {
+            for line in contents.lines() {
+                let fields: Vec<&str> = line.splitn(7, ':').collect();
+                if fields.len() == 7 {
+                    if let Ok(entry_uid) = fields[2].parse::<u32>() {
+                        if entry_uid == uid {
+                            let shell = fields[6].trim();
+                            if !shell.is_empty() && std::path::Path::new(shell).exists() {
+                                return shell.to_string();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Common absolute paths (don't need PATH resolution).
+    for candidate in &["/usr/bin/zsh", "/bin/zsh", "/usr/bin/bash", "/bin/bash", "/bin/sh"] {
+        if std::path::Path::new(candidate).exists() {
             return candidate.to_string();
         }
     }
+
     "/bin/sh".to_string()
 }
 

@@ -29,5 +29,9 @@ linker = "aarch64-linux-gnu-gcc"
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-args=/STACK:8388608"]
 
+# Windows on ARM (Surface Pro X, Qualcomm Snapdragon laptops) — same stack risk.
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "link-args=/STACK:8388608"]
+
 [env]
 PKG_CONFIG_ALLOW_CROSS = "1"

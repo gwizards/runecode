@@ -86,7 +86,12 @@ pub fn find_claude_binary(app_handle: &tauri::AppHandle) -> Result<String, Strin
 
     if installations.is_empty() {
         error!("Could not find claude binary in any location");
-        return Err("Claude Code not found. Please ensure it's installed in one of these locations: PATH, /usr/local/bin, /opt/homebrew/bin, ~/.nvm/versions/node/*/bin, ~/.claude/local, ~/.local/bin".to_string());
+        #[cfg(target_os = "windows")]
+        return Err("Claude Code not found. Install it with: npm install -g @anthropic-ai/claude-code\nThen check: %APPDATA%\\npm\\claude.cmd or %USERPROFILE%\\.claude\\local\\claude.exe".to_string());
+        #[cfg(target_os = "macos")]
+        return Err("Claude Code not found. Install it with: npm install -g @anthropic-ai/claude-code\nThen check: /opt/homebrew/bin/claude or ~/.local/bin/claude".to_string());
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        return Err("Claude Code not found. Install it with: npm install -g @anthropic-ai/claude-code\nThen check: ~/.local/bin/claude, ~/.volta/bin/claude, or /snap/bin/claude".to_string());
     }
 
     // Log all found installations
@@ -138,8 +143,9 @@ pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
 /// Returns a preference score for installation sources (lower is better)
 fn source_preference(installation: &ClaudeInstallation) -> u8 {
     match installation.source.as_str() {
-        "which" | "where" => 1,
-        "homebrew" => 2,
+        "login-shell" => 1, // macOS: most accurate — sources full user environment
+        "which" | "where" => 2,
+        "homebrew" => 3,
         "system" => 3,
         "nvm-active" => 4,
         source if source.starts_with("nvm") => 5,
@@ -161,6 +167,14 @@ fn source_preference(installation: &ClaudeInstallation) -> u8 {
 /// Discovers all Claude installations on the system
 fn discover_system_installations() -> Vec<ClaudeInstallation> {
     let mut installations = Vec::new();
+
+    // macOS: ask a login shell for the real PATH-resolved binary.
+    // Finder/Spotlight launches inherit a minimal PATH that lacks Homebrew,
+    // NVM, and volta — a login shell sources /etc/zprofile + ~/.zprofile.
+    #[cfg(target_os = "macos")]
+    if let Some(inst) = try_login_shell_which() {
+        installations.push(inst);
+    }
 
     // 1. Try 'which' command first (now works in production)
     if let Some(installation) = try_which_command() {
@@ -362,6 +376,42 @@ fn find_nvm_installations() -> Vec<ClaudeInstallation> {
     installations
 }
 
+/// macOS-only: ask a login shell for the PATH-resolved claude binary.
+/// This correctly sources ~/.zprofile (Homebrew, NVM, volta, etc.) which
+/// GUI apps launched from Finder/Spotlight do not inherit.
+#[cfg(target_os = "macos")]
+fn try_login_shell_which() -> Option<ClaudeInstallation> {
+    debug!("macOS: trying zsh login-shell which to find claude...");
+    let output = std::process::Command::new("/bin/zsh")
+        .args(["-l", "-c", "which claude 2>/dev/null || command -v claude 2>/dev/null"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if raw.is_empty() {
+        return None;
+    }
+    // zsh may output "claude: aliased to /path/to/claude"
+    let path = if raw.contains("aliased to") {
+        raw.split("aliased to").nth(1)?.trim().to_string()
+    } else {
+        raw.lines().next()?.trim().to_string()
+    };
+    if !std::path::Path::new(&path).exists() {
+        warn!("login-shell which returned non-existent path: {}", path);
+        return None;
+    }
+    let version = get_claude_version(&path).ok().flatten();
+    Some(ClaudeInstallation {
+        path,
+        version,
+        source: "login-shell".to_string(),
+        installation_type: InstallationType::System,
+    })
+}
+
 /// Check standard installation paths
 #[cfg(unix)]
 fn find_standard_installations() -> Vec<ClaudeInstallation> {
@@ -376,6 +426,8 @@ fn find_standard_installations() -> Vec<ClaudeInstallation> {
         ),
         ("/usr/bin/claude".to_string(), "system".to_string()),
         ("/bin/claude".to_string(), "system".to_string()),
+        // Snap packages (Ubuntu/Debian)
+        ("/snap/bin/claude".to_string(), "snap".to_string()),
     ];
 
     // Also check user-specific paths
@@ -400,6 +452,8 @@ fn find_standard_installations() -> Vec<ClaudeInstallation> {
             (format!("{}/.volta/bin/claude", home), "volta".to_string()),
             // fnm default alias
             (format!("{}/.fnm/aliases/default/bin/claude", home), "fnm".to_string()),
+            // pnpm global bin
+            (format!("{}/.pnpm-global/bin/claude", home), "pnpm-global".to_string()),
             // Check common node_modules locations
             (
                 format!("{}/node_modules/.bin/claude", home),

@@ -145,7 +145,7 @@ fn init_startup_log() -> Option<std::fs::File> {
 fn check_webview2() -> Result<(), String> {
     // System-wide WebView2 installation (machine-level).
     let machine_key = r"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
-    let output = std::process::Command::new("reg")
+    let output = crate::claude_binary::silent_command("reg")
         .args(["query", machine_key, "/v", "pv"])
         .output();
 
@@ -156,7 +156,7 @@ fn check_webview2() -> Result<(), String> {
 
     // Per-user WebView2 installation.
     let user_key = r"HKEY_CURRENT_USER\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
-    let output2 = std::process::Command::new("reg")
+    let output2 = crate::claude_binary::silent_command("reg")
         .args(["query", user_key, "/v", "pv"])
         .output();
 
