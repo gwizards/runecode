@@ -1478,7 +1478,7 @@ pub async fn list_directory_contents(directory_path: String) -> Result<Vec<FileE
         let canonical = path
             .canonicalize()
             .map_err(|e| format!("Failed to resolve path: {}", e))?;
-        if !canonical.starts_with(&home) && !canonical.starts_with("/tmp") {
+        if !canonical.starts_with(&home) && !canonical.starts_with(std::env::temp_dir()) {
             return Err("Directory listing is restricted to the user's home directory".to_string());
         }
     }

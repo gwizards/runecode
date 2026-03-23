@@ -14,7 +14,9 @@ pub struct PluginGroup {
 
 #[tauri::command]
 pub fn get_skills_catalog() -> Vec<PluginGroup> {
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
     let plugins_file = format!("{}/.claude/plugins/installed_plugins.json", home);
 
     let mut catalog: Vec<PluginGroup> = Vec::new();

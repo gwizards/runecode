@@ -27,7 +27,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
         if (selected && typeof selected === 'string') {
           setProjectPath(selected);
           // Auto-fill name from directory
-          const name = selected.split('/').pop() || selected.split('\\').pop() || '';
+          const name = selected.split('\\').pop() || selected.split('/').pop() || '';
           if (!projectName) setProjectName(name);
         }
       }
@@ -38,7 +38,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
 
   const handleCreate = async () => {
     if (!projectPath || creating) return;
-    const name = projectName || projectPath.split('/').pop() || projectPath.split('\\').pop() || 'New Project';
+    const name = projectName || projectPath.split('\\').pop() || projectPath.split('/').pop() || 'New Project';
 
     setCreating(true);
     try {

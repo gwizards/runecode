@@ -2814,7 +2814,7 @@ async fn delete_checkpoint(
 
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| "/tmp".to_string());
+        .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into_owned());
     let claude_dir = std::path::PathBuf::from(&home).join(".claude");
     let paths = CheckpointPaths::new(&claude_dir, &project_id, &session_id);
 
@@ -2939,7 +2939,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
     let checkpoint_state = CheckpointState::new();
     let home_for_cp = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| "/tmp".to_string());
+        .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into_owned());
     let claude_dir = std::path::PathBuf::from(&home_for_cp).join(".claude");
     checkpoint_state.set_claude_dir(claude_dir).await;
 
