@@ -168,10 +168,11 @@ fn source_preference(installation: &ClaudeInstallation) -> u8 {
 fn discover_system_installations() -> Vec<ClaudeInstallation> {
     let mut installations = Vec::new();
 
-    // macOS: ask a login shell for the real PATH-resolved binary.
-    // Finder/Spotlight launches inherit a minimal PATH that lacks Homebrew,
-    // NVM, and volta — a login shell sources /etc/zprofile + ~/.zprofile.
-    #[cfg(target_os = "macos")]
+    // Unix (macOS + Linux): ask a login shell for the real PATH-resolved binary.
+    // Desktop launchers (Finder/Spotlight on macOS, GNOME/KDE on Linux) inherit
+    // a minimal PATH that lacks NVM, Homebrew, ~/.local/bin, volta, etc.
+    // A login shell sources the user's profile so those paths are visible.
+    #[cfg(unix)]
     if let Some(inst) = try_login_shell_which() {
         installations.push(inst);
     }
@@ -376,24 +377,37 @@ fn find_nvm_installations() -> Vec<ClaudeInstallation> {
     installations
 }
 
-/// macOS-only: ask a login shell for the PATH-resolved claude binary.
-/// This correctly sources ~/.zprofile (Homebrew, NVM, volta, etc.) which
-/// GUI apps launched from Finder/Spotlight do not inherit.
-#[cfg(target_os = "macos")]
+/// Unix: ask a login shell for the PATH-resolved claude binary.
+///
+/// GUI apps launched from a desktop environment (Finder/Spotlight on macOS,
+/// GNOME/KDE on Linux) inherit a minimal PATH that lacks Homebrew, NVM, volta,
+/// ~/.local/bin, etc.  Spawning a login shell (`-l`) sources the user's profile
+/// (`.zprofile`, `.bash_profile`, `.profile`) so those paths are visible.
+///
+/// Shell selection priority: $SHELL env var → /bin/bash → /bin/sh
+#[cfg(unix)]
 fn try_login_shell_which() -> Option<ClaudeInstallation> {
-    debug!("macOS: trying zsh login-shell which to find claude...");
-    let output = std::process::Command::new("/bin/zsh")
+    let shell = std::env::var("SHELL")
+        .unwrap_or_else(|_| "/bin/bash".to_string());
+    // Only attempt with shells known to support `-l`
+    let shell_bin = if shell.ends_with("zsh") || shell.ends_with("bash")
+        || shell.ends_with("sh") || shell.ends_with("fish")
+    {
+        shell
+    } else {
+        "/bin/bash".to_string()
+    };
+    debug!("Unix: trying login-shell ({}) which to find claude...", shell_bin);
+    let output = std::process::Command::new(&shell_bin)
         .args(["-l", "-c", "which claude 2>/dev/null || command -v claude 2>/dev/null"])
         .output()
         .ok()?;
-    if !output.status.success() {
-        return None;
-    }
+    // Some shells exit non-zero when `which` finds nothing — check stdout instead
     let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if raw.is_empty() {
         return None;
     }
-    // zsh may output "claude: aliased to /path/to/claude"
+    // Some shells output "claude: aliased to /path/to/claude"
     let path = if raw.contains("aliased to") {
         raw.split("aliased to").nth(1)?.trim().to_string()
     } else {
@@ -805,6 +819,47 @@ pub fn create_command_with_env(program: &str) -> Command {
             if !current_path.contains(&npm_global_bin) {
                 let new_path = format!("{};{}", npm_global_bin, current_path);
                 debug!("Prepending %APPDATA%\\npm to PATH for npm/npx resolution");
+                cmd.env("PATH", new_path);
+            }
+        }
+    }
+
+    // Linux: prepend common user-local bin directories.
+    // GUI apps launched from a desktop environment inherit a stripped PATH
+    // (/usr/bin:/bin) that omits ~/.local/bin, NVM bins, volta, fnm, etc.
+    // We inject them here so npx/@claude-flow/cli/claude resolve correctly.
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            let mut extra: Vec<String> = Vec::new();
+
+            // Active NVM version bin (highest priority — user's chosen node)
+            if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
+                if !current_path.contains(&nvm_bin) {
+                    extra.push(nvm_bin);
+                }
+            }
+            // Standard user-local directories
+            for candidate in &[
+                format!("{}/.local/bin", home),
+                format!("{}/.npm-global/bin", home),
+                format!("{}/.volta/bin", home),
+                format!("{}/.fnm/aliases/default/bin", home),
+                format!("{}/.bun/bin", home),
+                format!("{}/.cargo/bin", home),
+                "/usr/local/bin".to_string(),
+            ] {
+                if std::path::Path::new(candidate).exists()
+                    && !current_path.contains(candidate.as_str())
+                {
+                    extra.push(candidate.clone());
+                }
+            }
+
+            if !extra.is_empty() {
+                let new_path = format!("{}:{}", extra.join(":"), current_path);
+                debug!("Linux: augmenting PATH with: {}", extra.join(":"));
                 cmd.env("PATH", new_path);
             }
         }
