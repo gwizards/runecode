@@ -1113,6 +1113,22 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                             }
                         }
 
+                        // Validate agent_name: only allow alphanumeric, '_', '-'; must not start with '-'
+                        if !agent_name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+                            || agent_name.starts_with('-')
+                            || agent_name.is_empty()
+                        {
+                            let err = serde_json::to_string(&WsServerMessage::Error {
+                                session_id: ws_session_id.clone(),
+                                error: "Invalid agent name".to_string(),
+                            }).unwrap_or_default();
+                            let sessions = state.active_sessions.lock().await;
+                            if let Some(tx) = sessions.get(&ws_session_id) {
+                                let _ = tx.send(err).await;
+                            }
+                            continue;
+                        }
+
                         {
                             let mut cfg = state.session_config.lock().await;
                             cfg.insert(ws_session_id.clone(), SessionConfig {
@@ -1399,6 +1415,12 @@ async fn execute_claude_command(
     })?;
     println!("[TRACE] Claude process spawned successfully");
 
+    // Register PID for interrupt support.
+    if let Some(pid) = child.id() {
+        state.active_pids.lock().await.insert(session_id.clone(), pid);
+        println!("[TRACE] Registered PID {} for session {}", pid, session_id);
+    }
+
     // Get stdout and stderr for streaming
     let stdout = child.stdout.take().ok_or_else(|| {
         println!("[TRACE] Failed to get stdout from child process");
@@ -1414,14 +1436,22 @@ async fn execute_claude_command(
         if let Some(stderr) = stderr {
             let stderr_reader = BufReader::new(stderr);
             let mut lines = stderr_reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                println!("[TRACE] Claude stderr: {}", line);
-                let message = json!({
-                    "type": "output",
-                    "content": format!("[stderr] {}", line)
-                })
-                .to_string();
-                send_to_session(&state_for_stderr, &session_id_for_stderr, message).await;
+            while let Some(line_result) = lines.next_line().await.transpose() {
+                match line_result {
+                    Ok(line) => {
+                        println!("[TRACE] Claude stderr: {}", line);
+                        let message = json!({
+                            "type": "output",
+                            "content": format!("[stderr] {}", line)
+                        })
+                        .to_string();
+                        send_to_session(&state_for_stderr, &session_id_for_stderr, message).await;
+                    }
+                    Err(e) => {
+                        eprintln!("I/O error reading Claude stderr: {e}");
+                        break;
+                    }
+                }
             }
         }
     });
@@ -1430,17 +1460,31 @@ async fn execute_claude_command(
     // Stream output line by line
     let mut lines = stdout_reader.lines();
     let mut line_count = 0;
-    while let Ok(Some(line)) = lines.next_line().await {
-        line_count += 1;
-        println!("[TRACE] Claude output line {}: {}", line_count, line);
+    while let Some(line_result) = lines.next_line().await.transpose() {
+        match line_result {
+            Ok(line) => {
+                line_count += 1;
+                println!("[TRACE] Claude output line {}: {}", line_count, line);
 
-        // Send each line to WebSocket
-        let message = json!({
-            "type": "output",
-            "content": line
-        })
-        .to_string();
-        send_to_session(&state, &session_id, message).await;
+                // Send each line to WebSocket
+                let message = json!({
+                    "type": "output",
+                    "content": line
+                })
+                .to_string();
+                send_to_session(&state, &session_id, message).await;
+            }
+            Err(e) => {
+                eprintln!("I/O error reading Claude output: {e}");
+                send_to_session(
+                    &state,
+                    &session_id,
+                    json!({ "type": "error", "content": format!("I/O error: {e}") }).to_string(),
+                )
+                .await;
+                break;
+            }
+        }
     }
 
     println!(
@@ -1461,6 +1505,8 @@ async fn execute_claude_command(
         "[TRACE] Claude process completed with status: {:?}",
         exit_status
     );
+
+    state.active_pids.lock().await.remove(&session_id);
 
     if !exit_status.success() {
         let error = format!(
@@ -1545,17 +1591,31 @@ async fn continue_claude_command(
     let stdout_reader = BufReader::new(stdout);
 
     let mut lines = stdout_reader.lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        send_to_session(
-            &state,
-            &session_id,
-            json!({
-                "type": "output",
-                "content": line
-            })
-            .to_string(),
-        )
-        .await;
+    while let Some(line_result) = lines.next_line().await.transpose() {
+        match line_result {
+            Ok(line) => {
+                send_to_session(
+                    &state,
+                    &session_id,
+                    json!({
+                        "type": "output",
+                        "content": line
+                    })
+                    .to_string(),
+                )
+                .await;
+            }
+            Err(e) => {
+                eprintln!("I/O error reading Claude output: {e}");
+                send_to_session(
+                    &state,
+                    &session_id,
+                    json!({ "type": "error", "content": format!("I/O error: {e}") }).to_string(),
+                )
+                .await;
+                break;
+            }
+        }
     }
 
     let exit_status = child
@@ -1668,17 +1728,31 @@ async fn resume_claude_command(
     let stdout_reader = BufReader::new(stdout);
 
     let mut lines = stdout_reader.lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        send_to_session(
-            &state,
-            &session_id,
-            json!({
-                "type": "output",
-                "content": line
-            })
-            .to_string(),
-        )
-        .await;
+    while let Some(line_result) = lines.next_line().await.transpose() {
+        match line_result {
+            Ok(line) => {
+                send_to_session(
+                    &state,
+                    &session_id,
+                    json!({
+                        "type": "output",
+                        "content": line
+                    })
+                    .to_string(),
+                )
+                .await;
+            }
+            Err(e) => {
+                eprintln!("I/O error reading Claude output: {e}");
+                send_to_session(
+                    &state,
+                    &session_id,
+                    json!({ "type": "error", "content": format!("I/O error: {e}") }).to_string(),
+                )
+                .await;
+                break;
+            }
+        }
     }
 
     let exit_status = child
@@ -1779,26 +1853,48 @@ async fn execute_claude_agent_command(
     let stderr_task = tokio::spawn(async move {
         if let Some(stderr) = stderr {
             let mut lines = BufReader::new(stderr).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                send_to_session(
-                    &st_err,
-                    &sid_err,
-                    json!({ "type": "output", "content": format!("[stderr] {}", line) })
-                        .to_string(),
-                )
-                .await;
+            while let Some(line_result) = lines.next_line().await.transpose() {
+                match line_result {
+                    Ok(line) => {
+                        send_to_session(
+                            &st_err,
+                            &sid_err,
+                            json!({ "type": "output", "content": format!("[stderr] {}", line) })
+                                .to_string(),
+                        )
+                        .await;
+                    }
+                    Err(e) => {
+                        eprintln!("I/O error reading Claude agent stderr: {e}");
+                        break;
+                    }
+                }
             }
         }
     });
 
     let mut lines = stdout_reader.lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        send_to_session(
-            &state,
-            &session_id,
-            json!({ "type": "output", "content": line }).to_string(),
-        )
-        .await;
+    while let Some(line_result) = lines.next_line().await.transpose() {
+        match line_result {
+            Ok(line) => {
+                send_to_session(
+                    &state,
+                    &session_id,
+                    json!({ "type": "output", "content": line }).to_string(),
+                )
+                .await;
+            }
+            Err(e) => {
+                eprintln!("I/O error reading Claude agent output: {e}");
+                send_to_session(
+                    &state,
+                    &session_id,
+                    json!({ "type": "error", "content": format!("I/O error: {e}") }).to_string(),
+                )
+                .await;
+                break;
+            }
+        }
     }
 
     let _ = stderr_task.await;

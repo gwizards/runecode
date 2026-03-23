@@ -2798,4 +2798,30 @@ mod tests {
         let path = result.unwrap();
         assert!(path == "/path1" || path == "/path2");
     }
+
+    #[test]
+    fn test_guard_path_within_home_allows_home_subdir() {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        // Create a real path under home so canonicalize succeeds
+        let path = PathBuf::from(&home);
+        assert!(guard_path_within_home(&path).is_ok());
+    }
+
+    #[test]
+    fn test_guard_path_within_home_rejects_traversal() {
+        let path2 = PathBuf::from("/etc/passwd");
+        assert!(guard_path_within_home(&path2).is_err());
+    }
+
+    #[test]
+    fn test_guard_path_within_home_rejects_root() {
+        let path = PathBuf::from("/");
+        assert!(guard_path_within_home(&path).is_err());
+    }
+
+    #[test]
+    fn test_guard_path_within_home_rejects_empty() {
+        let path = PathBuf::from("");
+        assert!(guard_path_within_home(&path).is_err());
+    }
 }

@@ -27,6 +27,11 @@ function getOrCreateSocket(connectionId: string): WebSocket {
 
   ws.onclose = () => {
     sessionSockets.delete(connectionId);
+    // Signal completion so the UI does not remain in a loading state when the
+    // connection closes before a "done" message arrives (e.g. abrupt disconnect).
+    queueMicrotask(() => {
+      window.dispatchEvent(new CustomEvent('claude-complete', { detail: { aborted: true } }));
+    });
   };
   ws.onerror = () => {
     sessionSockets.delete(connectionId);
@@ -113,12 +118,14 @@ async function initSession(params: {
       try {
         const msg = JSON.parse(event.data);
 
-        // Resolve init promise on first meaningful response from server
-        if (!settled && (msg.type === 'session_id' || msg.type === 'message' || msg.type === 'start')) {
+        // Resolve init promise on first meaningful response from server.
+        // Backend (ws_types.rs WsServerMessage) uses "output" and "done".
+        if (!settled && (msg.type === 'session_id' || msg.type === 'output' || msg.type === 'done' || msg.type === 'start')) {
           settle(() => resolve(connectionId));
         }
 
-        if (msg.type === 'message') {
+        // Backend sends type:"output" with a "content" string (one JSONL line).
+        if (msg.type === 'output') {
           const claudeMessage = typeof msg.content === 'string'
             ? JSON.parse(msg.content) : msg.content;
 
@@ -134,7 +141,8 @@ async function initSession(params: {
           }
         }
 
-        if (msg.type === 'turn_complete') {
+        // Backend sends type:"done" when the turn is complete.
+        if (msg.type === 'done') {
           queueMicrotask(() => {
             window.dispatchEvent(new CustomEvent('claude-complete', { detail: true }));
           });
@@ -148,12 +156,12 @@ async function initSession(params: {
 
         if (msg.type === 'error') {
           queueMicrotask(() => {
-            window.dispatchEvent(new CustomEvent('claude-error', { detail: msg.message }));
+            window.dispatchEvent(new CustomEvent('claude-error', { detail: msg.error ?? msg.message }));
           });
           if (msg.session_id) {
             const sid = msg.session_id;
             queueMicrotask(() => {
-              window.dispatchEvent(new CustomEvent(`claude-error:${sid}`, { detail: msg.message }));
+              window.dispatchEvent(new CustomEvent(`claude-error:${sid}`, { detail: msg.error ?? msg.message }));
             });
           }
         }
@@ -758,11 +766,13 @@ async function initAgentSession(params: {
       try {
         const msg = JSON.parse(event.data);
 
-        if (!settled && (msg.type === 'session_id' || msg.type === 'message' || msg.type === 'start')) {
+        // Backend (ws_types.rs WsServerMessage) uses "output" and "done".
+        if (!settled && (msg.type === 'session_id' || msg.type === 'output' || msg.type === 'done' || msg.type === 'start')) {
           settle(() => resolve(connectionId));
         }
 
-        if (msg.type === 'message') {
+        // Backend sends type:"output" with a "content" string (one JSONL line).
+        if (msg.type === 'output') {
           const claudeMessage = typeof msg.content === 'string'
             ? JSON.parse(msg.content) : msg.content;
           queueMicrotask(() => {
@@ -776,7 +786,8 @@ async function initAgentSession(params: {
           }
         }
 
-        if (msg.type === 'turn_complete') {
+        // Backend sends type:"done" when the turn is complete.
+        if (msg.type === 'done') {
           queueMicrotask(() => {
             window.dispatchEvent(new CustomEvent('claude-complete', { detail: true }));
           });
@@ -790,12 +801,12 @@ async function initAgentSession(params: {
 
         if (msg.type === 'error') {
           queueMicrotask(() => {
-            window.dispatchEvent(new CustomEvent('claude-error', { detail: msg.message }));
+            window.dispatchEvent(new CustomEvent('claude-error', { detail: msg.error ?? msg.message }));
           });
           if (msg.session_id) {
             const sid = msg.session_id;
             queueMicrotask(() => {
-              window.dispatchEvent(new CustomEvent(`claude-error:${sid}`, { detail: msg.message }));
+              window.dispatchEvent(new CustomEvent(`claude-error:${sid}`, { detail: msg.error ?? msg.message }));
             });
           }
         }

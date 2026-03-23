@@ -241,7 +241,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     await get().fetchInstallation();
     return result.value;
@@ -253,7 +253,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     set({ installation: null, swarm: null, memoryStats: null });
     dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
@@ -266,7 +266,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     await get().fetchInstallation();
     return result.value;
@@ -278,7 +278,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     await get().fetchInstallation();
     return result.value;
@@ -290,7 +290,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     await get().fetchInstallation();
     return result.value;
@@ -302,7 +302,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     await get().fetchProjectStatus(projectPath);
     return result.value;
@@ -316,7 +316,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     return result.value;
   },
@@ -327,7 +327,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     await get().fetchMemoryStats();
     return result.value;
@@ -339,7 +339,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     set({ actionInProgress: null });
     if (!result.ok) {
       set({ error: result.error });
-      throw new Error(result.error);
+      return '';
     }
     await get().fetchMemoryStats();
     return result.value;
