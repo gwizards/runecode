@@ -127,8 +127,13 @@ export function EmbeddedTerminal({
     window.addEventListener('runecode:type-in-terminal', handleTypeInTerminal);
 
     // Delay WebSocket connection until layout is settled (double-rAF)
-    // so cols/rows reflect the actual container size
+    // so cols/rows reflect the actual container size.
+    // `cancelled` is set by the cleanup function so that if React Strict Mode
+    // (or a fast prop change) triggers cleanup before the rAF fires, we don't
+    // open an orphaned WebSocket that can never be closed.
+    let cancelled = false;
     requestAnimationFrame(() => requestAnimationFrame(async () => {
+      if (cancelled) return;
       fitAddon.fit();
 
       const params = new URLSearchParams();
@@ -210,6 +215,7 @@ export function EmbeddedTerminal({
     }));
 
     return () => {
+      cancelled = true; // prevent any in-flight rAF from opening a WebSocket
       if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener('runecode:focus-prompt', handleFocus);
       window.removeEventListener('runecode:type-in-terminal', handleTypeInTerminal);
@@ -220,7 +226,11 @@ export function EmbeddedTerminal({
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [sessionId, projectPath, flags]);
+  // Use flags.join(',') instead of the array reference so that a caller
+  // passing an inline literal (e.g. flags={['--shell']}) does not cause
+  // the terminal to reconnect on every parent render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, projectPath, flags?.join(',')]);
 
   return (
     <div

@@ -89,7 +89,10 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
     let shell_lower = shell.to_lowercase();
     let extra_args: &[&str] = if shell_lower.contains("pwsh") || shell_lower.contains("powershell") {
         &["-NoExit", "-NoLogo"]
-    } else if shell_lower.contains("cmd") {
+    } else if cfg!(windows) && shell_lower.ends_with("cmd.exe") {
+        // /k keeps cmd.exe alive in its REPL after startup.
+        // Scoped to Windows + exact suffix so Unix shells whose path happens
+        // to contain "cmd" are not affected.
         &["/k"]
     } else {
         &[]

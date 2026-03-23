@@ -25,6 +25,10 @@ const ClaudeFileEditor = lazy(() => import('@/components/ClaudeFileEditor').then
 const EmbeddedTerminal = lazy(() => import('@/components/EmbeddedTerminal').then(m => ({ default: m.EmbeddedTerminal })));
 const BrowserPanel = lazy(() => import('@/components/BrowserPanel').then(m => ({ default: m.BrowserPanel })));
 
+// Stable flags constant — must not be an inline literal to prevent
+// EmbeddedTerminal effect from re-running (and tearing down the shell) on every render.
+const SHELL_FLAGS = ['--shell'];
+
 // Import non-lazy components for projects view
 
 interface TabPanelProps {
@@ -733,7 +737,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
                       <div className="flex-1 min-w-0">
                         {showFixTerminal ? (
                           <EmbeddedTerminal
-                            flags={['--shell']}
+                            flags={SHELL_FLAGS}
                             environmentId={pickedEnvId || undefined}
                             tabId={`fix-${tab.id}`}
                           />

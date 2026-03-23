@@ -64,12 +64,16 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
     fetchInstallation();
   }, [fetchInstallation]);
 
-  // Re-check install status when Settings triggers a ruflo status change
+  // Re-check install status when Settings triggers a ruflo status change.
+  // Skip when already known to be not installed — the settings page handles
+  // the install flow and will update the store directly after install completes.
+  // We still need to listen when isInstalled is null (unknown) or true.
   useEffect(() => {
+    if (isInstalled === false) return;
     return onRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED, () => {
       fetchInstallation();
     });
-  }, [fetchInstallation]);
+  }, [fetchInstallation, isInstalled]);
 
   // Fetch + poll only when expanded
   useEffect(() => {
