@@ -80,6 +80,15 @@ interface EditableHookMatcher extends Omit<HookMatcher, 'hooks'> {
   expanded?: boolean;
 }
 
+/** Shape of the editable hooks state — separates matcher events from direct events. */
+type EditableHooksState = {
+  PreToolUse: EditableHookMatcher[];
+  PostToolUse: EditableHookMatcher[];
+  Notification: EditableHookCommand[];
+  Stop: EditableHookCommand[];
+  SubagentStop: EditableHookCommand[];
+};
+
 const EVENT_INFO: Record<HookEvent, { label: string; description: string; icon: React.ReactNode }> = {
   PreToolUse: {
     label: 'Pre Tool Use',
@@ -133,20 +142,14 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   const directEvents = ['Notification', 'Stop', 'SubagentStop'] as const;
   
   // Convert hooks to editable format with IDs
-  const [editableHooks, setEditableHooks] = useState<{
-    PreToolUse: EditableHookMatcher[];
-    PostToolUse: EditableHookMatcher[];
-    Notification: EditableHookCommand[];
-    Stop: EditableHookCommand[];
-    SubagentStop: EditableHookCommand[];
-  }>(() => {
-    const result = {
+  const [editableHooks, setEditableHooks] = useState<EditableHooksState>(() => {
+    const result: EditableHooksState = {
       PreToolUse: [],
       PostToolUse: [],
       Notification: [],
       Stop: [],
       SubagentStop: []
-    } as any;
+    };
     
     // Initialize matcher events
     matcherEvents.forEach(event => {
@@ -210,13 +213,13 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
     setHasUnsavedChanges(false); // Reset unsaved changes when hooks prop changes
     
     // Reinitialize editable hooks when hooks prop changes
-    const result = {
+    const result: EditableHooksState = {
       PreToolUse: [],
       PostToolUse: [],
       Notification: [],
       Stop: [],
       SubagentStop: []
-    } as any;
+    };
     
     // Initialize matcher events
     matcherEvents.forEach(event => {
@@ -331,7 +334,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
 
   const addMatcher = (event: HookEvent) => {
     // Only for events with matchers
-    if (!matcherEvents.includes(event as any)) return;
+    if (!(matcherEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     const newMatcher: EditableHookMatcher = {
       id: HooksManager.generateId(),
@@ -348,7 +351,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   
   const addDirectCommand = (event: HookEvent) => {
     // Only for events without matchers
-    if (!directEvents.includes(event as any)) return;
+    if (!(directEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     const newCommand: EditableHookCommand = {
       id: HooksManager.generateId(),
@@ -363,7 +366,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   };
 
   const updateMatcher = (event: HookEvent, matcherId: string, updates: Partial<EditableHookMatcher>) => {
-    if (!matcherEvents.includes(event as any)) return;
+    if (!(matcherEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     setEditableHooks(prev => ({
       ...prev,
@@ -374,7 +377,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   };
 
   const removeMatcher = (event: HookEvent, matcherId: string) => {
-    if (!matcherEvents.includes(event as any)) return;
+    if (!(matcherEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     setEditableHooks(prev => ({
       ...prev,
@@ -383,7 +386,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   };
   
   const updateDirectCommand = (event: HookEvent, commandId: string, updates: Partial<EditableHookCommand>) => {
-    if (!directEvents.includes(event as any)) return;
+    if (!(directEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     setEditableHooks(prev => ({
       ...prev,
@@ -394,7 +397,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   };
   
   const removeDirectCommand = (event: HookEvent, commandId: string) => {
-    if (!directEvents.includes(event as any)) return;
+    if (!(directEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     setEditableHooks(prev => ({
       ...prev,
@@ -403,7 +406,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   };
 
   const applyTemplate = (template: HookTemplate) => {
-    if (matcherEvents.includes(template.event as any)) {
+    if ((matcherEvents as ReadonlyArray<HookEvent>).includes(template.event)) {
       // For events with matchers
       const newMatcher: EditableHookMatcher = {
         id: HooksManager.generateId(),
@@ -455,7 +458,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   }, [hooks]);
 
   const addCommand = (event: HookEvent, matcherId: string) => {
-    if (!matcherEvents.includes(event as any)) return;
+    if (!(matcherEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     const newCommand: EditableHookCommand = {
       id: HooksManager.generateId(),
@@ -479,7 +482,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
     commandId: string,
     updates: Partial<EditableHookCommand>
   ) => {
-    if (!matcherEvents.includes(event as any)) return;
+    if (!(matcherEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     setEditableHooks(prev => ({
       ...prev,
@@ -497,7 +500,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
   };
 
   const removeCommand = (event: HookEvent, matcherId: string, commandId: string) => {
-    if (!matcherEvents.includes(event as any)) return;
+    if (!(matcherEvents as ReadonlyArray<HookEvent>).includes(event)) return;
     
     setEditableHooks(prev => ({
       ...prev,
@@ -822,7 +825,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
           <Tabs value={selectedEvent} onValueChange={(v) => setSelectedEvent(v as HookEvent)}>
             <TabsList className="w-full">
               {(Object.keys(EVENT_INFO) as HookEvent[]).map(event => {
-                const isMatcherEvent = matcherEvents.includes(event as any);
+                const isMatcherEvent = (matcherEvents as ReadonlyArray<HookEvent>).includes(event);
                 const count = isMatcherEvent 
                   ? (editableHooks[event as 'PreToolUse' | 'PostToolUse'] as EditableHookMatcher[]).length
                   : (editableHooks[event as 'Notification' | 'Stop' | 'SubagentStop'] as EditableHookCommand[]).length;
@@ -842,7 +845,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
             </TabsList>
 
             {(Object.keys(EVENT_INFO) as HookEvent[]).map(event => {
-              const isMatcherEvent = matcherEvents.includes(event as any);
+              const isMatcherEvent = (matcherEvents as ReadonlyArray<HookEvent>).includes(event);
               const items = isMatcherEvent 
                 ? (editableHooks[event as 'PreToolUse' | 'PostToolUse'] as EditableHookMatcher[])
                 : (editableHooks[event as 'Notification' | 'Stop' | 'SubagentStop'] as EditableHookCommand[]);
@@ -912,7 +915,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
                         <Badge>{EVENT_INFO[template.event].label}</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">{template.description}</p>
-                      {matcherEvents.includes(template.event as any) && template.matcher && (
+                      {(matcherEvents as ReadonlyArray<HookEvent>).includes(template.event) && template.matcher && (
                         <p className="text-xs font-mono bg-muted px-2 py-1 rounded inline-block">
                           Matcher: {template.matcher}
                         </p>

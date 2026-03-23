@@ -51,7 +51,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           if (!mounted) return;
           const line = typeof event.payload === 'string'
             ? event.payload
-            : (event.payload as any)?.line ?? String(event.payload);
+            : event.payload.line;
           setInstallLines((prev) => [...prev, line]);
         });
         unlisten = fn;

@@ -83,7 +83,7 @@ export const RewindPanel: React.FC<RewindPanelProps> = ({
         }
       }
 
-      const ts = (m as any).timestamp || m.message?.timestamp;
+      const ts = m.timestamp || m.message?.timestamp;
       const date = ts ? new Date(typeof ts === 'number' ? (ts > 1e12 ? ts : ts * 1000) : ts) : undefined;
 
       result.push({
