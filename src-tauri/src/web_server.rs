@@ -645,14 +645,28 @@ async fn get_project_info(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
     let project_path = match params.get("path") {
-        Some(p) => p.clone(),
-        None => {
+        Some(p) if !p.is_empty() => p.clone(),
+        _ => {
             return axum::Json(serde_json::json!({
                 "error": "Missing 'path' query parameter"
             }))
             .into_response();
         }
     };
+
+    // Guard: reject paths that escape the user's home directory
+    {
+        let path_buf = std::path::PathBuf::from(&project_path);
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_default();
+        if home.is_empty() || !path_buf.starts_with(&home) {
+            return axum::Json(serde_json::json!({
+                "error": "Path outside home directory"
+            }))
+            .into_response();
+        }
+    }
 
     let result = tokio::task::spawn_blocking(move || {
         crate::commands::project_info::collect_project_info(&project_path)
@@ -1083,6 +1097,22 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                         ..
                     } => {
                         println!("[WS] InitAgent -- agent: {}  project: {}", agent_name, project_path);
+
+                        // Validate model string: only allow alphanumeric, '-', '.', '_', '/'
+                        if let Some(ref m) = model {
+                            if !m.is_empty() && !m.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '/')) {
+                                let err = serde_json::to_string(&WsServerMessage::Error {
+                                    session_id: ws_session_id.clone(),
+                                    error: "Invalid model identifier".to_string(),
+                                }).unwrap_or_default();
+                                let sessions = state.active_sessions.lock().await;
+                                if let Some(tx) = sessions.get(&ws_session_id) {
+                                    let _ = tx.send(err).await;
+                                }
+                                continue;
+                            }
+                        }
+
                         {
                             let mut cfg = state.session_config.lock().await;
                             cfg.insert(ws_session_id.clone(), SessionConfig {

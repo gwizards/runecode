@@ -458,6 +458,8 @@ pub async fn list_projects() -> Result<Vec<Project>, String> {
 pub async fn create_project(path: String) -> Result<Project, String> {
     log::info!("Creating project for path: {}", path);
 
+    guard_path_within_home(&PathBuf::from(&path))?;
+
     // Encode the path to create a project ID
     let project_id = path.replace('/', "-");
 
@@ -1827,6 +1829,8 @@ pub async fn list_checkpoints(
         project_id
     );
 
+    guard_path_within_home(&PathBuf::from(&project_path))?;
+
     let manager = app
         .get_or_create_manager(session_id, project_id, PathBuf::from(&project_path))
         .await
@@ -1903,6 +1907,8 @@ pub async fn get_session_timeline(
         session_id,
         project_id
     );
+
+    guard_path_within_home(&PathBuf::from(&project_path))?;
 
     let manager = app
         .get_or_create_manager(session_id, project_id, PathBuf::from(&project_path))
@@ -2366,6 +2372,9 @@ pub async fn update_hooks_config(
 /// Validates a hook command by dry-running it
 #[tauri::command]
 pub async fn validate_hook_command(command: String) -> Result<serde_json::Value, String> {
+    if command.len() > 4096 {
+        return Err("Hook command too long (max 4096 chars)".to_string());
+    }
     log::info!("Validating hook command syntax");
 
     // Validate syntax without executing — run blocking Command on a dedicated thread
@@ -2606,22 +2615,24 @@ pub async fn install_claude_code(app: AppHandle) -> Result<String, String> {
 
     let mut output_lines = Vec::new();
 
-    if let Some(stdout) = child.stdout.take() {
-        let reader = tokio::io::BufReader::new(stdout);
-        let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+    // Drain a piped stream, emitting each line as an install-progress event.
+    async fn drain_stream<R: tokio::io::AsyncRead + Unpin>(
+        stream: R,
+        app: &AppHandle,
+        out: &mut Vec<String>,
+    ) {
+        let mut lines = tokio::io::AsyncBufReadExt::lines(tokio::io::BufReader::new(stream));
         while let Ok(Some(line)) = lines.next_line().await {
             let _ = app.emit("install-progress", serde_json::json!({"line": line}));
-            output_lines.push(line);
+            out.push(line);
         }
     }
 
+    if let Some(stdout) = child.stdout.take() {
+        drain_stream(stdout, &app, &mut output_lines).await;
+    }
     if let Some(stderr) = child.stderr.take() {
-        let reader = tokio::io::BufReader::new(stderr);
-        let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
-        while let Ok(Some(line)) = lines.next_line().await {
-            let _ = app.emit("install-progress", serde_json::json!({"line": line}));
-            output_lines.push(line);
-        }
+        drain_stream(stderr, &app, &mut output_lines).await;
     }
 
     let status = child

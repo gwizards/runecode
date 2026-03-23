@@ -1070,24 +1070,35 @@ async fn spawn_agent_system(
                     "🔍 Process likely stuck waiting for input, attempting to kill PID: {}",
                     pid
                 );
-                let kill_result = std::process::Command::new("kill")
-                    .arg("-TERM")
-                    .arg(pid.to_string())
-                    .output();
+                let pid_str_term = pid.to_string();
+                let kill_result = tokio::task::spawn_blocking(move || {
+                    std::process::Command::new("kill")
+                        .arg("-TERM")
+                        .arg(pid_str_term)
+                        .output()
+                })
+                .await;
 
                 match kill_result {
-                    Ok(output) if output.status.success() => {
+                    Ok(Ok(output)) if output.status.success() => {
                         warn!("🔍 Successfully sent TERM signal to process");
                     }
-                    Ok(_) => {
+                    Ok(Ok(_)) => {
                         warn!("🔍 Failed to kill process with TERM, trying KILL");
-                        let _ = std::process::Command::new("kill")
-                            .arg("-KILL")
-                            .arg(pid.to_string())
-                            .output();
+                        let pid_str_kill = pid.to_string();
+                        let _ = tokio::task::spawn_blocking(move || {
+                            std::process::Command::new("kill")
+                                .arg("-KILL")
+                                .arg(pid_str_kill)
+                                .output()
+                        })
+                        .await;
+                    }
+                    Ok(Err(e)) => {
+                        warn!("🔍 Error killing process: {}", e);
                     }
                     Err(e) => {
-                        warn!("🔍 Error killing process: {}", e);
+                        warn!("🔍 spawn_blocking failed for kill: {}", e);
                     }
                 }
 

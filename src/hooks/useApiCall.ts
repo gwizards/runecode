@@ -62,7 +62,6 @@ export function useApiCall<T>(
         setData(result);
         
         if (showSuccessToast) {
-          // TODO: Implement toast notification
           console.log('Success:', successMessage);
         }
 
@@ -81,7 +80,6 @@ export function useApiCall<T>(
         setError(error);
 
         if (showErrorToast) {
-          // TODO: Implement toast notification
           console.error('Error:', errorMessage || error.message);
         }
 
