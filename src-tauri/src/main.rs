@@ -64,9 +64,188 @@ use tauri::Manager;
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
+// ---------------------------------------------------------------------------
+// Round 4: Global startup log — accessible from main() and the setup closure.
+// Uses once_cell so the file handle is initialized once and shared everywhere.
+// On Windows release builds, windows_subsystem = "windows" suppresses stderr,
+// so writing to a file is the only reliable way to capture startup diagnostics.
+// ---------------------------------------------------------------------------
+static STARTUP_LOG: once_cell::sync::Lazy<std::sync::Mutex<Option<std::fs::File>>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
+fn startup_log_write(msg: &str) {
+    let timestamped = format!(
+        "[{}] {}\n",
+        chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),
+        msg
+    );
+    if let Ok(mut guard) = STARTUP_LOG.lock() {
+        if let Some(ref mut f) = *guard {
+            use std::io::Write;
+            let _ = f.write_all(timestamped.as_bytes());
+            let _ = f.flush();
+        }
+    }
+    // Also emit to stderr — visible in debug builds and terminal launches.
+    eprintln!("{}", timestamped.trim_end());
+}
+
+macro_rules! startup_log {
+    ($($arg:tt)*) => { startup_log_write(&format!($($arg)*)) }
+}
+
+// ---------------------------------------------------------------------------
+// Round 1: Open the startup log file before anything else.
+// Path:
+//   Windows : %APPDATA%\runecode\startup.log
+//   macOS   : ~/Library/Application Support/runecode/startup.log
+//   Linux   : ~/.local/share/runecode/startup.log
+// dirs::data_dir() returns all three correctly.
+// ---------------------------------------------------------------------------
+fn init_startup_log() -> Option<std::fs::File> {
+    let log_path = dirs::data_dir()
+        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
+        .map(|d| d.join("runecode").join("startup.log"))?;
+
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent).ok()?;
+    }
+
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .ok()
+}
+
+// ---------------------------------------------------------------------------
+// Round 3: WebView2 detection on Windows.
+// If WebView2 is absent, Tauri silently exits with no window and no error.
+// This check writes a diagnostic entry to startup.log before Tauri init so
+// the cause is captured even if Tauri never gets to run.
+// ---------------------------------------------------------------------------
+#[cfg(target_os = "windows")]
+fn check_webview2() -> Result<(), String> {
+    // System-wide WebView2 installation (machine-level).
+    let machine_key = r"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+    let output = std::process::Command::new("reg")
+        .args(["query", machine_key, "/v", "pv"])
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() => return Ok(()),
+        _ => {}
+    }
+
+    // Per-user WebView2 installation.
+    let user_key = r"HKEY_CURRENT_USER\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+    let output2 = std::process::Command::new("reg")
+        .args(["query", user_key, "/v", "pv"])
+        .output();
+
+    match output2 {
+        Ok(o) if o.status.success() => Ok(()),
+        _ => Err("WebView2 runtime not detected".to_string()),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn check_webview2() -> Result<(), String> {
+    Ok(())
+}
+
 fn main() {
-    // Initialize logger
+    // -----------------------------------------------------------------------
+    // Round 1: Open startup log file — the very first thing, before anything
+    // else.  This file survives the windows_subsystem = "windows" suppression
+    // that silences stderr in Windows release builds.
+    // -----------------------------------------------------------------------
+    if let Some(f) = init_startup_log() {
+        *STARTUP_LOG.lock().unwrap() = Some(f);
+    }
+
+    startup_log!(
+        "RuneCode {} starting",
+        env!("CARGO_PKG_VERSION")
+    );
+    startup_log!(
+        "OS: {} {}",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
+
+    // -----------------------------------------------------------------------
+    // Round 2: Panic hook — installed before env_logger::init() so that panics
+    // during logger initialization are also captured.
+    // Writes to panic.log (sibling of startup.log) and to stderr.
+    // -----------------------------------------------------------------------
+    let panic_log_path = dirs::data_dir()
+        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
+        .map(|d| d.join("runecode").join("panic.log"));
+
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let msg = format!(
+            "[{}] PANIC: {}\n  Location: {}\n",
+            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),
+            info,
+            location
+        );
+
+        if let Some(ref path) = panic_log_path {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                let _ = f.write_all(msg.as_bytes());
+            }
+        }
+
+        // Also try stderr — visible in debug builds and terminal launches.
+        eprintln!("{}", msg);
+    }));
+
+    startup_log!("Panic hook installed");
+
+    // -----------------------------------------------------------------------
+    // Round 3: WebView2 pre-flight check.
+    // On Windows, a missing WebView2 runtime causes a silent exit with no
+    // window and no error message.  Log the result here so the cause is
+    // captured in startup.log before Tauri initializes.
+    // -----------------------------------------------------------------------
+    startup_log!("Checking WebView2 runtime...");
+    match check_webview2() {
+        Ok(()) => startup_log!("WebView2 runtime OK"),
+        Err(e) => {
+            // Do not abort — Tauri will surface its own error dialog on Windows 10.
+            // Windows 11 ships WebView2 by default so this is mainly diagnostic.
+            startup_log!("WARNING: {}", e);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Round 1 continued: Initialize env_logger.
+    // On Windows release builds this writes to the (suppressed) stderr, so it
+    // is only useful in debug builds or terminal launches.  The startup_log
+    // file above is the reliable path for release diagnostics.
+    // -----------------------------------------------------------------------
     env_logger::init();
+    startup_log!("env_logger initialized");
+
+    // -----------------------------------------------------------------------
+    // Tauri builder — log each plugin registration milestone so we can
+    // identify which plugin causes a crash if startup.log is truncated there.
+    // -----------------------------------------------------------------------
+    startup_log!("Registering Tauri plugins...");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -79,6 +258,10 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
+            // Round 4: startup_log! works inside the closure because it uses
+            // the global STARTUP_LOG rather than a captured mutable reference.
+            startup_log!("setup() entered");
+
             // First pass: load proxy settings from DB (best-effort — degraded mode if DB fails)
             match init_database(&app.handle()) {
                 Ok(conn) => {
@@ -118,28 +301,49 @@ fn main() {
                                 }
                             }
                             log::info!("Loaded proxy settings: enabled={}", settings.enabled);
+                            startup_log!("DB init OK — proxy settings loaded (enabled={})", settings.enabled);
                             settings
                         }
                         Err(e) => {
-                            log::warn!("Failed to lock DB for proxy settings: {}", e);
+                            let msg = format!("Failed to lock DB for proxy settings: {}", e);
+                            log::warn!("{}", msg);
+                            startup_log!("WARNING: {}", msg);
                             commands::proxy::ProxySettings::default()
                         }
                     };
                     apply_proxy_settings(&proxy_settings);
                 }
-                Err(e) => log::warn!("DB init failed (degraded mode, no proxy/agent history): {}", e),
+                Err(e) => {
+                    let msg = format!("DB init failed (degraded mode, no proxy/agent history): {}", e);
+                    log::warn!("{}", msg);
+                    startup_log!("WARNING: {}", msg);
+                }
             }
+
+            startup_log!("Proxy settings applied");
 
             // Second pass: open connection for app state (best-effort — degraded mode if DB fails)
             match init_database(&app.handle()) {
-                Ok(conn) => { app.manage(AgentDb(Mutex::new(conn))); }
-                Err(e) => log::warn!("DB re-open failed (degraded mode): {}", e),
+                Ok(conn) => {
+                    app.manage(AgentDb(Mutex::new(conn)));
+                    startup_log!("AgentDb state registered");
+                }
+                Err(e) => {
+                    let msg = format!("DB re-open failed (degraded mode): {}", e);
+                    log::warn!("{}", msg);
+                    startup_log!("WARNING: {}", msg);
+                }
             }
 
             // Initialize checkpoint state
             let checkpoint_state = CheckpointState::new();
+            startup_log!("CheckpointState created");
 
-            // Set the Claude directory path
+            // Set the Claude directory path.
+            // Round 5c: dirs::home_dir() + canonicalize() are synchronous filesystem
+            // calls.  On Windows, canonicalize() can fail if ~/.claude does not exist;
+            // that is handled gracefully — we just skip setting the claude dir.
+            // No network I/O or heavy work occurs here.
             if let Ok(claude_dir) = dirs::home_dir()
                 .ok_or_else(|| "Could not find home directory")
                 .and_then(|home| {
@@ -149,10 +353,13 @@ fn main() {
                         .map_err(|_| "Could not find ~/.claude directory")
                 })
             {
+                startup_log!("~/.claude found — scheduling async dir set");
                 let state_clone = checkpoint_state.clone();
                 tauri::async_runtime::spawn(async move {
                     state_clone.set_claude_dir(claude_dir).await;
                 });
+            } else {
+                startup_log!("~/.claude not found — checkpoint dir skipped");
             }
 
             app.manage(checkpoint_state);
@@ -163,9 +370,12 @@ fn main() {
             // Initialize Claude process state
             app.manage(ClaudeProcessState::default());
 
+            startup_log!("App state managed (checkpoint, process registry, claude process)");
+
             // Apply window vibrancy with rounded corners on macOS
             #[cfg(target_os = "macos")]
             {
+                startup_log!("Applying macOS window vibrancy...");
                 if let Some(window) = app.get_webview_window("main") {
                     // Try different vibrancy materials that support rounded corners
                     let materials = [
@@ -192,14 +402,23 @@ fn main() {
                             None,
                             None,
                         ) {
-                            log::warn!("Failed to apply window vibrancy: {}", e);
+                            let msg = format!("Failed to apply window vibrancy: {}", e);
+                            log::warn!("{}", msg);
+                            startup_log!("WARNING: {}", msg);
+                        } else {
+                            startup_log!("Window vibrancy applied (fallback, no rounded corners)");
                         }
+                    } else {
+                        startup_log!("Window vibrancy applied with rounded corners");
                     }
                 } else {
-                    log::warn!("Main window not found — skipping vibrancy setup");
+                    let msg = "Main window not found — skipping vibrancy setup";
+                    log::warn!("{}", msg);
+                    startup_log!("WARNING: {}", msg);
                 }
             }
 
+            startup_log!("setup() complete");
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -353,4 +572,6 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application"); // safe: top-level entry point, process must abort on runtime failure
+
+    startup_log!("tauri run() returned — exiting normally");
 }

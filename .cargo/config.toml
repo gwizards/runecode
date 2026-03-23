@@ -6,6 +6,12 @@ linker = "aarch64-linux-gnu-gcc"
 # LLVM to aggressively inline across the large generate_handler![] call tree,
 # producing a startup call chain that overflows the 1 MB default stack on
 # some Windows systems (STATUS_STACK_OVERFLOW / 0xC00000FD).
+#
+# Scope note (Round 5a): This file lives at the repo root (.cargo/config.toml).
+# Cargo resolves config.toml by walking UP from the package manifest directory,
+# so src-tauri/Cargo.toml — which is inside this repo root — correctly picks up
+# this flag even though the two are in separate directories.  No duplicate flag
+# in src-tauri/.cargo/config.toml is needed or desired.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-args=/STACK:8388608"]
 
