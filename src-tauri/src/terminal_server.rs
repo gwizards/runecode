@@ -121,21 +121,16 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
     cmd.env("COLORTERM", "truecolor");
 
     // Propagate essential env vars so claude/shells find their config.
-    for key in &["HOME", "USERPROFILE", "USER", "USERNAME", "PATH", "APPDATA",
-                 "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "LANG", "LC_ALL"] {
+    for key in &["HOME", "USERPROFILE", "USER", "USERNAME", "APPDATA",
+                 "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "LANG", "LC_ALL",
+                 "NVM_DIR", "NVM_BIN", "VOLTA_HOME", "FNM_DIR"] {
         if let Ok(val) = std::env::var(key) {
             cmd.env(key, val);
         }
     }
-    // Ensure npm global bin is on PATH (Windows: %APPDATA%\npm)
-    #[cfg(target_os = "windows")]
-    if let Ok(appdata) = std::env::var("APPDATA") {
-        let npm_path = format!(r"{}\npm", appdata);
-        let current_path = std::env::var("PATH").unwrap_or_default();
-        if !current_path.contains(&npm_path) {
-            cmd.env("PATH", format!("{};{}", npm_path, current_path));
-        }
-    }
+    // Build an augmented PATH that includes package manager bins commonly
+    // absent from GUI app environments (Homebrew, nvm, volta, fnm, scoop).
+    cmd.env("PATH", build_pty_path());
 
     // --- Spawn child in the slave PTY side ----------------------------------
     let mut child = match pty_pair.slave.spawn_command(cmd) {
@@ -316,31 +311,26 @@ fn detect_shell() -> String {
 #[cfg(target_os = "windows")]
 fn detect_shell_windows() -> String {
     let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
-    let appdata = std::env::var("APPDATA").unwrap_or_default();
-    let user_profile = std::env::var("USERPROFILE").unwrap_or_default();
 
-    let extra_paths = [
-        format!(r"{}\System32", system_root),
-        format!(r"{}\System32\WindowsPowerShell\v1.0", system_root),
-        format!(r"{}\npm", appdata),
-        format!(r"{}\.local\bin", user_profile),
+    // PowerShell 7+ (pwsh.exe) — check common install locations without
+    // mutating the global process PATH (which would be a data race).
+    let pwsh7_locations = [
+        r"C:\Program Files\PowerShell\7\pwsh.exe",
+        r"C:\Program Files\PowerShell\7-preview\pwsh.exe",
     ];
-
-    let existing_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", extra_paths.join(";"), existing_path);
-    // SAFETY: called at connection time, single-threaded per-connection.
-    unsafe { std::env::set_var("PATH", &new_path) };
-
-    for candidate in &["pwsh.exe", "powershell.exe"] {
-        if which::which(candidate).is_ok() {
-            return candidate.to_string();
-        }
-        let abs = format!(r"{}\System32\WindowsPowerShell\v1.0\{}", system_root, candidate);
-        if std::path::Path::new(&abs).exists() {
-            return abs;
+    for p in &pwsh7_locations {
+        if std::path::Path::new(p).exists() {
+            return p.to_string();
         }
     }
 
+    // Windows PowerShell 5.1 — present on all Windows 10/11 installs.
+    let ps_path = format!(r"{}\System32\WindowsPowerShell\v1.0\powershell.exe", system_root);
+    if std::path::Path::new(&ps_path).exists() {
+        return ps_path;
+    }
+
+    // Final fallback: cmd.exe
     format!(r"{}\System32\cmd.exe", system_root)
 }
 
@@ -378,4 +368,103 @@ fn home_dir() -> String {
             #[cfg(not(target_os = "windows"))]
             return std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
         })
+}
+
+/// Build an augmented PATH for the PTY child process.
+///
+/// GUI apps on macOS (launched from Finder/Dock) and Windows (launched via
+/// Explorer) inherit a minimal PATH that does not include package manager
+/// bins such as Homebrew, nvm, volta, fnm, or scoop.  We inject the most
+/// common locations so the shell and Claude can find node, npm, and other
+/// tools immediately — without mutating the global process environment.
+fn build_pty_path() -> String {
+    let base = std::env::var("PATH").unwrap_or_default();
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let mut extras: Vec<String> = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        // Homebrew (Apple Silicon first, then Intel)
+        extras.push("/opt/homebrew/bin".into());
+        extras.push("/opt/homebrew/sbin".into());
+        extras.push("/usr/local/bin".into());
+        extras.push("/usr/local/sbin".into());
+        if let Ok(home) = std::env::var("HOME") {
+            // Active nvm version (env var set by nvm's shell init)
+            if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
+                extras.push(nvm_bin);
+            } else {
+                // Scan nvm versions: pick the newest installed node
+                let nvm_versions = std::path::PathBuf::from(&home).join(".nvm/versions/node");
+                if let Ok(mut entries) = std::fs::read_dir(&nvm_versions) {
+                    let mut versions: Vec<_> = entries.flatten()
+                        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                        .collect();
+                    // Sort descending by name (v22 > v20 > v18 …)
+                    versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                    if let Some(latest) = versions.first() {
+                        extras.push(latest.path().join("bin").to_string_lossy().into_owned());
+                    }
+                }
+            }
+            extras.push(format!("{}/.volta/bin", home));
+            extras.push(format!("{}/.local/bin", home));
+            extras.push(format!("{}/.cargo/bin", home));
+            extras.push(format!("{}/.yarn/bin", home));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        extras.push("/usr/local/bin".into());
+        if let Ok(home) = std::env::var("HOME") {
+            if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
+                extras.push(nvm_bin);
+            } else {
+                let nvm_versions = std::path::PathBuf::from(&home).join(".nvm/versions/node");
+                if let Ok(entries) = std::fs::read_dir(&nvm_versions) {
+                    let mut versions: Vec<_> = entries.flatten()
+                        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                        .collect();
+                    versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                    if let Some(latest) = versions.first() {
+                        extras.push(latest.path().join("bin").to_string_lossy().into_owned());
+                    }
+                }
+            }
+            extras.push(format!("{}/.volta/bin", home));
+            extras.push(format!("{}/.local/bin", home));
+            extras.push(format!("{}/.cargo/bin", home));
+            extras.push(format!("{}/.yarn/bin", home));
+            // fnm: default alias bin
+            if let Ok(fnm_dir) = std::env::var("FNM_DIR") {
+                extras.push(format!("{}/aliases/default/bin", fnm_dir));
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
+        let appdata = std::env::var("APPDATA").unwrap_or_default();
+        let user_profile = std::env::var("USERPROFILE").unwrap_or_default();
+        extras.push(format!(r"{}\System32", system_root));
+        extras.push(format!(r"{}\System32\WindowsPowerShell\v1.0", system_root));
+        extras.push(r"C:\Program Files\PowerShell\7".into());
+        extras.push(format!(r"{}\npm", appdata));
+        extras.push(format!(r"{}\.local\bin", user_profile));
+        extras.push(format!(r"{}\scoop\shims", user_profile));
+        extras.push(format!(r"{}\.volta\bin", user_profile));
+    }
+
+    // Only prepend extras that actually exist on disk; skip phantom paths.
+    let valid: Vec<String> = extras.into_iter()
+        .filter(|p| std::path::Path::new(p).exists())
+        .collect();
+
+    if valid.is_empty() {
+        base
+    } else {
+        format!("{}{}{}", valid.join(sep), sep, base)
+    }
 }

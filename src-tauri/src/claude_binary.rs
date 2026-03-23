@@ -138,20 +138,23 @@ pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
 /// Returns a preference score for installation sources (lower is better)
 fn source_preference(installation: &ClaudeInstallation) -> u8 {
     match installation.source.as_str() {
-        "which" => 1,
+        "which" | "where" => 1,
         "homebrew" => 2,
         "system" => 3,
         "nvm-active" => 4,
         source if source.starts_with("nvm") => 5,
-        "local-bin" => 6,
-        "claude-local" => 7,
-        "npm-global" => 8,
-        "yarn" | "yarn-global" => 9,
-        "bun" => 10,
-        "node-modules" => 11,
-        "home-bin" => 12,
-        "PATH" => 13,
-        _ => 14,
+        "volta" => 6,
+        "fnm" => 7,
+        "local-bin" => 8,
+        "claude-local" => 9,
+        "npm-global" => 10,
+        "scoop" => 11,
+        "yarn" | "yarn-global" => 12,
+        "bun" => 13,
+        "node-modules" => 14,
+        "home-bin" => 15,
+        "PATH" => 16,
+        _ => 17,
     }
 }
 
@@ -393,6 +396,10 @@ fn find_standard_installations() -> Vec<ClaudeInstallation> {
             (format!("{}/.yarn/bin/claude", home), "yarn".to_string()),
             (format!("{}/.bun/bin/claude", home), "bun".to_string()),
             (format!("{}/bin/claude", home), "home-bin".to_string()),
+            // volta
+            (format!("{}/.volta/bin/claude", home), "volta".to_string()),
+            // fnm default alias
+            (format!("{}/.fnm/aliases/default/bin/claude", home), "fnm".to_string()),
             // Check common node_modules locations
             (
                 format!("{}/node_modules/.bin/claude", home),
@@ -471,6 +478,18 @@ fn find_standard_installations() -> Vec<ClaudeInstallation> {
                 format!("{}\\.bun\\bin\\claude.exe", user_profile),
                 "bun".to_string(),
             ),
+            // volta
+            (
+                format!("{}\\.volta\\bin\\claude.exe", user_profile),
+                "volta".to_string(),
+            ),
+            // scoop
+            (
+                format!("{}\\scoop\\shims\\claude.exe", user_profile),
+                "scoop".to_string(),
+            ),
+            // winget installs to AppData\Local\Microsoft\WinGet\Packages\*\claude.exe
+            // — can't predict the exact subfolder, so fall through to `where` command.
         ]);
     }
 
