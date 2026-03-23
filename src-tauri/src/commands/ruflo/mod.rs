@@ -134,7 +134,10 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
 
     // Use npm directly — create_command_with_env inherits PATH which resolves npm on all platforms
     let mut child = crate::claude_binary::create_command_with_env(npm_cmd())
-        .args(["install", "-g", "@claude-flow/cli@latest"])
+        // --legacy-peer-deps: ignore peer-dependency conflicts in claude-flow's
+        // dependency tree (alpha packages with mismatched peerOptional ranges).
+        // --no-fund: suppress funding messages that clutter the progress stream.
+        .args(["install", "-g", "@claude-flow/cli@latest", "--legacy-peer-deps", "--no-fund"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -166,10 +169,15 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
 
     let status = child.wait().map_err(|e| format!("npm wait failed: {e}"))?;
 
-    // Collect stderr output for error messages
-    let stderr_output = stderr_handle
+    // Collect stderr — filter out `npm warn` lines so only actual errors surface
+    let stderr_lines = stderr_handle
         .and_then(|h| h.join().ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let stderr_output: String = stderr_lines
+        .iter()
+        .filter(|l| !l.starts_with("npm warn") && !l.starts_with("npm notice"))
+        .cloned()
+        .collect::<Vec<_>>()
         .join("\n");
 
     if status.success() {
