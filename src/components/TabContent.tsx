@@ -5,6 +5,7 @@ import { Tab, getTabProjectPath } from '@/contexts/TabContext';
 import { Loader2, Plus, ArrowLeft, X, Columns, Rows3, Maximize2, Minimize2, GripVertical, TerminalSquare, Globe, Ungroup, LayoutGrid, Monitor, Server, Container, RefreshCw } from 'lucide-react';
 import type { RemoteEnvironment } from '@/components/settings/EnvironmentsSettings';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
+import { useSessionConfig } from '@/hooks/useSessionConfig';
 import { ProjectList } from '@/components/ProjectList';
 import { CreateProjectDialog } from '@/components/CreateProjectDialog';
 import { SessionList } from '@/components/SessionList';
@@ -28,6 +29,20 @@ const BrowserPanel = lazy(() => import('@/components/BrowserPanel').then(m => ({
 // Stable flags constant — must not be an inline literal to prevent
 // EmbeddedTerminal effect from re-running (and tearing down the shell) on every render.
 const SHELL_FLAGS = ['--shell'];
+
+// Returns true when running on Windows (WebView2 UA always contains "Windows NT").
+// Used to suppress tmux-based features that are not available on Windows.
+function isWindowsPlatform(): boolean {
+  return (
+    navigator.userAgent.includes('Windows') ||
+    (typeof navigator.platform === 'string' && navigator.platform.startsWith('Win'))
+  );
+}
+
+// Default flags for a normal Claude launch — teammate mode on Unix, none on Windows.
+function defaultClaudeFlags(): string[] {
+  return isWindowsPlatform() ? [] : ['--teammate-mode', 'tmux'];
+}
 
 // Import non-lazy components for projects view
 
@@ -132,12 +147,16 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
   /** Environment ID from the environment picker — read-only display */
   selectedEnvId?: string | null;
 }) {
+  const { permissionMode } = useSessionConfig();
   const [launchMode, setLaunchMode] = React.useState<'terminal' | 'web'>('terminal');
-  const [skipPermissions, setSkipPermissions] = React.useState(false);
-  const [teammateMode, setTeammateMode] = React.useState(true);
+  // Default skipPermissions from persisted permissionMode set during onboarding
+  const [skipPermissions, setSkipPermissions] = React.useState(() => permissionMode === 'bypassPermissions');
+  // Default teammateMode to false until we confirm tmux is available
+  const [teammateMode, setTeammateMode] = React.useState(false);
   const [worktree, setWorktree] = React.useState(false);
   const [customModel, setCustomModel] = React.useState('');
-  const [tmuxInstalled, setTmuxInstalled] = React.useState<boolean | null>(null);
+  // null = checking, true = available, false = unavailable, 'windows' = platform N/A
+  const [tmuxAvailability, setTmuxAvailability] = React.useState<boolean | 'windows' | null>(null);
   // Default to joining the first existing grid (if any), not creating a new one
   const [gridTarget, setGridTarget] = React.useState<string>('own');
   const gridTargetInitialized = React.useRef(false);
@@ -157,11 +176,31 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
     } catch { return []; }
   });
 
+  // Use Tauri IPC to check platform/tmux — works in both desktop and web mode
   React.useEffect(() => {
-    fetch('/api/check/tmux').then(r => r.json()).then(d => {
-      setTmuxInstalled(d.installed);
-      if (!d.installed) setTeammateMode(false);
-    }).catch(() => {});
+    const isTauri = !!(
+      (window as any).__TAURI__ ||
+      (window as any).__TAURI_INTERNALS__ ||
+      (window as any).__TAURI_METADATA__
+    );
+    if (isTauri) {
+      import('@tauri-apps/api/core').then(({ invoke }) =>
+        invoke<{ platform: string; tmux_available: boolean }>('get_system_info')
+      ).then(info => {
+        if (info.platform === 'windows') {
+          setTmuxAvailability('windows');
+        } else {
+          setTmuxAvailability(info.tmux_available);
+          if (info.tmux_available) setTeammateMode(true);
+        }
+      }).catch(() => setTmuxAvailability(false));
+    } else {
+      // Web mode: fall back to the HTTP endpoint
+      fetch('/api/check/tmux').then(r => r.json()).then(d => {
+        setTmuxAvailability(d.installed);
+        if (d.installed) setTeammateMode(true);
+      }).catch(() => setTmuxAvailability(false));
+    }
   }, []);
 
   const buildFlags = (): string[] => {
@@ -258,39 +297,45 @@ function ProjectSessionView({ project, sessions, loading, error, onBack, onLaunc
                   <p className="text-[10px] text-muted-foreground/50">Auto-approve all tools</p>
                 </div>
               </label>
-              <div className="flex items-center gap-2 text-xs select-none">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={teammateMode}
-                    onChange={(e) => setTeammateMode(e.target.checked)}
-                    disabled={tmuxInstalled === false}
-                    className="rounded border-border"
-                  />
-                  <div>
-                    <span className="font-medium">Team Mode (tmux)</span>
-                    {tmuxInstalled === false ? (
-                      <p className="text-[10px] text-red-400/80">
-                        tmux not installed —{' '}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            // Open a shell terminal to install tmux
-                            window.dispatchEvent(new CustomEvent('open-claude-terminal', {
-                              detail: { flags: ['--shell'] }
-                            }));
-                          }}
-                          className="underline hover:text-red-300 transition-colors"
-                        >
-                          open terminal to install
-                        </button>
-                      </p>
-                    ) : (
-                      <p className="text-[10px] text-muted-foreground/50">Teammate interface via tmux</p>
-                    )}
-                  </div>
-                </label>
-              </div>
+              {/* Team Mode — hidden on Windows (tmux not available) */}
+              {tmuxAvailability !== 'windows' && (
+                <div className="flex items-center gap-2 text-xs select-none">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={teammateMode}
+                      onChange={(e) => setTeammateMode(e.target.checked)}
+                      disabled={tmuxAvailability === false}
+                      className="rounded border-border"
+                    />
+                    <div>
+                      <span className={`font-medium ${tmuxAvailability === false ? 'text-muted-foreground/40' : ''}`}>
+                        Team Mode (tmux)
+                      </span>
+                      {tmuxAvailability === false ? (
+                        <p className="text-[10px] text-red-400/80">
+                          tmux not installed —{' '}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              window.dispatchEvent(new CustomEvent('open-claude-terminal', {
+                                detail: { flags: ['--shell'] }
+                              }));
+                            }}
+                            className="underline hover:text-red-300 transition-colors"
+                          >
+                            open terminal to install
+                          </button>
+                        </p>
+                      ) : tmuxAvailability === null ? (
+                        <p className="text-[10px] text-muted-foreground/30">checking…</p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground/50">Teammate interface via tmux</p>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                 <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} className="rounded border-border" />
                 <div>
@@ -560,7 +605,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
         sessionData: undefined,
         projectPath: project.path,
         initialProjectPath: project.path,
-        terminalFlags: ['--teammate-mode', 'tmux'],
+        terminalFlags: defaultClaudeFlags(),
       });
     } catch (err) {
       console.error('Failed to create project:', err);
@@ -572,7 +617,7 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
         sessionData: undefined,
         projectPath: projectPath,
         initialProjectPath: projectPath,
-        terminalFlags: ['--teammate-mode', 'tmux'],
+        terminalFlags: defaultClaudeFlags(),
       });
     }
   };
@@ -1119,7 +1164,7 @@ export const TabContent: React.FC = () => {
         });
       } else {
         // Terminal mode (default) — full Claude Code TUI
-        const defaultFlags = ['--teammate-mode', 'tmux'];
+        const defaultFlags = defaultClaudeFlags();
         createTerminalTab(session.id, session.project_path, defaultFlags);
       }
     };
@@ -1187,7 +1232,7 @@ export const TabContent: React.FC = () => {
       } else {
         // Terminal mode (default) — full Claude Code TUI
         const baseName = session.project_path.split('/').pop() || 'Session';
-        const defaultFlags = ['--teammate-mode', 'tmux'];
+        const defaultFlags = defaultClaudeFlags();
         const currentTab = tabs.find(t => t.id === activeTabId);
         if (currentTab && currentTab.type === 'projects') {
           updateTab(currentTab.id, {

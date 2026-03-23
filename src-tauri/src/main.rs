@@ -78,6 +78,28 @@ fn get_terminal_port(state: tauri::State<TerminalServerPort>) -> u16 {
     state.0
 }
 
+/// Returns OS platform and feature availability flags used by the frontend
+/// to conditionally show/hide options that don't apply on every platform.
+#[tauri::command]
+fn get_system_info() -> serde_json::Value {
+    let platform = if cfg!(target_os = "windows") { "windows" }
+                   else if cfg!(target_os = "macos") { "macos" }
+                   else { "linux" };
+
+    // tmux is not available on Windows (no native package; WSL is a separate env).
+    // On Unix, do a cheap PATH lookup — no child process needed.
+    let tmux_available = if cfg!(target_os = "windows") {
+        false
+    } else {
+        which::which("tmux").is_ok()
+    };
+
+    serde_json::json!({
+        "platform": platform,
+        "tmux_available": tmux_available,
+    })
+}
+
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
@@ -602,6 +624,7 @@ fn main() {
             set_ruflo_memory_backend,
             // Terminal server
             get_terminal_port,
+            get_system_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application"); // safe: top-level entry point, process must abort on runtime failure
