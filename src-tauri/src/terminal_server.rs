@@ -1,11 +1,20 @@
-/// Embedded terminal WebSocket server for Tauri desktop mode.
+/// Embedded terminal WebSocket server — PTY-backed, cross-platform.
 ///
-/// In the Tauri desktop app, `window.location` resolves to `tauri://localhost/`
-/// which has no port — so the frontend cannot construct a valid `ws://` URL.
-/// This module starts a minimal axum server bound to `127.0.0.1:0` (OS-assigned
-/// ephemeral port) that serves only the `/ws/terminal` WebSocket route.
-/// The bound port is stored in Tauri app state and returned to the frontend
-/// via the `get_terminal_port` IPC command.
+/// Uses `portable-pty` (ConPTY on Windows, openpty on Unix) so the spawned
+/// shell or Claude process gets a real pseudo-terminal.  This means:
+///   • Characters are echoed back to the client automatically
+///   • Readline / line-editing (arrows, backspace, history) work correctly
+///   • Colours, prompts, and interactive programs (vim, htop, claude) render properly
+///   • Ctrl-C / Ctrl-D are forwarded as the expected control characters
+///
+/// ## Flags
+/// The `flags` query parameter controls which program is launched:
+///   - `flags` is absent OR contains `--shell` → spawn the native login shell
+///   - Otherwise → spawn `claude <flags>` so teammate-mode / tmux / etc. work
+///
+/// ## URL
+/// `ws://127.0.0.1:<port>/ws/terminal?projectPath=...&cols=...&rows=...&flags=...`
+/// The port is obtained via the `get_terminal_port` Tauri IPC command.
 
 use axum::{
     extract::{Query, WebSocketUpgrade, ws::{Message, WebSocket}},
@@ -14,16 +23,17 @@ use axum::{
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::collections::HashMap;
+use std::io::{Read, Write};
 use std::net::SocketAddr;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio::process::Command;
+
+// ---------------------------------------------------------------------------
+// Server lifecycle
+// ---------------------------------------------------------------------------
 
 /// Start the embedded terminal WebSocket server on an OS-assigned ephemeral port.
-///
-/// Binds to `127.0.0.1:0`, spawns the server as a background task, and returns
-/// the actual port immediately.  Returns `Err` if binding fails.
 pub async fn start_terminal_server() -> Result<u16, String> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
     let listener = TcpListener::bind(addr)
@@ -32,7 +42,7 @@ pub async fn start_terminal_server() -> Result<u16, String> {
 
     let port = listener
         .local_addr()
-        .map_err(|e| format!("terminal_server: local_addr failed: {e}"))?
+        .map_err(|e| format!("terminal_server: local_addr: {e}"))?
         .port();
 
     let app = Router::new().route("/ws/terminal", get(terminal_ws_upgrade));
@@ -65,81 +75,123 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
     let project_path = params
         .get("projectPath")
         .cloned()
-        .unwrap_or_else(|| home_dir());
+        .unwrap_or_else(home_dir);
 
-    let cols: u16 = params
-        .get("cols")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(80);
-    let rows: u16 = params
-        .get("rows")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(24);
+    let cols: u16 = params.get("cols").and_then(|s| s.parse().ok()).unwrap_or(80);
+    let rows: u16 = params.get("rows").and_then(|s| s.parse().ok()).unwrap_or(24);
 
-    let shell = detect_shell();
-
-    // Spawn the shell process with piped stdio so we can bridge it to the WS.
-    //
-    // PowerShell (pwsh / powershell) with piped stdin enters "non-interactive file"
-    // mode: it reads commands from stdin, and if no data arrives it may exit almost
-    // immediately.  -NoExit keeps it alive in the read loop; -NoLogo suppresses the
-    // copyright banner duplication.
-    //
-    // cmd.exe without /k runs a single command then exits; /k keeps it alive.
-    let shell_lower = shell.to_lowercase();
-    let extra_args: &[&str] = if shell_lower.contains("pwsh") || shell_lower.contains("powershell") {
-        &["-NoExit", "-NoLogo"]
-    } else if cfg!(windows) && shell_lower.ends_with("cmd.exe") {
-        // /k keeps cmd.exe alive in its REPL after startup.
-        // Scoped to Windows + exact suffix so Unix shells whose path happens
-        // to contain "cmd" are not affected.
-        &["/k"]
+    // Decode flags: comma-separated list forwarded from EmbeddedTerminal.
+    // "--shell" (or no flags) → plain shell; otherwise → claude <flags>
+    let flags_str = params.get("flags").cloned().unwrap_or_default();
+    let flags: Vec<String> = if flags_str.is_empty() {
+        vec![]
     } else {
-        &[]
+        flags_str.split(',').map(String::from).collect()
     };
 
-    let mut child = match Command::new(&shell)
-        .args(extra_args)
-        .current_dir(&project_path)
-        .env("TERM", "xterm-256color")
-        .env("COLUMNS", cols.to_string())
-        .env("LINES", rows.to_string())
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-    {
-        Ok(c) => c,
+    let (program, program_args) = resolve_command(&flags);
+
+    // --- Open PTY -----------------------------------------------------------
+    let pty_system = native_pty_system();
+    let pty_pair = match pty_system.openpty(PtySize {
+        rows,
+        cols,
+        pixel_width: 0,
+        pixel_height: 0,
+    }) {
+        Ok(p) => p,
         Err(e) => {
             let (mut tx, _) = socket.split();
             let _ = tx
                 .send(Message::Text(
-                    format!("\r\n\x1b[31mFailed to start shell '{}': {}\x1b[0m\r\n", shell, e).into(),
+                    format!("\r\n\x1b[31mFailed to open PTY: {e}\x1b[0m\r\n").into(),
                 ))
                 .await;
             return;
         }
     };
 
-    let mut child_stdin = child.stdin.take().expect("stdin is piped");
-    let mut child_stdout = child.stdout.take().expect("stdout is piped");
-    let mut child_stderr = child.stderr.take().expect("stderr is piped");
+    // --- Build command ------------------------------------------------------
+    let mut cmd = CommandBuilder::new(&program);
+    for arg in &program_args {
+        cmd.arg(arg);
+    }
+    cmd.cwd(&project_path);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+
+    // Propagate essential env vars so claude/shells find their config.
+    for key in &["HOME", "USERPROFILE", "USER", "USERNAME", "PATH", "APPDATA",
+                 "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "LANG", "LC_ALL"] {
+        if let Ok(val) = std::env::var(key) {
+            cmd.env(key, val);
+        }
+    }
+    // Ensure npm global bin is on PATH (Windows: %APPDATA%\npm)
+    #[cfg(target_os = "windows")]
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let npm_path = format!(r"{}\npm", appdata);
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        if !current_path.contains(&npm_path) {
+            cmd.env("PATH", format!("{};{}", npm_path, current_path));
+        }
+    }
+
+    // --- Spawn child in the slave PTY side ----------------------------------
+    let mut child = match pty_pair.slave.spawn_command(cmd) {
+        Ok(c) => c,
+        Err(e) => {
+            let (mut tx, _) = socket.split();
+            let _ = tx
+                .send(Message::Text(
+                    format!("\r\n\x1b[31mFailed to start '{}': {e}\x1b[0m\r\n", program).into(),
+                ))
+                .await;
+            drop(pty_pair.slave);
+            return;
+        }
+    };
+    // Drop slave — we only need the master side from here on.
+    drop(pty_pair.slave);
+
+    let master = pty_pair.master;
+
+    // Obtain reader / writer from the master.
+    let mut pty_reader = match master.try_clone_reader() {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[terminal_server] try_clone_reader: {e}");
+            let _ = child.kill();
+            return;
+        }
+    };
+    let mut pty_writer = match master.take_writer() {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("[terminal_server] take_writer: {e}");
+            let _ = child.kill();
+            return;
+        }
+    };
 
     let (mut ws_tx, mut ws_rx) = socket.split();
 
-    // Channel from reader tasks → WebSocket sender task.
-    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(128);
-    let out_tx_err = out_tx.clone();
+    // Channel: PTY reader → async WS sender
+    let (out_tx, mut out_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(256);
 
-    // Task: forward shell stdout → WS
-    tokio::spawn(async move {
+    // Channel: async WS receiver → PTY writer thread
+    // std::sync::mpsc is used here because the writer runs in a blocking context.
+    let (in_tx, in_rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(128);
+
+    // --- Blocking reader task ------------------------------------------------
+    // Reads PTY master output and pushes it into the async channel.
+    tokio::task::spawn_blocking(move || {
         let mut buf = [0u8; 4096];
         loop {
-            match child_stdout.read(&mut buf).await {
+            match pty_reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    if out_tx.send(buf[..n].to_vec()).await.is_err() {
+                    if out_tx.blocking_send(buf[..n].to_vec()).is_err() {
                         break;
                     }
                 }
@@ -147,76 +199,102 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
         }
     });
 
-    // Task: forward shell stderr → WS
-    tokio::spawn(async move {
-        let mut buf = [0u8; 4096];
-        loop {
-            match child_stderr.read(&mut buf).await {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    if out_tx_err.send(buf[..n].to_vec()).await.is_err() {
-                        break;
-                    }
-                }
+    // --- Blocking writer task ------------------------------------------------
+    // Receives bytes from the async layer and writes them to the PTY master.
+    tokio::task::spawn_blocking(move || {
+        while let Ok(data) = in_rx.recv() {
+            if pty_writer.write_all(&data).is_err() {
+                break;
             }
+            let _ = pty_writer.flush();
         }
     });
 
-    // Task: forward output channel → WS sender
+    // --- Async sender task ---------------------------------------------------
+    // Forwards PTY output to the WebSocket client.
     let sender_task = tokio::spawn(async move {
         while let Some(data) = out_rx.recv().await {
             if ws_tx.send(Message::Binary(data.into())).await.is_err() {
                 break;
             }
         }
-        // Close gracefully
         let _ = ws_tx.send(Message::Close(None)).await;
     });
 
-    // Main loop: forward WS messages → shell stdin (or handle control messages)
+    // --- Main loop: WS → PTY ------------------------------------------------
     loop {
         match ws_rx.next().await {
             Some(Ok(Message::Binary(data))) => {
-                if child_stdin.write_all(&data).await.is_err() {
-                    break;
-                }
+                // Raw keystrokes from xterm.js
+                let _ = in_tx.try_send(data.to_vec());
             }
             Some(Ok(Message::Text(text))) => {
-                // Check for resize control message: {"type":"resize","cols":N,"rows":N}
+                // Resize control message: {"type":"resize","cols":N,"rows":N}
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                     if json.get("type").and_then(|t| t.as_str()) == Some("resize") {
-                        // No PTY — we can only update the env vars; best effort.
                         let new_cols = json
                             .get("cols")
                             .and_then(|v| v.as_u64())
-                            .unwrap_or(cols as u64);
+                            .unwrap_or(cols as u64) as u16;
                         let new_rows = json
                             .get("rows")
                             .and_then(|v| v.as_u64())
-                            .unwrap_or(rows as u64);
-                        // Signal via SIGWINCH is not available without a PTY;
-                        // just log and continue.
-                        eprintln!(
-                            "[terminal_server] resize: {}x{} (no PTY — ignored)",
-                            new_cols, new_rows
-                        );
+                            .unwrap_or(rows as u64) as u16;
+                        let _ = master.resize(PtySize {
+                            rows: new_rows,
+                            cols: new_cols,
+                            pixel_width: 0,
+                            pixel_height: 0,
+                        });
                         continue;
                     }
                 }
-                // Plain text input — write as bytes
-                if child_stdin.write_all(text.as_bytes()).await.is_err() {
-                    break;
-                }
+                // Plain text input (e.g. paste)
+                let _ = in_tx.try_send(text.as_bytes().to_vec());
             }
             Some(Ok(Message::Close(_))) | None => break,
-            Some(Ok(_)) => {} // ping/pong — handled by axum automatically
+            Some(Ok(_)) => {} // ping/pong handled by axum
             Some(Err(_)) => break,
         }
     }
 
-    // Clean up: kill the shell and abort the sender task.
-    let _ = child.kill().await;
+    // --- Cleanup -------------------------------------------------------------
+    drop(in_tx); // signal writer thread to exit
+    let _ = child.kill();
     sender_task.abort();
+}
+
+// ---------------------------------------------------------------------------
+// Command resolution
+// ---------------------------------------------------------------------------
+
+/// Decide which program to run inside the PTY.
+///
+/// - No flags OR `--shell` present → native interactive shell
+/// - Any other flags (e.g. `--teammate-mode`, `tmux`) → `claude <flags>`
+fn resolve_command(flags: &[String]) -> (String, Vec<String>) {
+    let is_shell_mode = flags.is_empty() || flags.iter().any(|f| f == "--shell");
+
+    if is_shell_mode {
+        (detect_shell(), vec![])
+    } else {
+        // Find the Claude CLI binary on this machine.
+        let claude = find_claude_binary().unwrap_or_else(|| "claude".to_string());
+        (claude, flags.to_vec())
+    }
+}
+
+/// Locate the Claude CLI binary using the same logic as the rest of the app.
+fn find_claude_binary() -> Option<String> {
+    // 1. Use the app's own discovery (covers nvm, ~/.local/bin, etc.)
+    let installations = crate::claude_binary::discover_claude_installations();
+    if let Some(best) = installations.into_iter().next() {
+        return Some(best.path);
+    }
+    // 2. Fall back to PATH lookup
+    which::which("claude")
+        .ok()
+        .map(|p| p.to_string_lossy().into_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -224,15 +302,11 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
 // ---------------------------------------------------------------------------
 
 /// Detect the best available interactive shell for the current platform.
-///
-/// Windows priority: pwsh.exe → powershell.exe → cmd.exe
-/// Unix priority:    $SHELL env var → bash → sh
 fn detect_shell() -> String {
     #[cfg(target_os = "windows")]
     {
-        return detect_shell_windows();
+        detect_shell_windows()
     }
-
     #[cfg(not(target_os = "windows"))]
     {
         detect_shell_unix()
@@ -241,9 +315,6 @@ fn detect_shell() -> String {
 
 #[cfg(target_os = "windows")]
 fn detect_shell_windows() -> String {
-    // Build a PATH that includes the directories Windows shells live in.
-    // This is important when the Tauri app is launched without a full shell
-    // environment (e.g. double-clicked from Explorer).
     let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
     let appdata = std::env::var("APPDATA").unwrap_or_default();
     let user_profile = std::env::var("USERPROFILE").unwrap_or_default();
@@ -255,56 +326,53 @@ fn detect_shell_windows() -> String {
         format!(r"{}\.local\bin", user_profile),
     ];
 
-    // Prepend our required dirs to any existing PATH.
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let new_path = format!("{};{}", extra_paths.join(";"), existing_path);
-
-    // Persist for child processes — tokio::process::Command inherits env.
-    // SAFETY: single-threaded at this point; documented requirement for set_var.
+    // SAFETY: called at connection time, single-threaded per-connection.
     unsafe { std::env::set_var("PATH", &new_path) };
 
-    // PowerShell Core (pwsh.exe) — preferred, supports modern scripts.
     for candidate in &["pwsh.exe", "powershell.exe"] {
         if which::which(candidate).is_ok() {
             return candidate.to_string();
         }
-        // Also check absolute paths in case PATH is not yet updated.
         let abs = format!(r"{}\System32\WindowsPowerShell\v1.0\{}", system_root, candidate);
         if std::path::Path::new(&abs).exists() {
             return abs;
         }
     }
 
-    // Last resort: cmd.exe
     format!(r"{}\System32\cmd.exe", system_root)
 }
 
 #[cfg(not(target_os = "windows"))]
 fn detect_shell_unix() -> String {
-    // Respect the user's configured shell if available.
     if let Ok(shell) = std::env::var("SHELL") {
         if !shell.is_empty() && std::path::Path::new(&shell).exists() {
             return shell;
         }
     }
-
     for candidate in &["bash", "sh"] {
         if which::which(candidate).is_ok() {
             return candidate.to_string();
         }
     }
-
     "/bin/sh".to_string()
 }
 
-/// Return the user's home directory as a fallback working directory.
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 fn home_dir() -> String {
     dirs::home_dir()
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|| {
             #[cfg(target_os = "windows")]
             return std::env::var("USERPROFILE")
-                .or_else(|_| std::env::var("HOMEDRIVE").and_then(|d| std::env::var("HOMEPATH").map(|p| format!("{}{}", d, p))))
+                .or_else(|_| {
+                    std::env::var("HOMEDRIVE")
+                        .and_then(|d| std::env::var("HOMEPATH").map(|p| format!("{}{}", d, p)))
+                })
                 .unwrap_or_else(|_| r"C:\Users\Public".to_string());
 
             #[cfg(not(target_os = "windows"))]
