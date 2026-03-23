@@ -34,6 +34,8 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
   const { swarm: swarmStatus, installation, fetchInstallation, fetchSwarm, activateMcp } = useRuFloStore();
   const isInstalled: boolean | null = installation === null ? null : installation.installed;
   const [isActivating, setIsActivating] = useState(false);
+  const [mcpLog, setMcpLog] = useState<{ ok: boolean; msg: string } | null>(null);
+  const mcpLogTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [projectStatus, setProjectStatus] = useState<RuFloProjectStatus | null>(null);
   const [isStale, setIsStale] = useState(false);
@@ -113,11 +115,16 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
           <button
             onClick={async () => {
               setIsActivating(true);
+              if (mcpLogTimer.current) clearTimeout(mcpLogTimer.current);
+              setMcpLog(null);
               try {
                 await activateMcp();
                 await fetchInstallation();
+                setMcpLog({ ok: true, msg: 'MCP activated ✓' });
+                mcpLogTimer.current = setTimeout(() => setMcpLog(null), 4000);
               } catch (err) {
-                console.warn('[RuFlo] Auto-activate failed:', err);
+                const msg = String(err).replace(/^Error:\s*/i, '');
+                setMcpLog({ ok: false, msg });
               } finally {
                 setIsActivating(false);
               }
@@ -130,6 +137,19 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
           </button>
         )}
       </div>
+
+      {/* Subtle MCP activation log */}
+      {mcpLog && (
+        <div
+          className={`mb-1.5 px-2 py-1 rounded text-[9px] leading-snug break-all select-text cursor-text ${
+            mcpLog.ok
+              ? 'text-green-400/70 bg-green-500/5'
+              : 'text-red-400/80 bg-red-500/5 border border-red-500/10'
+          }`}
+        >
+          {mcpLog.msg}
+        </div>
+      )}
 
       {/* Collapsible header */}
       <button

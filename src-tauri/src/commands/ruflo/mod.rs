@@ -225,31 +225,39 @@ pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String>
         .output()
         .map_err(|e| format!("Failed to run claude mcp add: {e}"))?;
 
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
     if output.status.success() {
         // Bust the status cache so the next check_ruflo_installed call gets fresh data
         let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
         let _ = app.emit("ruflo-mcp-changed", "activated");
-        Ok("MCP server activated".to_string())
+        let msg = if stdout.is_empty() { "MCP server activated".to_string() } else { stdout };
+        Ok(msg)
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(format!("MCP activation failed: {stderr}"))
+        // Return stdout + stderr so the UI can show a diagnostic message
+        let detail = [stdout, stderr].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n");
+        Err(format!("MCP activation failed: {}", if detail.is_empty() { "no output (exit status non-zero)".to_string() } else { detail }))
     }
 }
 
 #[tauri::command]
 pub async fn deactivate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Emitter;
-    let output = crate::claude_binary::create_command_with_env("claude")
+    let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
+    let output = crate::claude_binary::create_command_with_env(claude_cmd)
         .args(["mcp", "remove", "claude-flow"])
         .output()
         .map_err(|e| format!("Failed to run claude mcp remove: {e}"))?;
 
     if output.status.success() {
+        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
         let _ = app.emit("ruflo-mcp-changed", "deactivated");
         Ok("MCP server deactivated".to_string())
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(format!("MCP deactivation failed: {stderr}"))
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = [stdout, stderr].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n");
+        Err(format!("MCP deactivation failed: {}", if detail.is_empty() { "no output".to_string() } else { detail }))
     }
 }
 
