@@ -111,17 +111,34 @@ pub async fn check_ruflo_installed() -> RuFloStatus {
             // On Windows, the npm-global install produces claude.cmd (a batch file);
             // CreateProcess cannot run batch files without the .cmd extension.
             let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
+            // Detect claude-flow in `claude mcp list` output.
+            // The output format varies by Claude version: plain name, table row, JSON, etc.
+            // We match any line that contains the word "claude-flow" (case-insensitive)
+            // but reject common false-positives like comment lines.
             let mcp_active = crate::claude_binary::create_command_with_env(claude_cmd)
                 .args(["mcp", "list"])
                 .output()
                 .ok()
-                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .and_then(|o| {
+                    // Prefer stdout; fall back to stderr in case some versions write there
+                    let stdout = String::from_utf8_lossy(&o.stdout).into_owned();
+                    let stderr = String::from_utf8_lossy(&o.stderr).into_owned();
+                    if !stdout.trim().is_empty() { Some(stdout) } else if !stderr.trim().is_empty() { Some(stderr) } else { None }
+                })
                 .map(|s| {
                     s.lines().any(|line| {
-                        let trimmed = line.trim();
+                        let trimmed = line.trim().to_lowercase();
+                        // Skip header/separator lines
+                        if trimmed.starts_with('#') || trimmed.starts_with('-') || trimmed.starts_with('=') {
+                            return false;
+                        }
+                        // Match "claude-flow" as a word or table cell
                         trimmed == "claude-flow"
                             || trimmed.starts_with("claude-flow ")
                             || trimmed.starts_with("claude-flow\t")
+                            || trimmed.contains(" claude-flow ")
+                            || trimmed.contains("\tclaude-flow\t")
+                            || trimmed.contains("\"claude-flow\"")
                     })
                 })
                 .unwrap_or(false);
@@ -220,21 +237,41 @@ pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String>
     // cannot run batch files. Use "npx.cmd" so the stored config works.
     let npx = if cfg!(windows) { "npx.cmd" } else { "npx" };
     let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
-    let output = crate::claude_binary::create_command_with_env(claude_cmd)
-        .args(["mcp", "add", "claude-flow", "--", npx, "-y", "@claude-flow/cli@latest"])
-        .output()
-        .map_err(|e| format!("Failed to run claude mcp add: {e}"))?;
+
+    #[cfg(target_os = "windows")]
+    const MCP_TIMEOUT_SECS: u64 = 60;
+    #[cfg(not(target_os = "windows"))]
+    const MCP_TIMEOUT_SECS: u64 = 30;
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(MCP_TIMEOUT_SECS),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(claude_cmd)
+                .args(["mcp", "add", "claude-flow", "--", npx, "-y", "@claude-flow/cli@latest"])
+                .output()
+        }),
+    )
+    .await;
+
+    // Always bust the status cache on any activation attempt so the next
+    // check_ruflo_installed call re-runs fresh instead of returning stale data.
+    let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
+
+    let output = match result {
+        Err(_timeout) => return Err(format!("MCP activation timed out after {MCP_TIMEOUT_SECS}s")),
+        Ok(Err(e)) => return Err(format!("Failed to spawn claude mcp add: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run claude mcp add: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
     if output.status.success() {
-        // Bust the status cache so the next check_ruflo_installed call gets fresh data
-        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
         let _ = app.emit("ruflo-mcp-changed", "activated");
         let msg = if stdout.is_empty() { "MCP server activated".to_string() } else { stdout };
         Ok(msg)
     } else {
-        // Return stdout + stderr so the UI can show a diagnostic message
         let detail = [stdout, stderr].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n");
         Err(format!("MCP activation failed: {}", if detail.is_empty() { "no output (exit status non-zero)".to_string() } else { detail }))
     }
@@ -699,10 +736,29 @@ pub async fn init_ruflo_project(app: tauri::AppHandle, path: String) -> Result<S
         Ok(p) => p,
         Err(e) => return Err(format!("Cannot resolve project path: {}", e)),
     };
-    // Verify within home directory
+    // Security: prevent path traversal into system directories.
+    // On Windows, drives other than the home drive are allowed (D:\Projects, etc.)
+    // because home is C:\Users\<name> and projects may live on any drive.
+    // On Unix, allow any path under / but block known system roots.
     let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-    if !project_path.starts_with(&home) {
-        return Err("Project path must be within the home directory".to_string());
+    let is_allowed = if cfg!(target_os = "windows") {
+        // Allow any absolute path that isn't a Windows system directory
+        let p = project_path.to_string_lossy().to_lowercase();
+        !p.starts_with("c:\\windows") && !p.starts_with("c:\\program files")
+    } else {
+        // On Unix: require path under home, or under common project roots
+        project_path.starts_with(&home)
+            || project_path.starts_with("/opt")
+            || project_path.starts_with("/srv")
+            || project_path.starts_with("/var/www")
+            || project_path.starts_with("/workspace")
+            || project_path.starts_with("/workspaces") // GitHub Codespaces
+    };
+    if !is_allowed {
+        return Err(format!(
+            "Project path '{}' is not allowed. Use a path within your home directory or a workspace directory.",
+            project_path.display()
+        ));
     }
 
     let output = crate::claude_binary::create_command_with_env(npx_cmd())

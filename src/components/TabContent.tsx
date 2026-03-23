@@ -30,6 +30,10 @@ const BrowserPanel = lazy(() => import('@/components/BrowserPanel').then(m => ({
 // EmbeddedTerminal effect from re-running (and tearing down the shell) on every render.
 const SHELL_FLAGS = ['--shell'];
 
+// Module-level dedup set: prevents re-running ruflo init for the same project path
+// within a single app session (e.g. user double-clicks Launch before the first init finishes).
+const _rufloInitStarted = new Set<string>();
+
 // Returns true when running on Windows (WebView2 UA always contains "Windows NT").
 // Used to suppress tmux-based features that are not available on Windows.
 function isWindowsPlatform(): boolean {
@@ -841,23 +845,34 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
                         terminalFlags: flags,
                         environmentId,
                       });
-                      // Fire-and-forget RuFlo init + MCP activation for non-shell sessions
-                      if (!isShell) {
+                      // Fire-and-forget RuFlo init + MCP activation for non-shell sessions.
+                      // Deduplication prevents double-execution if user launches the same project twice quickly.
+                      if (!isShell && !_rufloInitStarted.has(effectiveProjectPath)) {
+                        _rufloInitStarted.add(effectiveProjectPath);
                         void (async () => {
                           try {
                             const rufloStatus = await api.checkRufloInstalled();
-                            if (rufloStatus.installed) {
-                              const autoInit = localStorage.getItem('runecode-ruflo-auto-init') !== 'false';
-                              if (autoInit) {
-                                await api.initRufloProject(effectiveProjectPath);
-                                // Also activate MCP if not yet active so the swarm is ready
-                                if (!rufloStatus.mcp_active) {
-                                  await api.activateRufloMcp();
-                                }
+                            if (!rufloStatus.installed) return;
+                            const autoInit = localStorage.getItem('runecode-ruflo-auto-init') !== 'false';
+                            if (!autoInit) return;
+
+                            await api.initRufloProject(effectiveProjectPath);
+
+                            // Activate MCP separately so init success is not lost if MCP fails
+                            if (!rufloStatus.mcp_active) {
+                              try {
+                                await api.activateRufloMcp();
+                              } catch (mcpErr) {
+                                console.warn('[RuFlo] MCP activation failed (project still opened):', mcpErr);
+                                // Dispatch event so RuFloSection can show the error without re-checking
+                                window.dispatchEvent(new CustomEvent('runecode:ruflo-mcp-error', {
+                                  detail: { error: String(mcpErr) }
+                                }));
                               }
                             }
                           } catch (err) {
                             console.warn('[RuFlo] Background init skipped:', err);
+                            _rufloInitStarted.delete(effectiveProjectPath); // allow retry on next launch
                           }
                         })();
                       }
