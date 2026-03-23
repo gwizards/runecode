@@ -4,6 +4,22 @@ pub mod repository;
 use domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloStatus, RuFloSwarmStatus};
 
 // ---------------------------------------------------------------------------
+// Windows: npm/npx are batch files (.cmd), not executables.
+// Command::new("npm") fails on Windows because CreateProcess cannot run .cmd
+// files directly — you must use the full name with extension.
+// On Unix, "npm" and "npx" are shell scripts / symlinks that resolve normally.
+// ---------------------------------------------------------------------------
+#[inline]
+fn npm_cmd() -> &'static str {
+    if cfg!(windows) { "npm.cmd" } else { "npm" }
+}
+
+#[inline]
+fn npx_cmd() -> &'static str {
+    if cfg!(windows) { "npx.cmd" } else { "npx" }
+}
+
+// ---------------------------------------------------------------------------
 // Cache TTLs
 // ---------------------------------------------------------------------------
 const RUFLO_STATUS_CACHE_TTL_SECS: u64 = 60;
@@ -57,7 +73,7 @@ pub fn check_ruflo_installed() -> RuFloStatus {
 
     // Single npx call: --no-install means "don't download if not cached"
     // Use create_command_with_env to inherit PATH/NVM
-    let output = crate::claude_binary::create_command_with_env("npx")
+    let output = crate::claude_binary::create_command_with_env(npx_cmd())
         .args(["--no-install", "@claude-flow/cli", "--version"])
         .output()
         .ok();
@@ -117,7 +133,7 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
     use std::io::BufRead;
 
     // Use npm directly — create_command_with_env inherits PATH which resolves npm on all platforms
-    let mut child = crate::claude_binary::create_command_with_env("npm")
+    let mut child = crate::claude_binary::create_command_with_env(npm_cmd())
         .args(["install", "-g", "@claude-flow/cli@latest"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -563,7 +579,7 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
         return cached;
     }
 
-    let agents_output = crate::claude_binary::create_command_with_env("npx")
+    let agents_output = crate::claude_binary::create_command_with_env(npx_cmd())
         .args(["--no-install", "@claude-flow/cli", "agent", "list", "--json"])
         .output()
         .ok();
@@ -608,7 +624,7 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
 
     let swarm_active = !agents.is_empty() && agents.iter().any(|a| a.status.is_active());
 
-    let memory_entries = crate::claude_binary::create_command_with_env("npx")
+    let memory_entries = crate::claude_binary::create_command_with_env(npx_cmd())
         .args(["--no-install", "@claude-flow/cli", "memory", "list", "--json"])
         .output()
         .ok()
@@ -643,7 +659,7 @@ pub async fn init_ruflo_project(app: tauri::AppHandle, path: String) -> Result<S
         return Err("Project path must be within the home directory".to_string());
     }
 
-    let output = crate::claude_binary::create_command_with_env("npx")
+    let output = crate::claude_binary::create_command_with_env(npx_cmd())
         .args(["@claude-flow/cli", "init"])
         .current_dir(&project_path)
         .output()
@@ -660,7 +676,7 @@ pub async fn init_ruflo_project(app: tauri::AppHandle, path: String) -> Result<S
 
 #[tauri::command]
 pub async fn uninstall_ruflo() -> Result<String, String> {
-    let output = crate::claude_binary::create_command_with_env("npm")
+    let output = crate::claude_binary::create_command_with_env(npm_cmd())
         .args(["uninstall", "-g", "@claude-flow/cli"])
         .output()
         .map_err(|e| format!("Failed to run npm uninstall: {e}"))?;
@@ -676,7 +692,7 @@ pub async fn uninstall_ruflo() -> Result<String, String> {
 /// Get memory statistics from the claude-flow CLI
 #[tauri::command]
 pub async fn get_ruflo_memory_stats() -> Result<serde_json::Value, String> {
-    let output = crate::claude_binary::create_command_with_env("npx")
+    let output = crate::claude_binary::create_command_with_env(npx_cmd())
         .args(["-y", "@claude-flow/cli@latest", "memory", "stats", "--json"])
         .output()
         .map_err(|e| format!("Failed to run memory stats: {e}"))?;
@@ -711,7 +727,7 @@ pub async fn sync_ruflo_memory_local(app: tauri::AppHandle, output_path: String)
         return Err("Output path must be within home directory".to_string());
     }
 
-    let output = crate::claude_binary::create_command_with_env("npx")
+    let output = crate::claude_binary::create_command_with_env(npx_cmd())
         .args([
             "-y",
             "@claude-flow/cli@latest",
@@ -739,7 +755,7 @@ pub async fn sync_ruflo_memory_local(app: tauri::AppHandle, output_path: String)
 pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Emitter;
     // Run compress first
-    let compress = crate::claude_binary::create_command_with_env("npx")
+    let compress = crate::claude_binary::create_command_with_env(npx_cmd())
         .args(["-y", "@claude-flow/cli@latest", "memory", "compress"])
         .output()
         .map_err(|e| format!("Failed to run memory compress: {e}"))?;
@@ -750,7 +766,7 @@ pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, S
     }
 
     // Then cleanup stale entries
-    let cleanup = crate::claude_binary::create_command_with_env("npx")
+    let cleanup = crate::claude_binary::create_command_with_env(npx_cmd())
         .args(["-y", "@claude-flow/cli@latest", "memory", "cleanup"])
         .output()
         .map_err(|e| format!("Failed to run memory cleanup: {e}"))?;
@@ -776,7 +792,7 @@ pub async fn set_ruflo_memory_backend(app: tauri::AppHandle, backend: String) ->
         ));
     }
 
-    let output = crate::claude_binary::create_command_with_env("npx")
+    let output = crate::claude_binary::create_command_with_env(npx_cmd())
         .args([
             "-y",
             "@claude-flow/cli@latest",

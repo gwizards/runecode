@@ -720,5 +720,22 @@ pub fn create_command_with_env(program: &str) -> Command {
         }
     }
 
+    // Windows: ensure %APPDATA%\npm is in PATH.
+    // Global npm packages (including @claude-flow/cli, claude, npx) are installed
+    // there, but GUI apps on Windows inherit the registry PATH which typically does
+    // NOT include it — only interactive shells (cmd/PowerShell) add it via profile.
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let npm_global_bin = format!("{}\\npm", appdata);
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            if !current_path.contains(&npm_global_bin) {
+                let new_path = format!("{};{}", npm_global_bin, current_path);
+                debug!("Prepending %APPDATA%\\npm to PATH for npm/npx resolution");
+                cmd.env("PATH", new_path);
+            }
+        }
+    }
+
     cmd
 }
