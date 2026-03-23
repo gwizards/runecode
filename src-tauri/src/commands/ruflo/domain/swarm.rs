@@ -8,6 +8,7 @@ pub struct RuFloSwarmStatus {
     pub memory_entries: usize,
 }
 
+#[allow(dead_code)]
 impl RuFloSwarmStatus {
     pub fn active_agent_count(&self) -> usize {
         self.agents.iter().filter(|a| a.status.is_active()).count()

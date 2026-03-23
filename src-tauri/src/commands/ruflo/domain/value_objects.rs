@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct SwarmId(String);
 
+#[allow(dead_code)]
 impl SwarmId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
@@ -27,6 +28,7 @@ impl std::fmt::Display for SwarmId {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectPath(PathBuf);
 
+#[allow(dead_code)]
 impl ProjectPath {
     /// Validate and create a ProjectPath. Returns Err if path doesn't exist
     /// or is outside the user's home directory.

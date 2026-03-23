@@ -89,6 +89,7 @@ pub struct RuFloAgent {
     pub capabilities: Vec<AgentCapability>,
 }
 
+#[allow(dead_code)]
 impl RuFloAgent {
     pub fn has_capability(&self, cap: &AgentCapability) -> bool {
         self.capabilities.contains(cap)

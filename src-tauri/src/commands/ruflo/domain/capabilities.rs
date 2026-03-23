@@ -50,6 +50,7 @@ pub enum SwarmTopology {
     Unknown,
 }
 
+#[allow(dead_code)]
 impl SwarmTopology {
     /// Returns true if this topology supports fault-tolerant communication.
     pub fn is_fault_tolerant(&self) -> bool {
@@ -88,6 +89,7 @@ impl std::fmt::Display for SwarmTopology {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TaskPriority(u8);
 
+#[allow(dead_code)]
 impl TaskPriority {
     pub const LOW: Self = Self(2);
     pub const NORMAL: Self = Self(5);

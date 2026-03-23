@@ -81,6 +81,7 @@ impl ProcessRegistry {
     }
 
     /// Register a new running agent process using sidecar (similar to register_process but for sidecar children)
+    #[allow(dead_code)]
     pub fn register_sidecar_process(
         &self,
         run_id: i64,
@@ -205,6 +206,7 @@ impl ProcessRegistry {
     }
 
     /// Get all running processes
+    #[allow(dead_code)]
     pub fn get_running_processes(&self) -> Result<Vec<ProcessInfo>, String> {
         let processes = self.processes.lock().map_err(|e| e.to_string())?;
         Ok(processes
@@ -226,6 +228,7 @@ impl ProcessRegistry {
     }
 
     /// Get a specific running process
+    #[allow(dead_code)]
     pub fn get_process(&self, run_id: i64) -> Result<Option<ProcessInfo>, String> {
         let processes = self.processes.lock().map_err(|e| e.to_string())?;
         Ok(processes.get(&run_id).map(|handle| handle.info.clone()))
@@ -430,6 +433,7 @@ impl ProcessRegistry {
     }
 
     /// Check if a process is still running by trying to get its status
+    #[allow(dead_code)]
     pub async fn is_process_running(&self, run_id: i64) -> Result<bool, String> {
         let processes = self.processes.lock().map_err(|e| e.to_string())?;
 
@@ -498,7 +502,8 @@ impl ProcessRegistry {
         }
     }
 
-    /// Cleanup finished processes
+    /// Cleanup finished processes (available for periodic background cleanup tasks)
+    #[allow(dead_code)]
     pub async fn cleanup_finished_processes(&self) -> Result<Vec<i64>, String> {
         let mut finished_runs = Vec::new();
         let processes_lock = self.processes.clone();

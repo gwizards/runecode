@@ -8,6 +8,7 @@ pub struct RuFloProjectStatus {
     pub blocked: usize,
 }
 
+#[allow(dead_code)]
 impl RuFloProjectStatus {
     pub fn total(&self) -> usize {
         self.pending + self.completed + self.blocked
