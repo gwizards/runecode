@@ -601,7 +601,7 @@ pub async fn list_agent_runs(
                 .get::<_, Option<i64>>(9)
                 .ok()
                 .flatten()
-                .map(|p| p as u32),
+                .map(|p| if p >= 0 && p <= u32::MAX as i64 { p as u32 } else { 0 }),
             process_started_at: row.get(10)?,
             created_at: row.get(11)?,
             completed_at: row.get(12)?,
@@ -641,7 +641,7 @@ pub async fn get_agent_run(db: State<'_, AgentDb>, id: i64) -> Result<AgentRun, 
                     project_path: row.get(6)?,
                     session_id: row.get(7)?,
                     status: row.get::<_, String>(8).unwrap_or_else(|_| "pending".to_string()),
-                    pid: row.get::<_, Option<i64>>(9).ok().flatten().map(|p| p as u32),
+                    pid: row.get::<_, Option<i64>>(9).ok().flatten().map(|p| if p >= 0 && p <= u32::MAX as i64 { p as u32 } else { 0 }),
                     process_started_at: row.get(10)?,
                     created_at: row.get(11)?,
                     completed_at: row.get(12)?,
@@ -1148,7 +1148,7 @@ async fn spawn_agent_system(
         let _ = stdout_task.await;
         let _ = stderr_task.await;
 
-        let duration_ms = start_time.elapsed().as_millis() as i64;
+        let duration_ms = i64::try_from(start_time.elapsed().as_millis()).unwrap_or(i64::MAX);
         info!("⏱️ Process execution took {} ms", duration_ms);
 
         // Get the session ID that was extracted
@@ -1242,7 +1242,7 @@ pub async fn list_running_sessions(
                     .get::<_, Option<i64>>(9)
                     .ok()
                     .flatten()
-                    .map(|p| p as u32),
+                    .map(|p| if p >= 0 && p <= u32::MAX as i64 { p as u32 } else { 0 }),
                 process_started_at: row.get(10)?,
                 created_at: row.get(11)?,
                 completed_at: row.get(12)?,
@@ -1315,7 +1315,11 @@ pub async fn kill_agent_session(
 
         if let Some(pid) = pid_result {
             info!("Attempting fallback kill for PID {} from database", pid);
-            let _ = registry.0.kill_process_by_pid(run_id, pid as u32).await?;
+            let safe_pid = match pid {
+                p if p >= 0 && p <= u32::MAX as i64 => p as u32,
+                p => return Err(format!("Invalid PID: {}", p)),
+            };
+            let _ = registry.0.kill_process_by_pid(run_id, safe_pid).await?;
         }
     }
 

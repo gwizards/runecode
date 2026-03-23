@@ -13,8 +13,12 @@ import {
   makeUsageLedgerSealed,
 } from './events';
 import { UserId } from '../identity/types';
+import { SessionId } from '../shared/session-id';
+import { ProjectId } from '../shared/project-id';
 
 export { UserId };
+export { SessionId };
+export { ProjectId };
 
 // ─── Value Object: LedgerId ────────────────────────────────────────────────
 
@@ -36,54 +40,14 @@ export class LedgerId {
   toString(): string { return this.value; }
 }
 
-// ─── Value Object: SessionId (usage-local) ─────────────────────────────────
-
-export class SessionId {
-  private constructor(readonly value: string) {}
-
-  static create(raw: string): Result<SessionId> {
-    if (!raw || !raw.trim()) return Err('SessionId cannot be empty');
-    return Ok(new SessionId(raw.trim()));
-  }
-
-  /** Reconstruct from a trusted, already-validated source (e.g. persistence). */
-  static fromTrusted(id: string): SessionId { return new SessionId(id); }
-
-  static generate(): SessionId { return new SessionId(crypto.randomUUID()); }
-
-  equals(other: SessionId): boolean { return this.value === other.value; }
-
-  toString(): string { return this.value; }
-}
-
-// ─── Value Object: ProjectId (usage-local) ─────────────────────────────────
-
-export class ProjectId {
-  private constructor(readonly value: string) {}
-
-  static create(raw: string): Result<ProjectId> {
-    if (!raw || !raw.trim()) return Err('ProjectId cannot be empty');
-    return Ok(new ProjectId(raw.trim()));
-  }
-
-  /** Reconstruct from a trusted, already-validated source (e.g. persistence). */
-  static fromTrusted(id: string): ProjectId { return new ProjectId(id); }
-
-  static generate(): ProjectId { return new ProjectId(crypto.randomUUID()); }
-
-  equals(other: ProjectId): boolean { return this.value === other.value; }
-
-  toString(): string { return this.value; }
-}
-
 /**
  * Unsafe constructors — only for internal code where the id has already been
  * validated (e.g. reconstructing from a trusted persistence snapshot).
  * @internal
  */
 export function unsafeLedgerId(id: string): LedgerId  { return LedgerId.fromTrusted(id);  }
-export function unsafeSessionId(id: string): SessionId { return SessionId.fromTrusted(id); }
-export function unsafeProjectId(id: string): ProjectId { return ProjectId.fromTrusted(id); }
+export function unsafeSessionId(id: string): SessionId { return SessionId._unsafe(id); }
+export function unsafeProjectId(id: string): ProjectId { return ProjectId._unsafe(id); }
 
 // ─── Value Object: UsageRecord ─────────────────────────────────────────────
 

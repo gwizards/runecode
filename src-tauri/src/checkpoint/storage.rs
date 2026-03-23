@@ -92,6 +92,7 @@ impl CheckpointStorage {
             checkpoint: checkpoint.clone(),
             files_processed,
             warnings,
+            fatal_count: 0,
         })
     }
 

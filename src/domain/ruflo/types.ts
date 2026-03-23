@@ -6,20 +6,11 @@ import type {
   RuFloSwarmStatus,
   RuFloProjectStatus as ApiProjectStatus,
 } from './ports/IRuFloApiPort';
+// AgentId is the same concept as in the agent bounded context — import from there
+// to avoid maintaining two identical class VOs.
+import { AgentId } from '../agent/types';
 
-// ─── Value Object IDs ─────────────────────────────────────────────────────────
-
-/** Class VO for agent identifiers in the ruflo bounded context. */
-export class AgentId {
-  private constructor(readonly value: string) {}
-  static create(raw: string): Result<AgentId> {
-    if (!raw?.trim()) return Err('AgentId cannot be empty');
-    return Ok(new AgentId(raw.trim()));
-  }
-  static generate(): AgentId { return new AgentId(crypto.randomUUID()); }
-  equals(other: AgentId): boolean { return this.value === other.value; }
-  toString(): string { return this.value; }
-}
+export { AgentId };
 
 /** Class VO for swarm identifiers in the ruflo bounded context. */
 export class SwarmId {

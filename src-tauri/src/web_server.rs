@@ -335,10 +335,11 @@ async fn get_usage_window() -> impl IntoResponse {
                         // Only process files modified recently
                         if let Ok(metadata) = path.metadata() {
                             if let Ok(modified) = metadata.modified() {
-                                let mod_time = modified
+                                let mod_time_u128 = modified
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap_or_default()
-                                    .as_millis() as i64;
+                                    .as_millis();
+                                let mod_time = i64::try_from(mod_time_u128).unwrap_or(i64::MAX);
                                 if mod_time < five_hours_ago_ms {
                                     continue; // Skip old files
                                 }

@@ -167,9 +167,22 @@ async function initSession(params: {
           }
         }
 
-        // Rewind preview result
-        if (msg.type === 'rewind_result') {
+        // Rewind acknowledgement — server emits RewindAck (snake_case: rewind_ack)
+        if (msg.type === 'rewind_ack') {
           window.dispatchEvent(new CustomEvent('runecode:rewind-result', { detail: msg }));
+        }
+
+        // Interrupt acknowledgement — server emits Interrupted (snake_case: interrupted)
+        if (msg.type === 'interrupted') {
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-complete', { detail: { connectionId, interrupted: true } }));
+          });
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-complete:${sid}`, { detail: { interrupted: true } }));
+            });
+          }
         }
 
         // Model/permission change confirmations
@@ -808,6 +821,24 @@ async function initAgentSession(params: {
             const sid = msg.session_id;
             queueMicrotask(() => {
               window.dispatchEvent(new CustomEvent(`claude-error:${sid}`, { detail: msg.error ?? msg.message }));
+            });
+          }
+        }
+
+        // Rewind acknowledgement — server emits RewindAck (snake_case: rewind_ack)
+        if (msg.type === 'rewind_ack') {
+          window.dispatchEvent(new CustomEvent('runecode:rewind-result', { detail: msg }));
+        }
+
+        // Interrupt acknowledgement — server emits Interrupted (snake_case: interrupted)
+        if (msg.type === 'interrupted') {
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('claude-complete', { detail: { connectionId, interrupted: true } }));
+          });
+          if (msg.session_id) {
+            const sid = msg.session_id;
+            queueMicrotask(() => {
+              window.dispatchEvent(new CustomEvent(`claude-complete:${sid}`, { detail: { interrupted: true } }));
             });
           }
         }

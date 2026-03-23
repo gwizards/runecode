@@ -1,4 +1,9 @@
 import { apiCall } from './apiAdapter';
+import {
+  getSessionOutput as _getSessionOutput,
+  getLiveSessionOutput as _getLiveSessionOutput,
+  streamSessionOutput as _streamSessionOutput,
+} from '@/infrastructure/tauri/session-client';
 import type { HooksConfiguration } from '@/types/hooks';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from './devFallback';
 
@@ -913,42 +918,21 @@ export const api = {
    * @param runId - The run ID to get output for
    * @returns Promise resolving to the current session output (JSONL format)
    */
-  async getSessionOutput(runId: number): Promise<string> {
-    try {
-      return await apiCall<string>('get_session_output', { runId });
-    } catch (error) {
-      console.error("Failed to get session output:", error);
-      throw new Error(`Failed to get session output: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
+  getSessionOutput: _getSessionOutput,
 
   /**
    * Get live output directly from process stdout buffer
    * @param runId - The run ID to get live output for
    * @returns Promise resolving to the current live output
    */
-  async getLiveSessionOutput(runId: number): Promise<string> {
-    try {
-      return await apiCall<string>('get_live_session_output', { runId });
-    } catch (error) {
-      console.error("Failed to get live session output:", error);
-      throw new Error(`Failed to get live session output: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
+  getLiveSessionOutput: _getLiveSessionOutput,
 
   /**
    * Start streaming real-time output for a running session
    * @param runId - The run ID to stream output for
    * @returns Promise that resolves when streaming starts
    */
-  async streamSessionOutput(runId: number): Promise<void> {
-    try {
-      return await apiCall<void>('stream_session_output', { runId });
-    } catch (error) {
-      console.error("Failed to start streaming session output:", error);
-      throw new Error(`Failed to start streaming session output: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
+  streamSessionOutput: _streamSessionOutput,
 
   /**
    * Loads the JSONL history for a specific session
