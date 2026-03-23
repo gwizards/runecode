@@ -31,8 +31,9 @@ function StatusDot({ active }: { active: boolean }) {
 }
 
 export function RuFloSection({ projectPath }: RuFloSectionProps) {
-  const { swarm: swarmStatus, installation, fetchInstallation, fetchSwarm } = useRuFloStore();
+  const { swarm: swarmStatus, installation, fetchInstallation, fetchSwarm, activateMcp } = useRuFloStore();
   const isInstalled: boolean | null = installation === null ? null : installation.installed;
+  const [isActivating, setIsActivating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [projectStatus, setProjectStatus] = useState<RuFloProjectStatus | null>(null);
   const [isStale, setIsStale] = useState(false);
@@ -109,7 +110,24 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
       <div className="flex items-center gap-1.5 px-1 pb-1">
         <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">RuFlo</div>
         {installation && !isFullyConfigured(installation) && installation.installed && (
-          <span className="text-[9px] text-amber-400/60">setup incomplete</span>
+          <button
+            onClick={async () => {
+              setIsActivating(true);
+              try {
+                await activateMcp();
+                await fetchInstallation();
+              } catch (err) {
+                console.warn('[RuFlo] Auto-activate failed:', err);
+              } finally {
+                setIsActivating(false);
+              }
+            }}
+            disabled={isActivating}
+            title="Click to activate RuFlo MCP"
+            className="text-[9px] text-amber-400/60 hover:text-amber-400 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {isActivating ? 'activating…' : 'setup incomplete ↗'}
+          </button>
         )}
       </div>
 

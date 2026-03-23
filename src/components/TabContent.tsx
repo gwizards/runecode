@@ -796,6 +796,22 @@ const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ownsFoote
                         terminalFlags: flags,
                         environmentId,
                       });
+                      // Fire-and-forget RuFlo init for non-shell sessions
+                      if (!isShell) {
+                        void (async () => {
+                          try {
+                            const rufloStatus = await api.checkRufloInstalled();
+                            if (rufloStatus.installed) {
+                              const autoInit = localStorage.getItem('runecode-ruflo-auto-init') !== 'false';
+                              if (autoInit) {
+                                await api.initRufloProject(effectiveProjectPath);
+                              }
+                            }
+                          } catch (err) {
+                            console.warn('[RuFlo] Background init skipped:', err);
+                          }
+                        })();
+                      }
                     } else {
                       updateTab(tab.id, {
                         type: 'chat',

@@ -9,8 +9,8 @@
 ///
 /// ## Flags
 /// The `flags` query parameter controls which program is launched:
-///   - `flags` is absent OR contains `--shell` → spawn the native login shell
-///   - Otherwise → spawn `claude <flags>` so teammate-mode / tmux / etc. work
+///   - `flags` contains `--shell` → spawn the native login shell
+///   - Otherwise (including empty) → spawn `claude <flags>` so it launches by default
 ///
 /// ## URL
 /// `ws://127.0.0.1:<port>/ws/terminal?projectPath=...&cols=...&rows=...&flags=...`
@@ -277,10 +277,10 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
 
 /// Decide which program to run inside the PTY.
 ///
-/// - No flags OR `--shell` present → native interactive shell
-/// - Any other flags (e.g. `--teammate-mode`, `tmux`) → `claude <flags>`
+/// - `--shell` present → native interactive shell
+/// - Empty OR any other flags → `claude <flags>` (empty = `claude` with no extra args)
 fn resolve_command(flags: &[String]) -> (String, Vec<String>) {
-    let is_shell_mode = flags.is_empty() || flags.iter().any(|f| f == "--shell");
+    let is_shell_mode = flags.iter().any(|f| f == "--shell");
 
     if is_shell_mode {
         let shell = detect_shell();
