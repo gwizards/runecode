@@ -352,5 +352,5 @@ fn main() {
             set_ruflo_memory_backend,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error while running tauri application"); // safe: top-level entry point, process must abort on runtime failure
 }

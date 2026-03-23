@@ -2926,13 +2926,13 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
     // CORS layer — restrict to localhost origins to prevent cross-origin attacks.
     // LAN devices should access via the host IP directly (same-origin), not via CORS.
     let localhost_origins = [
-        "http://localhost".parse().unwrap(),
-        "http://localhost:1420".parse().unwrap(),
-        "http://localhost:5173".parse().unwrap(),
-        "http://127.0.0.1".parse().unwrap(),
-        "http://127.0.0.1:1420".parse().unwrap(),
-        "http://127.0.0.1:5173".parse().unwrap(),
-        "tauri://localhost".parse().unwrap(),
+        "http://localhost".parse().unwrap(),         // safe: hardcoded literal, infallible
+        "http://localhost:1420".parse().unwrap(),    // safe: hardcoded literal, infallible
+        "http://localhost:5173".parse().unwrap(),    // safe: hardcoded literal, infallible
+        "http://127.0.0.1".parse().unwrap(),         // safe: hardcoded literal, infallible
+        "http://127.0.0.1:1420".parse().unwrap(),   // safe: hardcoded literal, infallible
+        "http://127.0.0.1:5173".parse().unwrap(),   // safe: hardcoded literal, infallible
+        "tauri://localhost".parse().unwrap(),        // safe: hardcoded literal, infallible
     ];
     let cors = CorsLayer::new()
         .allow_origin(localhost_origins)

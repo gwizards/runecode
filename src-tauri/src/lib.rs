@@ -13,5 +13,5 @@ pub mod ws_types;
 pub fn run() {
     tauri::Builder::default()
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error while running tauri application"); // safe: top-level entry point, process must abort on runtime failure
 }
