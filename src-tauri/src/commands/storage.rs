@@ -454,8 +454,12 @@ pub async fn storage_execute_sql(
     // even inside SELECT queries (UNION, subqueries on system tables, multi-stmt).
     let forbidden_patterns = [
         "ATTACH", "DETACH", "LOAD_EXTENSION",
-        // Prevent UNION-based exfiltration and access to the SQLite schema catalog
+        // Prevent UNION-based cross-table exfiltration
+        "UNION",
+        // Prevent access to the SQLite schema catalog
         "SQLITE_MASTER", "SQLITE_TEMP_MASTER", "SQLITE_SCHEMA",
+        // Prevent comment-based bypass attempts
+        "/*", "*/", "--",
     ];
     for pattern in &forbidden_patterns {
         if trimmed.contains(pattern) {

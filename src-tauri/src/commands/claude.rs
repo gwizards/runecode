@@ -143,6 +143,41 @@ fn get_claude_dir() -> Result<PathBuf> {
         .context("Could not find ~/.claude directory")
 }
 
+/// Guard: canonicalize `path` and verify it is within the user's home directory.
+/// Returns the canonical path on success, or an error string on failure.
+///
+/// This prevents path-traversal attacks where a caller-supplied path like
+/// "../../etc/passwd" would escape the intended directory tree.
+fn guard_path_within_home(path: &PathBuf) -> Result<PathBuf, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    if home.is_empty() {
+        return Err("Cannot determine home directory".to_string());
+    }
+    let canonical = path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve path: {}", e))?;
+    if !canonical.starts_with(&home) {
+        return Err("Path is outside the user's home directory".to_string());
+    }
+    Ok(canonical)
+}
+
+/// Guard: validate that `id` (a project-id or session-id) contains only
+/// characters that are safe to use as a single path component, and does not
+/// contain path separators or traversal sequences.
+fn validate_path_component(id: &str, label: &str) -> Result<(), String> {
+    if id.is_empty() {
+        return Err(format!("{} must not be empty", label));
+    }
+    // Disallow any path separator or traversal character
+    if id.contains('/') || id.contains('\\') || id.contains("..") || id.contains('\0') {
+        return Err(format!("{} contains invalid characters", label));
+    }
+    Ok(())
+}
+
 /// Gets the actual project path by reading the cwd from the JSONL entries
 fn get_project_path_from_sessions(project_dir: &PathBuf) -> Result<String, String> {
     // Try to read any JSONL file in the directory
@@ -469,6 +504,9 @@ pub async fn create_project(path: String) -> Result<Project, String> {
 pub async fn get_project_sessions(project_id: String) -> Result<Vec<Session>, String> {
     log::info!("Getting sessions for project: {}", project_id);
 
+    // Validate project_id is a safe single path component (no traversal)
+    validate_path_component(&project_id, "project_id")?;
+
     let claude_dir = get_claude_dir().map_err(|e| e.to_string())?;
     let project_dir = claude_dir.join("projects").join(&project_id);
     let todos_dir = claude_dir.join("todos");
@@ -766,8 +804,11 @@ pub async fn find_claude_md_files(project_path: String) -> Result<Vec<ClaudeMdFi
         return Err(format!("Project path does not exist: {}", project_path));
     }
 
+    // Guard: resolved path must be within the user's home directory
+    let canonical_path = guard_path_within_home(&path)?;
+
     let mut claude_files = Vec::new();
-    find_claude_md_recursive(&path, &path, &mut claude_files)?;
+    find_claude_md_recursive(&canonical_path, &canonical_path, &mut claude_files)?;
 
     // Sort by relative path
     claude_files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
@@ -947,6 +988,10 @@ pub async fn load_session_history(
         session_id,
         project_id
     );
+
+    // Validate IDs are safe single path components (no traversal)
+    validate_path_component(&project_id, "project_id")?;
+    validate_path_component(&session_id, "session_id")?;
 
     let claude_dir = get_claude_dir().map_err(|e| e.to_string())?;
     let session_path = claude_dir
@@ -1516,17 +1561,20 @@ pub async fn search_files(base_path: String, query: String) -> Result<Vec<FileEn
     }
 
     let path = PathBuf::from(&base_path);
-    log::debug!("Resolved search base path: {:?}", path);
 
     if !path.exists() {
         log::error!("Base path does not exist: {:?}", path);
         return Err(format!("Path does not exist: {}", base_path));
     }
 
+    // Guard: resolved path must be within the user's home directory
+    let canonical_path = guard_path_within_home(&path)?;
+    log::debug!("Resolved search base path: {:?}", canonical_path);
+
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    search_files_recursive(&path, &path, &query_lower, &mut results, 0)?;
+    search_files_recursive(&canonical_path, &canonical_path, &query_lower, &mut results, 0)?;
 
     // Sort by relevance: exact matches first, then by name
     results.sort_by(|a, b| {
@@ -1631,6 +1679,9 @@ pub async fn create_checkpoint(
         project_id
     );
 
+    validate_path_component(&session_id, "session_id")?;
+    validate_path_component(&project_id, "project_id")?;
+
     let manager = app
         .get_or_create_manager(
             session_id.clone(),
@@ -1689,6 +1740,10 @@ pub async fn restore_checkpoint(
         checkpoint_id,
         session_id
     );
+
+    validate_path_component(&session_id, "session_id")?;
+    validate_path_component(&project_id, "project_id")?;
+    validate_path_component(&checkpoint_id, "checkpoint_id")?;
 
     let manager = app
         .get_or_create_manager(
@@ -1762,6 +1817,11 @@ pub async fn fork_from_checkpoint(
         checkpoint_id,
         new_session_id
     );
+
+    validate_path_component(&session_id, "session_id")?;
+    validate_path_component(&project_id, "project_id")?;
+    validate_path_component(&new_session_id, "new_session_id")?;
+    validate_path_component(&checkpoint_id, "checkpoint_id")?;
 
     let claude_dir = get_claude_dir().map_err(|e| e.to_string())?;
 
