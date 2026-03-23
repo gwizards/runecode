@@ -35,6 +35,12 @@ interface SettingsProps {
  * Delegates rendering to sub-components via a sidebar layout.
  */
 export const Settings: React.FC<SettingsProps> = ({ className, initialSection }) => {
+  const isMountedRef = React.useRef(true);
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
   const [settings, setSettings] = useState<ClaudeSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,6 +83,8 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
       setError(null);
       const loadedSettings = await api.getClaudeSettings();
 
+      if (!isMountedRef.current) return;
+
       if (!loadedSettings || typeof loadedSettings !== 'object') {
         console.warn("Loaded settings is not an object:", loadedSettings);
         setSettings({});
@@ -116,11 +124,12 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
         );
       }
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error("Failed to load settings:", err);
       setError("Failed to load settings. Please ensure ~/.claude directory exists.");
       setSettings({});
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

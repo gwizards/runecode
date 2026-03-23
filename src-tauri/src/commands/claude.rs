@@ -1028,6 +1028,18 @@ fn maybe_add_bypass_flag(args: &mut Vec<String>, permission_mode: &str) {
     }
 }
 
+/// Validate that a model name contains only safe characters.
+/// Rejects anything that isn't a typical model identifier.
+fn validate_model(model: &str) -> Result<(), String> {
+    if model.is_empty() || model.len() > 128 {
+        return Err("Invalid model name".to_string());
+    }
+    if !model.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '/')) {
+        return Err(format!("Model name '{}' contains invalid characters", model));
+    }
+    Ok(())
+}
+
 /// Execute a new interactive Claude Code session with streaming output
 #[tauri::command]
 pub async fn execute_claude_code(
@@ -1042,6 +1054,11 @@ pub async fn execute_claude_code(
         project_path,
         model
     );
+
+    // Guard: project_path must be within the user's home directory
+    guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
+    // Guard: model must contain only safe characters
+    validate_model(&model)?;
 
     let claude_path = find_claude_binary(&app)?;
 
@@ -1074,6 +1091,9 @@ pub async fn continue_claude_code(
         project_path,
         model
     );
+
+    guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
+    validate_model(&model)?;
 
     let claude_path = find_claude_binary(&app)?;
 
@@ -1112,6 +1132,8 @@ pub async fn resume_claude_code(
 
     // Validate session_id is a safe path component (no traversal, no shell metacharacters)
     validate_path_component(&session_id, "session_id")?;
+    guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
+    validate_model(&model)?;
 
     let claude_path = find_claude_binary(&app)?;
 

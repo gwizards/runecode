@@ -2,7 +2,7 @@
   "name": "runecode",
   "description": "RuneCode - A blazingly fast desktop engine for Claude Code",
   "private": true,
-  "version": "0.5.68",
+  "version": "0.5.69",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {

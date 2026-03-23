@@ -221,6 +221,8 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
         .join("\n");
 
     if status.success() {
+        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
+        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_swarm_cache.json"));
         Ok("RuFlo installed successfully".to_string())
     } else if !stderr_output.is_empty() {
         Err(format!("npm install failed: {}", stderr_output))
@@ -281,13 +283,34 @@ pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String>
 pub async fn deactivate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Emitter;
     let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
-    let output = crate::claude_binary::create_command_with_env(claude_cmd)
-        .args(["mcp", "remove", "claude-flow"])
-        .output()
-        .map_err(|e| format!("Failed to run claude mcp remove: {e}"))?;
+
+    #[cfg(target_os = "windows")]
+    const DEACT_TIMEOUT_SECS: u64 = 30;
+    #[cfg(not(target_os = "windows"))]
+    const DEACT_TIMEOUT_SECS: u64 = 15;
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(DEACT_TIMEOUT_SECS),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(claude_cmd)
+                .args(["mcp", "remove", "claude-flow"])
+                .output()
+        }),
+    )
+    .await;
+
+    // Always bust both caches regardless of outcome
+    let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
+    let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_swarm_cache.json"));
+
+    let output = match result {
+        Err(_timeout) => return Err("claude mcp remove timed out".to_string()),
+        Ok(Err(e)) => return Err(format!("Failed to spawn claude mcp remove: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run claude mcp remove: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     if output.status.success() {
-        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
         let _ = app.emit("ruflo-mcp-changed", "deactivated");
         Ok("MCP server deactivated".to_string())
     } else {
@@ -662,10 +685,14 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
         return cached;
     }
 
-    let agents_output = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args(["--no-install", "@claude-flow/cli", "agent", "list", "--json"])
-        .output()
-        .ok();
+    let agents_output = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npx_cmd())
+                .args(["--no-install", "@claude-flow/cli", "agent", "list", "--json"])
+                .output()
+        }),
+    ).await.ok().and_then(|r| r.ok()).and_then(|r| r.ok());
 
     let (agents, parse_error) = match agents_output.as_ref() {
         Some(o) if o.status.success() => {
@@ -707,10 +734,16 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
 
     let swarm_active = !agents.is_empty() && agents.iter().any(|a| a.status.is_active());
 
-    let memory_entries = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args(["--no-install", "@claude-flow/cli", "memory", "list", "--json"])
-        .output()
-        .ok()
+    let memory_entries = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npx_cmd())
+                .args(["--no-install", "@claude-flow/cli", "memory", "list", "--json"])
+                .output()
+        }),
+    ).await.ok()
+        .and_then(|r| r.ok())
+        .and_then(|r| r.ok())
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
         .and_then(|v| v.as_array().map(|a| a.len()))
@@ -778,12 +811,26 @@ pub async fn init_ruflo_project(app: tauri::AppHandle, path: String) -> Result<S
 
 #[tauri::command]
 pub async fn uninstall_ruflo() -> Result<String, String> {
-    let output = crate::claude_binary::create_command_with_env(npm_cmd())
-        .args(["uninstall", "-g", "@claude-flow/cli"])
-        .output()
-        .map_err(|e| format!("Failed to run npm uninstall: {e}"))?;
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npm_cmd())
+                .args(["uninstall", "-g", "@claude-flow/cli"])
+                .output()
+        }),
+    )
+    .await;
+
+    let output = match result {
+        Err(_timeout) => return Err("npm uninstall timed out".to_string()),
+        Ok(Err(e)) => return Err(format!("Failed to spawn npm uninstall: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run npm uninstall: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     if output.status.success() {
+        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_ruflo_cache.json"));
+        let _ = std::fs::remove_file(std::env::temp_dir().join("runecode_swarm_cache.json"));
         Ok("RuFlo uninstalled successfully".to_string())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -794,10 +841,22 @@ pub async fn uninstall_ruflo() -> Result<String, String> {
 /// Get memory statistics from the claude-flow CLI
 #[tauri::command]
 pub async fn get_ruflo_memory_stats() -> Result<serde_json::Value, String> {
-    let output = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args(["-y", "@claude-flow/cli@latest", "memory", "stats", "--json"])
-        .output()
-        .map_err(|e| format!("Failed to run memory stats: {e}"))?;
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npx_cmd())
+                .args(["-y", "@claude-flow/cli@latest", "memory", "stats", "--json"])
+                .output()
+        }),
+    )
+    .await;
+
+    let output = match result {
+        Err(_timeout) => return Err("memory stats timed out".to_string()),
+        Ok(Err(e)) => return Err(format!("Failed to spawn memory stats: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run memory stats: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -829,19 +888,32 @@ pub async fn sync_ruflo_memory_local(app: tauri::AppHandle, output_path: String)
         return Err("Output path must be within home directory".to_string());
     }
 
-    let output = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args([
-            "-y",
-            "@claude-flow/cli@latest",
-            "memory",
-            "export",
-            "--format",
-            "json",
-            "--output",
-            &output_path,
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run memory export: {e}"))?;
+    let output_path_clone = output_path.clone();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npx_cmd())
+                .args([
+                    "-y",
+                    "@claude-flow/cli@latest",
+                    "memory",
+                    "export",
+                    "--format",
+                    "json",
+                    "--output",
+                    &output_path_clone,
+                ])
+                .output()
+        }),
+    )
+    .await;
+
+    let output = match result {
+        Err(_timeout) => return Err("memory export timed out".to_string()),
+        Ok(Err(e)) => return Err(format!("Failed to spawn memory export: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run memory export: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     if output.status.success() {
         let _ = app.emit("ruflo-memory-changed", "synced");
@@ -857,10 +929,22 @@ pub async fn sync_ruflo_memory_local(app: tauri::AppHandle, output_path: String)
 pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Emitter;
     // Run compress first
-    let compress = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args(["-y", "@claude-flow/cli@latest", "memory", "compress"])
-        .output()
-        .map_err(|e| format!("Failed to run memory compress: {e}"))?;
+    let compress_result = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npx_cmd())
+                .args(["-y", "@claude-flow/cli@latest", "memory", "compress"])
+                .output()
+        }),
+    )
+    .await;
+
+    let compress = match compress_result {
+        Err(_timeout) => return Err("memory compress timed out".to_string()),
+        Ok(Err(e)) => return Err(format!("Failed to spawn memory compress: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run memory compress: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     if !compress.status.success() {
         let stderr = String::from_utf8_lossy(&compress.stderr);
@@ -868,10 +952,22 @@ pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, S
     }
 
     // Then cleanup stale entries
-    let cleanup = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args(["-y", "@claude-flow/cli@latest", "memory", "cleanup"])
-        .output()
-        .map_err(|e| format!("Failed to run memory cleanup: {e}"))?;
+    let cleanup_result = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npx_cmd())
+                .args(["-y", "@claude-flow/cli@latest", "memory", "cleanup"])
+                .output()
+        }),
+    )
+    .await;
+
+    let cleanup = match cleanup_result {
+        Err(_timeout) => return Err("memory cleanup timed out".to_string()),
+        Ok(Err(e)) => return Err(format!("Failed to spawn memory cleanup: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run memory cleanup: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     if cleanup.status.success() {
         let _ = app.emit("ruflo-memory-changed", "consolidated");
@@ -894,17 +990,30 @@ pub async fn set_ruflo_memory_backend(app: tauri::AppHandle, backend: String) ->
         ));
     }
 
-    let output = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args([
-            "-y",
-            "@claude-flow/cli@latest",
-            "memory",
-            "configure",
-            "--backend",
-            &backend,
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run memory configure: {e}"))?;
+    let backend_clone = backend.clone();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        tokio::task::spawn_blocking(move || {
+            crate::claude_binary::create_command_with_env(npx_cmd())
+                .args([
+                    "-y",
+                    "@claude-flow/cli@latest",
+                    "memory",
+                    "configure",
+                    "--backend",
+                    &backend_clone,
+                ])
+                .output()
+        }),
+    )
+    .await;
+
+    let output = match result {
+        Err(_timeout) => return Err("memory configure timed out".to_string()),
+        Ok(Err(e)) => return Err(format!("Failed to spawn memory configure: {e}")),
+        Ok(Ok(Err(e))) => return Err(format!("Failed to run memory configure: {e}")),
+        Ok(Ok(Ok(o))) => o,
+    };
 
     if output.status.success() {
         let _ = app.emit("ruflo-memory-changed", backend.as_str());
