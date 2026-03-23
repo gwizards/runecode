@@ -1,7 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 const Onboarding = lazy(() => import("@/components/Onboarding").then(m => ({ default: m.Onboarding })));
 import { motion } from "motion/react";
-import { Bot, FolderCode } from "lucide-react";
+import { Bot, FolderCode, Loader2 } from "lucide-react";
 import { RotatingRune } from "./components/RuneCodeLogo";
 import { api, type Project, type Session, type ClaudeMdFile } from "@/lib/api";
 import { initializeWebMode } from "@/lib/apiAdapter";
@@ -14,7 +14,7 @@ import { ProjectList } from "@/components/ProjectList";
 import { FilePicker } from "@/components/FilePicker";
 import { SessionList } from "@/components/SessionList";
 const ClaudeFileEditor = lazy(() => import("@/components/ClaudeFileEditor").then(m => ({ default: m.ClaudeFileEditor })));
-import { CCAgents } from "@/components/CCAgents";
+const CCAgents = lazy(() => import('@/components/CCAgents').then(m => ({ default: m.CCAgents })));
 import { ClaudeBinaryDialog } from "@/components/ClaudeBinaryDialog";
 import { Toast, ToastContainer } from "@/components/ui/toast";
 import { ProjectSettings } from '@/components/ProjectSettings';
@@ -360,9 +360,15 @@ function AppMain() {
 
       case "cc-agents":
         return (
-          <CCAgents 
-            onBack={() => handleViewChange("welcome")} 
-          />
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />Loading agents...
+            </div>
+          }>
+            <CCAgents
+              onBack={() => handleViewChange("welcome")}
+            />
+          </Suspense>
         );
 
       case "editor":
