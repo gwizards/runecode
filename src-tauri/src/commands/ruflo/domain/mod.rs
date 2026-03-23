@@ -7,10 +7,10 @@ pub mod project;
 pub mod swarm;
 pub mod value_objects;
 
-pub use agent::{AgentStatus, AgentType, RuFloAgent};
-pub use capabilities::{AgentCapability, SwarmTopology, TaskPriority};
-pub use installation::{RuFloStatus, RuFloVersion};
-pub use memory::{MemoryBackend, MemoryStats, MemorySyncResult};
+// Re-export only what command handlers actually consume.
+// Domain types used exclusively within their own modules are accessed via
+// their full path (e.g. domain::agent::AgentType) to avoid dead-import warnings.
+pub use agent::{AgentStatus, RuFloAgent};
+pub use installation::RuFloStatus;
 pub use project::RuFloProjectStatus;
 pub use swarm::RuFloSwarmStatus;
-pub use value_objects::{ProjectPath, SwarmId};

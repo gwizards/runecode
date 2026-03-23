@@ -1109,6 +1109,9 @@ pub async fn resume_claude_code(
         model
     );
 
+    // Validate session_id is a safe path component (no traversal, no shell metacharacters)
+    validate_path_component(&session_id, "session_id")?;
+
     let claude_path = find_claude_binary(&app)?;
 
     let mut args = vec![
@@ -2153,8 +2156,12 @@ pub async fn get_recently_modified_files(
         session_id
     );
 
+    // Guard project_path against traversal outside home
+    let guarded_path = guard_path_within_home(&PathBuf::from(&project_path))
+        .map_err(|e| format!("project_path rejected: {}", e))?;
+
     let manager = app
-        .get_or_create_manager(session_id, project_id, PathBuf::from(project_path))
+        .get_or_create_manager(session_id, project_id, guarded_path)
         .await
         .map_err(|e| format!("Failed to get checkpoint manager: {}", e))?;
 
@@ -2187,11 +2194,15 @@ pub async fn track_session_messages(
         session_id
     );
 
+    // Guard project_path against traversal outside home
+    let guarded_path = guard_path_within_home(&PathBuf::from(&project_path))
+        .map_err(|e| format!("project_path rejected: {}", e))?;
+
     let manager = state
         .get_or_create_manager(
             session_id.clone(),
             project_id.clone(),
-            PathBuf::from(&project_path),
+            guarded_path,
         )
         .await
         .map_err(|e| format!("Failed to get checkpoint manager: {}", e))?;
@@ -2224,13 +2235,17 @@ pub async fn get_hooks_config(
             .join("settings.json"),
         "project" => {
             let path = project_path.ok_or("Project path required for project scope")?;
-            PathBuf::from(path).join(".claude").join("settings.json")
+            let base = PathBuf::from(&path);
+            guard_path_within_home(&base)
+                .map_err(|e| format!("project_path rejected: {}", e))?;
+            base.join(".claude").join("settings.json")
         }
         "local" => {
             let path = project_path.ok_or("Project path required for local scope")?;
-            PathBuf::from(path)
-                .join(".claude")
-                .join("settings.local.json")
+            let base = PathBuf::from(&path);
+            guard_path_within_home(&base)
+                .map_err(|e| format!("project_path rejected: {}", e))?;
+            base.join(".claude").join("settings.local.json")
         }
         _ => return Err("Invalid scope".to_string()),
     };
@@ -2274,14 +2289,20 @@ pub async fn update_hooks_config(
             .join("settings.json"),
         "project" => {
             let path = project_path.ok_or("Project path required for project scope")?;
-            let claude_dir = PathBuf::from(path).join(".claude");
+            let base = PathBuf::from(&path);
+            guard_path_within_home(&base)
+                .map_err(|e| format!("project_path rejected: {}", e))?;
+            let claude_dir = base.join(".claude");
             fs::create_dir_all(&claude_dir)
                 .map_err(|e| format!("Failed to create .claude directory: {}", e))?;
             claude_dir.join("settings.json")
         }
         "local" => {
             let path = project_path.ok_or("Project path required for local scope")?;
-            let claude_dir = PathBuf::from(path).join(".claude");
+            let base = PathBuf::from(&path);
+            guard_path_within_home(&base)
+                .map_err(|e| format!("project_path rejected: {}", e))?;
+            let claude_dir = base.join(".claude");
             fs::create_dir_all(&claude_dir)
                 .map_err(|e| format!("Failed to create .claude directory: {}", e))?;
             claude_dir.join("settings.local.json")

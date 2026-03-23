@@ -2,8 +2,6 @@ pub mod domain;
 pub mod repository;
 
 use domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloStatus, RuFloSwarmStatus};
-#[allow(unused_imports)]
-use domain::{MemoryBackend, MemoryStats, MemorySyncResult};
 
 // ---------------------------------------------------------------------------
 // Cache TTLs

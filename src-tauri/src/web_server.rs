@@ -1301,6 +1301,13 @@ async fn execute_claude_command(
     println!("[TRACE]   model: {}", model);
     println!("[TRACE]   session_id: {}", session_id);
 
+    // Guard project_path against directory traversal outside home
+    let guarded_project_path = crate::path_guard::require_within_home(
+        std::path::Path::new(&project_path),
+    )
+    .map_err(|e| format!("project_path rejected: {e}"))?;
+    let project_path = guarded_project_path.to_string_lossy().into_owned();
+
     // Send initial message
     println!("[TRACE] Sending initial start message");
     send_to_session(
@@ -1445,6 +1452,13 @@ async fn continue_claude_command(
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::Command;
 
+    // Guard project_path against directory traversal outside home
+    let guarded_project_path = crate::path_guard::require_within_home(
+        std::path::Path::new(&project_path),
+    )
+    .map_err(|e| format!("project_path rejected: {e}"))?;
+    let project_path = guarded_project_path.to_string_lossy().into_owned();
+
     send_to_session(
         &state,
         &session_id,
@@ -1537,7 +1551,22 @@ async fn resume_claude_command(
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::Command;
 
-    println!("[resume_claude_command] Starting with project_path: {}, claude_session_id: {}, prompt: {}, model: {}", 
+    // Guard project_path and validate session id component
+    let guarded_project_path = crate::path_guard::require_within_home(
+        std::path::Path::new(&project_path),
+    )
+    .map_err(|e| format!("project_path rejected: {e}"))?;
+    let project_path = guarded_project_path.to_string_lossy().into_owned();
+
+    // Validate claude_session_id is a safe single path component (no traversal, no shell meta)
+    if claude_session_id.contains('/') || claude_session_id.contains('\\')
+        || claude_session_id.contains("..") || claude_session_id.contains('\0')
+        || claude_session_id.is_empty()
+    {
+        return Err("claude_session_id contains invalid characters".to_string());
+    }
+
+    println!("[resume_claude_command] Starting with project_path: {}, claude_session_id: {}, prompt: {}, model: {}",
              project_path, claude_session_id, prompt, model);
 
     send_to_session(
@@ -1645,6 +1674,13 @@ async fn execute_claude_agent_command(
 ) -> Result<(), String> {
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::Command;
+
+    // Guard project_path against directory traversal outside home
+    let guarded_project_path = crate::path_guard::require_within_home(
+        std::path::Path::new(&project_path),
+    )
+    .map_err(|e| format!("project_path rejected: {e}"))?;
+    let project_path = guarded_project_path.to_string_lossy().into_owned();
 
     println!(
         "[WS] execute_claude_agent_command -- agent: {}  project: {}",
