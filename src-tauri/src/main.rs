@@ -5,6 +5,7 @@ mod checkpoint;
 mod claude_binary;
 mod commands;
 mod process;
+mod terminal_server;
 
 use checkpoint::state::CheckpointState;
 use commands::agents::{
@@ -60,6 +61,22 @@ use commands::usage::{
 use process::ProcessRegistryState;
 use std::sync::Mutex;
 use tauri::Manager;
+
+// ---------------------------------------------------------------------------
+// Embedded terminal server port — stored in app state so the frontend can
+// retrieve it via the `get_terminal_port` IPC command.
+// ---------------------------------------------------------------------------
+
+/// Holds the port the embedded terminal WebSocket server is listening on.
+/// A value of 0 means the server failed to start.
+pub struct TerminalServerPort(pub u16);
+
+/// Return the port the embedded terminal WebSocket server is listening on.
+/// The frontend uses this to construct `ws://127.0.0.1:<port>/ws/terminal`.
+#[tauri::command]
+fn get_terminal_port(state: tauri::State<TerminalServerPort>) -> u16 {
+    state.0
+}
 
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
@@ -369,7 +386,22 @@ fn main() {
             // Initialize Claude process state
             app.manage(ClaudeProcessState::default());
 
-            startup_log!("App state managed (checkpoint, process registry, claude process)");
+            // Start the embedded terminal WebSocket server.
+            // Binds to 127.0.0.1:0 (OS-assigned ephemeral port) so it never
+            // conflicts with other services.  The frontend retrieves the port
+            // via the `get_terminal_port` command and constructs the WS URL.
+            startup_log!("Starting embedded terminal server...");
+            let terminal_port = tauri::async_runtime::block_on(async {
+                terminal_server::start_terminal_server().await.unwrap_or(0)
+            });
+            if terminal_port > 0 {
+                startup_log!("Terminal server listening on 127.0.0.1:{}", terminal_port);
+            } else {
+                startup_log!("WARNING: Terminal server failed to start — terminal will be unavailable");
+            }
+            app.manage(TerminalServerPort(terminal_port));
+
+            startup_log!("App state managed (checkpoint, process registry, claude process, terminal server)");
 
             // Apply window vibrancy with rounded corners on macOS
             #[cfg(target_os = "macos")]
@@ -568,6 +600,8 @@ fn main() {
             sync_ruflo_memory_local,
             consolidate_ruflo_memory,
             set_ruflo_memory_backend,
+            // Terminal server
+            get_terminal_port,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application"); // safe: top-level entry point, process must abort on runtime failure

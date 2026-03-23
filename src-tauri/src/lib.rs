@@ -6,6 +6,7 @@ pub mod claude_binary;
 pub mod commands;
 pub mod path_guard;
 pub mod process;
+pub mod terminal_server;
 pub mod web_server;
 pub mod ws_types;
 

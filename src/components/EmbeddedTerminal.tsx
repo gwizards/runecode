@@ -128,10 +128,9 @@ export function EmbeddedTerminal({
 
     // Delay WebSocket connection until layout is settled (double-rAF)
     // so cols/rows reflect the actual container size
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    requestAnimationFrame(() => requestAnimationFrame(async () => {
       fitAddon.fit();
 
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const params = new URLSearchParams();
       if (sessionId) params.set('sessionId', sessionId);
       if (projectPath) params.set('projectPath', projectPath);
@@ -151,7 +150,36 @@ export function EmbeddedTerminal({
       params.set('cols', String(term.cols));
       params.set('rows', String(term.rows));
 
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal?${params}`);
+      // In Tauri desktop mode, window.location is tauri://localhost/ — no port.
+      // Retrieve the actual embedded terminal server port via IPC and build a
+      // plain ws://127.0.0.1:<port>/ws/terminal URL instead.
+      let wsHost = window.location.host;
+      let wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+      const isTauri = !!(
+        (window as any).__TAURI__ ||
+        (window as any).__TAURI_INTERNALS__ ||
+        (window as any).__TAURI_METADATA__
+      ) && !((window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
+
+      if (isTauri) {
+        wsProtocol = 'ws:'; // always plain WS for the local embedded server
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const port = await invoke<number>('get_terminal_port');
+          if (port > 0) {
+            wsHost = `127.0.0.1:${port}`;
+          } else {
+            term.writeln('\r\n\x1b[31m— Terminal server failed to start. Restart RuneCode. —\x1b[0m');
+            return;
+          }
+        } catch {
+          // fall through to window.location.host (web mode fallback)
+        }
+      }
+
+      const wsUrl = `${wsProtocol}//${wsHost}/ws/terminal?${params}`;
+      const ws = new WebSocket(wsUrl);
       ws.binaryType = 'arraybuffer'; // Skip Blob conversion overhead
       wsRef.current = ws;
 
@@ -175,7 +203,7 @@ export function EmbeddedTerminal({
       };
 
       ws.onerror = () => {
-        term.writeln('\r\n\x1b[31m— Connection error —\x1b[0m');
+        term.writeln(`\r\n\x1b[31m— Connection error (${wsUrl}) —\x1b[0m`);
       };
 
       term.focus();
