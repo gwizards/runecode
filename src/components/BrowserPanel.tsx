@@ -305,6 +305,7 @@ function IframeWithActivation({ src, onActivate }: { src: string; onActivate?: (
     if (!container) return;
 
     let pollId: ReturnType<typeof setInterval> | null = null;
+    let blurTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let hovering = false;
 
     const isIframeFocused = () =>
@@ -312,7 +313,7 @@ function IframeWithActivation({ src, onActivate }: { src: string; onActivate?: (
       container.contains(document.activeElement);
 
     const handleBlur = () => {
-      setTimeout(() => {
+      blurTimeoutId = setTimeout(() => {
         if (isIframeFocused()) onActivateRef.current?.();
       }, 0);
     };
@@ -341,6 +342,7 @@ function IframeWithActivation({ src, onActivate }: { src: string; onActivate?: (
       window.removeEventListener('blur', handleBlur);
       container.removeEventListener('mouseenter', handleMouseEnter);
       container.removeEventListener('mouseleave', handleMouseLeave);
+      if (blurTimeoutId !== null) clearTimeout(blurTimeoutId);
       stopPolling();
     };
   }, []);

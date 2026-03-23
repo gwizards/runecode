@@ -489,7 +489,11 @@ async fn check_claude_version() -> Json<ApiResponse<serde_json::Value>> {
 /// List all available Claude installations on the system
 async fn list_claude_installations(
 ) -> Json<ApiResponse<Vec<crate::claude_binary::ClaudeInstallation>>> {
-    let installations = crate::claude_binary::discover_claude_installations();
+    let installations = tokio::task::spawn_blocking(
+        crate::claude_binary::discover_claude_installations,
+    )
+    .await
+    .unwrap_or_default();
 
     if installations.is_empty() {
         Json(ApiResponse::error(
@@ -1376,6 +1380,15 @@ async fn execute_claude_command(
     .map_err(|e| format!("project_path rejected: {e}"))?;
     let project_path = guarded_project_path.to_string_lossy().into_owned();
 
+    // Whitelist model strings (defence-in-depth; primary check is at WS dispatch layer)
+    const ALLOWED_MODELS: &[&str] = &[
+        "claude-opus-4-5", "claude-opus-4-6", "claude-sonnet-4-5", "claude-sonnet-4-6",
+        "claude-haiku-4-5", "claude-haiku-4-5-20251001",
+    ];
+    if !model.is_empty() && !ALLOWED_MODELS.iter().any(|m| model.starts_with(m)) {
+        return Err(format!("Invalid model: {}", model));
+    }
+
     // Send initial message
     debug!("[TRACE] Sending initial start message");
     send_to_session(
@@ -1556,6 +1569,15 @@ async fn continue_claude_command(
     )
     .map_err(|e| format!("project_path rejected: {e}"))?;
     let project_path = guarded_project_path.to_string_lossy().into_owned();
+
+    // Whitelist model strings (defence-in-depth; primary check is at WS dispatch layer)
+    const ALLOWED_MODELS: &[&str] = &[
+        "claude-opus-4-5", "claude-opus-4-6", "claude-sonnet-4-5", "claude-sonnet-4-6",
+        "claude-haiku-4-5", "claude-haiku-4-5-20251001",
+    ];
+    if !model.is_empty() && !ALLOWED_MODELS.iter().any(|m| model.starts_with(m)) {
+        return Err(format!("Invalid model: {}", model));
+    }
 
     send_to_session(
         &state,

@@ -267,6 +267,7 @@ function AppMain() {
   const handleOpenProject = async () => {
     // Get home directory before showing picker
     const homeDir = await api.getHomeDirectory();
+    if (!isMountedRef.current) return;
     setHomeDirectory(homeDir);
     setShowProjectPicker(true);
   };

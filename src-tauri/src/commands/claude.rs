@@ -358,99 +358,104 @@ pub async fn list_projects() -> Result<Vec<Project>, String> {
         return Ok(Vec::new());
     }
 
-    let mut projects = Vec::new();
+    tokio::task::spawn_blocking(move || {
+        let mut projects = Vec::new();
 
-    // Read all directories in the projects folder
-    let entries = fs::read_dir(&projects_dir)
-        .map_err(|e| format!("Failed to read projects directory: {}", e))?;
+        // Read all directories in the projects folder
+        let entries = fs::read_dir(&projects_dir)
+            .map_err(|e| format!("Failed to read projects directory: {}", e))?;
 
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
-        let path = entry.path();
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+            let path = entry.path();
 
-        if path.is_dir() {
-            let dir_name = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| "Invalid directory name".to_string())?;
+            if path.is_dir() {
+                let dir_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .ok_or_else(|| "Invalid directory name".to_string())?;
 
-            // Get directory creation time
-            let metadata = fs::metadata(&path)
-                .map_err(|e| format!("Failed to read directory metadata: {}", e))?;
+                // Get directory creation time
+                let metadata = fs::metadata(&path)
+                    .map_err(|e| format!("Failed to read directory metadata: {}", e))?;
 
-            let created_at = metadata
-                .created()
-                .or_else(|_| metadata.modified())
-                .unwrap_or(SystemTime::UNIX_EPOCH)
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
+                let created_at = metadata
+                    .created()
+                    .or_else(|_| metadata.modified())
+                    .unwrap_or(SystemTime::UNIX_EPOCH)
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
 
-            // Get the actual project path from JSONL files
-            let project_path = match get_project_path_from_sessions(&path) {
-                Ok(path) => path,
-                Err(e) => {
-                    log::warn!("Failed to get project path from sessions for {}: {}, falling back to decode", dir_name, e);
-                    decode_project_path(dir_name)
-                }
-            };
+                // Get the actual project path from JSONL files
+                let project_path = match get_project_path_from_sessions(&path) {
+                    Ok(path) => path,
+                    Err(e) => {
+                        log::warn!("Failed to get project path from sessions for {}: {}, falling back to decode", dir_name, e);
+                        decode_project_path(dir_name)
+                    }
+                };
 
-            // List all JSONL files (sessions) in this project directory
-            let mut sessions = Vec::new();
-            let mut most_recent_session: Option<u64> = None;
+                // List all JSONL files (sessions) in this project directory
+                let mut sessions = Vec::new();
+                let mut most_recent_session: Option<u64> = None;
 
-            if let Ok(session_entries) = fs::read_dir(&path) {
-                for session_entry in session_entries.flatten() {
-                    let session_path = session_entry.path();
-                    if session_path.is_file()
-                        && session_path.extension().and_then(|s| s.to_str()) == Some("jsonl")
-                    {
-                        if let Some(session_id) = session_path.file_stem().and_then(|s| s.to_str())
+                if let Ok(session_entries) = fs::read_dir(&path) {
+                    for session_entry in session_entries.flatten() {
+                        let session_path = session_entry.path();
+                        if session_path.is_file()
+                            && session_path.extension().and_then(|s| s.to_str()) == Some("jsonl")
                         {
-                            sessions.push(session_id.to_string());
+                            if let Some(session_id) =
+                                session_path.file_stem().and_then(|s| s.to_str())
+                            {
+                                sessions.push(session_id.to_string());
 
-                            // Track the most recent session timestamp
-                            if let Ok(metadata) = fs::metadata(&session_path) {
-                                let modified = metadata
-                                    .modified()
-                                    .unwrap_or(SystemTime::UNIX_EPOCH)
-                                    .duration_since(UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs();
+                                // Track the most recent session timestamp
+                                if let Ok(metadata) = fs::metadata(&session_path) {
+                                    let modified = metadata
+                                        .modified()
+                                        .unwrap_or(SystemTime::UNIX_EPOCH)
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs();
 
-                                most_recent_session = Some(match most_recent_session {
-                                    Some(current) => current.max(modified),
-                                    None => modified,
-                                });
+                                    most_recent_session = Some(match most_recent_session {
+                                        Some(current) => current.max(modified),
+                                        None => modified,
+                                    });
+                                }
                             }
                         }
                     }
                 }
+
+                projects.push(Project {
+                    id: dir_name.to_string(),
+                    path: project_path,
+                    sessions,
+                    created_at,
+                    most_recent_session,
+                });
             }
-
-            projects.push(Project {
-                id: dir_name.to_string(),
-                path: project_path,
-                sessions,
-                created_at,
-                most_recent_session,
-            });
         }
-    }
 
-    // Sort projects by most recent session activity, then by creation time
-    projects.sort_by(|a, b| {
-        // First compare by most recent session
-        match (a.most_recent_session, b.most_recent_session) {
-            (Some(a_time), Some(b_time)) => b_time.cmp(&a_time),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => b.created_at.cmp(&a.created_at),
-        }
-    });
+        // Sort projects by most recent session activity, then by creation time
+        projects.sort_by(|a, b| {
+            // First compare by most recent session
+            match (a.most_recent_session, b.most_recent_session) {
+                (Some(a_time), Some(b_time)) => b_time.cmp(&a_time),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => b.created_at.cmp(&a.created_at),
+            }
+        });
 
-    log::info!("Found {} projects", projects.len());
-    Ok(projects)
+        log::info!("Found {} projects", projects.len());
+        Ok(projects)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Creates a new project for the given directory path
@@ -518,78 +523,82 @@ pub async fn get_project_sessions(project_id: String) -> Result<Vec<Session>, St
         return Err(format!("Project directory not found: {}", project_id));
     }
 
-    // Get the actual project path from JSONL files
-    let project_path = match get_project_path_from_sessions(&project_dir) {
-        Ok(path) => path,
-        Err(e) => {
-            log::warn!(
-                "Failed to get project path from sessions for {}: {}, falling back to decode",
-                project_id,
-                e
-            );
-            decode_project_path(&project_id)
-        }
-    };
+    tokio::task::spawn_blocking(move || {
+        // Get the actual project path from JSONL files
+        let project_path = match get_project_path_from_sessions(&project_dir) {
+            Ok(path) => path,
+            Err(e) => {
+                log::warn!(
+                    "Failed to get project path from sessions for {}: {}, falling back to decode",
+                    project_id,
+                    e
+                );
+                decode_project_path(&project_id)
+            }
+        };
 
-    let mut sessions = Vec::new();
+        let mut sessions = Vec::new();
 
-    // Read all JSONL files in the project directory
-    let entries = fs::read_dir(&project_dir)
-        .map_err(|e| format!("Failed to read project directory: {}", e))?;
+        // Read all JSONL files in the project directory
+        let entries = fs::read_dir(&project_dir)
+            .map_err(|e| format!("Failed to read project directory: {}", e))?;
 
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
-        let path = entry.path();
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+            let path = entry.path();
 
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("jsonl") {
-            if let Some(session_id) = path.file_stem().and_then(|s| s.to_str()) {
-                // Get file creation time
-                let metadata = fs::metadata(&path)
-                    .map_err(|e| format!("Failed to read file metadata: {}", e))?;
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("jsonl") {
+                if let Some(session_id) = path.file_stem().and_then(|s| s.to_str()) {
+                    // Get file creation time
+                    let metadata = fs::metadata(&path)
+                        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
 
-                let created_at = metadata
-                    .created()
-                    .or_else(|_| metadata.modified())
-                    .unwrap_or(SystemTime::UNIX_EPOCH)
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs();
+                    let created_at = metadata
+                        .created()
+                        .or_else(|_| metadata.modified())
+                        .unwrap_or(SystemTime::UNIX_EPOCH)
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
 
-                // Extract first user message and timestamp
-                let (first_message, message_timestamp) = extract_first_user_message(&path);
+                    // Extract first user message and timestamp
+                    let (first_message, message_timestamp) = extract_first_user_message(&path);
 
-                // Try to load associated todo data
-                let todo_path = todos_dir.join(format!("{}.json", session_id));
-                let todo_data = if todo_path.exists() {
-                    fs::read_to_string(&todo_path)
-                        .ok()
-                        .and_then(|content| serde_json::from_str(&content).ok())
-                } else {
-                    None
-                };
+                    // Try to load associated todo data
+                    let todo_path = todos_dir.join(format!("{}.json", session_id));
+                    let todo_data = if todo_path.exists() {
+                        fs::read_to_string(&todo_path)
+                            .ok()
+                            .and_then(|content| serde_json::from_str(&content).ok())
+                    } else {
+                        None
+                    };
 
-                sessions.push(Session {
-                    id: session_id.to_string(),
-                    project_id: project_id.clone(),
-                    project_path: project_path.clone(),
-                    todo_data,
-                    created_at,
-                    first_message,
-                    message_timestamp,
-                });
+                    sessions.push(Session {
+                        id: session_id.to_string(),
+                        project_id: project_id.clone(),
+                        project_path: project_path.clone(),
+                        todo_data,
+                        created_at,
+                        first_message,
+                        message_timestamp,
+                    });
+                }
             }
         }
-    }
 
-    // Sort sessions by creation time (newest first)
-    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        // Sort sessions by creation time (newest first)
+        sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
 
-    log::info!(
-        "Found {} sessions for project {}",
-        sessions.len(),
-        project_id
-    );
-    Ok(sessions)
+        log::info!(
+            "Found {} sessions for project {}",
+            sessions.len(),
+            project_id
+        );
+        Ok(sessions)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Reads the Claude settings file
@@ -607,13 +616,17 @@ pub async fn get_claude_settings() -> Result<ClaudeSettings, String> {
         });
     }
 
-    let content = fs::read_to_string(&settings_path)
-        .map_err(|e| format!("Failed to read settings file: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let content = fs::read_to_string(&settings_path)
+            .map_err(|e| format!("Failed to read settings file: {}", e))?;
 
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse settings JSON: {}", e))?;
+        let data: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse settings JSON: {}", e))?;
 
-    Ok(ClaudeSettings { data })
+        Ok(ClaudeSettings { data })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Opens a new Claude Code session by executing the claude command
@@ -779,6 +792,11 @@ pub async fn check_claude_version(app: AppHandle) -> Result<ClaudeVersionStatus,
 pub async fn save_system_prompt(content: String) -> Result<String, String> {
     log::info!("Saving CLAUDE.md system prompt");
 
+    const MAX_PROMPT_SIZE: usize = 512 * 1024; // 512 KB
+    if content.len() > MAX_PROMPT_SIZE {
+        return Err(format!("System prompt too large: {} bytes (max 512 KB)", content.len()));
+    }
+
     let claude_dir = get_claude_dir().map_err(|e| e.to_string())?;
     let claude_md_path = claude_dir.join("CLAUDE.md");
 
@@ -798,6 +816,11 @@ pub async fn save_claude_settings(settings: serde_json::Value) -> Result<String,
     // Pretty print the JSON with 2-space indentation
     let json_string = serde_json::to_string_pretty(&settings)
         .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+
+    const MAX_SETTINGS_SIZE: usize = 1024 * 1024; // 1 MB
+    if json_string.len() > MAX_SETTINGS_SIZE {
+        return Err(format!("Settings payload too large: {} bytes (max 1 MB)", json_string.len()));
+    }
 
     fs::write(&settings_path, json_string)
         .map_err(|e| format!("Failed to write settings file: {}", e))?;
@@ -967,7 +990,11 @@ pub async fn read_claude_md_file(file_path: String) -> Result<String, String> {
         return Err(format!("File does not exist: {}", file_path));
     }
 
-    fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+    tokio::task::spawn_blocking(move || {
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Saves a specific CLAUDE.md file by its absolute path
@@ -977,15 +1004,19 @@ pub async fn save_claude_md_file(file_path: String, content: String) -> Result<S
 
     let path = validate_claude_md_path(&file_path)?;
 
-    // Ensure the parent directory exists
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create parent directory: {}", e))?;
-    }
+    tokio::task::spawn_blocking(move || {
+        // Ensure the parent directory exists
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create parent directory: {}", e))?;
+        }
 
-    fs::write(&path, content).map_err(|e| format!("Failed to write file: {}", e))?;
+        fs::write(&path, content).map_err(|e| format!("Failed to write file: {}", e))?;
 
-    Ok("File saved successfully".to_string())
+        Ok("File saved successfully".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Loads the JSONL history for a specific session

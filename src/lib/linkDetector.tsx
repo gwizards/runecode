@@ -74,26 +74,6 @@ export function detectLinks(text: string): DetectedLink[] {
 }
 
 /**
- * Checks if a text contains any URLs
- * @param text - The text to check
- * @returns True if URLs are found
- */
-export function hasLinks(text: string): boolean {
-  URL_REGEX.lastIndex = 0;
-  return URL_REGEX.test(text);
-}
-
-/**
- * Extracts the first URL from text
- * @param text - The text to search
- * @returns The first detected link or null
- */
-export function getFirstLink(text: string): DetectedLink | null {
-  const links = detectLinks(text);
-  return links.length > 0 ? links[0] : null;
-}
-
-/**
  * Makes URLs in text clickable by wrapping them in a callback
  * @param text - The text containing URLs
  * @param onLinkClick - Callback when a link is clicked

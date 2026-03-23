@@ -252,7 +252,10 @@ export function AgentRunOutputViewer({
   // Set up live event listeners for running sessions
   const setupLiveEventListeners = async () => {
     if (!run?.id || hasSetupListenersRef.current) return;
-    
+
+    // Capture run ID before any await — run prop may become null between yields
+    const runId = run.id;
+
     try {
       // Clean up existing listeners
       unlistenRefs.current.forEach(unlisten => unlisten());
@@ -260,7 +263,7 @@ export function AgentRunOutputViewer({
 
       // Mark that we've set up listeners
       hasSetupListenersRef.current = true;
-      
+
       // After setup, we're no longer in initial load
       // Small delay to ensure any pending messages are processed
       setTimeout(() => {
@@ -268,7 +271,7 @@ export function AgentRunOutputViewer({
       }, 100);
 
       // Set up live event listeners with run ID isolation
-      const outputUnlisten = await listen<string>(`agent-output:${run!.id}`, (event) => {
+      const outputUnlisten = await listen<string>(`agent-output:${runId}`, (event) => {
         try {
           // Skip messages during initial load phase
           if (isInitialLoadRef.current) {
@@ -286,17 +289,17 @@ export function AgentRunOutputViewer({
         }
       });
 
-      const errorUnlisten = await listen<string>(`agent-error:${run!.id}`, (event) => {
+      const errorUnlisten = await listen<string>(`agent-error:${runId}`, (event) => {
         console.error("[AgentRunOutputViewer] Agent error:", event.payload);
         setToast({ message: event.payload, type: 'error' });
       });
 
-      const completeUnlisten = await listen<boolean>(`agent-complete:${run!.id}`, () => {
+      const completeUnlisten = await listen<boolean>(`agent-complete:${runId}`, () => {
         setToast({ message: 'Agent execution completed', type: 'success' });
         // Don't set status here as the parent component should handle it
       });
 
-      const cancelUnlisten = await listen<boolean>(`agent-cancelled:${run!.id}`, () => {
+      const cancelUnlisten = await listen<boolean>(`agent-cancelled:${runId}`, () => {
         setToast({ message: 'Agent execution was cancelled', type: 'error' });
       });
 
@@ -445,7 +448,7 @@ export function AgentRunOutputViewer({
     if (!run?.id) return;
     
     // Check cache immediately for instant display
-    const cached = getCachedOutput(run!.id);
+    const cached = getCachedOutput(run.id);
     if (cached) {
       const cachedJsonlLines = cached.output.split('\n').filter(line => line.trim());
       setRawJsonlOutput(cachedJsonlLines);
