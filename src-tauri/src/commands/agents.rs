@@ -1040,6 +1040,7 @@ async fn spawn_agent_system(
     info!("📋 Registered process in registry");
 
     let db_path_for_monitor = db_path.clone(); // Clone for the monitor task
+    let registry_for_monitor = registry.0.clone(); // Clone for the monitor task
 
     // Monitor process status and wait for completion
     tokio::spawn(async move {
@@ -1110,6 +1111,8 @@ async fn spawn_agent_system(
                     }),
                 );
 
+                // Unregister from process registry to prevent memory leak
+                let _ = registry_for_monitor.unregister_process(run_id);
                 let _ = app.emit("agent-complete", false);
                 let _ = app.emit(&format!("agent-complete:{}", run_id), false);
                 return;
@@ -1164,7 +1167,8 @@ async fn spawn_agent_system(
             );
         }
 
-        // Cleanup will be handled by the cleanup_finished_processes function
+        // Unregister from process registry to prevent unbounded HashMap growth
+        let _ = registry_for_monitor.unregister_process(run_id);
 
         // Emit agent lifecycle completed event
         let _ = app.emit(
