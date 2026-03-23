@@ -10,7 +10,7 @@
 
 import { Result, Ok, Err } from '../shared/result';
 import type { DomainEvent } from '../shared/event-bus';
-import { SessionId } from '../session/types';
+import { SessionId } from '../session';
 import { ProjectId } from '../project/types';
 import {
   makeTabOpened,

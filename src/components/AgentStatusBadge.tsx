@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAgentDomainStore } from '@/domain/agent/store';
+import { useAgentDomainStore } from '@/domain/agent';
 import {
   DropdownMenu,
   DropdownMenuTrigger,

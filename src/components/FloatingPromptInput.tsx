@@ -54,7 +54,7 @@ try {
     tauriGetCurrentWebviewWindow = require("@tauri-apps/api/webviewWindow").getCurrentWebviewWindow;
   }
 } catch (e) {
-  console.log('[FloatingPromptInput] Tauri webview API not available, using web mode');
+  // Web mode — Tauri webview API not available
 }
 
 // Web-compatible replacement

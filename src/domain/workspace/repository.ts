@@ -13,7 +13,7 @@ import { QuantizedSnapshotStore, ScalarQuantizer } from '../shared/quantization'
 import type { QuantizedBuffer } from '../shared/quantization';
 import { WorkspaceAggregate, WorkspaceId } from './types';
 import type { RawWorkspace, RawTab } from './types';
-import type { SessionId } from '../session/types';
+import type { SessionId } from '../session';
 import type { IWorkspaceRepository } from './ports/IWorkspaceRepository';
 
 // ─── IWorkspaceRepository (re-exported from ports/) ──────────────────────────

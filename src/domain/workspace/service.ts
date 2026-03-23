@@ -21,7 +21,7 @@ import { WorkspaceAggregate } from './types';
 import type { WorkspaceId, RawWorkspace, RawTab } from './types';
 import { TabId } from './types';
 import type { IWorkspaceRepository } from './repository';
-import type { SessionId } from '../session/types';
+import type { SessionId } from '../session';
 import type { ProjectId } from '../project/types';
 
 // ─── WorkspaceApplicationService ─────────────────────────────────────────────

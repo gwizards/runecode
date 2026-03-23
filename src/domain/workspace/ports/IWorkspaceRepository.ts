@@ -10,7 +10,7 @@
 
 import type { Result } from '../../shared/result';
 import type { WorkspaceAggregate, WorkspaceId } from '../types';
-import type { SessionId } from '../../session/types';
+import type { SessionId } from '../../session';
 
 export interface IWorkspaceRepository {
   /** Find a workspace by its ID. Returns Err if not found. */

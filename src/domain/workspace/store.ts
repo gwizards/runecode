@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 import { globalEventBus } from '../shared/event-bus';
 import type { WorkspaceId, TabId, RawWorkspace, RawTab } from './types';
-import type { SessionId } from '../session/types';
+import type { SessionId } from '../session';
 import type { ProjectId } from '../project/types';
 import { InMemoryWorkspaceRepository } from './repository';
 import { WorkspaceApplicationService } from './service';

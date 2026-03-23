@@ -12,7 +12,8 @@ export {
   SessionAggregate,
   SessionTitle,
 } from './types';
-export type { SessionId, ProjectId, TokenUsage, RawTokenUsage, RawSession, SessionStatus } from './types';
+export { SessionId, ProjectId } from './types';
+export type { TokenUsage, RawTokenUsage, RawSession, SessionStatus } from './types';
 
 // Events
 export {

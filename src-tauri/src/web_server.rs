@@ -122,12 +122,6 @@ pub struct ClaudeExecutionRequest {
     pub permission_mode: Option<String>, // "default", "acceptEdits", "bypassPermissions", "plan"
 }
 
-#[allow(dead_code)]
-#[derive(Deserialize)]
-pub struct QueryParams {
-    #[serde(default)]
-    pub project_path: Option<String>,
-}
 
 #[derive(Serialize)]
 pub struct ApiResponse<T> {

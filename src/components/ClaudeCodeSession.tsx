@@ -768,7 +768,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         
         if (activeSession) {
           // Session is still active, reconnect to its stream
-          console.log('[ClaudeCodeSession] Found active session, reconnecting:', session.id);
           // IMPORTANT: Set claudeSessionId before reconnecting
           setClaudeSessionId(session.id);
           
@@ -785,11 +784,9 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   };
 
   const reconnectToSession = async (sessionId: string) => {
-    console.log('[ClaudeCodeSession] Reconnecting to session:', sessionId);
     
     // Prevent duplicate listeners
     if (isListeningRef.current) {
-      console.log('[ClaudeCodeSession] Already listening to session, skipping reconnect');
       return;
     }
     
@@ -964,7 +961,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             const msg = JSON.parse(event.payload) as ClaudeStreamMessage;
             if (msg.type === 'system' && msg.subtype === 'init' && msg.session_id) {
               if (!currentSessionId || currentSessionId !== msg.session_id) {
-                console.log('[ClaudeCodeSession] Detected new session_id from generic listener:', msg.session_id);
                 currentSessionId = msg.session_id;
                 setClaudeSessionId(msg.session_id);
 
@@ -1275,17 +1271,14 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         // Execute the appropriate command
         if (connectionIdRef.current) {
           // Send follow-up through persistent connection
-          console.log('[ClaudeCodeSession] Sending follow-up via persistent connection:', connectionIdRef.current);
           trackEvent.modelSelected(model);
           await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, connectionIdRef.current, undefined, effort, undefined, permissionMode, agentConfig);
         } else {
           // First message — initialize persistent session
           const sessionId = effectiveSession?.id;
           if (sessionId) {
-            console.log('[ClaudeCodeSession] Resuming session:', sessionId);
             trackEvent.sessionResumed(sessionId);
           } else {
-            console.log('[ClaudeCodeSession] Starting new session');
           }
           trackEvent.modelSelected(model);
           if (!sessionId) {
@@ -1523,7 +1516,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       
       // Open the new forked session
       // You would need to implement navigation to the new session
-      console.log("Forked to new session:", newSessionId);
       
       setShowForkDialog(false);
       setForkCheckpointId(null);

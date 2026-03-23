@@ -440,30 +440,39 @@ pub async fn storage_execute_sql(
 ) -> Result<QueryResult, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
 
-    // Only allow SELECT queries to prevent arbitrary database modification
+    // Only allow SELECT and safe read-only PRAGMAs. Reject anything else.
     let trimmed = query.trim().to_uppercase();
-    if !trimmed.starts_with("SELECT") && !trimmed.starts_with("PRAGMA TABLE_INFO")
-        && !trimmed.starts_with("PRAGMA INDEX_LIST")
-    {
+    let allowed_pragma = trimmed.starts_with("PRAGMA TABLE_INFO")
+        || trimmed.starts_with("PRAGMA INDEX_LIST");
+    if !trimmed.starts_with("SELECT") && !allowed_pragma {
         return Err(
-            "Only SELECT and read-only PRAGMA queries are allowed. Use the dedicated update/insert/delete commands for modifications."
-                .to_string(),
+            "Only SELECT and read-only PRAGMA queries are allowed.".to_string(),
         );
     }
 
-    // Reject dangerous patterns even in SELECT queries
-    let forbidden_patterns = ["ATTACH", "DETACH", "LOAD_EXTENSION"];
+    // Reject patterns that enable data exfiltration or dangerous operations
+    // even inside SELECT queries (UNION, subqueries on system tables, multi-stmt).
+    let forbidden_patterns = [
+        "ATTACH", "DETACH", "LOAD_EXTENSION",
+        // Prevent UNION-based exfiltration and access to the SQLite schema catalog
+        "SQLITE_MASTER", "SQLITE_TEMP_MASTER", "SQLITE_SCHEMA",
+    ];
     for pattern in &forbidden_patterns {
         if trimmed.contains(pattern) {
             return Err(format!("Query contains forbidden keyword: {}", pattern));
         }
+    }
+    // Reject multi-statement queries (semicolon not at end)
+    let without_trailing = trimmed.trim_end_matches(';');
+    if without_trailing.contains(';') {
+        return Err("Multi-statement queries are not allowed.".to_string());
     }
 
     // Handle SELECT/PRAGMA queries
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
     let column_count = stmt.column_count();
 
-    // Get column names
+    // Get column names — use empty string as fallback (column index still valid)
     let columns: Vec<String> = (0..column_count)
         .map(|i| stmt.column_name(i).unwrap_or("").to_string())
         .collect();

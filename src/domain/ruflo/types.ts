@@ -128,7 +128,7 @@ export function toRuFloAgent(raw: ApiAgent): RuFloAgent {
     agentType: raw.agent_type,
     status,
     isActive: isActiveStatus(status),
-    capabilities: ((raw as any).capabilities ?? []) as AgentCapability[],
+    capabilities: (raw.capabilities ?? []) as AgentCapability[],
   };
 }
 

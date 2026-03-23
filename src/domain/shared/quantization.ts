@@ -630,7 +630,23 @@ export class WorkspaceSnapshotQuantizer extends ScalarQuantizer<RawWorkspace> {
 
 // ─── SessionSnapshotQuantizer ─────────────────────────────────────────────────
 
-import type { RawSession } from '../session/types';
+// Minimal snapshot interface — keeps the shared kernel independent of the
+// session bounded context. Must stay structurally compatible with RawSession.
+interface SessionSnapshot {
+  id: string;
+  projectId: string;
+  status?: string;
+  createdAt?: string;
+  title?: string;
+  updatedAt?: string;
+  tokenUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    costUsd?: number;
+    cacheReadTokens?: number;
+    cacheCreationTokens?: number;
+  };
+}
 
 // SessionStatus codec (4 values fit in a uint8)
 const SESSION_STATUS_ENCODE: Record<string, number> = {
@@ -661,10 +677,10 @@ const SESSION_STATUS_DECODE = ['running', 'completed', 'error', 'idle'] as const
  * String fields (id, projectId, title) are preserved as-is.
  * updatedAt is preserved as an ISO string in the strings map.
  */
-export class SessionSnapshotQuantizer extends ScalarQuantizer<RawSession> {
+export class SessionSnapshotQuantizer extends ScalarQuantizer<SessionSnapshot> {
   readonly version = 1;
 
-  encode(snapshot: RawSession): QuantizedBuffer {
+  encode(snapshot: SessionSnapshot): QuantizedBuffer {
     const fixed = this.makeEmptyBuffer(
       1,  // uint8:  [status]
       0,  // uint16: (none)
@@ -702,7 +718,7 @@ export class SessionSnapshotQuantizer extends ScalarQuantizer<RawSession> {
     };
   }
 
-  decode(buf: QuantizedBuffer): RawSession {
+  decode(buf: QuantizedBuffer): SessionSnapshot {
     this.assertVersion(buf);
 
     const statusCode = buf.fixed.uint8[0] ?? 3;
@@ -712,7 +728,7 @@ export class SessionSnapshotQuantizer extends ScalarQuantizer<RawSession> {
     const cacheReadTokens = buf.fixed.uint32[3] ?? 0;
     const cacheCreationTokens = buf.fixed.uint32[4] ?? 0;
 
-    const result: RawSession = {
+    const result: SessionSnapshot = {
       id: buf.strings['id'] ?? '',
       projectId: buf.strings['projectId'] ?? '',
       status: SESSION_STATUS_DECODE[statusCode] ?? 'idle',

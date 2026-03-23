@@ -21,6 +21,7 @@ export interface RuFloAgent {
   name: string;
   agent_type: string;
   status: string;
+  capabilities?: string[];
 }
 
 /** Raw Tauri response for swarm state (snake_case from Rust). */

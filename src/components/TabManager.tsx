@@ -7,7 +7,7 @@ import { Tab, useTabContext } from '@/contexts/TabContext';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, TooltipSimple } from '@/components/ui/tooltip-modern';
 import { useTrackEvent } from '@/hooks';
-import { useAgentDomainStore } from '@/domain/agent/store';
+import { useAgentDomainStore } from '@/domain/agent';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import {
   DropdownMenu,
