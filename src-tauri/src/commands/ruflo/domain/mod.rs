@@ -9,7 +9,6 @@ pub mod value_objects;
 
 pub use agent::{AgentStatus, AgentType, RuFloAgent};
 pub use capabilities::{AgentCapability, SwarmTopology, TaskPriority};
-pub use events::RuFloEvent;
 pub use installation::{RuFloStatus, RuFloVersion};
 pub use memory::{MemoryBackend, MemoryStats, MemorySyncResult};
 pub use project::RuFloProjectStatus;
