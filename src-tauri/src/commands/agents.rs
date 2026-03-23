@@ -694,6 +694,8 @@ pub async fn execute_agent(
 ) -> Result<i64, String> {
     info!("Executing agent {} with task: {}", agent_id, task);
 
+    crate::commands::claude::guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
+
     // Get the agent from database
     let agent = get_agent(db.clone(), agent_id).await?;
     let execution_model = model.unwrap_or(agent.model.clone());
@@ -1643,6 +1645,8 @@ pub async fn export_agent_to_file(
     id: i64,
     file_path: String,
 ) -> Result<(), String> {
+    crate::commands::claude::guard_path_within_home(&std::path::PathBuf::from(&file_path))?;
+
     // Get the JSON data
     let json_data = export_agent(db, id).await?;
 

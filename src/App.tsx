@@ -249,13 +249,15 @@ function AppMain() {
       setLoading(true);
       setError(null);
       const sessionList = await api.getProjectSessions(project.id);
+      if (!isMountedRef.current) return;
       setSessions(sessionList);
       setSelectedProject(project);
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error("Failed to load sessions:", err);
       setError(`Failed to load sessions for this project: ${err}`);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 

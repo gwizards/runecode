@@ -1,3 +1,4 @@
+use log::{debug, error, info, warn};
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::Query;
 use axum::http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
@@ -36,7 +37,7 @@ fn find_claude_binary_web() -> Result<String, String> {
     // First try the bundled binary (same location as Tauri app uses)
     let bundled_binary = "src-tauri/binaries/claude-code-x86_64-unknown-linux-gnu";
     if std::path::Path::new(bundled_binary).exists() {
-        println!(
+        debug!(
             "[find_claude_binary_web] Using bundled binary: {}",
             bundled_binary
         );
@@ -47,7 +48,7 @@ fn find_claude_binary_web() -> Result<String, String> {
     for name in &["claude", "claude-code"] {
         if let Ok(path) = which::which(name) {
             let path_str = path.to_string_lossy().to_string();
-            println!(
+            debug!(
                 "[find_claude_binary_web] Found '{}' via PATH: {}",
                 name, path_str
             );
@@ -69,7 +70,7 @@ fn find_claude_binary_web() -> Result<String, String> {
     for candidate in &candidates {
         let path = std::path::Path::new(candidate);
         if path.exists() && path.is_file() {
-            println!(
+            debug!(
                 "[find_claude_binary_web] Using binary at filesystem path: {}",
                 candidate
             );
@@ -80,7 +81,7 @@ fn find_claude_binary_web() -> Result<String, String> {
     // Last resort: use the full discovery from claude_binary module
     let installations = crate::claude_binary::discover_claude_installations();
     if let Some(best) = installations.into_iter().next() {
-        println!(
+        debug!(
             "[find_claude_binary_web] Using discovered installation: {} (source: {})",
             best.path, best.source
         );
@@ -110,6 +111,7 @@ pub struct AppState {
 pub struct SessionConfig {
     pub model: Option<String>,
     pub permission_mode: Option<String>,
+    pub project_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -949,13 +951,13 @@ async fn cancel_claude_execution(
     Path(session_id): Path<String>,
     AxumState(state): AxumState<AppState>,
 ) -> Json<ApiResponse<()>> {
-    println!("[TRACE] Cancel request for session: {}", session_id);
+    debug!("[TRACE] Cancel request for session: {}", session_id);
     let sessions = state.active_sessions.lock().await;
     if let Some(sender) = sessions.get(&session_id) {
         let _ = sender.send("__CANCEL__".to_string()).await;
-        println!("[TRACE] Cancel signal sent to session: {}", session_id);
+        debug!("[TRACE] Cancel signal sent to session: {}", session_id);
     } else {
-        println!(
+        warn!(
             "[TRACE] Session not found for cancel: {}",
             session_id
         );
@@ -966,7 +968,7 @@ async fn cancel_claude_execution(
 /// Get Claude session output
 async fn get_claude_session_output(Path(session_id): Path<String>) -> Json<ApiResponse<String>> {
     // In web mode, output is streamed via WebSocket, not stored
-    println!("[TRACE] Output request for session: {}", session_id);
+    debug!("[TRACE] Output request for session: {}", session_id);
     Json(ApiResponse::success(
         "Output available via WebSocket only".to_string(),
     ))
@@ -982,7 +984,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
     // ws_session_id identifies the *WebSocket connection*, not the Claude conversation.
     let ws_session_id = uuid::Uuid::new_v4().to_string();
 
-    println!("[WS] Handler started -- ws_session_id: {}", ws_session_id);
+    info!("[WS] Handler started -- ws_session_id: {}", ws_session_id);
 
     // Channel for forwarding output lines back to the WebSocket.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(256);
@@ -991,42 +993,42 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
     {
         let mut sessions = state.active_sessions.lock().await;
         sessions.insert(ws_session_id.clone(), tx);
-        println!("[WS] Session registered -- active sessions: {}", sessions.len());
+        debug!("[WS] Session registered -- active sessions: {}", sessions.len());
     }
 
     // Forward task: moves messages from the mpsc channel to the WebSocket sink.
     let ws_sid_fwd = ws_session_id.clone();
     let forward_task = tokio::spawn(async move {
-        println!("[WS] Forward task started for {}", ws_sid_fwd);
+        debug!("[WS] Forward task started for {}", ws_sid_fwd);
         while let Some(message) = rx.recv().await {
             if sender.send(Message::Text(message.into())).await.is_err() {
-                println!("[WS] Failed to forward -- connection closed for {}", ws_sid_fwd);
+                warn!("[WS] Failed to forward -- connection closed for {}", ws_sid_fwd);
                 break;
             }
         }
-        println!("[WS] Forward task ended for {}", ws_sid_fwd);
+        debug!("[WS] Forward task ended for {}", ws_sid_fwd);
     });
 
     // -- Main message loop -------------------------------------------------
-    println!("[WS] Listening for messages");
+    debug!("[WS] Listening for messages");
     let mut init_received = false;
     'outer: while let Some(msg) = receiver.next().await {
         let msg = match msg {
             Ok(m) => m,
             Err(e) => {
-                println!("[WS] Receive error: {}", e);
+                warn!("[WS] Receive error: {}", e);
                 break 'outer;
             }
         };
 
         match msg {
             Message::Text(text) => {
-                println!("[WS] Text message ({} chars): {}", text.len(), text);
+                debug!("[WS] Text message ({} chars): {}", text.len(), text);
 
                 let client_msg = match serde_json::from_str::<WsClientMessage>(&text) {
                     Ok(m) => m,
                     Err(e) => {
-                        println!("[WS] Parse error: {} -- raw: {}", e, text);
+                        warn!("[WS] Parse error: {} -- raw: {}", e, text);
                         let err_json = serde_json::to_string(&WsServerMessage::Error {
                             session_id: ws_session_id.clone(),
                             error: format!("Unrecognised message format: {}", e),
@@ -1064,12 +1066,13 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                             continue 'outer;
                         }
                         init_received = true;
-                        println!("[WS] Init -- project: {}  resume: {:?}", project_path, claude_session_id);
+                        info!("[WS] Init -- project: {}  resume: {:?}", project_path, claude_session_id);
                         {
                             let mut cfg = state.session_config.lock().await;
                             cfg.insert(ws_session_id.clone(), SessionConfig {
                                 model: model.clone(),
                                 permission_mode: permission_mode.clone(),
+                                project_path: project_path.clone(),
                             });
                         }
                         let ws_sid = ws_session_id.clone();
@@ -1077,14 +1080,14 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                         let bypass = permission_mode.as_deref() == Some("bypassPermissions");
                         tokio::spawn(async move {
                             let result = if let Some(csid) = claude_session_id {
-                                println!("[WS] Resuming claude session {}", csid);
+                                info!("[WS] Resuming claude session {}", csid);
                                 resume_claude_command(
                                     project_path, csid, prompt,
                                     model.unwrap_or_default(), bypass,
                                     ws_sid.clone(), st.clone(),
                                 ).await
                             } else {
-                                println!("[WS] Executing new session");
+                                info!("[WS] Executing new session");
                                 execute_claude_command(
                                     project_path, prompt,
                                     model.unwrap_or_default(), bypass,
@@ -1117,7 +1120,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                             continue 'outer;
                         }
                         init_received = true;
-                        println!("[WS] InitAgent -- agent: {}  project: {}", agent_name, project_path);
+                        info!("[WS] InitAgent -- agent: {}  project: {}", agent_name, project_path);
 
                         // Validate model string: only allow alphanumeric, '-', '.', '_', '/'
                         if let Some(ref m) = model {
@@ -1155,6 +1158,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                             cfg.insert(ws_session_id.clone(), SessionConfig {
                                 model: model.clone(),
                                 permission_mode: permission_mode.clone(),
+                                project_path: project_path.clone(),
                             });
                         }
                         let ws_sid = ws_session_id.clone();
@@ -1172,19 +1176,13 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
 
                     // -- Prompt (follow-up turn) -----------------------------
                     WsClientMessage::Prompt { text: prompt, .. } => {
-                        println!("[WS] Prompt ({} chars)", prompt.len());
-                        let (model, bypass) = {
+                        debug!("[WS] Prompt ({} chars)", prompt.len());
+                        let (model, bypass, project_path) = {
                             let cfg = state.session_config.lock().await;
                             let c = cfg.get(&ws_session_id).cloned().unwrap_or_default();
                             let bypass = c.permission_mode.as_deref() == Some("bypassPermissions");
-                            (c.model.unwrap_or_default(), bypass)
+                            (c.model.unwrap_or_default(), bypass, c.project_path)
                         };
-                        // Use -c (continue) which picks up the last session in the project.
-                        // Best-effort: callers that need path-aware continuation should re-init.
-                        let project_path = std::env::var("HOME").unwrap_or_else(|_| {
-                            std::env::var("USERPROFILE").unwrap_or_else(|_|
-                                std::env::temp_dir().to_string_lossy().into_owned())
-                        });
                         let ws_sid = ws_session_id.clone();
                         let st = state.clone();
                         tokio::spawn(async move {
@@ -1198,13 +1196,16 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
 
                     // -- Interrupt ------------------------------------------
                     WsClientMessage::Interrupt {} => {
-                        println!("[WS] Interrupt requested for {}", ws_session_id);
+                        info!("[WS] Interrupt requested for {}", ws_session_id);
                         interrupt_session_process(&state, &ws_session_id).await;
                         let interrupted = serde_json::to_string(&WsServerMessage::Interrupted {
                             session_id: ws_session_id.clone(),
                         }).unwrap_or_default();
-                        let sessions = state.active_sessions.lock().await;
-                        if let Some(tx) = sessions.get(&ws_session_id) {
+                        let tx = {
+                            let sessions = state.active_sessions.lock().await;
+                            sessions.get(&ws_session_id).cloned()
+                        };
+                        if let Some(tx) = tx {
                             let _ = tx.send(interrupted).await;
                         }
                     }
@@ -1212,7 +1213,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                     // -- RewindFiles (stub -- full impl is follow-up work) ---
                     WsClientMessage::RewindFiles { user_message_id, dry_run } => {
                         let dry = dry_run.unwrap_or(false);
-                        println!(
+                        debug!(
                             "[WS] RewindFiles -- user_message_id: {:?}  dry_run: {}",
                             user_message_id, dry
                         );
@@ -1229,7 +1230,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
 
                     // -- SetModel -------------------------------------------
                     WsClientMessage::SetModel { model } => {
-                        println!("[WS] SetModel -- model: {}", model);
+                        debug!("[WS] SetModel -- model: {}", model);
                         {
                             let mut cfg = state.session_config.lock().await;
                             let entry = cfg.entry(ws_session_id.clone()).or_default();
@@ -1247,7 +1248,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
 
                     // -- SetPermissionMode ----------------------------------
                     WsClientMessage::SetPermissionMode { mode } => {
-                        println!("[WS] SetPermissionMode -- mode: {}", mode);
+                        debug!("[WS] SetPermissionMode -- mode: {}", mode);
                         {
                             let mut cfg = state.session_config.lock().await;
                             let entry = cfg.entry(ws_session_id.clone()).or_default();
@@ -1265,14 +1266,14 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
 
                     // -- StopTask -------------------------------------------
                     WsClientMessage::StopTask { .. } => {
-                        println!("[WS] StopTask -- interrupting running process");
+                        info!("[WS] StopTask -- interrupting running process");
                         interrupt_session_process(&state, &ws_session_id).await;
                         // Connection stays open for the next turn.
                     }
 
                     // -- Close ----------------------------------------------
                     WsClientMessage::Close {} => {
-                        println!("[WS] Close received -- cleaning up {}", ws_session_id);
+                        info!("[WS] Close received -- cleaning up {}", ws_session_id);
                         interrupt_session_process(&state, &ws_session_id).await;
                         break 'outer;
                     }
@@ -1280,7 +1281,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
             }
 
             Message::Close(_) => {
-                println!("[WS] Protocol close frame received");
+                debug!("[WS] Protocol close frame received");
                 break 'outer;
             }
 
@@ -1291,11 +1292,11 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
     }
 
     // -- Cleanup -----------------------------------------------------------
-    println!("[WS] Message loop ended for {}", ws_session_id);
+    debug!("[WS] Message loop ended for {}", ws_session_id);
     {
         let mut sessions = state.active_sessions.lock().await;
         sessions.remove(&ws_session_id);
-        println!(
+        debug!(
             "[WS] Session {} removed -- remaining: {}",
             ws_session_id,
             sessions.len()
@@ -1305,7 +1306,7 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
     state.session_config.lock().await.remove(&ws_session_id);
 
     forward_task.abort();
-    println!("[WS] Handler ended for {}", ws_session_id);
+    debug!("[WS] Handler ended for {}", ws_session_id);
 }
 
 /// Send SIGTERM to the Claude child process tracked for `ws_session_id`.
@@ -1314,10 +1315,10 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
 async fn interrupt_session_process(state: &AppState, ws_session_id: &str) {
     let pid_opt = state.active_pids.lock().await.get(ws_session_id).copied();
     let Some(pid) = pid_opt else {
-        println!("[WS] interrupt_session_process: no PID for {}", ws_session_id);
+        warn!("[WS] interrupt_session_process: no PID for {}", ws_session_id);
         return;
     };
-    println!("[WS] Interrupting PID {} for session {}", pid, ws_session_id);
+    info!("[WS] Interrupting PID {} for session {}", pid, ws_session_id);
 
     #[cfg(unix)]
     {
@@ -1327,7 +1328,7 @@ async fn interrupt_session_process(state: &AppState, ws_session_id: &str) {
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(3)).await;
             unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
-            println!("[WS] SIGKILL sent to PID {} (escalation after timeout)", pid);
+            warn!("[WS] SIGKILL sent to PID {} (escalation after timeout)", pid);
         });
     }
 
@@ -1337,13 +1338,13 @@ async fn interrupt_session_process(state: &AppState, ws_session_id: &str) {
         let _ = crate::claude_binary::silent_command("taskkill")
             .args(["/F", "/PID", &pid.to_string()])
             .status();
-        println!("[WS] taskkill /F /PID {}", pid);
+        info!("[WS] taskkill /F /PID {}", pid);
     }
 }
 
 /// Helper: serialise and send the turn-completion event over the session channel.
 async fn ws_send_completion(state: &AppState, ws_session_id: &str, result: Result<(), String>) {
-    println!("[WS] ws_send_completion for {}: {:?}", ws_session_id, result);
+    debug!("[WS] ws_send_completion for {}: {:?}", ws_session_id, result);
     let msg = match result {
         Ok(_) => json!({ "type": "completion", "status": "success" }),
         Err(e) => json!({ "type": "completion", "status": "error", "error": e }),
@@ -1366,11 +1367,7 @@ async fn execute_claude_command(
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::Command;
 
-    println!("[TRACE] execute_claude_command called:");
-    println!("[TRACE]   project_path: {}", project_path);
-    println!("[TRACE]   prompt length: {} chars", prompt.len());
-    println!("[TRACE]   model: {}", model);
-    println!("[TRACE]   session_id: {}", session_id);
+    debug!("[TRACE] execute_claude_command called: project_path={} prompt_len={} model={} session_id={}", project_path, prompt.len(), model, session_id);
 
     // Guard project_path against directory traversal outside home
     let guarded_project_path = crate::path_guard::require_within_home(
@@ -1380,7 +1377,7 @@ async fn execute_claude_command(
     let project_path = guarded_project_path.to_string_lossy().into_owned();
 
     // Send initial message
-    println!("[TRACE] Sending initial start message");
+    debug!("[TRACE] Sending initial start message");
     send_to_session(
         &state,
         &session_id,
@@ -1393,16 +1390,16 @@ async fn execute_claude_command(
     .await;
 
     // Find Claude binary (simplified for web mode)
-    println!("[TRACE] Finding Claude binary...");
+    debug!("[TRACE] Finding Claude binary...");
     let claude_path = find_claude_binary_web().map_err(|e| {
         let error = format!("Claude binary not found: {}", e);
-        println!("[TRACE] Error finding Claude binary: {}", error);
+        error!("[TRACE] Error finding Claude binary: {}", error);
         error
     })?;
-    println!("[TRACE] Found Claude binary: {}", claude_path);
+    debug!("[TRACE] Found Claude binary: {}", claude_path);
 
     // Create Claude command
-    println!("[TRACE] Creating Claude command...");
+    debug!("[TRACE] Creating Claude command...");
     let mut cmd = Command::new(&claude_path);
     let mut args: Vec<String> = vec!["-p".to_string(), prompt.clone()];
     if !model.is_empty() {
@@ -1422,29 +1419,29 @@ async fn execute_claude_command(
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
 
-    println!(
+    debug!(
         "[TRACE] Command: {} {:?} (in dir: {})",
         claude_path, args, project_path
     );
 
     // Spawn Claude process
-    println!("[TRACE] Spawning Claude process...");
+    debug!("[TRACE] Spawning Claude process...");
     let mut child = cmd.spawn().map_err(|e| {
         let error = format!("Failed to spawn Claude: {}", e);
-        println!("[TRACE] Spawn error: {}", error);
+        error!("[TRACE] Spawn error: {}", error);
         error
     })?;
-    println!("[TRACE] Claude process spawned successfully");
+    debug!("[TRACE] Claude process spawned successfully");
 
     // Register PID for interrupt support.
     if let Some(pid) = child.id() {
         state.active_pids.lock().await.insert(session_id.clone(), pid);
-        println!("[TRACE] Registered PID {} for session {}", pid, session_id);
+        debug!("[TRACE] Registered PID {} for session {}", pid, session_id);
     }
 
     // Get stdout and stderr for streaming
     let stdout = child.stdout.take().ok_or_else(|| {
-        println!("[TRACE] Failed to get stdout from child process");
+        error!("[TRACE] Failed to get stdout from child process");
         "Failed to get stdout".to_string()
     })?;
     let stderr = child.stderr.take();
@@ -1460,7 +1457,7 @@ async fn execute_claude_command(
             while let Some(line_result) = lines.next_line().await.transpose() {
                 match line_result {
                     Ok(line) => {
-                        println!("[TRACE] Claude stderr: {}", line);
+                        debug!("[TRACE] Claude stderr: {}", line);
                         let message = json!({
                             "type": "output",
                             "content": format!("[stderr] {}", line)
@@ -1469,7 +1466,7 @@ async fn execute_claude_command(
                         send_to_session(&state_for_stderr, &session_id_for_stderr, message).await;
                     }
                     Err(e) => {
-                        eprintln!("I/O error reading Claude stderr: {e}");
+                        error!("I/O error reading Claude stderr: {e}");
                         break;
                     }
                 }
@@ -1477,7 +1474,7 @@ async fn execute_claude_command(
         }
     });
 
-    println!("[TRACE] Starting to read Claude output...");
+    debug!("[TRACE] Starting to read Claude output...");
     // Stream output line by line
     let mut lines = stdout_reader.lines();
     let mut line_count = 0;
@@ -1485,7 +1482,7 @@ async fn execute_claude_command(
         match line_result {
             Ok(line) => {
                 line_count += 1;
-                println!("[TRACE] Claude output line {}: {}", line_count, line);
+                debug!("[TRACE] Claude output line {}: {}", line_count, line);
 
                 // Send each line to WebSocket
                 let message = json!({
@@ -1496,7 +1493,7 @@ async fn execute_claude_command(
                 send_to_session(&state, &session_id, message).await;
             }
             Err(e) => {
-                eprintln!("I/O error reading Claude output: {e}");
+                error!("I/O error reading Claude output: {e}");
                 send_to_session(
                     &state,
                     &session_id,
@@ -1508,21 +1505,21 @@ async fn execute_claude_command(
         }
     }
 
-    println!(
+    debug!(
         "[TRACE] Finished reading Claude output ({} lines total)",
         line_count
     );
 
     // Wait for stderr task and process to complete
     let _ = stderr_task.await;
-    println!("[TRACE] Waiting for Claude process to complete...");
+    debug!("[TRACE] Waiting for Claude process to complete...");
     let exit_status = child.wait().await.map_err(|e| {
         let error = format!("Failed to wait for Claude: {}", e);
-        println!("[TRACE] Wait error: {}", error);
+        error!("[TRACE] Wait error: {}", error);
         error
     })?;
 
-    println!(
+    debug!(
         "[TRACE] Claude process completed with status: {:?}",
         exit_status
     );
@@ -1534,11 +1531,11 @@ async fn execute_claude_command(
             "Claude execution failed with exit code: {:?}",
             exit_status.code()
         );
-        println!("[TRACE] Claude execution failed: {}", error);
+        error!("[TRACE] Claude execution failed: {}", error);
         return Err(error);
     }
 
-    println!("[TRACE] execute_claude_command completed successfully");
+    debug!("[TRACE] execute_claude_command completed successfully");
     Ok(())
 }
 
@@ -1627,7 +1624,7 @@ async fn continue_claude_command(
                 .await;
             }
             Err(e) => {
-                eprintln!("I/O error reading Claude output: {e}");
+                error!("I/O error reading Claude output: {e}");
                 send_to_session(
                     &state,
                     &session_id,
@@ -1681,7 +1678,7 @@ async fn resume_claude_command(
         return Err("claude_session_id contains invalid characters".to_string());
     }
 
-    println!("[resume_claude_command] Starting with project_path: {}, claude_session_id: {}, prompt: {}, model: {}",
+    debug!("[resume_claude_command] Starting with project_path: {}, claude_session_id: {}, prompt: {}, model: {}",
              project_path, claude_session_id, prompt, model);
 
     send_to_session(
@@ -1696,16 +1693,16 @@ async fn resume_claude_command(
     .await;
 
     // Find Claude binary
-    println!("[resume_claude_command] Finding Claude binary...");
+    debug!("[resume_claude_command] Finding Claude binary...");
     let claude_path =
         find_claude_binary_web().map_err(|e| format!("Claude binary not found: {}", e))?;
-    println!(
+    debug!(
         "[resume_claude_command] Found Claude binary: {}",
         claude_path
     );
 
     // Create resume command
-    println!("[resume_claude_command] Creating command...");
+    debug!("[resume_claude_command] Creating command...");
     let mut cmd = Command::new(&claude_path);
     let mut args: Vec<&str> = vec!["--resume", &claude_session_id, "-p", &prompt];
     if !model.is_empty() {
@@ -1725,24 +1722,24 @@ async fn resume_claude_command(
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
 
-    println!(
+    debug!(
         "[resume_claude_command] Command: {} {:?} (in dir: {})",
         claude_path, args, project_path
     );
 
     // Spawn and stream output
-    println!("[resume_claude_command] Spawning process...");
+    debug!("[resume_claude_command] Spawning process...");
     let mut child = cmd.spawn().map_err(|e| {
         let error = format!("Failed to spawn Claude: {}", e);
-        println!("[resume_claude_command] Spawn error: {}", error);
+        error!("[resume_claude_command] Spawn error: {}", error);
         error
     })?;
-    println!("[resume_claude_command] Process spawned successfully");
+    debug!("[resume_claude_command] Process spawned successfully");
 
     // Register PID for interrupt support.
     if let Some(pid) = child.id() {
         state.active_pids.lock().await.insert(session_id.clone(), pid);
-        println!("[resume_claude_command] Registered PID {} for session {}", pid, session_id);
+        debug!("[resume_claude_command] Registered PID {} for session {}", pid, session_id);
     }
 
     let stdout = child.stdout.take().ok_or("Failed to get stdout")?;
@@ -1764,7 +1761,7 @@ async fn resume_claude_command(
                 .await;
             }
             Err(e) => {
-                eprintln!("I/O error reading Claude output: {e}");
+                error!("I/O error reading Claude output: {e}");
                 send_to_session(
                     &state,
                     &session_id,
@@ -1811,7 +1808,7 @@ async fn execute_claude_agent_command(
     .map_err(|e| format!("project_path rejected: {e}"))?;
     let project_path = guarded_project_path.to_string_lossy().into_owned();
 
-    println!(
+    info!(
         "[WS] execute_claude_agent_command -- agent: {}  project: {}",
         agent_name, project_path
     );
@@ -1861,7 +1858,7 @@ async fn execute_claude_agent_command(
     // Register PID for interrupt support.
     if let Some(pid) = child.id() {
         state.active_pids.lock().await.insert(session_id.clone(), pid);
-        println!("[WS] Agent PID {} registered for session {}", pid, session_id);
+        debug!("[WS] Agent PID {} registered for session {}", pid, session_id);
     }
 
     let stdout = child.stdout.take().ok_or("Failed to get stdout")?;
@@ -1886,7 +1883,7 @@ async fn execute_claude_agent_command(
                         .await;
                     }
                     Err(e) => {
-                        eprintln!("I/O error reading Claude agent stderr: {e}");
+                        error!("I/O error reading Claude agent stderr: {e}");
                         break;
                     }
                 }
@@ -1906,7 +1903,7 @@ async fn execute_claude_agent_command(
                 .await;
             }
             Err(e) => {
-                eprintln!("I/O error reading Claude agent output: {e}");
+                error!("I/O error reading Claude agent output: {e}");
                 send_to_session(
                     &state,
                     &session_id,
@@ -1936,22 +1933,22 @@ async fn execute_claude_agent_command(
 }
 
 async fn send_to_session(state: &AppState, session_id: &str, message: String) {
-    println!("[TRACE] send_to_session called for session: {}", session_id);
-    println!("[TRACE] Message: {}", message);
+    debug!("[TRACE] send_to_session called for session: {}", session_id);
+    debug!("[TRACE] Message: {}", message);
 
     let sessions = state.active_sessions.lock().await;
     if let Some(sender) = sessions.get(session_id) {
-        println!("[TRACE] Found session in active sessions, sending message...");
+        debug!("[TRACE] Found session in active sessions, sending message...");
         match sender.send(message).await {
-            Ok(_) => println!("[TRACE] Message sent successfully"),
-            Err(e) => println!("[TRACE] Failed to send message: {}", e),
+            Ok(_) => debug!("[TRACE] Message sent successfully"),
+            Err(e) => warn!("[TRACE] Failed to send message: {}", e),
         }
     } else {
-        println!(
+        warn!(
             "[TRACE] Session {} not found in active sessions",
             session_id
         );
-        println!(
+        debug!(
             "[TRACE] Active sessions: {:?}",
             sessions.keys().collect::<Vec<_>>()
         );
@@ -3330,7 +3327,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
     // Bind to localhost only by default to prevent unauthenticated LAN access.
     // To expose on the network, use a reverse proxy with authentication.
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    println!("🌐 Web server running on http://127.0.0.1:{}", port);
+    info!("Web server running on http://127.0.0.1:{}", port);
 
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
@@ -3342,6 +3339,6 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
 pub async fn start_web_mode(port: Option<u16>) -> Result<(), Box<dyn std::error::Error>> {
     let port = port.unwrap_or(8080);
 
-    println!("🚀 Starting RuneCode in web server mode...");
+    info!("Starting RuneCode in web server mode...");
     create_web_server(port).await
 }

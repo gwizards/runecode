@@ -694,6 +694,8 @@ pub async fn mcp_get_server_status() -> Result<HashMap<String, ServerStatus>, St
 pub async fn mcp_read_project_config(project_path: String) -> Result<MCPProjectConfig, String> {
     info!("Reading .mcp.json from project: {}", project_path);
 
+    crate::commands::claude::guard_path_within_home(&PathBuf::from(&project_path))?;
+
     let mcp_json_path = PathBuf::from(&project_path).join(".mcp.json");
 
     if !mcp_json_path.exists() {
@@ -724,6 +726,8 @@ pub async fn mcp_save_project_config(
     config: MCPProjectConfig,
 ) -> Result<String, String> {
     info!("Saving .mcp.json to project: {}", project_path);
+
+    crate::commands::claude::guard_path_within_home(&PathBuf::from(&project_path))?;
 
     let mcp_json_path = PathBuf::from(&project_path).join(".mcp.json");
 
