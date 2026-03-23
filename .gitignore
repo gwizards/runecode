@@ -35,8 +35,9 @@ AGENTS.md
 CLAUDE.md
 *_TASK.md
 
-# Claude project-specific files
-.claude/
+# Claude project-specific files — ignore everything except shared commands
+.claude/*
+!.claude/commands/
 
 # Environment and secrets
 .env
