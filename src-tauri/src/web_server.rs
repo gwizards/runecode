@@ -1945,21 +1945,25 @@ async fn read_claude_md_file(
         ));
     }
 
-    // Resolve symlinks and validate the canonical path doesn't escape expected dirs
-    let canonical = match std::fs::canonicalize(&file_path) {
-        Ok(p) => p,
-        Err(e) => return Json(ApiResponse::error(format!("Failed to resolve path: {}", e))),
-    };
-    let home = std::env::var("HOME").unwrap_or_default();
-    if !canonical.starts_with(&home) {
-        return Json(ApiResponse::error(
-            "File path must be within the user's home directory".to_string(),
-        ));
-    }
+    // Run blocking fs operations (canonicalize + read) on the blocking thread pool
+    // to avoid stalling the async executor.
+    let result = tokio::task::spawn_blocking(move || {
+        // Resolve symlinks and validate the canonical path doesn't escape expected dirs
+        let canonical = std::fs::canonicalize(&file_path)
+            .map_err(|e| format!("Failed to resolve path: {}", e))?;
+        let home = std::env::var("HOME").unwrap_or_default();
+        if !canonical.starts_with(&home) {
+            return Err("File path must be within the user's home directory".to_string());
+        }
+        std::fs::read_to_string(&canonical)
+            .map_err(|e| format!("Failed to read file: {}", e))
+    })
+    .await;
 
-    match std::fs::read_to_string(&canonical) {
-        Ok(content) => Json(ApiResponse::success(content)),
-        Err(e) => Json(ApiResponse::error(format!("Failed to read file: {}", e))),
+    match result {
+        Ok(Ok(content)) => Json(ApiResponse::success(content)),
+        Ok(Err(e)) => Json(ApiResponse::error(e)),
+        Err(_) => Json(ApiResponse::error("I/O task was cancelled".to_string())),
     }
 }
 
@@ -2466,44 +2470,53 @@ async fn get_checkpoint_diff_handler(
         }));
     }
 
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| "/tmp".to_string());
-    let claude_dir = std::path::PathBuf::from(&home).join(".claude");
-    let storage = CheckpointStorage::new(claude_dir);
+    // Wrap all disk I/O (load_checkpoint + per-file read_to_string) in spawn_blocking
+    // so the async executor is not stalled by synchronous file operations.
+    let result = tokio::task::spawn_blocking(move || {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_else(|_| "/tmp".to_string());
+        let claude_dir = std::path::PathBuf::from(&home).join(".claude");
+        let storage = CheckpointStorage::new(claude_dir);
 
-    match storage.load_checkpoint(&project_id, &session_id, &to_checkpoint_id) {
-        Ok((_cp, snapshots, _msgs)) => {
-            let mut modified_files = Vec::<serde_json::Value>::new();
-            let mut added_files = Vec::<String>::new();
-            let mut deleted_files = Vec::<String>::new();
-            let pp = std::path::PathBuf::from(&project_path);
+        storage.load_checkpoint(&project_id, &session_id, &to_checkpoint_id)
+            .map(|(_cp, snapshots, _msgs)| {
+                let mut modified_files = Vec::<serde_json::Value>::new();
+                let mut added_files = Vec::<String>::new();
+                let mut deleted_files = Vec::<String>::new();
+                let pp = std::path::PathBuf::from(&project_path);
 
-            for snapshot in &snapshots {
-                let full_path = pp.join(&snapshot.file_path);
-                if snapshot.is_deleted {
-                    if full_path.exists() {
-                        deleted_files.push(snapshot.file_path.to_string_lossy().to_string());
+                for snapshot in &snapshots {
+                    let full_path = pp.join(&snapshot.file_path);
+                    if snapshot.is_deleted {
+                        if full_path.exists() {
+                            deleted_files.push(snapshot.file_path.to_string_lossy().to_string());
+                        }
+                    } else if full_path.exists() {
+                        let current = std::fs::read_to_string(&full_path).unwrap_or_default();
+                        let hash = CheckpointStorage::calculate_file_hash(&current);
+                        if hash != snapshot.hash {
+                            modified_files.push(serde_json::json!({
+                                "path": snapshot.file_path,
+                                "additions": 0, "deletions": 0, "diffContent": null
+                            }));
+                        }
+                    } else {
+                        added_files.push(snapshot.file_path.to_string_lossy().to_string());
                     }
-                } else if full_path.exists() {
-                    let current = std::fs::read_to_string(&full_path).unwrap_or_default();
-                    let hash = CheckpointStorage::calculate_file_hash(&current);
-                    if hash != snapshot.hash {
-                        modified_files.push(serde_json::json!({
-                            "path": snapshot.file_path,
-                            "additions": 0, "deletions": 0, "diffContent": null
-                        }));
-                    }
-                } else {
-                    added_files.push(snapshot.file_path.to_string_lossy().to_string());
                 }
-            }
+                (from_checkpoint_id, to_checkpoint_id, modified_files, added_files, deleted_files)
+            })
+    })
+    .await;
 
+    match result {
+        Ok(Ok((from_id, to_id, modified_files, added_files, deleted_files))) => {
             axum::Json(serde_json::json!({
                 "success": true,
                 "data": {
-                    "fromCheckpointId": from_checkpoint_id,
-                    "toCheckpointId": to_checkpoint_id,
+                    "fromCheckpointId": from_id,
+                    "toCheckpointId": to_id,
                     "modifiedFiles": modified_files,
                     "addedFiles": added_files,
                     "deletedFiles": deleted_files,
@@ -2512,9 +2525,13 @@ async fn get_checkpoint_diff_handler(
                 "error": null
             }))
         }
-        Err(e) => axum::Json(serde_json::json!({
+        Ok(Err(e)) => axum::Json(serde_json::json!({
             "success": false, "data": null,
             "error": format!("Failed to get checkpoint diff: {}", e)
+        })),
+        Err(_) => axum::Json(serde_json::json!({
+            "success": false, "data": null,
+            "error": "Checkpoint diff task was cancelled"
         })),
     }
 }
@@ -2799,8 +2816,14 @@ async fn delete_checkpoint(
 
     let checkpoint_dir = paths.checkpoint_dir(&id);
     let refs_dir = paths.files_dir.join("refs").join(&id);
-    let _ = std::fs::remove_dir_all(&checkpoint_dir);
-    let _ = std::fs::remove_dir_all(&refs_dir);
+
+    // Wrap remove_dir_all in spawn_blocking — directory removal can block on disk I/O
+    // and must not run on the async executor thread.
+    let _ = tokio::task::spawn_blocking(move || {
+        let _ = std::fs::remove_dir_all(&checkpoint_dir);
+        let _ = std::fs::remove_dir_all(&refs_dir);
+    })
+    .await;
 
     // Evict cached manager so it reloads from disk
     state.checkpoint_state.remove_manager(&session_id).await;
