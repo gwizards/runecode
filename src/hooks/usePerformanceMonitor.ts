@@ -1,6 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { eventBuilders, analytics } from '@/infrastructure/analytics';
 
+// Chrome-specific non-standard extension to the Performance API.
+// Not in the TypeScript DOM lib — declaring it here avoids `as any` casts.
+interface MemoryInfo {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+interface PerformanceWithMemory extends Performance {
+  readonly memory: MemoryInfo;
+}
+
 interface PerformanceThresholds {
   renderTime?: number;  // ms
   memoryUsage?: number; // MB
@@ -42,9 +54,9 @@ export function usePerformanceMonitor(
       analytics.track(event.event, event.properties);
     }
     
-    // Check memory usage if available
-    if ('memory' in performance && (performance as any).memory && thresholds.memoryUsage) {
-      const memoryMB = (performance as any).memory.usedJSHeapSize / (1024 * 1024);
+    // Check memory usage if available (Chrome-specific performance.memory API)
+    if ('memory' in performance && (performance as PerformanceWithMemory).memory && thresholds.memoryUsage) {
+      const memoryMB = (performance as PerformanceWithMemory).memory.usedJSHeapSize / (1024 * 1024);
       if (memoryMB > thresholds.memoryUsage) {
         const event = eventBuilders.memoryWarning({
           component: componentName,

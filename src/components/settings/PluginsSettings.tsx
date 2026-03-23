@@ -19,8 +19,16 @@ interface PluginInfo {
   installedAt?: string;
 }
 
+interface RecommendedPlugin {
+  name: string;
+  marketplace: string;
+  desc: string;
+  /** Badge shown when the plugin adds RuneCode-specific capability. */
+  extendsRuneCode?: boolean;
+}
+
 /** Recommended plugins shown at the top */
-const RECOMMENDED = [
+const RECOMMENDED: RecommendedPlugin[] = [
   {
     name: 'superpowers',
     marketplace: 'claude-plugins-official',
@@ -237,7 +245,7 @@ export function PluginsSettings() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium">{r.name}</span>
-                      {(r as any).extendsRuneCode && (
+                      {r.extendsRuneCode && (
                         <span className="text-[8px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-400 font-semibold">RuneCode Enhanced</span>
                       )}
                     </div>
@@ -264,7 +272,7 @@ export function PluginsSettings() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-medium">{p.displayName}</span>
-                        {(r as any).extendsRuneCode && (
+                        {r.extendsRuneCode && (
                           <span className="text-[8px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-400 font-semibold">RuneCode Enhanced</span>
                         )}
                         {p.skills.length > 0 && <span className="text-[9px] text-purple-400/40">{p.skills.length} skills</span>}
@@ -310,7 +318,7 @@ export function PluginsSettings() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-medium">{plugin.displayName}</span>
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted-foreground/10 text-muted-foreground/40 font-mono">{plugin.marketplace}</span>
-                          {rec && (rec as any).extendsRuneCode && (
+                          {rec && rec.extendsRuneCode && (
                             <span className="text-[8px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-400 font-semibold">RuneCode Enhanced</span>
                           )}
                           {plugin.skills.length > 0 && (
@@ -402,7 +410,7 @@ export function PluginsSettings() {
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-medium">{mp.name}</span>
                         {rec && <span className="text-[8px] px-1 py-0.5 rounded bg-primary/15 text-primary font-semibold uppercase tracking-wider">Recommended</span>}
-                        {rec && (rec as any).extendsRuneCode && (
+                        {rec && rec.extendsRuneCode && (
                           <span className="text-[8px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-400 font-semibold">RuneCode Enhanced</span>
                         )}
                       </div>

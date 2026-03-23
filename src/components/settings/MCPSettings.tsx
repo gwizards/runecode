@@ -221,7 +221,7 @@ function RecommendedServers({ installedNames, onInstalled, setToast }: {
   setToast: (t: { message: string; type: 'success' | 'error' }) => void;
 }) {
   const [installing, setInstalling] = useState<string | null>(null);
-  const recommended = POPULAR_MCP_SERVERS.filter(s => (s as any).recommended && !installedNames.has(s.name));
+  const recommended = POPULAR_MCP_SERVERS.filter(s => s.recommended && !installedNames.has(s.name));
 
   if (recommended.length === 0) return null;
 
@@ -251,8 +251,8 @@ function RecommendedServers({ installedNames, onInstalled, setToast }: {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-medium">{server.name}</span>
-                {(server as any).tokens && (
-                  <span className="text-[8px] text-cyan-400/40 font-mono">{(server as any).tokens}</span>
+                {server.tokens && (
+                  <span className="text-[8px] text-cyan-400/40 font-mono">{server.tokens}</span>
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground/50 truncate">{server.description}</p>
@@ -734,7 +734,24 @@ function AddServerForm({ onAdded, onCancel, setToast }: {
 }
 
 /* ─── MCP Directory (Popular servers) ─── */
-const POPULAR_MCP_SERVERS = [
+
+interface PopularMcpServer {
+  name: string;
+  description: string;
+  package: string;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  category: string;
+  /** Estimated token consumption shown in the UI (e.g. "~500 per tool call"). */
+  tokens?: string;
+  /** Highlighted as a recommended install in the directory. */
+  recommended?: boolean;
+  /** Documentation link shown as a small anchor next to the server entry. */
+  note?: string;
+}
+
+const POPULAR_MCP_SERVERS: PopularMcpServer[] = [
   // ── Recommended ──
   {
     name: 'github',
@@ -910,15 +927,15 @@ function MCPDirectory({ installedNames, onInstall, setToast }: {
         {filtered.map(server => (
           <div key={server.name} className={cn(
             "flex items-start gap-3 p-3 rounded-lg border transition-colors",
-            (server as any).recommended
+            server.recommended
               ? "border-primary/20 bg-primary/[0.02] hover:bg-primary/[0.05]"
               : "border-border/20 bg-muted/5 hover:bg-muted/10"
           )}>
-            <Terminal className={cn("h-4 w-4 mt-0.5 flex-shrink-0", (server as any).recommended ? "text-primary/60" : "text-amber-400/50")} />
+            <Terminal className={cn("h-4 w-4 mt-0.5 flex-shrink-0", server.recommended ? "text-primary/60" : "text-amber-400/50")} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-medium">{server.name}</span>
-                {(server as any).recommended && (
+                {server.recommended && (
                   <span className="text-[8px] px-1 py-0.5 rounded bg-primary/15 text-primary font-semibold uppercase tracking-wider">Recommended</span>
                 )}
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted-foreground/10 text-muted-foreground/40">{server.category}</span>
@@ -926,17 +943,17 @@ function MCPDirectory({ installedNames, onInstall, setToast }: {
               <p className="text-[10px] text-muted-foreground/60 mt-0.5">{server.description}</p>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
                 <span className="text-[9px] font-mono text-muted-foreground/30">{server.package}</span>
-                {(server as any).tokens && (
+                {server.tokens && (
                   <span className="text-[9px] text-cyan-400/40" title="Estimated tokens per tool call">
-                    {(server as any).tokens}
+                    {server.tokens}
                   </span>
                 )}
               </div>
               {server.env && Object.keys(server.env).length > 0 && (
                 <p className="text-[9px] text-amber-400/50 mt-0.5">Requires: {Object.keys(server.env).join(', ')}</p>
               )}
-              {(server as any).note && (
-                <a href={(server as any).note} target="_blank" rel="noopener noreferrer" className="text-[9px] text-primary/40 hover:text-primary/60 mt-0.5 inline-flex items-center gap-0.5">
+              {server.note && (
+                <a href={server.note} target="_blank" rel="noopener noreferrer" className="text-[9px] text-primary/40 hover:text-primary/60 mt-0.5 inline-flex items-center gap-0.5">
                   <ExternalLink className="h-2.5 w-2.5" /> More info
                 </a>
               )}

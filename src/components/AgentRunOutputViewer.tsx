@@ -105,7 +105,12 @@ export function AgentRunOutputViewer({
     const loadAgentRun = async () => {
       try {
         setLoading(true);
-        const agentRun = await api.getAgent(agentRunId) as any as AgentRunWithMetrics;
+        // api.getAgent returns Agent (definition), but this viewer is legacy code
+        // that treats the result as AgentRunWithMetrics. The shapes are structurally
+        // incompatible; the `as unknown as` cast is explicit about the conversion
+        // so TypeScript enforces both sides. A proper fix requires a dedicated
+        // getAgentRun() API endpoint — tracked as a TODO.
+        const agentRun = await api.getAgent(agentRunId) as unknown as AgentRunWithMetrics;
         setRun(agentRun);
         updateTabTitle(tabId, `Agent: ${agentRun.agent_name || 'Unknown'}`);
         updateTabStatus(tabId, agentRun.status === 'running' ? 'running' : agentRun.status === 'failed' ? 'error' : 'complete');

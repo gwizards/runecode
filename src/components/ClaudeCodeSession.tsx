@@ -1291,9 +1291,11 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           const resumeAt = resumeAtRef.current;
           resumeAtRef.current = null; // clear after use
           const result = await api.executeClaudeCode(projectPath, prompt, model, thinkingMode, undefined, sessionId, effort, resumeAt || undefined, permissionMode, agentConfig);
-          // Store connectionId for subsequent messages
+          // Store connectionId for subsequent messages.
+          // The 'in' guard already confirms the property exists; cast to a
+          // narrowed type so we avoid the unsafe `as any`.
           if (result && typeof result === 'object' && 'connectionId' in result) {
-            setConnectionId((result as any).connectionId);
+            setConnectionId((result as { connectionId: string | null }).connectionId);
           }
         }
       }

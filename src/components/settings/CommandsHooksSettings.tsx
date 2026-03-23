@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Terminal, Webhook, Sparkles, Shield, GitBranch, TestTube, FileCode, Zap, Bug, Loader2 } from 'lucide-react';
 import { SlashCommandsManager } from '@/components/SlashCommandsManager';
 import { HooksEditor } from '@/components/HooksEditor';
@@ -9,7 +9,17 @@ interface CommandsHooksSettingsProps {
   onHooksChange?: (hasChanges: boolean, getHooks: () => any) => void;
 }
 
-const COMMANDS = [
+interface BuiltInCommand {
+  name: string;
+  desc: string;
+  content: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  /** When true, the command accepts user arguments via $ARGUMENTS. */
+  args?: boolean;
+}
+
+const COMMANDS: BuiltInCommand[] = [
   {
     name: 'review',
     desc: 'Review current changes for bugs and security issues',
@@ -216,7 +226,7 @@ export function CommandsHooksSettings({ onHooksChange }: CommandsHooksSettingsPr
                     <cmd.icon className={cn("w-3.5 h-3.5 flex-shrink-0", cmd.color)} />
                     <code className="text-[11px] font-mono font-semibold w-16 flex-shrink-0">/{cmd.name}</code>
                     <span className="text-[11px] text-muted-foreground/60 flex-1 truncate">{cmd.desc}</span>
-                    {(cmd as any).args && <span className="text-[8px] px-1 py-0.5 rounded bg-muted/40 text-muted-foreground/40 flex-shrink-0">+args</span>}
+                    {cmd.args && <span className="text-[8px] px-1 py-0.5 rounded bg-muted/40 text-muted-foreground/40 flex-shrink-0">+args</span>}
                     {done ? (
                       <button
                         onClick={() => uninstallCommand(cmd)}
