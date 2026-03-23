@@ -7,7 +7,7 @@
  * All domain code (src/domain/analytics/) remains PostHog-free.
  */
 
-import type { IAnalyticsTracker } from '../../domain/analytics/ports/IAnalyticsTracker';
+import type { IAnalyticsTracker } from '../../domain/analytics';
 import {
   trackEvent as posthogCapture,
   identifyUser as posthogIdentify,

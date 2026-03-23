@@ -8,8 +8,7 @@
  * All functions are pure wrappers: they never mutate domain state.
  */
 
-import type { QuantizationMode } from '../../domain/ruflo/memory-store';
-import type { QuantizedMemoryStore } from '../../domain/ruflo/memory-store';
+import type { QuantizationMode, QuantizedMemoryStore } from '../../domain/ruflo';
 
 // ── Storage keys ─────────────────────────────────────────────────────────────
 

@@ -13,11 +13,11 @@
 
 import type { DomainEventBus } from '../../domain/shared/event-bus';
 // Import session event types only — no aggregates, no application services
-import { SESSION_EVENT_TYPES } from '../../domain/session/events';
+import { SESSION_EVENT_TYPES } from '../../domain/session';
 import type {
   SessionCompletedEvent,
   SessionFailedEvent,
-} from '../../domain/session/events';
+} from '../../domain/session';
 
 // ─── Analytics event shape (analytics context's own type) ─────────────────
 
