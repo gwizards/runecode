@@ -78,11 +78,13 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
   // const previewId = useRef(`preview-${Date.now()}`);
   const isIMEComposingRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear any pending refresh timer on unmount to prevent setState after unmount.
+  // Clear any pending timers on unmount to prevent setState after unmount.
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+      if (imeTimerRef.current !== null) clearTimeout(imeTimerRef.current);
     };
   }, []);
 
@@ -154,7 +156,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
   };
 
   const handleCompositionEnd = () => {
-    setTimeout(() => {
+    imeTimerRef.current = setTimeout(() => {
       isIMEComposingRef.current = false;
     }, 0);
   };

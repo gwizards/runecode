@@ -829,7 +829,13 @@ async function initAgentSession(params: {
       }
     };
 
+    ws.onclose = () => {
+      sessionSockets.delete(connectionId);
+      settle(() => reject(new Error('Agent WebSocket closed before session was established')));
+    };
+
     ws.onerror = () => {
+      sessionSockets.delete(connectionId);
       settle(() => reject(new Error('WebSocket connection failed')));
     };
   });

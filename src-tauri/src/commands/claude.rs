@@ -652,15 +652,22 @@ pub async fn open_new_session(app: AppHandle, path: Option<String>) -> Result<St
     {
         let mut cmd = std::process::Command::new(claude_path);
 
-        // If a path is provided, use it; otherwise use current directory
+        // If a path is provided, validate and use it; otherwise use current directory
         if let Some(project_path) = path {
-            cmd.current_dir(&project_path);
+            let guarded = guard_path_within_home(&PathBuf::from(&project_path))?;
+            cmd.current_dir(&guarded);
         }
 
-        // Execute the command
+        // Execute the command.
+        // Note: this is debug-only (cfg!(debug_assertions)). The child is intentionally
+        // detached (fire-and-forget) so the user can interact with it independently.
+        // We call .wait() in a detached thread to reap the zombie and avoid a defunct process.
         match cmd.spawn() {
-            Ok(_) => {
+            Ok(mut child) => {
                 log::info!("Successfully launched Claude Code");
+                std::thread::spawn(move || {
+                    let _ = child.wait();
+                });
                 Ok("Claude Code session started".to_string())
             }
             Err(e) => {
@@ -1285,27 +1292,33 @@ pub async fn cancel_claude_execution(
                     // Method 3: If we have a PID, try system kill as last resort
                     if let Some(pid) = pid {
                         log::info!("Attempting system kill as last resort for PID: {}", pid);
-                        let kill_result = if cfg!(target_os = "windows") {
-                            std::process::Command::new("taskkill")
-                                .args(["/F", "/PID", &pid.to_string()])
-                                .output()
-                        } else {
-                            std::process::Command::new("kill")
-                                .args(["-KILL", &pid.to_string()])
-                                .output()
-                        };
+                        let kill_result = tokio::task::spawn_blocking(move || {
+                            if cfg!(target_os = "windows") {
+                                std::process::Command::new("taskkill")
+                                    .args(["/F", "/PID", &pid.to_string()])
+                                    .output()
+                            } else {
+                                std::process::Command::new("kill")
+                                    .args(["-KILL", &pid.to_string()])
+                                    .output()
+                            }
+                        })
+                        .await;
 
                         match kill_result {
-                            Ok(output) if output.status.success() => {
+                            Ok(Ok(output)) if output.status.success() => {
                                 log::info!("Successfully killed process via system command");
                                 killed = true;
                             }
-                            Ok(output) => {
+                            Ok(Ok(output)) => {
                                 let stderr = String::from_utf8_lossy(&output.stderr);
                                 log::error!("System kill failed: {}", stderr);
                             }
-                            Err(e) => {
+                            Ok(Err(e)) => {
                                 log::error!("Failed to execute system kill command: {}", e);
+                            }
+                            Err(e) => {
+                                log::error!("spawn_blocking join error during system kill: {}", e);
                             }
                         }
                     }

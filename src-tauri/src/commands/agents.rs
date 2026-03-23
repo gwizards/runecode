@@ -700,6 +700,15 @@ pub async fn execute_agent(
     let agent = get_agent(db.clone(), agent_id).await?;
     let execution_model = model.unwrap_or(agent.model.clone());
 
+    // Whitelist model strings
+    const ALLOWED_MODELS: &[&str] = &[
+        "claude-opus-4-5", "claude-opus-4-6", "claude-sonnet-4-5", "claude-sonnet-4-6",
+        "claude-haiku-4-5", "claude-haiku-4-5-20251001",
+    ];
+    if !execution_model.is_empty() && !ALLOWED_MODELS.iter().any(|m| execution_model.starts_with(m)) {
+        return Err(format!("Invalid model: {}", execution_model));
+    }
+
     // Create .claude/settings.json with agent hooks if it doesn't exist
     if let Some(hooks_json) = &agent.hooks {
         let claude_dir = std::path::Path::new(&project_path).join(".claude");
@@ -1306,7 +1315,7 @@ pub async fn kill_agent_session(
 
         if let Some(pid) = pid_result {
             info!("Attempting fallback kill for PID {} from database", pid);
-            let _ = registry.0.kill_process_by_pid(run_id, pid as u32)?;
+            let _ = registry.0.kill_process_by_pid(run_id, pid as u32).await?;
         }
     }
 

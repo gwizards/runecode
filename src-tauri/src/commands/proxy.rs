@@ -61,12 +61,26 @@ pub async fn get_proxy_settings(db: State<'_, AgentDb>) -> Result<ProxySettings,
     Ok(settings)
 }
 
+fn validate_proxy_url(url: &str) -> Result<(), String> {
+    if url.is_empty() { return Ok(()); } // empty = clear proxy
+    let lower = url.to_lowercase();
+    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+        return Err(format!("Invalid proxy URL: must start with http:// or https://"));
+    }
+    Ok(())
+}
+
 /// Save proxy settings to the database
 #[tauri::command]
 pub async fn save_proxy_settings(
     db: State<'_, AgentDb>,
     settings: ProxySettings,
 ) -> Result<(), String> {
+    // Validate proxy URLs before persisting
+    if let Some(ref u) = settings.http_proxy  { validate_proxy_url(u)?; }
+    if let Some(ref u) = settings.https_proxy { validate_proxy_url(u)?; }
+    if let Some(ref u) = settings.all_proxy   { validate_proxy_url(u)?; }
+
     let conn = db.0.lock().map_err(|e| e.to_string())?;
 
     // Save each setting

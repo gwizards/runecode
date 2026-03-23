@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Server, Plus, Trash2, ChevronDown, ChevronRight,
@@ -244,6 +244,13 @@ function EnvironmentCard({ env, isExpanded, onToggleExpand, onToggleEnabled, onR
 }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const testResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (testResultTimerRef.current !== null) clearTimeout(testResultTimerRef.current);
+    };
+  }, []);
 
   const handleTest = async () => {
     setTesting(true);
@@ -264,7 +271,8 @@ function EnvironmentCard({ env, isExpanded, onToggleExpand, onToggleEnabled, onR
       setTestResult('error');
     }
     setTesting(false);
-    setTimeout(() => setTestResult(null), 5000);
+    if (testResultTimerRef.current !== null) clearTimeout(testResultTimerRef.current);
+    testResultTimerRef.current = setTimeout(() => setTestResult(null), 5000);
   };
 
   const typeIcons = { ssh: Terminal, wsl: Monitor, docker: Server };

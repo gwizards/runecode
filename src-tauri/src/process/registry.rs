@@ -287,7 +287,7 @@ impl ProcessRegistry {
                 "Attempting fallback kill for process {} (PID: {})",
                 run_id, pid
             );
-            match self.kill_process_by_pid(run_id, pid) {
+            match self.kill_process_by_pid(run_id, pid).await {
                 Ok(true) => return Ok(true),
                 Ok(false) => warn!(
                     "Fallback kill also failed for process {} (PID: {})",
@@ -351,7 +351,7 @@ impl ProcessRegistry {
                     *child_guard = None;
                 }
                 // One more attempt with system kill
-                let _ = self.kill_process_by_pid(run_id, pid);
+                let _ = self.kill_process_by_pid(run_id, pid).await;
             }
         }
 
@@ -362,7 +362,7 @@ impl ProcessRegistry {
     }
 
     /// Kill a process by PID using system commands (fallback method)
-    pub fn kill_process_by_pid(&self, run_id: i64, pid: u32) -> Result<bool, String> {
+    pub async fn kill_process_by_pid(&self, run_id: i64, pid: u32) -> Result<bool, String> {
         use log::{error, info, warn};
 
         info!("Attempting to kill process {} by PID {}", run_id, pid);
@@ -381,10 +381,7 @@ impl ProcessRegistry {
                 Ok(output) if output.status.success() => {
                     info!("Sent SIGTERM to PID {}", pid);
                     // Give it 2 seconds to exit gracefully.
-                    // Use block_in_place so we don't starve the tokio async worker pool.
-                    tokio::task::block_in_place(|| {
-                        std::thread::sleep(std::time::Duration::from_secs(2));
-                    });
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
                     // Check if still running
                     let check_result = std::process::Command::new("kill")

@@ -956,8 +956,11 @@ async fn cancel_claude_execution(
     AxumState(state): AxumState<AppState>,
 ) -> Json<ApiResponse<()>> {
     debug!("[TRACE] Cancel request for session: {}", session_id);
-    let sessions = state.active_sessions.lock().await;
-    if let Some(sender) = sessions.get(&session_id) {
+    let maybe_sender = {
+        let sessions = state.active_sessions.lock().await;
+        sessions.get(&session_id).cloned()
+    };
+    if let Some(sender) = maybe_sender {
         let _ = sender.send("__CANCEL__".to_string()).await;
         debug!("[TRACE] Cancel signal sent to session: {}", session_id);
     } else {
@@ -1038,8 +1041,11 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                             error: format!("Unrecognised message format: {}", e),
                         })
                         .unwrap_or_default();
-                        let sessions = state.active_sessions.lock().await;
-                        if let Some(tx) = sessions.get(&ws_session_id) {
+                        let maybe_tx = {
+                            let sessions = state.active_sessions.lock().await;
+                            sessions.get(&ws_session_id).cloned()
+                        };
+                        if let Some(tx) = maybe_tx {
                             let _ = tx.send(err_json).await;
                         }
                         // Do not break -- connection stays open for subsequent messages.
@@ -1063,8 +1069,11 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                                 error: "Session already initialized".to_string(),
                             })
                             .unwrap_or_default();
-                            let sessions = state.active_sessions.lock().await;
-                            if let Some(tx) = sessions.get(&ws_session_id) {
+                            let maybe_tx = {
+                                let sessions = state.active_sessions.lock().await;
+                                sessions.get(&ws_session_id).cloned()
+                            };
+                            if let Some(tx) = maybe_tx {
                                 let _ = tx.send(err_json).await;
                             }
                             continue 'outer;
@@ -1117,8 +1126,11 @@ async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
                                 error: "Session already initialized".to_string(),
                             })
                             .unwrap_or_default();
-                            let sessions = state.active_sessions.lock().await;
-                            if let Some(tx) = sessions.get(&ws_session_id) {
+                            let maybe_tx = {
+                                let sessions = state.active_sessions.lock().await;
+                                sessions.get(&ws_session_id).cloned()
+                            };
+                            if let Some(tx) = maybe_tx {
                                 let _ = tx.send(err_json).await;
                             }
                             continue 'outer;
@@ -1829,6 +1841,15 @@ async fn execute_claude_agent_command(
     )
     .map_err(|e| format!("project_path rejected: {e}"))?;
     let project_path = guarded_project_path.to_string_lossy().into_owned();
+
+    // Whitelist model strings
+    const ALLOWED_MODELS: &[&str] = &[
+        "claude-opus-4-5", "claude-opus-4-6", "claude-sonnet-4-5", "claude-sonnet-4-6",
+        "claude-haiku-4-5", "claude-haiku-4-5-20251001",
+    ];
+    if !model.is_empty() && !ALLOWED_MODELS.iter().any(|m| model.starts_with(m)) {
+        return Err(format!("Invalid model: {}", model));
+    }
 
     info!(
         "[WS] execute_claude_agent_command -- agent: {}  project: {}",
