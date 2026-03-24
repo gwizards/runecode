@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  User, Server, Plus, Trash2, ChevronDown, ChevronRight,
-  Terminal, Globe, Monitor, Loader2, CheckCircle2, AlertCircle,
-  RefreshCw
+  User, Server, Plus,
+  Terminal, Globe, Monitor, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { EnvironmentCard } from '@/components/settings/environments/EnvironmentCard';
+import { DockerSection } from '@/components/settings/environments/DockerSection';
 
 // Persisted to localStorage
 const STORAGE_KEY = 'runecode-remote-environments';
@@ -52,7 +53,7 @@ export function EnvironmentsSettings() {
   const [activeAccount, setActiveAccount] = useState<{ email: string; displayName?: string } | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
 
-  // Load current account info from auth status endpoint
+  // Load current account info
   useEffect(() => {
     (async () => {
       try {
@@ -74,7 +75,6 @@ export function EnvironmentsSettings() {
   const updateEnvironments = (envs: RemoteEnvironment[]) => {
     setEnvironments(envs);
     saveEnvironments(envs);
-    // Broadcast for other components to pick up
     window.dispatchEvent(new CustomEvent('runecode:environments-changed', { detail: envs }));
   };
 
@@ -117,7 +117,7 @@ export function EnvironmentsSettings() {
         </p>
       </div>
 
-      {/* Current Account — read-only */}
+      {/* Current Account */}
       <div className="p-4 rounded-lg border border-border/30 bg-muted/5">
         <div className="flex items-start gap-3">
           <User className="w-4.5 h-4.5 text-emerald-400 mt-0.5 flex-shrink-0" />
@@ -163,7 +163,6 @@ export function EnvironmentsSettings() {
           Sessions on remote environments execute commands and edit files on that machine.
         </p>
 
-        {/* Environment list */}
         {environments.length === 0 && !showAdd && (
           <div className="py-8 text-center space-y-2">
             <Monitor className="w-6 h-6 mx-auto text-muted-foreground/20" />
@@ -184,7 +183,6 @@ export function EnvironmentsSettings() {
           />
         ))}
 
-        {/* Add form */}
         <AnimatePresence>
           {showAdd && !editingEnv && (
             <motion.div
@@ -229,138 +227,6 @@ export function EnvironmentsSettings() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ─── Environment Card ─── */
-function EnvironmentCard({ env, isExpanded, onToggleExpand, onToggleEnabled, onRemove, onEdit }: {
-  env: RemoteEnvironment;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-  onToggleEnabled: () => void;
-  onRemove: () => void;
-  onEdit: () => void;
-}) {
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
-  const testResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (testResultTimerRef.current !== null) clearTimeout(testResultTimerRef.current);
-    };
-  }, []);
-
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const res = await fetch('/api/environments/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(env),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTestResult(data.success ? 'success' : 'error');
-      } else {
-        setTestResult('error');
-      }
-    } catch {
-      setTestResult('error');
-    }
-    setTesting(false);
-    if (testResultTimerRef.current !== null) clearTimeout(testResultTimerRef.current);
-    testResultTimerRef.current = setTimeout(() => setTestResult(null), 5000);
-  };
-
-  const typeIcons = { ssh: Terminal, wsl: Monitor, docker: Server };
-  const typeColors = { ssh: 'text-amber-400/60', wsl: 'text-blue-400/60', docker: 'text-cyan-400/60' };
-  const Icon = typeIcons[env.type];
-
-  return (
-    <div className={cn('rounded-lg border overflow-hidden transition-colors', env.enabled ? 'border-border/30 bg-muted/5' : 'border-border/15 bg-muted/3 opacity-60')}>
-      <button
-        onClick={onToggleExpand}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/10 transition-colors"
-      >
-        <Icon className={cn('h-4 w-4 flex-shrink-0', typeColors[env.type])} />
-        <span className="text-xs font-medium flex-1 truncate">{env.name}</span>
-        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono bg-muted-foreground/10 text-muted-foreground/50 uppercase">{env.type}</span>
-        {env.enabled && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">enabled</span>
-        )}
-        {isExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground/40" /> : <ChevronRight className="h-3 w-3 text-muted-foreground/40" />}
-      </button>
-
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-            <div className="px-3 pb-3 pt-1 border-t border-border/10 space-y-2">
-              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[10px]">
-                {env.type === 'ssh' && (
-                  <>
-                    <span className="text-muted-foreground/40">Host</span>
-                    <span className="font-mono">{env.sshHost}</span>
-                    {env.sshPort && env.sshPort !== 22 && (
-                      <><span className="text-muted-foreground/40">Port</span><span className="font-mono">{env.sshPort}</span></>
-                    )}
-                    <span className="text-muted-foreground/40">Auth</span>
-                    <span>{env.sshAuthMethod === 'password' ? 'Password' : 'SSH Key'}</span>
-                    {env.sshAuthMethod !== 'password' && env.sshIdentityFile && (
-                      <><span className="text-muted-foreground/40">Key</span><span className="font-mono truncate">{env.sshIdentityFile}</span></>
-                    )}
-                    {env.sshAuthMethod === 'password' && (
-                      <><span className="text-muted-foreground/40">Password</span><span>••••••••</span></>
-                    )}
-                    {env.startDirectory && (
-                      <><span className="text-muted-foreground/40">Dir</span><span className="font-mono truncate">{env.startDirectory}</span></>
-                    )}
-                  </>
-                )}
-                {env.type === 'wsl' && (
-                  <>
-                    <span className="text-muted-foreground/40">Distro</span>
-                    <span className="font-mono">{env.wslDistro || 'default'}</span>
-                    {env.startDirectory && (
-                      <><span className="text-muted-foreground/40">Dir</span><span className="font-mono truncate">{env.startDirectory}</span></>
-                    )}
-                  </>
-                )}
-                {env.type === 'docker' && (
-                  <>
-                    <span className="text-muted-foreground/40">Container</span>
-                    <span className="font-mono">{env.dockerContainer}</span>
-                    {env.dockerImage && (
-                      <><span className="text-muted-foreground/40">Image</span><span className="font-mono truncate">{env.dockerImage}</span></>
-                    )}
-                    {env.startDirectory && (
-                      <><span className="text-muted-foreground/40">Dir</span><span className="font-mono truncate">{env.startDirectory}</span></>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 pt-1">
-                <Button variant="ghost" size="sm" onClick={handleTest} disabled={testing} className="text-[10px] h-6 px-2 text-muted-foreground/60">
-                  {testing ? <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" /> : testResult === 'success' ? <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-emerald-400" /> : testResult === 'error' ? <AlertCircle className="h-2.5 w-2.5 mr-1 text-red-400" /> : <RefreshCw className="h-2.5 w-2.5 mr-1" />}
-                  {testing ? 'Testing...' : testResult === 'success' ? 'Connected' : testResult === 'error' ? 'Failed' : 'Test'}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={onToggleEnabled} className="text-[10px] h-6 px-2 text-muted-foreground/60">
-                  {env.enabled ? 'Disable' : 'Enable'}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={onEdit} className="text-[10px] h-6 px-2 text-muted-foreground/60">
-                  Edit
-                </Button>
-                <div className="flex-1" />
-                <Button variant="ghost" size="sm" onClick={onRemove} className="text-[10px] h-6 px-2 text-red-400/60 hover:text-red-400 hover:bg-red-500/10">
-                  <Trash2 className="h-2.5 w-2.5 mr-1" /> Remove
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -490,7 +356,6 @@ function AddEnvironmentForm({ onAdd, onCancel, editEnv }: { onAdd: (env: RemoteE
               <Input value={sshPort} onChange={e => setSshPort(e.target.value)} placeholder="22" className="h-8 text-xs font-mono" />
             </div>
           </div>
-          {/* Auth method */}
           <div className="space-y-1.5">
             <Label className="text-[11px] text-muted-foreground/60">Authentication</Label>
             <div className="flex gap-1.5">
@@ -556,7 +421,7 @@ function AddEnvironmentForm({ onAdd, onCancel, editEnv }: { onAdd: (env: RemoteE
         />
       )}
 
-      {/* Start directory — shared */}
+      {/* Start directory */}
       <div className="space-y-1.5">
         <Label className="text-[11px] text-muted-foreground/60">Start Directory (optional)</Label>
         <Input value={startDirectory} onChange={e => setStartDirectory(e.target.value)} placeholder="/home/user/projects" className="h-8 text-xs font-mono" />
@@ -573,204 +438,3 @@ function AddEnvironmentForm({ onAdd, onCancel, editEnv }: { onAdd: (env: RemoteE
   );
 }
 
-/* ─── Docker Section with container detection ─── */
-function DockerSection({ dockerContainer, setDockerContainer, setDockerImage }: {
-  dockerContainer: string;
-  setDockerContainer: (v: string) => void;
-  dockerImage?: string;
-  setDockerImage: (v: string) => void;
-}) {
-  const [dockerStatus, setDockerStatus] = useState<{ running: boolean; version?: string; containers: any[] } | null>(null);
-  const [loadingDocker, setLoadingDocker] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newImage, setNewImage] = useState('ubuntu:22.04');
-  const [showCreate, setShowCreate] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/docker/status');
-        if (res.ok) setDockerStatus(await res.json());
-      } catch {}
-      setLoadingDocker(false);
-    })();
-  }, []);
-
-  const [createStatus, setCreateStatus] = useState('');
-  const [installingClaude, setInstallingClaude] = useState<string | null>(null);
-
-  const handleCreate = async () => {
-    if (!newName.trim() || !newImage.trim()) return;
-    setCreating(true);
-    setCreateStatus('Creating container...');
-    try {
-      const res = await fetch('/api/docker/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), image: newImage.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setDockerContainer(data.name);
-        setDockerImage(newImage.trim());
-        setCreateStatus(data.claudeInstalled ? 'Created with Claude Code!' : 'Created (Claude Code install failed — you can install manually)');
-        setShowCreate(false);
-        const statusRes = await fetch('/api/docker/status');
-        if (statusRes.ok) setDockerStatus(await statusRes.json());
-      } else {
-        setCreateStatus(`Failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err: any) {
-      setCreateStatus(`Error: ${err.message}`);
-    }
-    setCreating(false);
-  };
-
-  const handleInstallClaude = async (containerName: string) => {
-    setInstallingClaude(containerName);
-    try {
-      const res = await fetch('/api/docker/install-claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ container: containerName }),
-      });
-      const data = await res.json();
-      if (data.alreadyInstalled) {
-        setInstallingClaude(null);
-        return;
-      }
-      if (!data.success) {
-        console.error('Claude install failed:', data.error);
-      }
-    } catch (err) {
-      console.error('[EnvironmentsSettings] Failed to install Claude in container:', err);
-    }
-    setInstallingClaude(null);
-  };
-
-  if (loadingDocker) {
-    return <div className="text-xs text-muted-foreground/40 py-2">Checking Docker...</div>;
-  }
-
-  if (!dockerStatus?.running) {
-    return (
-      <div className="space-y-3">
-        <div className="p-2.5 rounded-md bg-amber-500/5 border border-amber-500/15 text-[10px] text-amber-400/70">
-          Docker is not running. Start Docker to connect to containers.
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-[11px] text-muted-foreground/60">Container Name or ID (manual)</Label>
-          <Input value={dockerContainer} onChange={e => setDockerContainer(e.target.value)} placeholder="my-dev-container" className="h-8 text-xs font-mono" />
-        </div>
-      </div>
-    );
-  }
-
-  const runningContainers = dockerStatus.containers.filter((c: any) => c.state === 'running');
-  const stoppedContainers = dockerStatus.containers.filter((c: any) => c.state !== 'running');
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 text-[10px] text-emerald-400/60">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        Docker {dockerStatus.version} — {runningContainers.length} running
-      </div>
-
-      {runningContainers.length > 0 && (
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground/60">Running containers</Label>
-          <div className="space-y-0.5 max-h-40 overflow-y-auto">
-            {runningContainers.map((c: any) => (
-              <div key={c.id} className={cn(
-                "flex items-center gap-2 px-2 py-1.5 rounded text-[10px] transition-colors",
-                dockerContainer === c.name
-                  ? "bg-primary/10 border border-primary/30 text-primary"
-                  : "hover:bg-muted/30 border border-transparent"
-              )}>
-                <button
-                  onClick={() => { setDockerContainer(c.name); setDockerImage(c.image); }}
-                  className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-                  <span className="font-mono font-medium truncate">{c.name}</span>
-                  <span className="text-muted-foreground/40 truncate flex-1">{c.image}</span>
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleInstallClaude(c.name); }}
-                  disabled={installingClaude === c.name}
-                  className="text-[9px] px-1.5 py-0.5 rounded bg-muted/30 text-muted-foreground/50 hover:text-foreground hover:bg-muted/50 transition-colors flex-shrink-0"
-                  title="Install Claude Code in this container"
-                >
-                  {installingClaude === c.name ? '...' : 'Install Claude'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {stoppedContainers.length > 0 && (
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground/40">Stopped</Label>
-          <div className="space-y-0.5 max-h-20 overflow-y-auto">
-            {stoppedContainers.map((c: any) => (
-              <button
-                key={c.id}
-                onClick={() => { setDockerContainer(c.name); setDockerImage(c.image); }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-[10px] opacity-50 transition-colors",
-                  dockerContainer === c.name ? "bg-primary/10 border border-primary/30 opacity-100" : "hover:bg-muted/30 border border-transparent"
-                )}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 flex-shrink-0" />
-                <span className="font-mono font-medium truncate">{c.name}</span>
-                <span className="text-muted-foreground/30 truncate flex-1">{c.image}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!showCreate ? (
-        <button
-          onClick={() => setShowCreate(true)}
-          className="w-full py-1.5 rounded-md border border-dashed border-border/30 text-[10px] text-muted-foreground/50 hover:text-foreground hover:border-border/50 transition-colors"
-        >
-          + Create new container
-        </button>
-      ) : (
-        <div className="p-3 rounded-md border border-primary/20 bg-primary/[0.02] space-y-2">
-          <Label className="text-[11px] font-medium">Create Container</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground/50">Name</Label>
-              <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="claude-dev" className="h-7 text-xs font-mono" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground/50">Image</Label>
-              <Input value={newImage} onChange={e => setNewImage(e.target.value)} placeholder="ubuntu:22.04" className="h-7 text-xs font-mono" />
-            </div>
-          </div>
-          <p className="text-[9px] text-muted-foreground/40">
-            Creates a container and auto-installs Node.js + Claude Code. This may take a minute.
-          </p>
-          <div className="flex gap-1.5 items-center">
-            <Button size="sm" onClick={handleCreate} disabled={creating || !newName.trim()} className="text-[10px] h-7">
-              {creating ? 'Creating & Installing...' : 'Create'}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)} className="text-[10px] h-7 text-muted-foreground">
-              Cancel
-            </Button>
-            {createStatus && <span className="text-[9px] text-muted-foreground/50">{createStatus}</span>}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-1.5 pt-1 border-t border-border/10">
-        <Label className="text-[11px] text-muted-foreground/40">Or enter manually</Label>
-        <Input value={dockerContainer} onChange={e => setDockerContainer(e.target.value)} placeholder="container-name" className="h-7 text-xs font-mono" />
-      </div>
-    </div>
-  );
-}

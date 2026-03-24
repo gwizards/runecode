@@ -7,24 +7,22 @@ import {
   X,
   Command,
   Search,
-  Globe,
-  FolderOpen,
-  Zap,
-  FileCode,
-  Terminal,
   AlertCircle,
   User,
   Building2,
   RefreshCw,
-  Bot,
-  Server
 } from "lucide-react";
 import type { SlashCommand } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { safeParseCommand, safeParseSkill, toSlashCommand } from "@/lib/safeParser";
 import { useTrackEvent, useFeatureAdoptionTracking } from "@/hooks";
+import { SlashCommandItem, SlashCommandItemCustom } from "@/components/slash/SlashCommandItem";
+import { AgentsTabContent, McpTabContent } from "@/components/slash/AgentsTabContent";
 
-// Module-level cache so re-opening the picker is instant
+// ---------------------------------------------------------------------------
+// Module-level cache
+// ---------------------------------------------------------------------------
+
 interface CommandCache {
   commands: SlashCommand[];
   agents: AgentInfo[];
@@ -37,7 +35,6 @@ let loadingPromise: Promise<CommandCache> | null = null;
 async function fetchAllCommandData(projectPath: string | undefined): Promise<CommandCache> {
   const allCommands: SlashCommand[] = [...BUILTIN_COMMANDS_FALLBACK];
 
-  // Run all 4 API calls in parallel
   const [builtinResult, customResult, agentsResult, mcpResult, skillsResult] =
     await Promise.allSettled([
       fetch('/api/commands/builtin').then(r => r.ok ? r.json() : null),
@@ -47,7 +44,6 @@ async function fetchAllCommandData(projectPath: string | undefined): Promise<Com
       fetch('/api/skills').then(r => r.ok ? r.json() : null),
     ]);
 
-  // Merge built-in discovered commands
   if (builtinResult.status === 'fulfilled' && builtinResult.value) {
     const items = Array.isArray(builtinResult.value?.data) ? builtinResult.value.data : [];
     for (const raw of items) {
@@ -58,7 +54,6 @@ async function fetchAllCommandData(projectPath: string | undefined): Promise<Com
     }
   }
 
-  // Merge custom commands
   if (customResult.status === 'fulfilled' && Array.isArray(customResult.value)) {
     for (const cmd of customResult.value) {
       const parsed = safeParseCommand(cmd);
@@ -68,17 +63,14 @@ async function fetchAllCommandData(projectPath: string | undefined): Promise<Com
     }
   }
 
-  // Parse agents
   const agents: AgentInfo[] = agentsResult.status === 'fulfilled' && agentsResult.value
     ? (Array.isArray(agentsResult.value?.data) ? agentsResult.value.data : [])
     : [];
 
-  // Parse MCP servers
   const mcpServers: McpServerInfo[] = mcpResult.status === 'fulfilled' && mcpResult.value
     ? (Array.isArray(mcpResult.value?.data) ? mcpResult.value.data : [])
     : [];
 
-  // Merge skills
   if (skillsResult.status === 'fulfilled' && Array.isArray(skillsResult.value)) {
     for (const group of skillsResult.value) {
       const pluginName = String(group?.plugin || 'Plugin');
@@ -102,6 +94,10 @@ async function fetchAllCommandData(projectPath: string | undefined): Promise<Com
 
   return { commands: allCommands, agents, mcpServers, projectPath };
 }
+
+// ---------------------------------------------------------------------------
+// Built-in commands fallback
+// ---------------------------------------------------------------------------
 
 const BUILTIN_COMMANDS_FALLBACK: SlashCommand[] = [
   { id: 'builtin-help', name: 'help', full_command: '/help', description: 'Show help and available commands', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
@@ -128,70 +124,24 @@ const BUILTIN_COMMANDS_FALLBACK: SlashCommand[] = [
   { id: 'builtin-think', name: 'think', full_command: '/think', description: 'Toggle extended thinking mode', scope: 'default', namespace: 'system', file_path: '', content: '', allowed_tools: [], has_bash_commands: false, has_file_references: false, accepts_arguments: false },
 ];
 
-interface AgentInfo {
-  name: string;
-  model: string;
-  type: string;
-}
+// ---------------------------------------------------------------------------
+// Types (AgentInfo and McpServerInfo re-exported from AgentsTabContent)
+// ---------------------------------------------------------------------------
 
-interface McpServerInfo {
-  name: string;
-  command: string;
-  status: string;
-}
+import type { AgentInfo, McpServerInfo } from "@/components/slash/AgentsTabContent";
 
 interface SlashCommandPickerProps {
-  /**
-   * The project path for loading project-specific commands
-   */
   projectPath?: string;
-  /**
-   * Callback when a command is selected
-   */
   onSelect: (command: SlashCommand) => void;
-  /**
-   * Callback to close the picker
-   */
   onClose: () => void;
-  /**
-   * Initial search query (text after /)
-   */
   initialQuery?: string;
-  /**
-   * Optional className for styling
-   */
   className?: string;
 }
 
-// Get icon for command based on its properties
-const getCommandIcon = (command: SlashCommand) => {
-  // If it has bash commands, show terminal icon
-  if (command.has_bash_commands) return Terminal;
-  
-  // If it has file references, show file icon
-  if (command.has_file_references) return FileCode;
-  
-  // If it accepts arguments, show zap icon
-  if (command.accepts_arguments) return Zap;
-  
-  // Based on scope
-  if (command.scope === "project") return FolderOpen;
-  if (command.scope === "user") return Globe;
-  
-  // Default
-  return Command;
-};
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
-/**
- * SlashCommandPicker component - Autocomplete UI for slash commands
- * 
- * @example
- * <SlashCommandPicker
- *   projectPath="/Users/example/project"
- *   onSelect={(command) => console.log('Selected:', command)}
- *   onClose={() => setShowPicker(false)}
- * />
- */
 export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
   projectPath,
   onSelect,
@@ -208,78 +158,51 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
   const [activeTab, setActiveTab] = useState<string>("default");
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([]);
-  
+
   const commandListRef = useRef<HTMLDivElement>(null);
-  
-  // Analytics tracking
+
   const trackEvent = useTrackEvent();
   const slashCommandFeatureTracking = useFeatureAdoptionTracking('slash_commands');
-  
-  // Filter commands based on search query and active tab
+
+  // Filter
   useEffect(() => {
-    if (!commands.length) {
-      setFilteredCommands([]);
-      return;
-    }
-    
+    if (!commands.length) { setFilteredCommands([]); return; }
+
     const query = searchQuery.toLowerCase();
     let filteredByTab: SlashCommand[];
-    
-    // Filter by active tab
     if (activeTab === "default") {
-      // Show default/built-in commands
       filteredByTab = commands.filter(cmd => cmd.scope === "default");
     } else {
-      // Show all custom commands (both user and project)
       filteredByTab = commands.filter(cmd => cmd.scope !== "default");
     }
-    
-    // Then filter by search query
+
     let filtered: SlashCommand[];
     if (!query) {
       filtered = filteredByTab;
     } else {
-      filtered = filteredByTab.filter(cmd => {
-        // Match against command name
-        if (cmd.name.toLowerCase().includes(query)) return true;
-        
-        // Match against full command
-        if (cmd.full_command.toLowerCase().includes(query)) return true;
-        
-        // Match against namespace
-        if (cmd.namespace && cmd.namespace.toLowerCase().includes(query)) return true;
-        
-        // Match against description
-        if (cmd.description && cmd.description.toLowerCase().includes(query)) return true;
-        
-        return false;
-      });
-      
-      // Sort by relevance
+      filtered = filteredByTab.filter(cmd =>
+        cmd.name.toLowerCase().includes(query) ||
+        cmd.full_command.toLowerCase().includes(query) ||
+        (cmd.namespace && cmd.namespace.toLowerCase().includes(query)) ||
+        (cmd.description && cmd.description.toLowerCase().includes(query))
+      );
       filtered.sort((a, b) => {
-        // Exact name match first
         const aExact = a.name.toLowerCase() === query;
         const bExact = b.name.toLowerCase() === query;
         if (aExact && !bExact) return -1;
         if (!aExact && bExact) return 1;
-        
-        // Then by name starts with
         const aStarts = a.name.toLowerCase().startsWith(query);
         const bStarts = b.name.toLowerCase().startsWith(query);
         if (aStarts && !bStarts) return -1;
         if (!aStarts && bStarts) return 1;
-        
-        // Then alphabetically
         return a.name.localeCompare(b.name);
       });
     }
-    
+
     setFilteredCommands(filtered);
-    
-    // Reset selected index when filtered list changes
     setSelectedIndex(0);
   }, [searchQuery, commands, activeTab]);
-  
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -288,48 +211,38 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
           e.preventDefault();
           onClose();
           break;
-          
         case 'Enter':
           e.preventDefault();
           if (filteredCommands.length > 0 && selectedIndex < filteredCommands.length) {
             const command = filteredCommands[selectedIndex];
-            trackEvent.slashCommandSelected({
-              command_name: command.name,
-              selection_method: 'keyboard'
-            });
+            trackEvent.slashCommandSelected({ command_name: command.name, selection_method: 'keyboard' });
             slashCommandFeatureTracking.trackUsage();
             onSelect(command);
           }
           break;
-          
         case 'ArrowUp':
           e.preventDefault();
           setSelectedIndex(prev => Math.max(0, prev - 1));
           break;
-          
         case 'ArrowDown':
           e.preventDefault();
           setSelectedIndex(prev => Math.min(filteredCommands.length - 1, prev + 1));
           break;
       }
     };
-    
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [filteredCommands, selectedIndex, onSelect, onClose]);
-  
-  // Scroll selected item into view
+
+  // Scroll selected into view
   useEffect(() => {
     if (commandListRef.current) {
-      const selectedElement = commandListRef.current.querySelector(`[data-index="${selectedIndex}"]`);
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
+      const el = commandListRef.current.querySelector(`[data-index="${selectedIndex}"]`);
+      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [selectedIndex]);
-  
+
   const loadCommands = useCallback(async () => {
-    // If cache exists for this project, use it immediately (no loading state)
     if (commandCache && commandCache.projectPath === projectPath) {
       setCommands(commandCache.commands);
       setAgents(commandCache.agents);
@@ -338,16 +251,12 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
       return;
     }
 
-    // Show built-ins immediately so the picker is usable right away
     setCommands(BUILTIN_COMMANDS_FALLBACK);
-    setIsLoading(true); // spins the refresh icon only
+    setIsLoading(true);
     setError(null);
 
-    // Deduplicate concurrent loads (e.g. StrictMode double-invoke)
     if (!loadingPromise) {
-      loadingPromise = fetchAllCommandData(projectPath).finally(() => {
-        loadingPromise = null;
-      });
+      loadingPromise = fetchAllCommandData(projectPath).finally(() => { loadingPromise = null; });
     }
 
     try {
@@ -364,21 +273,15 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
     }
   }, [projectPath]);
 
-  // Load commands on mount or when project path changes
-  useEffect(() => {
-    loadCommands();
-  }, [loadCommands]);
+  useEffect(() => { loadCommands(); }, [loadCommands]);
+  useEffect(() => { setSearchQuery(initialQuery); }, [initialQuery]);
 
   const handleCommandClick = (command: SlashCommand) => {
-    trackEvent.slashCommandSelected({
-      command_name: command.name,
-      selection_method: 'click'
-    });
+    trackEvent.slashCommandSelected({ command_name: command.name, selection_method: 'click' });
     slashCommandFeatureTracking.trackUsage();
     onSelect(command);
   };
-  
-  // Group commands by scope and namespace for the Custom tab
+
   const groupedCommands = filteredCommands.reduce((acc, cmd) => {
     let key: string;
     if (cmd.scope === "user") {
@@ -388,19 +291,11 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
     } else {
       key = cmd.namespace || "Commands";
     }
-    
-    if (!acc[key]) {
-      acc[key] = [];
-    }
+    if (!acc[key]) acc[key] = [];
     acc[key].push(cmd);
     return acc;
   }, {} as Record<string, SlashCommand[]>);
-  
-  // Update search query from parent
-  useEffect(() => {
-    setSearchQuery(initialQuery);
-  }, [initialQuery]);
-  
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -421,9 +316,7 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
             <Command className="h-4 w-4 text-muted-foreground" />
             <span className="text-heading-4" style={{ fontFamily: 'var(--font-heading)' }}>Slash Commands</span>
             {searchQuery && (
-              <span className="text-xs text-muted-foreground">
-                Searching: "{searchQuery}"
-              </span>
+              <span className="text-xs text-muted-foreground">Searching: "{searchQuery}"</span>
             )}
           </div>
           <div className="flex items-center gap-1">
@@ -434,18 +327,12 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
             >
               <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8"
-            >
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
               <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
-        
-        {/* Tabs */}
+
         <div className="mt-3">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-4">
@@ -469,7 +356,7 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
 
         {!error && (
           <>
-            {/* Default Tab Content */}
+            {/* Default Tab */}
             {activeTab === "default" && (
               <>
                 {filteredCommands.length === 0 && (
@@ -478,194 +365,47 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                     <span className="text-sm text-muted-foreground">
                       {searchQuery ? 'No commands found' : 'No default commands available'}
                     </span>
-                    {!searchQuery && (
-                      <p className="text-xs text-muted-foreground mt-2 text-center px-4">
-                        Default commands are built-in system commands
-                      </p>
-                    )}
                   </div>
                 )}
-
                 {filteredCommands.length > 0 && (
                   <div className="p-2" ref={commandListRef}>
                     <div className="space-y-0.5">
-                      {filteredCommands.map((command, index) => {
-                        const Icon = getCommandIcon(command);
-                        const isSelected = index === selectedIndex;
-                        
-                        return (
-                          <button
-                            key={command.id}
-                            data-index={index}
-                            onClick={() => handleCommandClick(command)}
-                            onMouseEnter={() => setSelectedIndex(index)}
-                            className={cn(
-                              "w-full flex items-start gap-3 px-3 py-2 rounded-md",
-                              "hover:bg-accent/50 transition-colors",
-                              "text-left",
-                              isSelected && "bg-accent/50"
-                            )}
-                            style={isSelected ? {
-                              borderLeft: '2px solid var(--color-purple-500)',
-                              backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
-                            } : undefined}
-                          >
-                            <Icon className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
-                            <div className="flex-1 overflow-hidden">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">
-                                  {command.full_command}
-                                </span>
-                                <span className="text-xs px-1.5 py-0.5 rounded" style={{
-                                  backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
-                                  color: 'var(--color-purple-400)',
-                                }}>
-                                  {command.scope}
-                                </span>
-                              </div>
-                              {command.description && (
-                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                  {command.description}
-                                </p>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {filteredCommands.map((command, index) => (
+                        <SlashCommandItem
+                          key={command.id}
+                          command={command}
+                          index={index}
+                          selectedIndex={selectedIndex}
+                          onSelect={handleCommandClick}
+                          onHover={setSelectedIndex}
+                        />
+                      ))}
                     </div>
                   </div>
                 )}
               </>
             )}
-            
-            {/* Agents Tab Content */}
+
+            {/* Agents Tab */}
             {activeTab === "agents" && (
-              <>
-                {agents.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full">
-                    <Bot className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">
-                      No agents discovered
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-2 text-center px-4">
-                      Run <code className="px-1">claude agents</code> to verify available agents
-                    </p>
-                  </div>
-                )}
-
-                {agents.length > 0 && (
-                  <div className="p-2">
-                    <div className="space-y-0.5">
-                      {agents
-                        .filter(agent => {
-                          if (!searchQuery) return true;
-                          const q = searchQuery.toLowerCase();
-                          return agent.name.toLowerCase().includes(q) ||
-                                 agent.model.toLowerCase().includes(q) ||
-                                 agent.type.toLowerCase().includes(q);
-                        })
-                        .map((agent, index) => (
-                        <button
-                          key={`${agent.type}-${agent.name}`}
-                          data-index={index}
-                          onClick={() => handleCommandClick({
-                            id: `agent-${agent.name}`,
-                            name: agent.name,
-                            full_command: `@${agent.name}`,
-                            description: `${agent.type} agent`,
-                            scope: 'default',
-                            namespace: agent.type,
-                            file_path: '',
-                            content: '',
-                            allowed_tools: [],
-                            has_bash_commands: false,
-                            has_file_references: false,
-                            accepts_arguments: true,
-                          })}
-                          onMouseEnter={() => setSelectedIndex(index)}
-                          className={cn(
-                            "w-full flex items-center justify-between px-3 py-2 rounded-md",
-                            "hover:bg-accent/50 transition-colors",
-                            "text-left",
-                            index === selectedIndex && "bg-accent/50"
-                          )}
-                          style={index === selectedIndex ? {
-                            borderLeft: '2px solid var(--color-purple-500)',
-                            backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
-                          } : undefined}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Bot className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--color-purple-400)' }} />
-                            <div>
-                              <div className="text-sm font-medium">{agent.name}</div>
-                              <div className="text-xs text-muted-foreground">{agent.type} agent</div>
-                            </div>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{agent.model}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
+              <AgentsTabContent
+                agents={agents}
+                searchQuery={searchQuery}
+                selectedIndex={selectedIndex}
+                onSelect={handleCommandClick}
+                onHover={setSelectedIndex}
+              />
             )}
 
-            {/* MCP Tab Content */}
+            {/* MCP Tab */}
             {activeTab === "mcp" && (
-              <>
-                {mcpServers.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full">
-                    <Server className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">
-                      No MCP servers discovered
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-2 text-center px-4">
-                      Run <code className="px-1">claude mcp list</code> to verify configured servers
-                    </p>
-                  </div>
-                )}
-
-                {mcpServers.length > 0 && (
-                  <div className="p-2">
-                    <div className="space-y-0.5">
-                      {mcpServers
-                        .filter(server => {
-                          if (!searchQuery) return true;
-                          const q = searchQuery.toLowerCase();
-                          return server.name.toLowerCase().includes(q) ||
-                                 server.command.toLowerCase().includes(q) ||
-                                 server.status.toLowerCase().includes(q);
-                        })
-                        .map((server) => (
-                        <div
-                          key={server.name}
-                          className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Server className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--color-gold-400)' }} />
-                            <div>
-                              <div className="text-sm font-medium">{server.name}</div>
-                              <div className="text-xs text-muted-foreground truncate max-w-[200px]">{server.command}</div>
-                            </div>
-                          </div>
-                          <span className="text-xs px-1.5 py-0.5 rounded" style={
-                            server.status === 'connected'
-                              ? { backgroundColor: 'color-mix(in oklch, var(--color-success) 10%, transparent)', color: 'var(--color-success)' }
-                              : server.status === 'needs_auth'
-                              ? { backgroundColor: 'color-mix(in oklch, var(--color-warning) 10%, transparent)', color: 'var(--color-warning)' }
-                              : { backgroundColor: 'color-mix(in oklch, var(--color-error) 10%, transparent)', color: 'var(--color-error)' }
-                          }>
-                            {server.status === 'connected' ? 'Connected' : server.status === 'needs_auth' ? 'Auth needed' : 'Error'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
+              <McpTabContent
+                mcpServers={mcpServers}
+                searchQuery={searchQuery}
+              />
             )}
 
-            {/* Custom Tab Content */}
+            {/* Custom Tab */}
             {activeTab === "custom" && (
               <>
                 {filteredCommands.length === 0 && (
@@ -681,79 +421,22 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                     )}
                   </div>
                 )}
-
                 {filteredCommands.length > 0 && (
                   <div className="p-2" ref={commandListRef}>
-                    {/* If no grouping needed, show flat list */}
                     {Object.keys(groupedCommands).length === 1 ? (
                       <div className="space-y-0.5">
-                        {filteredCommands.map((command, index) => {
-                          const Icon = getCommandIcon(command);
-                          const isSelected = index === selectedIndex;
-
-                          return (
-                            <button
-                              key={command.id}
-                              data-index={index}
-                              onClick={() => handleCommandClick(command)}
-                              onMouseEnter={() => setSelectedIndex(index)}
-                              className={cn(
-                                "w-full flex items-start gap-3 px-3 py-2 rounded-md",
-                                "hover:bg-accent/50 transition-colors",
-                                "text-left",
-                                isSelected && "bg-accent/50"
-                              )}
-                              style={isSelected ? {
-                                borderLeft: '2px solid var(--color-purple-500)',
-                                backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
-                              } : undefined}
-                            >
-                              <Icon className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
-                              
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline gap-2">
-                                  <span className="font-mono text-sm text-primary">
-                                    {command.full_command}
-                                  </span>
-                                  {command.accepts_arguments && (
-                                    <span className="text-xs text-muted-foreground">
-                                      [args]
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                {command.description && (
-                                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                                    {command.description}
-                                  </p>
-                                )}
-                                
-                                <div className="flex items-center gap-3 mt-1">
-                                  {command.allowed_tools.length > 0 && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {command.allowed_tools.length} tool{command.allowed_tools.length === 1 ? '' : 's'}
-                                    </span>
-                                  )}
-                                  
-                                  {command.has_bash_commands && (
-                                    <span className="text-xs text-blue-600 dark:text-blue-400">
-                                      Bash
-                                    </span>
-                                  )}
-                                  
-                                  {command.has_file_references && (
-                                    <span className="text-xs text-green-600 dark:text-green-400">
-                                      Files
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
+                        {filteredCommands.map((command, index) => (
+                          <SlashCommandItemCustom
+                            key={command.id}
+                            command={command}
+                            globalIndex={index}
+                            selectedIndex={selectedIndex}
+                            onSelect={handleCommandClick}
+                            onHover={setSelectedIndex}
+                          />
+                        ))}
                       </div>
                     ) : (
-                      // Show grouped by scope/namespace
                       <div className="space-y-4">
                         {Object.entries(groupedCommands).map(([groupKey, groupCommands]) => (
                           <div key={groupKey}>
@@ -762,73 +445,17 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
                               {groupKey.startsWith("Project Commands") && <Building2 className="h-3 w-3" />}
                               {groupKey}
                             </h3>
-                            
                             <div className="space-y-0.5">
-                              {groupCommands.map((command) => {
-                                const Icon = getCommandIcon(command);
-                                const globalIndex = filteredCommands.indexOf(command);
-                                const isSelected = globalIndex === selectedIndex;
-                                
-                                return (
-                                  <button
-                                    key={command.id}
-                                    data-index={globalIndex}
-                                    onClick={() => handleCommandClick(command)}
-                                    onMouseEnter={() => setSelectedIndex(globalIndex)}
-                                    className={cn(
-                                      "w-full flex items-start gap-3 px-3 py-2 rounded-md",
-                                      "hover:bg-accent/50 transition-colors",
-                                      "text-left",
-                                      isSelected && "bg-accent/50"
-                                    )}
-                                    style={isSelected ? {
-                                      borderLeft: '2px solid var(--color-purple-500)',
-                                      backgroundColor: 'color-mix(in oklch, var(--color-purple-500) 8%, transparent)',
-                                    } : undefined}
-                                  >
-                                    <Icon className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
-                                    
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-baseline gap-2">
-                                        <span className="font-mono text-sm text-primary">
-                                          {command.full_command}
-                                        </span>
-                                        {command.accepts_arguments && (
-                                          <span className="text-xs text-muted-foreground">
-                                            [args]
-                                          </span>
-                                        )}
-                                      </div>
-                                      
-                                      {command.description && (
-                                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                                          {command.description}
-                                        </p>
-                                      )}
-                                      
-                                      <div className="flex items-center gap-3 mt-1">
-                                        {command.allowed_tools.length > 0 && (
-                                          <span className="text-xs text-muted-foreground">
-                                            {command.allowed_tools.length} tool{command.allowed_tools.length === 1 ? '' : 's'}
-                                          </span>
-                                        )}
-                                        
-                                        {command.has_bash_commands && (
-                                          <span className="text-xs text-blue-600 dark:text-blue-400">
-                                            Bash
-                                          </span>
-                                        )}
-                                        
-                                        {command.has_file_references && (
-                                          <span className="text-xs text-green-600 dark:text-green-400">
-                                            Files
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </button>
-                                );
-                              })}
+                              {groupCommands.map((command) => (
+                                <SlashCommandItemCustom
+                                  key={command.id}
+                                  command={command}
+                                  globalIndex={filteredCommands.indexOf(command)}
+                                  selectedIndex={selectedIndex}
+                                  onSelect={handleCommandClick}
+                                  onHover={setSelectedIndex}
+                                />
+                              ))}
                             </div>
                           </div>
                         ))}
@@ -845,9 +472,11 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
       {/* Footer */}
       <div className="border-t p-2" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <p className="text-xs text-muted-foreground text-center">
-          <span style={{ fontFamily: 'var(--font-mono)' }}>↑↓</span> Navigate • <span style={{ fontFamily: 'var(--font-mono)' }}>Enter</span> Select • <span style={{ fontFamily: 'var(--font-mono)' }}>Esc</span> Close
+          <span style={{ fontFamily: 'var(--font-mono)' }}>↑↓</span> Navigate •{' '}
+          <span style={{ fontFamily: 'var(--font-mono)' }}>Enter</span> Select •{' '}
+          <span style={{ fontFamily: 'var(--font-mono)' }}>Esc</span> Close
         </p>
       </div>
     </motion.div>
   );
-}; 
+};

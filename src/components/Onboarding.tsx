@@ -1,17 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
-import {
-  Box,
-  Terminal,
-  CheckCircle,
-  FolderOpen,
-  Shield,
-  BarChart3,
-  Palette,
-  Sparkles,
-} from 'lucide-react';
-import { StepCard, type StepStatus } from '@/components/onboarding/StepCard';
-import { TerminalOutput } from '@/components/onboarding/TerminalOutput';
+import { type StepStatus } from '@/components/onboarding/StepCard';
+import { OnboardingSteps } from '@/components/onboarding/OnboardingSteps';
 import { api } from '@/lib/api';
 import { getEnvironmentInfo } from '@/lib/apiAdapter';
 import { useSessionConfig } from '@/hooks/useSessionConfig';
@@ -21,21 +11,6 @@ import type { PermissionMode } from '@/hooks/useSessionConfig';
 // In web/server mode, Tauri IPC is unavailable — we can't detect or install
 // Node.js, Claude Code, or RuFlo. Show manual instructions instead.
 const IS_WEB_MODE = !getEnvironmentInfo().isTauri;
-
-/** Inline code block with a copy button — used in web-mode manual instruction steps. */
-function CopyBlock({ code }: { code: string }) {
-  return (
-    <div className="flex items-start gap-1.5 bg-black/30 rounded-lg px-3 py-2 font-mono text-[11px] text-purple-300/80">
-      <span className="flex-1 whitespace-pre-wrap break-all select-all leading-relaxed">{code}</span>
-      <button
-        onClick={() => navigator.clipboard.writeText(code).catch(() => {})}
-        className="text-white/30 hover:text-white/70 transition-colors flex-shrink-0 text-[10px] px-2 py-0.5 rounded border border-white/10 hover:border-white/20 mt-0.5"
-      >
-        Copy
-      </button>
-    </div>
-  );
-}
 
 const TOTAL_STEPS = 9;
 
@@ -85,7 +60,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       unlisten?.();
     };
   }, []);
-
 
   // Fetch home directory for default project path
   useEffect(() => {
@@ -139,7 +113,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [setStatus]);
 
   // Auto-check on step enter — desktop mode only.
-  // In web/server mode, IPC is unavailable; steps are pre-skipped below.
   useEffect(() => {
     if (IS_WEB_MODE) return;
     if (currentStep === 1 && !statuses[1]) {
@@ -181,7 +154,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     setRufloInstalling(true);
     setRufloLines([]);
 
-    // Set up progress listener before starting install to avoid race condition
     let unlisten: (() => void) | undefined;
     try {
       const { listen } = await import('@tauri-apps/api/event');
@@ -192,31 +164,24 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
     try {
       await api.installRuflo();
-      setRufloLines((prev) => [...prev, '✓ CLI installed']);
+      setRufloLines((prev) => [...prev, '\u2713 CLI installed']);
       await api.activateRufloMcp();
-      setRufloLines((prev) => [...prev, '✓ MCP server activated in Claude Code']);
+      setRufloLines((prev) => [...prev, '\u2713 MCP server activated in Claude Code']);
       await api.createRufloSlashCommand();
-      setRufloLines((prev) => [...prev, '✓ /setup-ruflo slash command created']);
+      setRufloLines((prev) => [...prev, '\u2713 /setup-ruflo slash command created']);
       try {
         await api.createDddOptimizationCommand();
-        setRufloLines((prev) => [...prev, '✓ /ddd-optimization slash command created']);
+        setRufloLines((prev) => [...prev, '\u2713 /ddd-optimization slash command created']);
       } catch {
-        setRufloLines((prev) => [...prev, '⚠ /ddd-optimization command skipped (will retry on next setup)']);
+        setRufloLines((prev) => [...prev, '\u26A0 /ddd-optimization command skipped (will retry on next setup)']);
       }
       await checkRuflo();
     } catch (err) {
-      setRufloLines((prev) => [...prev, `✗ Error: ${String(err)}`]);
-      // Re-check actual install state; if still not installed, show the failed state
+      setRufloLines((prev) => [...prev, `\u2717 Error: ${String(err)}`]);
       try {
         const s = await api.checkRufloInstalled();
-        if (s.installed) {
-          setStatus(4, 'passed');
-        } else {
-          setStatus(4, 'failed');
-        }
-      } catch {
-        setStatus(4, 'failed');
-      }
+        if (s.installed) { setStatus(4, 'passed'); } else { setStatus(4, 'failed'); }
+      } catch { setStatus(4, 'failed'); }
     } finally {
       unlisten?.();
       setRufloInstalling(false);
@@ -228,7 +193,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       'This will install Node.js v22 on your system.\n\nProceed with installation?'
     );
     if (!confirmed) return;
-
     setStatus(1, 'checking');
     setInstallLines([]);
     try {
@@ -244,7 +208,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       'This will install Claude Code globally via npm.\n\nCommand: npm install -g @anthropic-ai/claude-code\n\nProceed?'
     );
     if (!confirmed) return;
-
     setStatus(2, 'checking');
     setInstallLines([]);
     try {
@@ -267,539 +230,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const finishOnboarding = async () => {
-    // Save analytics consent
     const consent = ConsentManager.getInstance();
     await consent.initialize();
-    if (analyticsEnabled) {
-      await consent.grantConsent();
-    } else {
-      await consent.revokeConsent();
-    }
-
-    // Save project dir
+    if (analyticsEnabled) { await consent.grantConsent(); } else { await consent.revokeConsent(); }
     localStorage.setItem('runecode-default-project-dir', projectDir);
-
-    // Save theme
     localStorage.setItem('runecode-theme', selectedTheme);
-
-    // Apply permission mode
     setPermissionMode(selectedPermission);
-
-    // Mark onboarding complete
     localStorage.setItem('runecode-onboarding-complete', 'true');
-
     onComplete();
-  };
-
-  const renderStepContent = () => {
-    switch (currentStep) {
-      // Step 1: Node.js Runtime
-      case 1:
-        if (IS_WEB_MODE) return (
-          <StepCard
-            key="step-1"
-            step={1}
-            totalSteps={TOTAL_STEPS}
-            title="Node.js Runtime"
-            description="RuneCode is running in server mode — install tools manually in your terminal."
-            icon={Box}
-            status="skipped"
-            onNext={nextStep}
-          >
-            <div className="flex flex-col gap-3">
-              <div className="text-xs text-white/50 leading-relaxed">
-                Install Node.js v22+ on the machine running the RuneCode server:
-              </div>
-              <CopyBlock code="# macOS / Linux (via nvm)\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash\nnvm install 22 && nvm use 22" />
-              <CopyBlock code="# Windows — download from nodejs.org/en/download" />
-              <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer"
-                className="text-xs text-purple-400 hover:text-purple-300 transition-colors">
-                nodejs.org →
-              </a>
-            </div>
-          </StepCard>
-        );
-        return (
-          <StepCard
-            key="step-1"
-            step={1}
-            totalSteps={TOTAL_STEPS}
-            title="Node.js Runtime"
-            description="RuneCode requires Node.js to run Claude Code and manage packages."
-            icon={Box}
-            status={statuses[1] ?? 'pending'}
-            onNext={nextStep}
-            nextDisabled={statuses[1] !== 'passed' && statuses[1] !== 'skipped'}
-            onSkip={skipStep}
-            canSkip={statuses[1] === 'failed' || statuses[1] === 'pending'}
-          >
-            {statuses[1] === 'passed' && nodeVersion && (
-              <div className="text-sm text-green-400">
-                Node.js {nodeVersion} detected
-              </div>
-            )}
-            {statuses[1] === 'failed' && (
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={handleInstallNode}
-                  className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
-                >
-                  Install Node.js
-                </button>
-                <a
-                  href="https://nodejs.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
-                >
-                  Install manually from nodejs.org
-                </a>
-                <button
-                  onClick={checkNode}
-                  className="text-sm text-white/50 hover:text-white/80 transition-colors"
-                >
-                  Retry Check
-                </button>
-              </div>
-            )}
-            <TerminalOutput lines={installLines} />
-          </StepCard>
-        );
-
-      // Step 2: Claude Code CLI
-      case 2:
-        if (IS_WEB_MODE) return (
-          <StepCard
-            key="step-2"
-            step={2}
-            totalSteps={TOTAL_STEPS}
-            title="Claude Code CLI"
-            description="Install Claude Code on the machine running the RuneCode server."
-            icon={Terminal}
-            status="skipped"
-            onNext={nextStep}
-          >
-            <div className="flex flex-col gap-3">
-              <CopyBlock code="npm install -g @anthropic-ai/claude-code" />
-              <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener noreferrer"
-                className="text-xs text-purple-400 hover:text-purple-300 transition-colors">
-                docs.anthropic.com →
-              </a>
-            </div>
-          </StepCard>
-        );
-        return (
-          <StepCard
-            key="step-2"
-            step={2}
-            totalSteps={TOTAL_STEPS}
-            title="Claude Code CLI"
-            description="Install the Claude Code command-line interface to power your AI coding sessions."
-            icon={Terminal}
-            status={statuses[2] ?? 'pending'}
-            onNext={nextStep}
-            nextDisabled={statuses[2] !== 'passed' && statuses[2] !== 'skipped'}
-            onSkip={skipStep}
-            canSkip={statuses[2] === 'failed' || statuses[2] === 'pending'}
-          >
-            {statuses[2] === 'passed' && claudeVersion && (
-              <div className="text-sm text-green-400">
-                Claude Code {claudeVersion} installed
-              </div>
-            )}
-            {statuses[2] === 'failed' && (
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={handleInstallClaude}
-                  className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
-                >
-                  Install Claude Code
-                </button>
-                <a
-                  href="https://docs.anthropic.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
-                >
-                  Install manually from docs.anthropic.com
-                </a>
-                <button
-                  onClick={() => checkClaude(2)}
-                  className="text-sm text-white/50 hover:text-white/80 transition-colors"
-                >
-                  Retry Check
-                </button>
-              </div>
-            )}
-            <TerminalOutput lines={installLines} />
-          </StepCard>
-        );
-
-      // Step 3: Verify Claude
-      case 3:
-        if (IS_WEB_MODE) return (
-          <StepCard
-            key="step-3"
-            step={3}
-            totalSteps={TOTAL_STEPS}
-            title="Verify Claude"
-            description="Verify Claude Code is working on the server machine."
-            icon={CheckCircle}
-            status="skipped"
-            onNext={nextStep}
-          >
-            <div className="flex flex-col gap-3">
-              <div className="text-xs text-white/50">Run this in your terminal to verify:</div>
-              <CopyBlock code="claude --version" />
-              <div className="text-xs text-white/50">Then authenticate:</div>
-              <CopyBlock code="claude auth login" />
-            </div>
-          </StepCard>
-        );
-        return (
-          <StepCard
-            key="step-3"
-            step={3}
-            totalSteps={TOTAL_STEPS}
-            title="Verify Claude"
-            description="Verifying that Claude Code is properly configured and ready to use."
-            icon={CheckCircle}
-            status={statuses[3] ?? 'pending'}
-            onNext={nextStep}
-            nextDisabled={statuses[3] !== 'passed' && statuses[3] !== 'skipped'}
-            onSkip={skipStep}
-            canSkip={statuses[3] === 'failed' || statuses[3] === 'pending'}
-          >
-            {statuses[3] === 'passed' && claudeVersion && (
-              <div className="text-sm text-green-400">
-                Claude Code {claudeVersion} — Ready!
-              </div>
-            )}
-            {statuses[3] === 'failed' && (
-              <div className="flex flex-col gap-2">
-                <div className="text-sm text-red-400">
-                  Could not verify Claude Code. Please ensure it is installed correctly.
-                </div>
-                <button
-                  onClick={() => checkClaude(3)}
-                  className="text-sm text-white/50 hover:text-white/80 transition-colors"
-                >
-                  Retry Check
-                </button>
-              </div>
-            )}
-          </StepCard>
-        );
-
-      // Step 4: RuFlo — AI Swarm Manager
-      case 4:
-        if (IS_WEB_MODE) return (
-          <StepCard
-            key="step-4"
-            step={4}
-            totalSteps={TOTAL_STEPS}
-            title="RuFlo — AI Swarm Manager"
-            description="Install RuFlo on the machine running the RuneCode server."
-            icon={Sparkles}
-            status="skipped"
-            onNext={nextStep}
-            onSkip={() => { localStorage.setItem('runecode-ruflo-skipped', 'true'); skipStep(); }}
-            canSkip
-          >
-            <div className="flex flex-col gap-3">
-              <ul className="flex flex-col gap-1.5">
-                {['Hierarchical swarms with 15+ agent types', 'Autonomous task execution pipeline', 'Claude Code MCP integration'].map((item) => (
-                  <li key={item} className="flex gap-2 text-xs text-white/60">
-                    <span className="text-purple-400">✦</span>{item}
-                  </li>
-                ))}
-              </ul>
-              <CopyBlock code="npm install -g @claude-flow/cli@latest" />
-              <CopyBlock code="claude mcp add claude-flow -- npx -y @claude-flow/cli@latest" />
-            </div>
-          </StepCard>
-        );
-        return (
-          <StepCard
-            key="step-4"
-            step={4}
-            totalSteps={TOTAL_STEPS}
-            title="RuFlo — AI Swarm Manager"
-            description="Supercharge your projects with autonomous AI agents and hierarchical swarms."
-            icon={Sparkles}
-            status={statuses[4] ?? 'pending'}
-            onNext={nextStep}
-            nextDisabled={statuses[4] !== 'passed' && statuses[4] !== 'skipped'}
-            onSkip={() => {
-              localStorage.setItem('runecode-ruflo-skipped', 'true');
-              skipStep();
-            }}
-            canSkip
-          >
-            {rufloStatus?.installed ? (
-              <div className="text-sm text-green-400">
-                RuFlo {rufloStatus.version} already installed ✓
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <ul className="flex flex-col gap-2">
-                  {[
-                    'Hierarchical swarms with 15+ agent types',
-                    'Autonomous task execution pipeline',
-                    'Claude Code MCP integration — activated automatically',
-                    '/setup-ruflo slash command available in all projects',
-                  ].map((item) => (
-                    <li key={item} className="flex gap-2 text-sm text-white/70">
-                      <span className="text-purple-400">✦</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                {statuses[4] !== 'failed' && (
-                  <button
-                    onClick={handleInstallRuflo}
-                    disabled={rufloInstalling}
-                    className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
-                  >
-                    {rufloInstalling ? 'Installing...' : 'Install RuFlo'}
-                  </button>
-                )}
-                {statuses[4] === 'failed' && (
-                  <div className="flex flex-col gap-2">
-                    <div className="text-sm text-red-400">Installation failed</div>
-                    <button onClick={handleInstallRuflo} className="text-sm text-white/50 hover:text-white/80">
-                      Retry
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            <TerminalOutput lines={rufloLines} />
-          </StepCard>
-        );
-
-      // Step 5: Default Project Directory
-      case 5:
-        return (
-          <StepCard
-            key="step-5"
-            step={5}
-            totalSteps={TOTAL_STEPS}
-            title="Default Project Directory"
-            description="Choose where new projects will be created by default."
-            icon={FolderOpen}
-            status={statuses[5] ?? 'pending'}
-            onNext={() => {
-              setStatus(5, 'passed');
-              nextStep();
-            }}
-            onSkip={skipStep}
-            canSkip
-          >
-            <input
-              type="text"
-              value={projectDir}
-              onChange={(e) => setProjectDir(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm font-mono focus:outline-none focus:border-purple-500/50 transition-colors"
-              placeholder="~/Projects"
-            />
-          </StepCard>
-        );
-
-      // Step 6: Permission Mode
-      case 6: {
-        const permissionOptions: { mode: PermissionMode; label: string; desc: string; recommended?: boolean }[] = [
-          { mode: 'default', label: 'Ask Me', desc: 'Prompt for permission on file edits and commands', recommended: true },
-          { mode: 'acceptEdits', label: 'Accept Edits', desc: 'Auto-approve file edits, prompt for commands' },
-          { mode: 'bypassPermissions', label: 'Bypass All', desc: 'Auto-approve all actions without prompting' },
-        ];
-        return (
-          <StepCard
-            key="step-6"
-            step={6}
-            totalSteps={TOTAL_STEPS}
-            title="Permission Mode"
-            description="Control how much autonomy Claude has when modifying your project."
-            icon={Shield}
-            status={statuses[6] ?? 'pending'}
-            onNext={() => {
-              setPermissionMode(selectedPermission);
-              setStatus(6, 'passed');
-              nextStep();
-            }}
-            onSkip={skipStep}
-            canSkip
-          >
-            <div className="flex flex-col gap-2">
-              {permissionOptions.map((opt) => (
-                <button
-                  key={opt.mode}
-                  onClick={() => setSelectedPermission(opt.mode)}
-                  className={`text-left px-4 py-3 rounded-xl border transition-colors ${
-                    selectedPermission === opt.mode
-                      ? 'border-purple-500/60 bg-purple-500/10'
-                      : 'border-white/10 bg-white/5 hover:bg-white/8'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full border-2 transition-colors ${
-                        selectedPermission === opt.mode
-                          ? 'border-purple-400 bg-purple-400'
-                          : 'border-white/30'
-                      }`}
-                    />
-                    <span className="text-sm font-medium text-white">{opt.label}</span>
-                    {opt.recommended && (
-                      <span className="text-[10px] uppercase tracking-wider text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded">
-                        Recommended
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-white/50 mt-1 ml-5">{opt.desc}</p>
-                </button>
-              ))}
-            </div>
-          </StepCard>
-        );
-      }
-
-      // Step 7: Analytics
-      case 7:
-        return (
-          <StepCard
-            key="step-7"
-            step={7}
-            totalSteps={TOTAL_STEPS}
-            title="Analytics"
-            description="Help improve RuneCode by sharing anonymous usage data."
-            icon={BarChart3}
-            status={statuses[7] ?? 'pending'}
-            onNext={() => {
-              setStatus(7, 'passed');
-              nextStep();
-            }}
-            onSkip={skipStep}
-            canSkip
-          >
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={analyticsEnabled}
-                onChange={(e) => setAnalyticsEnabled(e.target.checked)}
-                className="w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/30 focus:ring-offset-0"
-              />
-              <span className="text-sm text-white/80">Send anonymous usage analytics</span>
-            </label>
-            <p className="text-xs text-white/40 leading-relaxed">
-              We collect anonymous usage statistics to improve RuneCode. No personal data, code,
-              or project contents are ever collected. You can change this anytime in Settings.
-            </p>
-          </StepCard>
-        );
-
-      // Step 8: Appearance
-      case 8: {
-        const themeOptions: { value: 'dark' | 'light' | 'system'; label: string }[] = [
-          { value: 'dark', label: 'Dark' },
-          { value: 'light', label: 'Light' },
-          { value: 'system', label: 'System' },
-        ];
-        return (
-          <StepCard
-            key="step-8"
-            step={8}
-            totalSteps={TOTAL_STEPS}
-            title="Appearance"
-            description="Choose your preferred color theme."
-            icon={Palette}
-            status={statuses[8] ?? 'pending'}
-            onNext={() => {
-              localStorage.setItem('runecode-theme', selectedTheme);
-              setStatus(8, 'passed');
-              nextStep();
-            }}
-            onSkip={skipStep}
-            canSkip
-          >
-            <div className="flex gap-2">
-              {themeOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setSelectedTheme(opt.value)}
-                  className={`flex-1 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
-                    selectedTheme === opt.value
-                      ? 'border-purple-500/60 bg-purple-500/10 text-white'
-                      : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/8'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </StepCard>
-        );
-      }
-
-      // Step 9: Quick Tour
-      case 9:
-        return (
-          <StepCard
-            key="step-9"
-            step={9}
-            totalSteps={TOTAL_STEPS}
-            title="Quick Tour"
-            description="A few things to get you started with RuneCode."
-            icon={Sparkles}
-            status={statuses[9] ?? 'pending'}
-            onNext={finishOnboarding}
-            nextLabel="Get Started"
-          >
-            <ul className="flex flex-col gap-3">
-              {[
-                { title: 'Tabs', desc: 'Open multiple sessions side by side with the tab bar.' },
-                { title: 'Agents', desc: 'Spin up autonomous agents to work in the background.' },
-                { title: 'Settings', desc: 'Configure models, permissions, and integrations.' },
-                { title: 'Keyboard Shortcuts', desc: 'Press Ctrl+K to open the command palette.' },
-              ].map((item) => (
-                <li key={item.title} className="flex gap-3">
-                  <div className="w-1 rounded-full bg-purple-500/40 flex-shrink-0" />
-                  <div>
-                    <span className="text-sm font-medium text-white">{item.title}</span>
-                    <p className="text-xs text-white/50 mt-0.5">{item.desc}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            {/* Web / server mode */}
-            <div className="bg-white/4 border border-white/8 rounded-xl px-4 py-3 flex flex-col gap-2">
-              <p className="text-xs font-medium text-white/70">Web / Server Mode</p>
-              <p className="text-[11px] text-white/40 leading-relaxed">
-                Access RuneCode from any browser — no desktop app required.
-              </p>
-              <div className="flex items-center gap-1.5 bg-black/30 rounded-lg px-3 py-2 font-mono text-[11px] text-purple-300/80">
-                <span className="flex-1 select-all">runecode serve --port 8080 --open</span>
-                <button
-                  onClick={copyWebModeCommand}
-                  className="text-white/30 hover:text-white/70 transition-colors flex-shrink-0 text-[10px] px-2 py-0.5 rounded border border-white/10 hover:border-white/20"
-                >
-                  Copy
-                </button>
-              </div>
-              <button
-                onClick={openBrowser}
-                className="text-[11px] text-purple-400/70 hover:text-purple-300 transition-colors text-left"
-              >
-                Open localhost:8080 →
-              </button>
-            </div>
-          </StepCard>
-        );
-
-      default:
-        return null;
-    }
   };
 
   const copyWebModeCommand = () => {
@@ -849,7 +287,38 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         )}
 
         <AnimatePresence mode="wait">
-          {renderStepContent()}
+          <OnboardingSteps
+            currentStep={currentStep}
+            statuses={statuses}
+            IS_WEB_MODE={IS_WEB_MODE}
+            nodeVersion={nodeVersion}
+            installLines={installLines}
+            onInstallNode={handleInstallNode}
+            onCheckNode={checkNode}
+            claudeVersion={claudeVersion}
+            onInstallClaude={handleInstallClaude}
+            onCheckClaude={checkClaude}
+            rufloStatus={rufloStatus}
+            rufloInstalling={rufloInstalling}
+            rufloLines={rufloLines}
+            onInstallRuflo={handleInstallRuflo}
+            projectDir={projectDir}
+            onProjectDirChange={setProjectDir}
+            selectedPermission={selectedPermission}
+            onPermissionChange={setSelectedPermission}
+            onPermissionSave={() => setPermissionMode(selectedPermission)}
+            analyticsEnabled={analyticsEnabled}
+            onAnalyticsChange={setAnalyticsEnabled}
+            selectedTheme={selectedTheme}
+            onThemeChange={setSelectedTheme}
+            onThemeSave={() => localStorage.setItem('runecode-theme', selectedTheme)}
+            onNext={nextStep}
+            onSkip={skipStep}
+            onSetStatus={setStatus}
+            onFinish={finishOnboarding}
+            onCopyWebModeCommand={copyWebModeCommand}
+            onOpenBrowser={openBrowser}
+          />
         </AnimatePresence>
       </div>
     </div>

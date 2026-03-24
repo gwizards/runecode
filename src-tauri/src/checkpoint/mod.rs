@@ -4,6 +4,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 pub mod manager;
+pub(crate) mod manager_helpers;
+pub(crate) mod manager_metadata;
+pub(crate) mod manager_snapshot;
 pub mod state;
 pub mod storage;
 
