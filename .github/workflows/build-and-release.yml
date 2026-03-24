@@ -11,10 +11,11 @@ on:
       - 'tasks/**'
       - 'logs/**'
 
-# Cancel in-progress runs on new push
+# Queue new runs instead of cancelling — ensures builds always complete.
+# Only one build runs at a time per branch; others wait in queue.
 concurrency:
   group: build-release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
