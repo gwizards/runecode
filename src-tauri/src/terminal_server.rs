@@ -98,36 +98,47 @@ async fn terminal_ws_upgrade(
     }
 
     // 1b. Path guard -- resolve and verify project_path is within the user's home dir.
+    // When WSL mode is active, the path is a Linux path (e.g., /home/user/project)
+    // that cannot be canonicalized on Windows. Pass it through directly — the PTY
+    // handler will use `wsl --cd <path>` which validates it inside WSL.
     let raw_path = params.get("projectPath").cloned().unwrap_or_else(home_dir);
-    let canonical = match std::fs::canonicalize(&raw_path) {
-        Ok(p) => p,
-        Err(_) => {
-            // Path does not exist yet (new project); fall back to home dir.
-            let home = home_dir();
-            PathBuf::from(&home)
-                .canonicalize()
-                .unwrap_or_else(|_| PathBuf::from(&home))
-        }
-    };
-    let home = home_dir();
-    let home_path = PathBuf::from(&home)
-        .canonicalize()
-        .unwrap_or_else(|_| PathBuf::from(&home));
-    if !canonical.starts_with(&home_path) {
-        return (StatusCode::FORBIDDEN, "Path outside home directory").into_response();
-    }
+    let wsl_distro = params.get("wslDistro").cloned();
 
-    // Replace the raw projectPath in params with the validated canonical form.
-    // On Windows, canonicalize() returns \\?\ prefixed paths which CMD.EXE cannot
-    // handle as a working directory. Strip the prefix to get a normal path.
-    let canonical_str = canonical.to_string_lossy().into_owned();
-    #[cfg(windows)]
-    let canonical_str = canonical_str
-        .strip_prefix(r"\\?\")
-        .unwrap_or(&canonical_str)
-        .to_string();
+    let validated_path = if wsl_distro.is_some() && raw_path.starts_with('/') {
+        // WSL Linux path — trust it (will be validated by wsl --cd)
+        raw_path
+    } else {
+        let canonical = match std::fs::canonicalize(&raw_path) {
+            Ok(p) => p,
+            Err(_) => {
+                // Path does not exist yet (new project); fall back to home dir.
+                let home = home_dir();
+                PathBuf::from(&home)
+                    .canonicalize()
+                    .unwrap_or_else(|_| PathBuf::from(&home))
+            }
+        };
+        let home = home_dir();
+        let home_path = PathBuf::from(&home)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&home));
+        if !canonical.starts_with(&home_path) {
+            return (StatusCode::FORBIDDEN, "Path outside home directory").into_response();
+        }
+
+        // On Windows, canonicalize() returns \\?\ prefixed paths which CMD.EXE cannot
+        // handle as a working directory. Strip the prefix to get a normal path.
+        let canonical_str = canonical.to_string_lossy().into_owned();
+        #[cfg(windows)]
+        let canonical_str = canonical_str
+            .strip_prefix(r"\\?\")
+            .unwrap_or(&canonical_str)
+            .to_string();
+        canonical_str
+    };
+
     let mut validated_params = params;
-    validated_params.insert("projectPath".to_string(), canonical_str);
+    validated_params.insert("projectPath".to_string(), validated_path);
 
     ws.on_upgrade(move |socket| handle_terminal_ws(socket, validated_params))
 }
