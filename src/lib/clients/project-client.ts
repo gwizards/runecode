@@ -35,10 +35,13 @@ export type {
  */
 export async function listProjects(): Promise<Project[]> {
   try {
-    const result = await apiCall<Project[]>('list_projects', wslParam());
+    const params = wslParam();
+    console.debug('[listProjects] calling with params:', params);
+    const result = await apiCall<Project[]>('list_projects', params);
+    console.debug('[listProjects] result:', Array.isArray(result) ? `${result.length} projects` : typeof result);
     return Array.isArray(result) ? result : [];
   } catch (error) {
-    console.error('Failed to list projects:', error);
+    console.error('[listProjects] Failed:', error);
     if (isDevMode()) {
       console.info('[DevFallback] Returning placeholder projects');
       return DEV_PROJECTS;
