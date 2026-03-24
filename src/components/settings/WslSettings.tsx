@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Terminal, Monitor, RefreshCw, Download, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWslStatus } from '@/hooks/useWslStatus';
-import { getPlatformMode, setPlatformMode, setWslDistro, isWindowsPlatform } from '@/lib/platformMode';
+import { getPlatformMode, setPlatformMode, setWslDistro, getWslDistro, isWindowsPlatform } from '@/lib/platformMode';
 
 export function WslSettings() {
   const { status, loading, error: _error, refresh } = useWslStatus();
   const [mode, setMode] = useState(getPlatformMode());
+  const [selectedDistro, setSelectedDistro] = useState(getWslDistro() || '');
   const [installing, setInstalling] = useState(false);
   const [installResult, setInstallResult] = useState<string | null>(null);
 
@@ -16,9 +17,18 @@ export function WslSettings() {
   const handleModeChange = (newMode: 'windows' | 'wsl') => {
     setPlatformMode(newMode);
     setMode(newMode);
-    if (newMode === 'wsl' && status?.recommended_distro) {
-      setWslDistro(status.recommended_distro);
+    if (newMode === 'wsl') {
+      const distro = selectedDistro || status?.recommended_distro || '';
+      if (distro) {
+        setWslDistro(distro);
+        setSelectedDistro(distro);
+      }
     }
+  };
+
+  const handleDistroChange = (distro: string) => {
+    setSelectedDistro(distro);
+    setWslDistro(distro);
   };
 
   const handleInstallClaude = async () => {
@@ -73,19 +83,28 @@ export function WslSettings() {
         </div>
       ) : status?.available ? (
         <div className="space-y-3">
-          <div className="text-xs font-medium text-white/60">Installed Distributions</div>
+          <div className="text-xs font-medium text-white/60">Installed Distributions — click to select</div>
           {status.distros.map(d => (
-            <div key={d.name} className="flex items-center justify-between p-2 rounded-lg bg-white/5 text-xs">
+            <button
+              key={d.name}
+              onClick={() => handleDistroChange(d.name)}
+              className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-all ${
+                selectedDistro === d.name
+                  ? 'bg-purple-500/15 border border-purple-500/30'
+                  : 'bg-white/5 border border-transparent hover:bg-white/10'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <Terminal className="w-3.5 h-3.5 text-purple-400" />
-                <span>{d.name}</span>
+                <Terminal className={`w-3.5 h-3.5 ${selectedDistro === d.name ? 'text-purple-400' : 'text-white/40'}`} />
+                <span className={selectedDistro === d.name ? 'text-white font-medium' : ''}>{d.name}</span>
                 {d.is_default && <span className="text-[9px] px-1 py-0.5 rounded bg-white/10">default</span>}
+                {selectedDistro === d.name && <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-300">active</span>}
                 <span className="text-white/30">WSL{d.version}</span>
               </div>
               <span className={d.state === 'Running' ? 'text-green-400' : 'text-white/30'}>
                 {d.state}
               </span>
-            </div>
+            </button>
           ))}
 
           {/* Claude/Node status in WSL */}

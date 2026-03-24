@@ -8,6 +8,7 @@ import { DockerSection } from "../integrations/compute/DockerSection";
 import { ProjectStatsSection } from "../integrations/compute/ProjectStatsSection";
 import { GitHubActionsSection } from "./sidebar/GitHubActionsSection";
 import { RuFloSection } from "./sidebar/RuFloSection";
+import { PlatformBadge } from "./sidebar/PlatformBadge";
 // Affiliate referral integrations hidden for now
 // import { SecurityWarning } from "../integrations/security/SecurityWarning";
 // import { useEnvScanner } from "../integrations/security/useEnvScanner";
@@ -210,14 +211,16 @@ export function ProjectSidebar({
                 />
 
                 {/* Header */}
-                <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <RuneCodeLogo size={18} />
-                    <span className="text-sm font-semibold tracking-tight text-foreground/90">
-                      RuneCode
-                    </span>
+                <div className="px-4 py-3 border-b border-border/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <RuneCodeLogo size={18} />
+                      <span className="text-sm font-semibold tracking-tight text-foreground/90">
+                        RuneCode
+                      </span>
+                    </div>
                   </div>
-                  {/* Close sidebar */}
+                  <PlatformBadge />
                 </div>
 
                 {/* Plan & Usage */}
