@@ -117,7 +117,11 @@ pub async fn find_claude_md_files(
 
     let path = PathBuf::from(&project_path);
     if !path.exists() {
-        return Err(format!("Project path does not exist: {}", project_path));
+        // In WSL mode, the path is a Linux path that doesn't exist on Windows.
+        // Return empty rather than error — CLAUDE.md browsing for WSL paths
+        // would need a separate WSL-aware implementation.
+        log::info!("Project path does not exist natively (may be WSL): {}", project_path);
+        return Ok(Vec::new());
     }
 
     let canonical_path = guard_path_within_home(&path)?;

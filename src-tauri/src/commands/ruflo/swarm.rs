@@ -164,23 +164,24 @@ pub async fn init_ruflo_project(
     wsl_distro: Option<String>,
 ) -> Result<String, String> {
     use tauri::Emitter;
-    let project_path = std::path::Path::new(&path);
-    if !project_path.exists() {
-        return Err(format!(
-            "Project path does not exist: {}",
-            project_path.display()
-        ));
-    }
-    if !project_path.is_dir() {
-        return Err(format!(
-            "Project path is not a directory: {}",
-            project_path.display()
-        ));
-    }
+    // In WSL mode, the path is a Linux path (e.g. /home/user/project) that
+    // doesn't exist on the Windows filesystem. Skip native validation.
+    #[cfg(target_os = "windows")]
+    let is_wsl = wsl_distro.is_some();
+    #[cfg(not(target_os = "windows"))]
+    let is_wsl = false;
 
-    let project_path = match std::fs::canonicalize(project_path) {
-        Ok(p) => p,
-        Err(e) => return Err(format!("Cannot resolve project path: {}", e)),
+    let project_path = if is_wsl {
+        std::path::PathBuf::from(&path)
+    } else {
+        let p = std::path::Path::new(&path);
+        if !p.exists() {
+            return Err(format!("Project path does not exist: {}", p.display()));
+        }
+        if !p.is_dir() {
+            return Err(format!("Project path is not a directory: {}", p.display()));
+        }
+        std::fs::canonicalize(p).map_err(|e| format!("Cannot resolve project path: {}", e))?
     };
     // Security: prevent path traversal into system directories.
     // On Windows, drives other than the home drive are allowed (D:\Projects, etc.)
