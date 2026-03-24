@@ -21,7 +21,18 @@ import { LedgerId, UsageLedger } from './types';
 import type { UsageLedger as UsageLedgerType } from './types';
 import { InMemoryUsageLedgerRepository } from './repository';
 import { UsageApplicationService } from './service';
-import { persistUsageLedger, loadUsageLedgers } from '@/infrastructure/tauri/usage-client';
+import type { IUsagePersistencePort } from './ports/IUsagePersistencePort';
+
+let _persistencePort: IUsagePersistencePort | null = null;
+
+/**
+ * Wire up the concrete persistence adapter at app bootstrap.
+ * Must be called before any store mutation or rehydration.
+ * (follows the same pattern as setRuFloEventListener in ruflo/store.ts)
+ */
+export function setUsagePersistencePort(port: IUsagePersistencePort): void {
+  _persistencePort = port;
+}
 
 // ─── Service singleton ─────────────────────────────────────────────────────
 
@@ -38,7 +49,9 @@ const _service = new UsageApplicationService(_repo, globalEventBus);
 async function writeThrough(ledger: UsageLedgerType): Promise<void> {
   const snapshot = ledger.toSnapshot();
   const totalCostMicroUsd = ledger.records.reduce((sum, r) => sum + r.costMicroUsd, 0);
-  await persistUsageLedger(snapshot, totalCostMicroUsd);
+  if (_persistencePort) {
+    await _persistencePort.persist(snapshot, totalCostMicroUsd);
+  }
 }
 
 // ─── Boot-time rehydration ────────────────────────────────────────────────
@@ -50,7 +63,8 @@ async function writeThrough(ledger: UsageLedgerType): Promise<void> {
  */
 async function rehydrateFromSqlite(): Promise<void> {
   try {
-    const rows = await loadUsageLedgers();
+    if (!_persistencePort) return;
+    const rows = await _persistencePort.loadAll();
     for (const row of rows) {
       let records: unknown[];
       try {

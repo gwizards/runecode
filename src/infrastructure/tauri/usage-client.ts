@@ -6,6 +6,7 @@
 
 import { apiCall } from '@/lib/apiAdapter';
 import type { RawLedger } from '@/domain/usage';
+import type { IUsagePersistencePort } from '@/domain/usage/ports/IUsagePersistencePort';
 
 /** Shape of a row returned by the Rust `load_usage_ledgers` command. */
 export interface PersistedLedgerRow {
@@ -62,4 +63,15 @@ export async function loadUsageLedgers(): Promise<PersistedLedgerRow[]> {
     console.error('[usage-client] load_usage_ledgers failed:', err);
     return [];
   }
+}
+
+/**
+ * Factory: creates the concrete IUsagePersistencePort adapter backed by Tauri IPC.
+ * Call this at app bootstrap and pass the result to setUsagePersistencePort().
+ */
+export function createTauriUsagePersistenceAdapter(): IUsagePersistencePort {
+  return {
+    persist: persistUsageLedger,
+    loadAll: loadUsageLedgers,
+  };
 }

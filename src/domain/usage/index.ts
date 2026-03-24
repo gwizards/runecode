@@ -49,7 +49,7 @@ export { InMemoryUsageLedgerRepository } from './repository';
 export { UsageApplicationService } from './service';
 
 // ── Zustand store ──────────────────────────────────────────────────────────
-export { useUsageDomainStore } from './store';
+export { useUsageDomainStore, setUsagePersistencePort } from './store';
 
 // ── Class-based Value Objects ──────────────────────────────────────────────
 export { UsageAmount, ModelId } from './value-objects/usage-amount';

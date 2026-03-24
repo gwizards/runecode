@@ -9,6 +9,7 @@
  */
 
 import type { QuantizationMode, QuantizedMemoryStore } from '../../domain/ruflo';
+import type { IRuFloLocalPersistencePort } from '../../domain/ruflo/ports/IRuFloLocalPersistencePort';
 
 // ── Storage keys ─────────────────────────────────────────────────────────────
 
@@ -74,4 +75,18 @@ export function checkAndMarkBackendInitialized(): boolean {
     // localStorage unavailable (e.g., test environment)
     return true; // treat as already initialized to avoid spurious API calls
   }
+}
+
+/**
+ * Factory: creates the concrete IRuFloLocalPersistencePort adapter backed by localStorage.
+ * Call this at app bootstrap and pass the result to setRuFloLocalPersistence().
+ */
+export function createRuFloLocalPersistenceAdapter(): IRuFloLocalPersistencePort {
+  return {
+    loadPersistedMode,
+    savePersistedMode,
+    saveCalibration,
+    restoreCalibration,
+    checkAndMarkBackendInitialized,
+  };
 }

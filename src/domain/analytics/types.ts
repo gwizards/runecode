@@ -144,37 +144,31 @@ export class ConsentAggregate {
 
   /**
    * Reconstitute from a raw snapshot (used by the repository after loading).
+   * Returns Err if any identity field is invalid so callers can surface the
+   * problem instead of silently persisting sentinel / garbage IDs.
    */
-  static fromSnapshot(raw: RawConsent): ConsentAggregate {
+  static fromSnapshot(raw: RawConsent): Result<ConsentAggregate> {
     const userIdResult = UserId.create(raw.userId);
-    // Snapshots come from trusted storage; a missing userId falls back to a
-    // sentinel rather than crashing the repository.
-    const userId = userIdResult.ok ? userIdResult.value : UserId.generate();
+    if (!userIdResult.ok) return Err(`ConsentAggregate.fromSnapshot: invalid userId: ${userIdResult.error}`);
 
     const idResult = ConsentId.create(raw.id);
-    const id = idResult.ok ? idResult.value : ConsentId.generate();
+    if (!idResult.ok) return Err(`ConsentAggregate.fromSnapshot: invalid id: ${idResult.error}`);
 
     const sessionIdResult = AnalyticsSessionId.create(raw.sessionId);
-    const sessionId = sessionIdResult.ok
-      ? sessionIdResult.value
-      : AnalyticsSessionId.generate();
+    if (!sessionIdResult.ok) return Err(`ConsentAggregate.fromSnapshot: invalid sessionId: ${sessionIdResult.error}`);
 
-    // Snapshots come from trusted storage; a missing/empty projectId is a data
-    // error — fall back to the sentinel 'unknown' rather than crashing the repo.
     const projectIdResult = ProjectId.create(raw.projectId);
-    const projectId = projectIdResult.ok
-      ? projectIdResult.value
-      : (ProjectId.create('unknown') as { ok: true; value: ProjectId }).value;
+    if (!projectIdResult.ok) return Err(`ConsentAggregate.fromSnapshot: invalid projectId: ${projectIdResult.error}`);
 
-    return new ConsentAggregate(
-      id,
-      userId,
-      sessionId,
-      projectId,
+    return Ok(new ConsentAggregate(
+      idResult.value,
+      userIdResult.value,
+      sessionIdResult.value,
+      projectIdResult.value,
       raw.status,
       raw.grantedAt,
       raw.revokedAt,
-    );
+    ));
   }
 
   // ── Queries ──

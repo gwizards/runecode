@@ -118,7 +118,12 @@ export class InMemoryConsentRepository implements IConsentRepository {
   findById(id: ConsentId): ConsentAggregate | undefined {
     const raw = this.store.get(id.toString());
     if (raw === undefined) return undefined;
-    return ConsentAggregate.fromSnapshot(raw);
+    const result = ConsentAggregate.fromSnapshot(raw);
+    if (!result.ok) {
+      console.warn('ConsentAggregate.fromSnapshot failed:', result.error);
+      return undefined;
+    }
+    return result.value;
   }
 
   findBySession(sessionId: AnalyticsSessionId): ConsentAggregate | undefined {
@@ -154,8 +159,12 @@ export class InMemoryConsentRepository implements IConsentRepository {
    */
   seed(items: RawConsent[]): void {
     for (const raw of items) {
-      const aggregate = ConsentAggregate.fromSnapshot(raw);
-      this.save(aggregate);
+      const result = ConsentAggregate.fromSnapshot(raw);
+      if (!result.ok) {
+        console.warn('Skipping malformed consent record:', result.error);
+        continue;
+      }
+      this.save(result.value);
     }
   }
 

@@ -9,6 +9,8 @@
  * this file (or from src/domain/ruflo/events.ts which re-exports from here).
  */
 
+import type { IRuFloDispatcherPort } from '@/domain/ruflo/ports/IRuFloDispatcherPort';
+
 export const RUFLO_EVENTS = {
   STATUS_CHANGED: 'runecode:ruflo-status-changed',
   OPEN_SETTINGS: 'runecode:open-settings',
@@ -53,4 +55,14 @@ export interface RuFloMemoryChangedPayload {
 export interface RuFloProjectChangedPayload {
   completionRate: number;
   hasBlockedTasks: boolean;
+}
+
+/**
+ * Factory: creates the concrete IRuFloDispatcherPort adapter backed by the browser CustomEvent API.
+ * Call this at app bootstrap and pass the result to setRuFloDispatcher().
+ */
+export function createBrowserEventsDispatcher(): IRuFloDispatcherPort {
+  return {
+    dispatch: (event: string) => dispatchRuFloEvent(event as typeof RUFLO_EVENTS.STATUS_CHANGED),
+  };
 }

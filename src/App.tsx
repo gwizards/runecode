@@ -6,6 +6,11 @@ import { RotatingRune } from "./components/RuneCodeLogo";
 import { api, type Project, type Session, type ClaudeMdFile } from "@/lib/api";
 import { initializeWebMode } from "@/lib/apiAdapter";
 import { initStartupToken } from "@/lib/startupToken";
+import { setUsagePersistencePort } from "@/domain/usage";
+import { setRuFloDispatcher, setRuFloLocalPersistence } from "@/domain/ruflo";
+import { createTauriUsagePersistenceAdapter } from "@/infrastructure/tauri/usage-client";
+import { createBrowserEventsDispatcher } from "@/infrastructure/ruflo/browser-events-bridge";
+import { createRuFloLocalPersistenceAdapter } from "@/infrastructure/persistence/ruflo-persistence";
 import { isDevMode, checkBackendConnected } from "@/lib/devFallback";
 import { OutputCacheProvider } from "@/lib/outputCache";
 import { TabProvider } from "@/contexts/TabContext";
@@ -626,6 +631,12 @@ function App() {
       // Fetch the startup secret token early so all subsequent HTTP calls
       // to the local embedded web server carry the X-Startup-Token header.
       await initStartupToken();
+
+      // Wire infrastructure adapters into domain ports.
+      // Must run before any domain store mutation or rehydration.
+      setUsagePersistencePort(createTauriUsagePersistenceAdapter());
+      setRuFloDispatcher(createBrowserEventsDispatcher());
+      setRuFloLocalPersistence(createRuFloLocalPersistenceAdapter());
 
       try {
         const pref = await api.getSetting('startup_intro_enabled');

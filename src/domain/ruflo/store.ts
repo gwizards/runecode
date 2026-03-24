@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { ruFloService } from './service';
-import { dispatchRuFloEvent, RUFLO_EVENTS } from '../../infrastructure/ruflo/browser-events-bridge';
 import type { RuFloInstallation, RuFloSwarm, RuFloProjectStatus } from './types';
 import {
   QuantizedMemoryStore,
@@ -10,14 +9,11 @@ import {
 } from './memory-store';
 import { recommendMode } from './quantization';
 import type { IRuFloEventListener } from './ports/i-ruflo-event-listener';
-// Persistence delegated to infrastructure layer — see src/infrastructure/
-import {
-  loadPersistedMode,
-  savePersistedMode,
-  saveCalibration,
-  restoreCalibration,
-  checkAndMarkBackendInitialized,
-} from '../../infrastructure/persistence/ruflo-persistence';
+import type { IRuFloDispatcherPort } from './ports/IRuFloDispatcherPort';
+import type { IRuFloLocalPersistencePort } from './ports/IRuFloLocalPersistencePort';
+
+// ── Event name constant (kept in domain layer — no browser-API dependency) ────
+const RUFLO_STATUS_CHANGED = 'runecode:ruflo-status-changed';
 
 // ── Event listener port ───────────────────────────────────────────────────────
 // Injected by the infrastructure layer before the store is first used.
@@ -31,6 +27,20 @@ let _eventListener: IRuFloEventListener | null = null;
 /** Register the concrete Tauri event listener adapter. */
 export function setRuFloEventListener(listener: IRuFloEventListener): void {
   _eventListener = listener;
+}
+
+let _dispatcher: IRuFloDispatcherPort | null = null;
+
+/** Register the concrete browser event dispatcher adapter. */
+export function setRuFloDispatcher(dispatcher: IRuFloDispatcherPort): void {
+  _dispatcher = dispatcher;
+}
+
+let _localPersistence: IRuFloLocalPersistencePort | null = null;
+
+/** Register the concrete localStorage persistence adapter. */
+export function setRuFloLocalPersistence(persistence: IRuFloLocalPersistencePort): void {
+  _localPersistence = persistence;
 }
 
 // Module-level array that holds the unlisten functions returned by listener.listen().
@@ -58,9 +68,9 @@ let _localStore: QuantizedMemoryStore | null = null;
 
 export function getLocalMemoryStore(): QuantizedMemoryStore {
   if (!_localStore) {
-    const persistedMode = loadPersistedMode();
+    const persistedMode = _localPersistence ? _localPersistence.loadPersistedMode() : 'scalar';
     _localStore = createRuFloMemoryStore(persistedMode);
-    restoreCalibration(_localStore);
+    if (_localPersistence) _localPersistence.restoreCalibration(_localStore);
   }
   return _localStore;
 }
@@ -73,7 +83,7 @@ export function upgradeMemoryStoreMode(): QuantizationMode {
   if (recommended !== snapshot.mode) {
     // Entries are caches, not source of truth — safe to recreate fresh
     _localStore = createRuFloMemoryStore(recommended);
-    savePersistedMode(recommended);
+    _localPersistence?.savePersistedMode(recommended);
   }
   return recommended;
 }
@@ -132,7 +142,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   actionInProgress: null,
   error: null,
   _listenersSetup: false,
-  localMemoryMode: loadPersistedMode(),
+  localMemoryMode: 'scalar',
   localCacheSize: 0,
 
   // ── Read actions ─────────────────────────────────────────────────────────
@@ -173,7 +183,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
       return;
     }
     set({ installation: result.value, loading: false });
-    dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
+    _dispatcher?.dispatch(RUFLO_STATUS_CHANGED);
   },
 
   fetchSwarm: async () => {
@@ -213,7 +223,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
   refreshMemoryStats: async () => {
     // COMMAND — ensures agentdb backend is initialized on first launch (side
     // effect tracked by infrastructure layer), then delegates to the query.
-    const alreadyInitialized = checkAndMarkBackendInitialized();
+    const alreadyInitialized = _localPersistence ? _localPersistence.checkAndMarkBackendInitialized() : true;
     if (!alreadyInitialized) {
       // non-critical — CLI may not be installed yet; ignore Err
       await ruFloService.setMemoryBackend('agentdb');
@@ -256,7 +266,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
       return '';
     }
     set({ installation: null, swarm: null, memoryStats: null });
-    dispatchRuFloEvent(RUFLO_EVENTS.STATUS_CHANGED);
+    _dispatcher?.dispatch(RUFLO_STATUS_CHANGED);
     return result.value;
   },
 
@@ -352,7 +362,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
       const store = getLocalMemoryStore();
       store.add(key, embedding, metadata);
       const newMode = upgradeMemoryStoreMode();
-      savePersistedMode(newMode);
+      _localPersistence?.savePersistedMode(newMode);
       set({ localCacheSize: getLocalMemoryStore().size, localMemoryMode: newMode });
     } catch { /* non-critical */ }
   },
@@ -369,7 +379,7 @@ export const useRuFloStore = create<RuFloState>((set, get) => ({
     try {
       const store = getLocalMemoryStore();
       store.fitQuantizer(samples);
-      saveCalibration(store);
+      _localPersistence?.saveCalibration(store);
     } catch { /* non-critical */ }
   },
 }));

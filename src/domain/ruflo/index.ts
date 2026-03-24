@@ -1,7 +1,7 @@
 export * from './types';
 export * from './events';
 export * from './service';
-export { useRuFloStore, setRuFloEventListener, teardownRuFloListeners, getLocalMemoryStore, upgradeMemoryStoreMode } from './store';
+export { useRuFloStore, setRuFloEventListener, teardownRuFloListeners, getLocalMemoryStore, upgradeMemoryStoreMode, setRuFloDispatcher, setRuFloLocalPersistence } from './store';
 export * from './quantization';
 export { QuantizedMemoryStore, createRuFloMemoryStore } from './memory-store';
 export type { QuantizationMode, QuantizedEntry, SearchResult, QuantizedMemoryStoreConfig } from './memory-store';
