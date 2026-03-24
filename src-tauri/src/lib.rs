@@ -9,6 +9,7 @@ pub mod process;
 pub mod terminal_server;
 pub mod web_server;
 pub mod ws_types;
+// web_server submodules (http, middleware, ws) are declared inside web_server.rs
 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
