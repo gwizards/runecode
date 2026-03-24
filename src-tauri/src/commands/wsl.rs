@@ -1,6 +1,23 @@
 use crate::claude_binary::silent_command;
 use serde::{Deserialize, Serialize};
 
+/// Validates WSL distro name -- alphanumeric, hyphens, underscores, periods only.
+pub fn validate_distro_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("Distro name cannot be empty".into());
+    }
+    if name.len() > 64 {
+        return Err("Distro name too long".into());
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err("Distro name contains invalid characters".into());
+    }
+    Ok(())
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WslDistro {
     pub name: String,
@@ -131,6 +148,8 @@ pub async fn detect_wsl() -> Result<WslStatus, String> {
 }
 
 /// Execute a command inside a WSL distro.
+///
+/// Tries `bash -lc` first; if that fails, falls back to `sh -c`.
 #[tauri::command]
 pub async fn wsl_execute(distro: String, command: String) -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
@@ -142,22 +161,45 @@ pub async fn wsl_execute(distro: String, command: String) -> Result<String, Stri
 
     #[cfg(target_os = "windows")]
     {
+        validate_distro_name(&distro)?;
+
+        let distro_clone = distro.clone();
+        let command_clone = command.clone();
+
+        // Try bash -lc first
         let output = tokio::task::spawn_blocking(move || {
             silent_command("wsl")
-                .args(["-d", &distro, "--", "bash", "-lc", &command])
+                .args(["-d", &distro_clone, "--", "bash", "-lc", &command_clone])
                 .output()
         })
         .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| format!("WSL execution failed: {}", e))?;
+        .map_err(|e| e.to_string())?;
 
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        match output {
+            Ok(o) if o.status.success() => {
+                return Ok(String::from_utf8_lossy(&o.stdout).to_string());
+            }
+            _ => {
+                // Fallback to sh -c
+                log::debug!("bash -lc failed in WSL, falling back to sh -c");
+                let output = tokio::task::spawn_blocking(move || {
+                    silent_command("wsl")
+                        .args(["-d", &distro, "--", "sh", "-c", &command])
+                        .output()
+                })
+                .await
+                .map_err(|e| e.to_string())?
+                .map_err(|e| format!("WSL execution failed: {}", e))?;
 
-        if output.status.success() {
-            Ok(stdout)
-        } else {
-            Err(format!("{}\n{}", stdout, stderr))
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+                if output.status.success() {
+                    Ok(stdout)
+                } else {
+                    Err(format!("{}\n{}", stdout, stderr))
+                }
+            }
         }
     }
 }
@@ -165,6 +207,7 @@ pub async fn wsl_execute(distro: String, command: String) -> Result<String, Stri
 /// Install Claude Code inside a WSL distro via npm.
 #[tauri::command]
 pub async fn install_claude_in_wsl(distro: String) -> Result<String, String> {
+    validate_distro_name(&distro)?;
     wsl_execute(
         distro,
         "npm install -g @anthropic-ai/claude-code".to_string(),

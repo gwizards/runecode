@@ -183,9 +183,18 @@ pub(super) fn validate_path_component(id: &str, label: &str) -> Result<(), Strin
     Ok(())
 }
 
+/// Normalizes path separators and checks whether `path` contains the given
+/// `component` substring.  Backslashes are replaced with forward slashes so
+/// the check works on both Windows and Unix paths.
+fn path_contains_component(path: &str, component: &str) -> bool {
+    let normalized = path.replace('\\', "/");
+    normalized.contains(component)
+}
+
 /// Creates a tokio Command with the subset of env-vars that Claude/Node need.
 pub(super) fn create_command_with_env(program: &str) -> Command {
     let mut tokio_cmd = Command::new(program);
+    let path_sep = if cfg!(windows) { ";" } else { ":" };
 
     for (key, value) in std::env::vars() {
         if key == "PATH"
@@ -206,23 +215,25 @@ pub(super) fn create_command_with_env(program: &str) -> Command {
         }
     }
 
-    if program.contains("/.nvm/versions/node/") {
+    if path_contains_component(program, "/.nvm/versions/node/") {
         if let Some(node_bin_dir) = std::path::Path::new(program).parent() {
             let current_path = std::env::var("PATH").unwrap_or_default();
             let node_bin_str = node_bin_dir.to_string_lossy();
             if !current_path.contains(&node_bin_str.as_ref()) {
-                tokio_cmd.env("PATH", format!("{}:{}", node_bin_str, current_path));
+                tokio_cmd.env("PATH", format!("{}{}{}", node_bin_str, path_sep, current_path));
             }
         }
     }
 
-    if program.contains("/homebrew/") || program.contains("/opt/homebrew/") {
+    if path_contains_component(program, "/homebrew/")
+        || path_contains_component(program, "/opt/homebrew/")
+    {
         if let Some(program_dir) = std::path::Path::new(program).parent() {
             let current_path = std::env::var("PATH").unwrap_or_default();
             let homebrew_bin_str = program_dir.to_string_lossy();
             if !current_path.contains(&homebrew_bin_str.as_ref()) {
                 log::debug!("Adding Homebrew bin directory to PATH: {}", homebrew_bin_str);
-                tokio_cmd.env("PATH", format!("{}:{}", homebrew_bin_str, current_path));
+                tokio_cmd.env("PATH", format!("{}{}{}", homebrew_bin_str, path_sep, current_path));
             }
         }
     }

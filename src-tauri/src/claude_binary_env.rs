@@ -8,6 +8,14 @@ use std::process::Command;
 
 use super::claude_binary::{silent_command, ClaudeInstallation, InstallationType};
 
+/// Normalizes path separators and checks whether `path` contains the given
+/// `component` substring. Backslashes are replaced with forward slashes before
+/// comparison so that the check works on both Windows and Unix paths.
+fn path_contains_component(path: &str, component: &str) -> bool {
+    let normalized = path.replace('\\', "/");
+    normalized.contains(component)
+}
+
 /// Helper function to create a Command with proper environment variables
 /// This ensures commands like Claude can find Node.js and other dependencies
 pub fn create_command_with_env(program: &str) -> Command {
@@ -68,7 +76,7 @@ pub fn create_command_with_env(program: &str) -> Command {
     }
 
     // Add NVM support if the program is in an NVM directory
-    if program.contains("/.nvm/versions/node/") {
+    if path_contains_component(program, "/.nvm/versions/node/") {
         if let Some(node_bin_dir) = std::path::Path::new(program).parent() {
             // Ensure the Node.js bin directory is in PATH
             let current_path = std::env::var("PATH").unwrap_or_default();
@@ -82,15 +90,17 @@ pub fn create_command_with_env(program: &str) -> Command {
         }
     }
 
-    // Add Homebrew support if the program is in a Homebrew directory
-    if program.contains("/homebrew/") || program.contains("/opt/homebrew/") {
+    // Add Homebrew support if the program is in a Homebrew directory (macOS only)
+    #[cfg(target_os = "macos")]
+    if path_contains_component(program, "/homebrew/")
+        || path_contains_component(program, "/opt/homebrew/")
+    {
         if let Some(program_dir) = std::path::Path::new(program).parent() {
             // Ensure the Homebrew bin directory is in PATH
             let current_path = std::env::var("PATH").unwrap_or_default();
             let homebrew_bin_str = program_dir.to_string_lossy();
             if !current_path.contains(&homebrew_bin_str.as_ref()) {
-                let sep = if cfg!(windows) { ";" } else { ":" };
-                let new_path = format!("{}{}{}", homebrew_bin_str, sep, current_path);
+                let new_path = format!("{}:{}", homebrew_bin_str, current_path);
                 debug!(
                     "Adding Homebrew bin directory to PATH: {}",
                     homebrew_bin_str

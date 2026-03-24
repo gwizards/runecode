@@ -218,7 +218,28 @@ pub fn check_node_installed(wsl_distro: Option<String>) -> serde_json::Value {
     let candidates: Vec<std::path::PathBuf> = {
         #[cfg(target_os = "windows")]
         {
-            let mut v = vec![std::path::PathBuf::from("node.exe")];
+            let mut v = Vec::new();
+
+            // Use `where node` to resolve node from PATH on Windows (equivalent
+            // of `which` on Unix). This finds node even when launched from a GUI
+            // app that inherits a limited PATH.
+            if let Ok(output) = crate::claude_binary::silent_command("where")
+                .arg("node")
+                .output()
+            {
+                if output.status.success() {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    for line in stdout.lines() {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            v.push(std::path::PathBuf::from(trimmed));
+                        }
+                    }
+                }
+            }
+
+            // Fall back to well-known install locations
+            v.push(std::path::PathBuf::from("node.exe"));
             if let Some(home) = dirs::home_dir() {
                 v.push(home.join("AppData\\Roaming\\nvm\\current\\node.exe"));
                 v.push(home.join("AppData\\Local\\fnm_multishells\\node.exe"));
