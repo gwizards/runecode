@@ -1,5 +1,8 @@
 import React from 'react';
+import { FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isWslMode, getWslDistro } from '@/lib/platformMode';
+import { WslFileBrowser } from '@/components/wsl/WslFileBrowser';
 
 interface RemoteProjectEntryProps {
   envName: string;
@@ -8,6 +11,7 @@ interface RemoteProjectEntryProps {
 
 export function RemoteProjectEntry({ envName, onSelectPath }: RemoteProjectEntryProps) {
   const [path, setPath] = React.useState('');
+  const [showWslBrowser, setShowWslBrowser] = React.useState(false);
   const [recentPaths] = React.useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('runecode-remote-recent-paths');
@@ -45,10 +49,27 @@ export function RemoteProjectEntry({ envName, onSelectPath }: RemoteProjectEntry
           className="flex-1 px-3 py-2 rounded-lg border border-border/50 bg-background text-sm font-mono focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20"
           autoFocus
         />
+        {isWslMode() && (
+          <Button variant="outline" onClick={() => setShowWslBrowser(v => !v)} title="Browse WSL filesystem">
+            <FolderOpen className="h-4 w-4" />
+          </Button>
+        )}
         <Button onClick={handleGo} disabled={!path.trim()}>
           Open
         </Button>
       </div>
+
+      {showWslBrowser && (
+        <WslFileBrowser
+          distro={getWslDistro() || 'Ubuntu'}
+          initialPath={path || '/home'}
+          onSelect={(selectedPath) => {
+            setPath(selectedPath);
+            setShowWslBrowser(false);
+          }}
+          onCancel={() => setShowWslBrowser(false)}
+        />
+      )}
 
       {/* Common paths */}
       <div className="space-y-1">

@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button';
 import { RemoteProjectEntry } from './RemoteProjectEntry';
 import { ProjectSessionView } from './ProjectSessionView';
 import { defaultClaudeFlags } from './TabPanelContent';
+import { isWslMode, getWslDistro } from '@/lib/platformMode';
+import { WslFileBrowser } from '@/components/wsl/WslFileBrowser';
 
 // Lazy-loaded only when the fix terminal panel is shown
 const EmbeddedTerminal = lazy(() => import('@/components/EmbeddedTerminal').then(m => ({ default: m.EmbeddedTerminal })));
@@ -43,6 +45,9 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
+
+  // WSL file browser for "Open Project"
+  const [showWslOpenBrowser, setShowWslOpenBrowser] = React.useState(false);
 
   // Environment selection step
   const [envStep, setEnvStep] = React.useState<'pick-env' | 'check-claude' | 'projects'>('projects');
@@ -133,6 +138,11 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
   };
 
   const handleOpenProject = async () => {
+    // In WSL mode, show the in-app WSL file browser
+    if (isWslMode()) {
+      setShowWslOpenBrowser(true);
+      return;
+    }
     try {
       const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       let selected: string | null = null;
@@ -155,6 +165,18 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
     } catch (err) {
       console.error('Failed to open folder picker:', err);
       setError('Failed to open folder picker');
+    }
+  };
+
+  const handleWslOpenSelect = async (wslPath: string) => {
+    setShowWslOpenBrowser(false);
+    try {
+      const project = await api.createProject(wslPath);
+      await loadProjects();
+      await handleProjectClick(project);
+    } catch (err) {
+      console.error('Failed to open WSL project:', err);
+      setError('Failed to open project from WSL path');
     }
   };
 
@@ -421,13 +443,25 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
           )}
           {!pickedEnvId && (
             <>
-              <ProjectList
-                projects={projects}
-                onProjectClick={handleProjectClick}
-                onOpenProject={handleOpenProject}
-                onNewProject={() => setShowCreateDialog(true)}
-                loading={loading}
-              />
+              {showWslOpenBrowser && (
+                <div className="max-w-2xl mx-auto p-6">
+                  <h2 className="text-lg font-semibold mb-3">Browse WSL Filesystem</h2>
+                  <WslFileBrowser
+                    distro={getWslDistro() || 'Ubuntu'}
+                    onSelect={handleWslOpenSelect}
+                    onCancel={() => setShowWslOpenBrowser(false)}
+                  />
+                </div>
+              )}
+              {!showWslOpenBrowser && (
+                <ProjectList
+                  projects={projects}
+                  onProjectClick={handleProjectClick}
+                  onOpenProject={handleOpenProject}
+                  onNewProject={() => setShowCreateDialog(true)}
+                  loading={loading}
+                />
+              )}
               <CreateProjectDialog
                 open={showCreateDialog}
                 onClose={() => setShowCreateDialog(false)}

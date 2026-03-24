@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { FolderOpen, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
+import { isWslMode, getWslDistro } from '@/lib/platformMode';
+import { WslFileBrowser } from '@/components/wsl/WslFileBrowser';
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -12,8 +14,14 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
   const [projectPath, setProjectPath] = useState('');
   const [projectName, setProjectName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [showWslBrowser, setShowWslBrowser] = useState(false);
 
   const handleBrowse = async () => {
+    // In WSL mode, show the in-app WSL file browser instead of the native Windows dialog
+    if (isWslMode()) {
+      setShowWslBrowser(true);
+      return;
+    }
     try {
       const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       if (isRealTauri) {
@@ -115,7 +123,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
                   setProjectName(name);
                 }
               }}
-              placeholder="/path/to/your/project"
+              placeholder={isWslMode() ? '/home/user/project' : '/path/to/your/project'}
               className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
               autoFocus
             />
@@ -127,6 +135,19 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
               Browse
             </button>
           </div>
+
+          {showWslBrowser && (
+            <WslFileBrowser
+              distro={getWslDistro() || 'Ubuntu'}
+              onSelect={(path) => {
+                setProjectPath(path);
+                const name = path.split('/').pop() || '';
+                if (!projectName) setProjectName(name);
+                setShowWslBrowser(false);
+              }}
+              onCancel={() => setShowWslBrowser(false)}
+            />
+          )}
         </div>
 
         <div className="space-y-2">
