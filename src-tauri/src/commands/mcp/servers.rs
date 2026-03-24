@@ -13,15 +13,50 @@ fn find_claude_binary(app_handle: &AppHandle) -> Result<String> {
     crate::claude_binary::find_claude_binary(app_handle).map_err(|e| anyhow::anyhow!(e))
 }
 
-/// Executes a claude mcp command
+/// Executes a claude mcp command.
+/// When `wsl_distro` is Some, routes through `wsl -d <distro> -- claude mcp ...`
+/// instead of invoking the native claude binary.
 pub(super) async fn execute_claude_mcp_command(
     app_handle: &AppHandle,
     args: Vec<&str>,
+    wsl_distro: Option<&str>,
 ) -> Result<String> {
     info!("Executing claude mcp command with args: {:?}", args);
 
-    let claude_path = find_claude_binary(app_handle)?;
     let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+
+    // On Windows with WSL mode, route through wsl instead of the native binary.
+    #[cfg(target_os = "windows")]
+    if let Some(distro) = wsl_distro {
+        let distro_owned = distro.to_string();
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            tokio::task::spawn_blocking(move || {
+                let mut cmd = create_command_with_env("wsl");
+                cmd.arg("-d").arg(&distro_owned).arg("--").arg("claude").arg("mcp");
+                for arg in &args_owned {
+                    cmd.arg(arg);
+                }
+                cmd.output()
+            }),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!("WSL mcp command timed out after 30s"))?
+        .map_err(|e| anyhow::anyhow!("spawn_blocking failed: {}", e))?
+        .context("Failed to execute WSL claude command")?;
+
+        if output.status.success() {
+            return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            return Err(anyhow::anyhow!("WSL MCP command failed: {}", stderr));
+        }
+    }
+
+    // Suppress unused-variable warning on non-Windows where the cfg block is compiled out
+    let _ = wsl_distro;
+
+    let claude_path = find_claude_binary(app_handle)?;
 
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(30),
@@ -58,6 +93,7 @@ pub async fn mcp_add(
     env: HashMap<String, String>,
     url: Option<String>,
     scope: String,
+    wsl_distro: Option<String>,
 ) -> Result<AddServerResult, String> {
     info!("Adding MCP server: {} with transport: {}", name, transport);
 
@@ -110,7 +146,7 @@ pub async fn mcp_add(
         }
     }
 
-    match execute_claude_mcp_command(&app, cmd_args).await {
+    match execute_claude_mcp_command(&app, cmd_args, wsl_distro.as_deref()).await {
         Ok(output) => {
             info!("Successfully added MCP server: {}", name);
             Ok(AddServerResult {
@@ -132,10 +168,10 @@ pub async fn mcp_add(
 
 /// Lists all configured MCP servers
 #[tauri::command]
-pub async fn mcp_list(app: AppHandle) -> Result<Vec<MCPServer>, String> {
+pub async fn mcp_list(app: AppHandle, wsl_distro: Option<String>) -> Result<Vec<MCPServer>, String> {
     info!("Listing MCP servers");
 
-    match execute_claude_mcp_command(&app, vec!["list"]).await {
+    match execute_claude_mcp_command(&app, vec!["list"], wsl_distro.as_deref()).await {
         Ok(output) => {
             let trimmed = output.trim();
             if trimmed.contains("No MCP servers configured") || trimmed.is_empty() {
@@ -206,10 +242,10 @@ pub async fn mcp_list(app: AppHandle) -> Result<Vec<MCPServer>, String> {
 
 /// Gets details for a specific MCP server
 #[tauri::command]
-pub async fn mcp_get(app: AppHandle, name: String) -> Result<MCPServer, String> {
+pub async fn mcp_get(app: AppHandle, name: String, wsl_distro: Option<String>) -> Result<MCPServer, String> {
     info!("Getting MCP server details for: {}", name);
 
-    match execute_claude_mcp_command(&app, vec!["get", &name]).await {
+    match execute_claude_mcp_command(&app, vec!["get", &name], wsl_distro.as_deref()).await {
         Ok(output) => {
             let mut scope = "local".to_string();
             let mut transport = "stdio".to_string();
@@ -271,10 +307,10 @@ pub async fn mcp_get(app: AppHandle, name: String) -> Result<MCPServer, String> 
 
 /// Removes an MCP server
 #[tauri::command]
-pub async fn mcp_remove(app: AppHandle, name: String) -> Result<String, String> {
+pub async fn mcp_remove(app: AppHandle, name: String, wsl_distro: Option<String>) -> Result<String, String> {
     info!("Removing MCP server: {}", name);
 
-    match execute_claude_mcp_command(&app, vec!["remove", &name]).await {
+    match execute_claude_mcp_command(&app, vec!["remove", &name], wsl_distro.as_deref()).await {
         Ok(output) => {
             info!("Successfully removed MCP server: {}", name);
             Ok(output.trim().to_string())
@@ -293,6 +329,7 @@ pub async fn mcp_add_json(
     name: String,
     json_config: String,
     scope: String,
+    wsl_distro: Option<String>,
 ) -> Result<AddServerResult, String> {
     info!("Adding MCP server from JSON: {} scope: {}", name, scope);
 
@@ -300,7 +337,7 @@ pub async fn mcp_add_json(
     cmd_args.push("-s");
     cmd_args.push(&scope);
 
-    match execute_claude_mcp_command(&app, cmd_args).await {
+    match execute_claude_mcp_command(&app, cmd_args, wsl_distro.as_deref()).await {
         Ok(output) => {
             info!("Successfully added MCP server from JSON: {}", name);
             Ok(AddServerResult {
@@ -322,8 +359,27 @@ pub async fn mcp_add_json(
 
 /// Starts Claude Code as an MCP server
 #[tauri::command]
-pub async fn mcp_serve(app: AppHandle) -> Result<String, String> {
+pub async fn mcp_serve(app: AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     info!("Starting Claude Code as MCP server");
+
+    // When WSL mode is active, route through wsl
+    #[cfg(target_os = "windows")]
+    if let Some(ref distro) = wsl_distro {
+        let mut cmd = create_command_with_env("wsl");
+        cmd.arg("-d").arg(distro).arg("--").arg("claude").arg("mcp").arg("serve");
+        match cmd.spawn() {
+            Ok(_) => {
+                info!("Successfully started Claude Code MCP server via WSL");
+                return Ok("Claude Code MCP server started (WSL)".to_string());
+            }
+            Err(e) => {
+                error!("Failed to start MCP server via WSL: {}", e);
+                return Err(e.to_string());
+            }
+        }
+    }
+
+    let _ = wsl_distro; // suppress warning on non-Windows
 
     let claude_path = match crate::claude_binary::find_claude_binary(&app) {
         Ok(path) => path,
@@ -350,9 +406,9 @@ pub async fn mcp_serve(app: AppHandle) -> Result<String, String> {
 
 /// Tests connection to an MCP server
 #[tauri::command]
-pub async fn mcp_test_connection(app: AppHandle, name: String) -> Result<String, String> {
+pub async fn mcp_test_connection(app: AppHandle, name: String, wsl_distro: Option<String>) -> Result<String, String> {
     info!("Testing connection to MCP server: {}", name);
-    match execute_claude_mcp_command(&app, vec!["get", &name]).await {
+    match execute_claude_mcp_command(&app, vec!["get", &name], wsl_distro.as_deref()).await {
         Ok(_) => Ok(format!("Connection to {} successful", name)),
         Err(e) => Err(e.to_string()),
     }
@@ -360,10 +416,10 @@ pub async fn mcp_test_connection(app: AppHandle, name: String) -> Result<String,
 
 /// Resets project-scoped server approval choices
 #[tauri::command]
-pub async fn mcp_reset_project_choices(app: AppHandle) -> Result<String, String> {
+pub async fn mcp_reset_project_choices(app: AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     info!("Resetting MCP project choices");
 
-    match execute_claude_mcp_command(&app, vec!["reset-project-choices"]).await {
+    match execute_claude_mcp_command(&app, vec!["reset-project-choices"], wsl_distro.as_deref()).await {
         Ok(output) => {
             info!("Successfully reset MCP project choices");
             Ok(output.trim().to_string())

@@ -253,7 +253,7 @@ pub(super) fn create_system_command(
 /// `wsl -d <distro> --cd <wsl_path> -- <program> <args...>` so that Claude Code
 /// executes inside the specified WSL distribution.  On non-Windows platforms or
 /// when no distro is given, the command is built normally.
-pub(super) fn create_system_command_wsl(
+pub(crate) fn create_system_command_wsl(
     claude_path: &str,
     args: Vec<String>,
     project_path: &str,
@@ -308,10 +308,70 @@ fn windows_to_wsl_path(win_path: &str) -> String {
     }
 }
 
-/// Checks if Claude Code is installed and gets its version
+/// Checks if Claude Code is installed and gets its version.
+///
+/// When `wsl_distro` is provided on Windows, the version check runs inside the
+/// specified WSL distribution (`wsl -d <distro> -- claude --version`).
 #[tauri::command]
-pub async fn check_claude_version(app: tauri::AppHandle) -> Result<ClaudeVersionStatus, String> {
+pub async fn check_claude_version(
+    app: tauri::AppHandle,
+    wsl_distro: Option<String>,
+) -> Result<ClaudeVersionStatus, String> {
     log::info!("Checking Claude Code version");
+
+    // WSL path: check claude inside the WSL distribution
+    #[cfg(target_os = "windows")]
+    if let Some(ref distro) = wsl_distro {
+        if !distro.is_empty() {
+            let distro_owned = distro.clone();
+            let output = tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                tokio::task::spawn_blocking(move || {
+                    crate::claude_binary::silent_command("wsl")
+                        .args(["-d", &distro_owned, "--", "claude", "--version"])
+                        .output()
+                }),
+            )
+            .await
+            .map_err(|_| "check_claude_version (WSL) timed out".to_string())?
+            .map_err(|e| format!("spawn_blocking failed: {}", e))?;
+
+            return match output {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                    let version = regex::Regex::new(
+                        r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)",
+                    )
+                    .ok()
+                    .and_then(|re| re.captures(&stdout))
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                    let full_output = if stderr.is_empty() {
+                        stdout.clone()
+                    } else {
+                        format!("{}\n{}", stdout, stderr)
+                    };
+                    let is_valid =
+                        stdout.contains("(Claude Code)") || stdout.contains("Claude Code");
+                    Ok(ClaudeVersionStatus {
+                        is_installed: is_valid && output.status.success(),
+                        version,
+                        output: full_output.trim().to_string(),
+                    })
+                }
+                Err(e) => {
+                    log::error!("Failed to run claude command in WSL: {}", e);
+                    Ok(ClaudeVersionStatus {
+                        is_installed: false,
+                        version: None,
+                        output: format!("WSL command not found: {}", e),
+                    })
+                }
+            };
+        }
+    }
+    let _ = &wsl_distro; // suppress unused warning on non-Windows
 
     let claude_path = match find_claude_binary(&app) {
         Ok(path) => path,
@@ -344,7 +404,7 @@ pub async fn check_claude_version(app: tauri::AppHandle) -> Result<ClaudeVersion
         let output = tokio::time::timeout(
             std::time::Duration::from_secs(10),
             tokio::task::spawn_blocking(move || {
-                std::process::Command::new(claude_path).arg("--version").output()
+                crate::claude_binary::silent_command(&claude_path).arg("--version").output()
             }),
         )
         .await

@@ -374,7 +374,7 @@ fn try_login_shell_which() -> Option<ClaudeInstallation> {
         "/bin/bash".to_string()
     };
     debug!("Unix: trying login-shell ({}) which to find claude...", shell_bin);
-    let output = std::process::Command::new(&shell_bin)
+    let output = silent_command(&shell_bin)
         .args(["-l", "-c", "which claude 2>/dev/null || command -v claude 2>/dev/null"])
         .output()
         .ok()?;

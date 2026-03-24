@@ -3,6 +3,7 @@
 import { apiCall } from '@/lib/apiAdapter';
 import { applyStartupToken } from '@/lib/startupToken';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from '@/lib/devFallback';
+import { isWslMode, getWslDistro } from '@/lib/platformMode';
 import type {
   Project,
   Session,
@@ -13,13 +14,22 @@ import type {
   ClaudeInstallation,
 } from './types';
 
+/** Returns `{ wslDistro }` when WSL mode is active, or `{}` otherwise. */
+function wslParam(): { wslDistro?: string } {
+  if (isWslMode()) {
+    const distro = getWslDistro();
+    if (distro) return { wslDistro: distro };
+  }
+  return {};
+}
+
 /**
  * Gets the user's home directory path
  * @returns Promise resolving to the home directory path
  */
 export async function getHomeDirectory(): Promise<string> {
   try {
-    return await apiCall<string>('get_home_directory');
+    return await apiCall<string>('get_home_directory', wslParam());
   } catch (error) {
     console.error('Failed to get home directory:', error);
     return '/';
@@ -32,7 +42,7 @@ export async function getHomeDirectory(): Promise<string> {
  */
 export async function listProjects(): Promise<Project[]> {
   try {
-    const result = await apiCall<Project[]>('list_projects');
+    const result = await apiCall<Project[]>('list_projects', wslParam());
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to list projects:', error);
@@ -92,7 +102,7 @@ export async function initializeProject(projectPath: string, projectName: string
  */
 export async function getProjectSessions(projectId: string): Promise<Session[]> {
   try {
-    const result = await apiCall<Session[]>('get_project_sessions', { projectId });
+    const result = await apiCall<Session[]>('get_project_sessions', { projectId, ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to get project sessions:', error);

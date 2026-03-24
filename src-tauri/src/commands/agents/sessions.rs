@@ -4,6 +4,8 @@ use rusqlite::params;
 use std::io::{BufRead, BufReader};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::claude_binary::silent_command;
+
 use super::AgentDb;
 use crate::commands::agents::db::{get_agent_run, read_session_jsonl};
 
@@ -184,7 +186,7 @@ pub async fn cleanup_finished_processes(db: State<'_, AgentDb>) -> Result<Vec<i6
             std::time::Duration::from_secs(5),
             tokio::task::spawn_blocking(move || {
                 if cfg!(target_os = "windows") {
-                    match std::process::Command::new("tasklist")
+                    match silent_command("tasklist")
                         .args(["/FI", &format!("PID eq {}", pid)])
                         .args(["/FO", "CSV"])
                         .output()
@@ -196,7 +198,7 @@ pub async fn cleanup_finished_processes(db: State<'_, AgentDb>) -> Result<Vec<i6
                         Err(_) => false,
                     }
                 } else {
-                    match std::process::Command::new("kill")
+                    match silent_command("kill")
                         .args(["-0", &pid.to_string()])
                         .output()
                     {

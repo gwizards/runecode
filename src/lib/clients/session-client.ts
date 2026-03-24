@@ -40,13 +40,22 @@ export type {
   FileEntry,
 };
 
+/** Returns `{ wslDistro }` when WSL mode is active, or `{}` otherwise. */
+function wslParam(): { wslDistro?: string } {
+  if (isWslMode()) {
+    const distro = getWslDistro();
+    if (distro) return { wslDistro: distro };
+  }
+  return {};
+}
+
 /**
  * Gets the user's home directory path
  * @returns Promise resolving to the home directory path
  */
 export async function getHomeDirectory(): Promise<string> {
   try {
-    return await apiCall<string>('get_home_directory');
+    return await apiCall<string>('get_home_directory', wslParam());
   } catch (error) {
     console.error('Failed to get home directory:', error);
     return '/';
@@ -58,7 +67,7 @@ export async function getHomeDirectory(): Promise<string> {
  */
 export async function listDirectoryContents(directoryPath: string): Promise<FileEntry[]> {
   try {
-    const result = await apiCall<FileEntry[]>('list_directory_contents', { directoryPath });
+    const result = await apiCall<FileEntry[]>('list_directory_contents', { directoryPath, ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch {
     return [];
@@ -70,7 +79,7 @@ export async function listDirectoryContents(directoryPath: string): Promise<File
  */
 export async function searchFiles(basePath: string, query: string): Promise<FileEntry[]> {
   try {
-    const result = await apiCall<FileEntry[]>('search_files', { basePath, query });
+    const result = await apiCall<FileEntry[]>('search_files', { basePath, query, ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch {
     return [];
@@ -82,7 +91,7 @@ export async function searchFiles(basePath: string, query: string): Promise<File
  */
 export async function checkClaudeVersion(): Promise<ClaudeVersionStatus> {
   try {
-    return await apiCall<ClaudeVersionStatus>('check_claude_version');
+    return await apiCall<ClaudeVersionStatus>('check_claude_version', { ...wslParam() });
   } catch (error) {
     console.error('Failed to check Claude version:', error);
     throw error;
@@ -95,15 +104,15 @@ export async function checkNodeInstalled(): Promise<{
   major: number;
   meets_minimum: boolean;
 }> {
-  return apiCall('check_node_installed', {});
+  return apiCall('check_node_installed', { ...wslParam() });
 }
 
 export async function installNode(): Promise<string> {
-  return apiCall('install_node', {});
+  return apiCall('install_node', { ...wslParam() });
 }
 
 export async function installClaudeCode(): Promise<string> {
-  return apiCall('install_claude_code', {});
+  return apiCall('install_claude_code', { ...wslParam() });
 }
 
 /**
@@ -111,7 +120,7 @@ export async function installClaudeCode(): Promise<string> {
  */
 export async function getClaudeBinaryPath(): Promise<string | null> {
   try {
-    return await apiCall<string | null>('get_claude_binary_path');
+    return await apiCall<string | null>('get_claude_binary_path', { ...wslParam() });
   } catch (error) {
     console.error('Failed to get Claude binary path:', error);
     throw error;
@@ -123,7 +132,7 @@ export async function getClaudeBinaryPath(): Promise<string | null> {
  */
 export async function setClaudeBinaryPath(path: string): Promise<void> {
   try {
-    return await apiCall<void>('set_claude_binary_path', { path });
+    return await apiCall<void>('set_claude_binary_path', { path, ...wslParam() });
   } catch (error) {
     console.error('Failed to set Claude binary path:', error);
     throw error;
@@ -135,7 +144,7 @@ export async function setClaudeBinaryPath(path: string): Promise<void> {
  */
 export async function listClaudeInstallations(): Promise<ClaudeInstallation[]> {
   try {
-    const result = await apiCall<ClaudeInstallation[]>('list_claude_installations');
+    const result = await apiCall<ClaudeInstallation[]>('list_claude_installations', { ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to list Claude installations:', error);
@@ -148,7 +157,7 @@ export async function listClaudeInstallations(): Promise<ClaudeInstallation[]> {
  */
 export async function openNewSession(path?: string): Promise<string> {
   try {
-    return await apiCall<string>('open_new_session', { path });
+    return await apiCall<string>('open_new_session', { path, ...wslParam() });
   } catch (error) {
     console.error('Failed to open new session:', error);
     throw error;
@@ -175,7 +184,7 @@ export const streamSessionOutput = _streamSessionOutput;
  */
 export async function loadSessionHistory(sessionId: string, projectId: string): Promise<any[]> {
   try {
-    const result = await apiCall<any[]>('load_session_history', { sessionId, projectId });
+    const result = await apiCall<any[]>('load_session_history', { sessionId, projectId, ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to load session history:', error);

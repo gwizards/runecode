@@ -28,6 +28,7 @@ use std::time::Duration;
 struct FrontendAssets;
 
 use crate::checkpoint::state::CheckpointState;
+use crate::claude_binary::silent_command;
 use crate::commands;
 
 // ---------------------------------------------------------------------------
@@ -167,8 +168,11 @@ async fn serve_frontend(uri: axum::http::Uri) -> impl IntoResponse {
 // Project and auth handlers
 // ---------------------------------------------------------------------------
 
-async fn get_projects() -> Json<ApiResponse<Vec<commands::claude::Project>>> {
-    match commands::claude::list_projects().await {
+async fn get_projects(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<Vec<commands::claude::Project>>> {
+    let wsl_distro = params.get("wslDistro").or(params.get("wsl_distro")).cloned();
+    match commands::claude::list_projects(wsl_distro).await {
         Ok(projects) => Json(ApiResponse::success(projects)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
     }
@@ -176,8 +180,10 @@ async fn get_projects() -> Json<ApiResponse<Vec<commands::claude::Project>>> {
 
 async fn get_sessions(
     Path(project_id): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<Vec<commands::claude::Session>>> {
-    match commands::claude::get_project_sessions(project_id).await {
+    let wsl_distro = params.get("wslDistro").or(params.get("wsl_distro")).cloned();
+    match commands::claude::get_project_sessions(project_id, wsl_distro).await {
         Ok(sessions) => Json(ApiResponse::success(sessions)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
     }
@@ -192,7 +198,7 @@ async fn get_auth_status() -> impl IntoResponse {
     let result = tokio::time::timeout(
         Duration::from_secs(10),
         tokio::task::spawn_blocking(|| {
-            std::process::Command::new("claude")
+            silent_command("claude")
                 .args(["auth", "status"])
                 .output()
         }),
@@ -507,6 +513,7 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
     use http::discovery::{
         get_agents_list, get_builtin_commands, get_mcp_servers_list, get_skills_catalog_web,
     };
+    use http::docker::{get_docker_handler, get_processes_handler};
     use http::files::{
         find_claude_md_files, get_home_directory, list_directory_contents,
         read_claude_md_file, save_claude_md_file_post, search_files_handler,
@@ -566,6 +573,8 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         .route("/api/usage/window", get(get_usage_window))
         .route("/api/usage/cost", get(get_usage_cost))
         .route("/api/resources", get(get_resources))
+        .route("/api/resources/docker", get(get_docker_handler))
+        .route("/api/resources/processes", get(get_processes_handler))
         .route("/api/integrations", get(get_integrations).post(save_integrations))
         // Settings
         .route("/api/settings/claude", get(get_claude_settings).post(save_claude_settings_post))

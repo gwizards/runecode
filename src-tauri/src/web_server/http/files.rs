@@ -5,15 +5,22 @@ use axum::response::{IntoResponse, Json};
 
 use crate::web_server::ApiResponse;
 
-pub async fn get_home_directory() -> impl IntoResponse {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| "/".to_string());
-    axum::Json(serde_json::json!({
-        "success": true,
-        "data": home,
-        "error": null
-    }))
+pub async fn get_home_directory(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let wsl_distro = params.get("wslDistro").or(params.get("wsl_distro")).cloned();
+    match crate::commands::claude::get_home_directory(wsl_distro).await {
+        Ok(home) => axum::Json(serde_json::json!({
+            "success": true,
+            "data": home,
+            "error": null
+        })),
+        Err(e) => axum::Json(serde_json::json!({
+            "success": false,
+            "data": null,
+            "error": e
+        })),
+    }
 }
 
 pub async fn find_claude_md_files(

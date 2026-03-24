@@ -119,9 +119,15 @@ pub async fn update_hooks_config(
     Ok("Hooks configuration updated successfully".to_string())
 }
 
-/// Validates a hook command by dry-running it
+/// Validates a hook command by dry-running it.
+///
+/// When `wsl_distro` is provided on Windows, the syntax check runs inside the
+/// specified WSL distribution (`wsl -d <distro> -- bash -n -c <command>`).
 #[tauri::command]
-pub async fn validate_hook_command(command: String) -> Result<serde_json::Value, String> {
+pub async fn validate_hook_command(
+    command: String,
+    wsl_distro: Option<String>,
+) -> Result<serde_json::Value, String> {
     if command.len() > 4096 {
         return Err("Hook command too long (max 4096 chars)".to_string());
     }
@@ -130,7 +136,16 @@ pub async fn validate_hook_command(command: String) -> Result<serde_json::Value,
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(10),
         tokio::task::spawn_blocking(move || {
-            let mut cmd = std::process::Command::new("bash");
+            #[cfg(target_os = "windows")]
+            if let Some(ref distro) = wsl_distro {
+                if !distro.is_empty() {
+                    let mut cmd = crate::claude_binary::silent_command("wsl");
+                    cmd.args(["-d", distro, "--", "bash", "-n", "-c", &command]);
+                    return cmd.output();
+                }
+            }
+            let _ = &wsl_distro; // suppress unused warning on non-Windows
+            let mut cmd = crate::claude_binary::silent_command("bash");
             cmd.arg("-n").arg("-c").arg(&command);
             cmd.output()
         }),
@@ -161,8 +176,45 @@ pub async fn validate_hook_command(command: String) -> Result<serde_json::Value,
 /// Checks if Node.js is installed and returns version info.
 /// On Windows, Tauri launches without the shell PATH (NVM/fnm paths are
 /// shell-profile-only), so we try well-known install locations as fallback.
+///
+/// When `wsl_distro` is provided on Windows, the check runs inside the
+/// specified WSL distribution instead of scanning native Windows paths.
 #[tauri::command]
-pub fn check_node_installed() -> serde_json::Value {
+pub fn check_node_installed(wsl_distro: Option<String>) -> serde_json::Value {
+    // WSL path: check node inside the WSL distribution
+    #[cfg(target_os = "windows")]
+    if let Some(ref distro) = wsl_distro {
+        if !distro.is_empty() {
+            if let Ok(output) = crate::claude_binary::silent_command("wsl")
+                .args(["-d", distro, "--", "node", "--version"])
+                .output()
+            {
+                if output.status.success() {
+                    let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    let major: u32 = version_str
+                        .trim_start_matches('v')
+                        .split('.')
+                        .next()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
+                    return serde_json::json!({
+                        "installed": true,
+                        "version": version_str,
+                        "major": major,
+                        "meets_minimum": major >= 18
+                    });
+                }
+            }
+            return serde_json::json!({
+                "installed": false,
+                "version": null,
+                "major": 0,
+                "meets_minimum": false
+            });
+        }
+    }
+    let _ = &wsl_distro; // suppress unused warning on non-Windows
+
     let candidates: Vec<std::path::PathBuf> = {
         #[cfg(target_os = "windows")]
         {
@@ -236,13 +288,64 @@ pub fn check_node_installed() -> serde_json::Value {
     })
 }
 
-/// Installs Node.js in a platform-aware manner
+/// Installs Node.js in a platform-aware manner.
+///
+/// When `wsl_distro` is provided on Windows, Node is installed inside the WSL
+/// distribution via nvm rather than opening the browser download page.
 #[tauri::command]
-pub async fn install_node(app: AppHandle) -> Result<String, String> {
+pub async fn install_node(app: AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     log::info!("Installing Node.js");
 
     #[cfg(target_os = "windows")]
     {
+        // WSL path: install nvm + Node 22 inside the distro
+        if let Some(ref distro) = wsl_distro {
+            if !distro.is_empty() {
+                let nvm_install_script = r#"curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash && export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm install 22"#;
+                let mut child = tokio::process::Command::new("wsl")
+                    .args(["-d", distro, "--", "bash", "-lc", nvm_install_script])
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .map_err(|e| format!("Failed to start WSL install: {}", e))?;
+
+                let mut output_lines = Vec::new();
+
+                if let Some(stdout) = child.stdout.take() {
+                    let reader = tokio::io::BufReader::new(stdout);
+                    let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+                        output_lines.push(line);
+                    }
+                }
+
+                if let Some(stderr) = child.stderr.take() {
+                    let reader = tokio::io::BufReader::new(stderr);
+                    let mut lines = tokio::io::AsyncBufReadExt::lines(reader);
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+                        output_lines.push(line);
+                    }
+                }
+
+                let status = child
+                    .wait()
+                    .await
+                    .map_err(|e| format!("Failed to wait for WSL install: {}", e))?;
+
+                return if status.success() {
+                    Ok(output_lines.join("\n"))
+                } else {
+                    Err(format!(
+                        "Node.js installation in WSL failed with exit code: {:?}",
+                        status.code()
+                    ))
+                };
+            }
+        }
+        let _ = &wsl_distro; // suppress unused warning
+
         open::that("https://nodejs.org/en/download/")
             .map_err(|e| format!("Failed to open browser: {}", e))?;
         Ok("Opened Node.js download page in browser. Please install Node.js and restart RuneCode.".to_string())
@@ -339,10 +442,63 @@ pub async fn install_node(app: AppHandle) -> Result<String, String> {
     }
 }
 
-/// Installs Claude Code globally via npm
+/// Installs Claude Code globally via npm.
+///
+/// When `wsl_distro` is provided on Windows, the install runs inside the
+/// specified WSL distribution (`wsl -d <distro> -- npm install -g ...`).
 #[tauri::command]
-pub async fn install_claude_code(app: AppHandle) -> Result<String, String> {
+pub async fn install_claude_code(app: AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     log::info!("Installing Claude Code via npm");
+
+    // WSL path: run npm inside the distro
+    #[cfg(target_os = "windows")]
+    if let Some(ref distro) = wsl_distro {
+        if !distro.is_empty() {
+            let mut child = tokio::process::Command::new("wsl")
+                .args(["-d", distro, "--", "npm", "install", "-g", "@anthropic-ai/claude-code"])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| format!("Failed to start WSL npm install: {}", e))?;
+
+            let mut output_lines = Vec::new();
+
+            async fn drain_stream<R: tokio::io::AsyncRead + Unpin>(
+                stream: R,
+                app: &AppHandle,
+                out: &mut Vec<String>,
+            ) {
+                let mut lines =
+                    tokio::io::AsyncBufReadExt::lines(tokio::io::BufReader::new(stream));
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let _ = app.emit("install-progress", serde_json::json!({"line": line}));
+                    out.push(line);
+                }
+            }
+
+            if let Some(stdout) = child.stdout.take() {
+                drain_stream(stdout, &app, &mut output_lines).await;
+            }
+            if let Some(stderr) = child.stderr.take() {
+                drain_stream(stderr, &app, &mut output_lines).await;
+            }
+
+            let status = child
+                .wait()
+                .await
+                .map_err(|e| format!("Failed to wait for WSL npm install: {}", e))?;
+
+            return if status.success() {
+                Ok(output_lines.join("\n"))
+            } else {
+                Err(format!(
+                    "Claude Code installation in WSL failed with exit code: {:?}",
+                    status.code()
+                ))
+            };
+        }
+    }
+    let _ = &wsl_distro; // suppress unused warning on non-Windows
 
     let npm_bin = if cfg!(target_os = "windows") {
         "npm.cmd"

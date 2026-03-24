@@ -5,6 +5,7 @@
 use log::{error, info, warn};
 
 use super::registry::ProcessRegistry;
+use crate::claude_binary::silent_command;
 
 impl ProcessRegistry {
     /// Kill a running process with proper cleanup
@@ -134,12 +135,12 @@ impl ProcessRegistry {
         info!("Attempting to kill process {} by PID {}", run_id, pid);
 
         let kill_result = if cfg!(target_os = "windows") {
-            std::process::Command::new("taskkill")
+            silent_command("taskkill")
                 .args(["/F", "/PID", &pid.to_string()])
                 .output()
         } else {
             // First try SIGTERM
-            let term_result = std::process::Command::new("kill")
+            let term_result = silent_command("kill")
                 .args(["-TERM", &pid.to_string()])
                 .output();
 
@@ -150,7 +151,7 @@ impl ProcessRegistry {
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
                     // Check if still running
-                    let check_result = std::process::Command::new("kill")
+                    let check_result = silent_command("kill")
                         .args(["-0", &pid.to_string()])
                         .output();
 
@@ -161,7 +162,7 @@ impl ProcessRegistry {
                                 "Process {} still running after SIGTERM, sending SIGKILL",
                                 pid
                             );
-                            std::process::Command::new("kill")
+                            silent_command("kill")
                                 .args(["-KILL", &pid.to_string()])
                                 .output()
                         } else {
@@ -174,7 +175,7 @@ impl ProcessRegistry {
                 _ => {
                     // SIGTERM failed, try SIGKILL directly
                     warn!("SIGTERM failed for PID {}, trying SIGKILL", pid);
-                    std::process::Command::new("kill")
+                    silent_command("kill")
                         .args(["-KILL", &pid.to_string()])
                         .output()
                 }

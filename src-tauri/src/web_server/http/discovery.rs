@@ -3,6 +3,7 @@
 use axum::response::IntoResponse;
 use std::time::Duration;
 
+use crate::claude_binary::silent_command;
 use crate::web_server::ApiResponse;
 
 pub async fn get_skills_catalog_web() -> impl IntoResponse {
@@ -20,7 +21,7 @@ pub async fn get_builtin_commands() -> impl IntoResponse {
     let result = tokio::time::timeout(
         Duration::from_secs(10),
         tokio::task::spawn_blocking(|| {
-            std::process::Command::new("claude")
+            silent_command("claude")
                 .args(["--help"])
                 .output()
         }),
@@ -109,7 +110,7 @@ pub async fn get_agents_list() -> impl IntoResponse {
     let result = tokio::time::timeout(
         Duration::from_secs(10),
         tokio::task::spawn_blocking(|| {
-            std::process::Command::new("claude").arg("agents").output()
+            silent_command("claude").arg("agents").output()
         }),
     )
     .await;
@@ -158,7 +159,7 @@ pub async fn get_mcp_servers_list() -> impl IntoResponse {
     let result = tokio::time::timeout(
         Duration::from_secs(10),
         tokio::task::spawn_blocking(|| {
-            std::process::Command::new("claude")
+            silent_command("claude")
                 .args(["mcp", "list"])
                 .output()
         }),

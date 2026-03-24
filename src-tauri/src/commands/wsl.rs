@@ -1,3 +1,4 @@
+use crate::claude_binary::silent_command;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -35,7 +36,7 @@ pub async fn detect_wsl() -> Result<WslStatus, String> {
     #[cfg(target_os = "windows")]
     {
         let output = tokio::task::spawn_blocking(|| {
-            std::process::Command::new("wsl")
+            silent_command("wsl")
                 .args(["--list", "--verbose"])
                 .output()
         })
@@ -95,7 +96,7 @@ pub async fn detect_wsl() -> Result<WslStatus, String> {
             let d_node = distro.clone();
 
             let claude = tokio::task::spawn_blocking(move || {
-                std::process::Command::new("wsl")
+                silent_command("wsl")
                     .args(["-d", &d_claude, "--", "which", "claude"])
                     .output()
                     .map(|o| o.status.success())
@@ -105,7 +106,7 @@ pub async fn detect_wsl() -> Result<WslStatus, String> {
             .unwrap_or(false);
 
             let node = tokio::task::spawn_blocking(move || {
-                std::process::Command::new("wsl")
+                silent_command("wsl")
                     .args(["-d", &d_node, "--", "which", "node"])
                     .output()
                     .map(|o| o.status.success())
@@ -142,7 +143,7 @@ pub async fn wsl_execute(distro: String, command: String) -> Result<String, Stri
     #[cfg(target_os = "windows")]
     {
         let output = tokio::task::spawn_blocking(move || {
-            std::process::Command::new("wsl")
+            silent_command("wsl")
                 .args(["-d", &distro, "--", "bash", "-lc", &command])
                 .output()
         })

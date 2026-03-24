@@ -1,6 +1,6 @@
 use super::cache::{bust_all_caches, bust_status_cache, try_read_cache, write_cache};
-use super::{npm_cmd, npx_cmd, RUFLO_STATUS_CACHE_TTL_SECS};
-use domain::{RuFloStatus};
+use super::{npm_cmd, npx_cmd, wsl_command, RUFLO_STATUS_CACHE_TTL_SECS};
+use domain::RuFloStatus;
 
 use super::domain;
 
@@ -9,7 +9,7 @@ use super::domain;
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn check_ruflo_installed() -> RuFloStatus {
+pub async fn check_ruflo_installed(wsl_distro: Option<String>) -> RuFloStatus {
     // Return cached result if still within TTL (60 s) to avoid repeated npx/claude calls
     if let Some(cached) =
         try_read_cache::<RuFloStatus>("runecode_ruflo_cache.json", RUFLO_STATUS_CACHE_TTL_SECS)
@@ -28,12 +28,17 @@ pub async fn check_ruflo_installed() -> RuFloStatus {
 
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(TIMEOUT_SECS),
-        tokio::task::spawn_blocking(|| {
+        tokio::task::spawn_blocking(move || {
+            let wsl = wsl_distro.as_deref();
+
             // npx --no-install: don't download if not cached, just check presence
-            let output = crate::claude_binary::create_command_with_env(npx_cmd())
-                .args(["--no-install", "@claude-flow/cli", "--version"])
-                .output()
-                .ok();
+            let output = wsl_command(
+                npx_cmd(),
+                &["--no-install", "@claude-flow/cli", "--version"],
+                wsl,
+            )
+            .output()
+            .ok();
 
             let installed = output.as_ref().map(|o| o.status.success()).unwrap_or(false);
 
@@ -53,16 +58,20 @@ pub async fn check_ruflo_installed() -> RuFloStatus {
                 None
             };
 
-            // Check if MCP is active — use create_command_with_env for PATH/NVM.
-            // On Windows, the npm-global install produces claude.cmd (a batch file);
-            // CreateProcess cannot run batch files without the .cmd extension.
-            let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
+            // Check if MCP is active — use wsl_command for PATH/NVM.
+            // On Windows without WSL, Claude's batch file needs .cmd extension.
+            let claude_prog = if wsl.is_some() {
+                "claude"
+            } else if cfg!(windows) {
+                "claude.cmd"
+            } else {
+                "claude"
+            };
             // Detect claude-flow in `claude mcp list` output.
             // The output format varies by Claude version: plain name, table row, JSON, etc.
             // We match any line that contains the word "claude-flow" (case-insensitive)
             // but reject common false-positives like comment lines.
-            let mcp_active = crate::claude_binary::create_command_with_env(claude_cmd)
-                .args(["mcp", "list"])
+            let mcp_active = wsl_command(claude_prog, &["mcp", "list"], wsl)
                 .output()
                 .ok()
                 .and_then(|o| {
@@ -123,26 +132,29 @@ pub async fn check_ruflo_installed() -> RuFloStatus {
 }
 
 #[tauri::command]
-pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
+pub async fn install_ruflo(app: tauri::AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     use std::io::BufRead;
     use tauri::Emitter;
 
-    // Use npm directly — create_command_with_env inherits PATH which resolves npm on all platforms
-    let mut child = crate::claude_binary::create_command_with_env(npm_cmd())
-        // --legacy-peer-deps: ignore peer-dependency conflicts in claude-flow's
-        // dependency tree (alpha packages with mismatched peerOptional ranges).
-        // --no-fund: suppress funding messages that clutter the progress stream.
-        .args([
-            "install",
-            "-g",
-            "@claude-flow/cli@latest",
-            "--legacy-peer-deps",
-            "--no-fund",
-        ])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start npm: {e}"))?;
+    // Build the command — use WSL wrapper when a distro is specified
+    let mut child = {
+        let wsl = wsl_distro.as_deref();
+        let mut cmd = wsl_command(
+            npm_cmd(),
+            &[
+                "install",
+                "-g",
+                "@claude-flow/cli@latest",
+                "--legacy-peer-deps",
+                "--no-fund",
+            ],
+            wsl,
+        );
+        cmd.stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        cmd.spawn()
+            .map_err(|e| format!("Failed to start npm: {e}"))?
+    };
 
     // Drain stderr in a separate thread to prevent deadlock
     let stderr_handle = if let Some(stderr) = child.stderr.take() {
@@ -192,12 +204,12 @@ pub async fn install_ruflo(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn uninstall_ruflo() -> Result<String, String> {
+pub async fn uninstall_ruflo(wsl_distro: Option<String>) -> Result<String, String> {
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(120),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npm_cmd())
-                .args(["uninstall", "-g", "@claude-flow/cli"])
+            let wsl = wsl_distro.as_deref();
+            wsl_command(npm_cmd(), &["uninstall", "-g", "@claude-flow/cli"], wsl)
                 .output()
         }),
     )
@@ -220,13 +232,26 @@ pub async fn uninstall_ruflo() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String> {
+pub async fn activate_ruflo_mcp(app: tauri::AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     use tauri::Emitter;
     // On Windows, Claude's MCP config stores the command that it will later
     // spawn. "npx" (no extension) fails on Windows because CreateProcess
     // cannot run batch files. Use "npx.cmd" so the stored config works.
-    let npx = if cfg!(windows) { "npx.cmd" } else { "npx" };
-    let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
+    // When routing through WSL, use plain "npx" since WSL resolves it natively.
+    let npx = if wsl_distro.is_some() {
+        "npx"
+    } else if cfg!(windows) {
+        "npx.cmd"
+    } else {
+        "npx"
+    };
+    let claude_prog = if wsl_distro.is_some() {
+        "claude"
+    } else if cfg!(windows) {
+        "claude.cmd"
+    } else {
+        "claude"
+    };
 
     #[cfg(target_os = "windows")]
     const MCP_TIMEOUT_SECS: u64 = 60;
@@ -236,9 +261,13 @@ pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String>
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(MCP_TIMEOUT_SECS),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(claude_cmd)
-                .args(["mcp", "add", "claude-flow", "--", npx, "-y", "@claude-flow/cli@latest"])
-                .output()
+            let wsl = wsl_distro.as_deref();
+            wsl_command(
+                claude_prog,
+                &["mcp", "add", "claude-flow", "--", npx, "-y", "@claude-flow/cli@latest"],
+                wsl,
+            )
+            .output()
         }),
     )
     .await;
@@ -294,9 +323,15 @@ pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String>
 }
 
 #[tauri::command]
-pub async fn deactivate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String> {
+pub async fn deactivate_ruflo_mcp(app: tauri::AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     use tauri::Emitter;
-    let claude_cmd = if cfg!(windows) { "claude.cmd" } else { "claude" };
+    let claude_prog = if wsl_distro.is_some() {
+        "claude"
+    } else if cfg!(windows) {
+        "claude.cmd"
+    } else {
+        "claude"
+    };
 
     #[cfg(target_os = "windows")]
     const DEACT_TIMEOUT_SECS: u64 = 30;
@@ -306,8 +341,8 @@ pub async fn deactivate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, Strin
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(DEACT_TIMEOUT_SECS),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(claude_cmd)
-                .args(["mcp", "remove", "claude-flow"])
+            let wsl = wsl_distro.as_deref();
+            wsl_command(claude_prog, &["mcp", "remove", "claude-flow"], wsl)
                 .output()
         }),
     )

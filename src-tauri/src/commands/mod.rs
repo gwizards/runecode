@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod claude;
+pub mod docker;
 pub mod helicone;
 pub mod mcp;
 pub mod project_info;

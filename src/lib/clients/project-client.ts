@@ -5,6 +5,7 @@
 import { apiCall } from '../apiAdapter';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from '../devFallback';
 import { applyStartupToken } from '../startupToken';
+import { isWslMode, getWslDistro } from '../platformMode';
 import type {
   Project,
   Session,
@@ -29,12 +30,21 @@ export type {
   ProjectUsage,
 };
 
+/** Returns `{ wslDistro }` when WSL mode is active, or `{}` otherwise. */
+function wslParam(): { wslDistro?: string } {
+  if (isWslMode()) {
+    const distro = getWslDistro();
+    if (distro) return { wslDistro: distro };
+  }
+  return {};
+}
+
 /**
  * Lists all projects in the ~/.claude/projects directory
  */
 export async function listProjects(): Promise<Project[]> {
   try {
-    const result = await apiCall<Project[]>('list_projects');
+    const result = await apiCall<Project[]>('list_projects', wslParam());
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to list projects:', error);
@@ -91,7 +101,7 @@ export async function initializeProject(
  */
 export async function getProjectSessions(projectId: string): Promise<Session[]> {
   try {
-    const result = await apiCall<Session[]>('get_project_sessions', { projectId });
+    const result = await apiCall<Session[]>('get_project_sessions', { projectId, ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to get project sessions:', error);

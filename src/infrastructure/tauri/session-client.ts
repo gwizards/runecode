@@ -87,7 +87,12 @@ export async function streamSessionOutput(runId: number): Promise<void> {
  */
 export async function loadSessionHistory(sessionId: string, projectId: string): Promise<any[]> {
   try {
-    const result = await apiCall<any[]>('load_session_history', { sessionId, projectId });
+    const wslDistro = isWslMode() ? getWslDistro() : null;
+    const result = await apiCall<any[]>('load_session_history', {
+      sessionId,
+      projectId,
+      ...(wslDistro ? { wslDistro } : {}),
+    });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to load session history:', error);

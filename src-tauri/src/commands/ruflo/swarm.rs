@@ -1,5 +1,5 @@
 use super::cache::{bust_all_caches, try_read_cache, write_cache};
-use super::{npx_cmd, RUFLO_SWARM_CACHE_TTL_SECS};
+use super::{npx_cmd, wsl_command, RUFLO_SWARM_CACHE_TTL_SECS};
 use super::domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloSwarmStatus};
 
 // ---------------------------------------------------------------------------
@@ -7,7 +7,7 @@ use super::domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloSwarmStatu
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
+pub async fn get_ruflo_swarm_status(wsl_distro: Option<String>) -> RuFloSwarmStatus {
     // Return cached result if still within TTL (10 s) to avoid repeated npx calls
     if let Some(cached) =
         try_read_cache::<RuFloSwarmStatus>("runecode_swarm_cache.json", RUFLO_SWARM_CACHE_TTL_SECS)
@@ -15,12 +15,17 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
         return cached;
     }
 
+    let wsl_for_agents = wsl_distro.clone();
     let agents_output = tokio::time::timeout(
         std::time::Duration::from_secs(8),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npx_cmd())
-                .args(["--no-install", "@claude-flow/cli", "agent", "list", "--json"])
-                .output()
+            let wsl = wsl_for_agents.as_deref();
+            wsl_command(
+                npx_cmd(),
+                &["--no-install", "@claude-flow/cli", "agent", "list", "--json"],
+                wsl,
+            )
+            .output()
         }),
     )
     .await
@@ -70,12 +75,17 @@ pub async fn get_ruflo_swarm_status() -> RuFloSwarmStatus {
 
     let swarm_active = !agents.is_empty() && agents.iter().any(|a| a.status.is_active());
 
+    let wsl_for_memory = wsl_distro;
     let memory_entries = tokio::time::timeout(
         std::time::Duration::from_secs(8),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npx_cmd())
-                .args(["--no-install", "@claude-flow/cli", "memory", "list", "--json"])
-                .output()
+            let wsl = wsl_for_memory.as_deref();
+            wsl_command(
+                npx_cmd(),
+                &["--no-install", "@claude-flow/cli", "memory", "list", "--json"],
+                wsl,
+            )
+            .output()
         }),
     )
     .await
@@ -146,6 +156,7 @@ pub fn get_ruflo_project_status(path: String) -> RuFloProjectStatus {
 pub async fn init_ruflo_project(
     app: tauri::AppHandle,
     path: String,
+    wsl_distro: Option<String>,
 ) -> Result<String, String> {
     use tauri::Emitter;
     let project_path = std::path::Path::new(&path);
@@ -191,9 +202,10 @@ pub async fn init_ruflo_project(
         ));
     }
 
-    let output = crate::claude_binary::create_command_with_env(npx_cmd())
-        .args(["@claude-flow/cli", "init"])
-        .current_dir(&project_path)
+    let wsl = wsl_distro.as_deref();
+    let mut cmd = wsl_command(npx_cmd(), &["@claude-flow/cli", "init"], wsl);
+    cmd.current_dir(&project_path);
+    let output = cmd
         .output()
         .map_err(|e| format!("Failed to run ruflo init: {e}"))?;
 
@@ -215,13 +227,17 @@ pub async fn init_ruflo_project(
 
 /// Get memory statistics from the claude-flow CLI
 #[tauri::command]
-pub async fn get_ruflo_memory_stats() -> Result<serde_json::Value, String> {
+pub async fn get_ruflo_memory_stats(wsl_distro: Option<String>) -> Result<serde_json::Value, String> {
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npx_cmd())
-                .args(["-y", "@claude-flow/cli@latest", "memory", "stats", "--json"])
-                .output()
+            let wsl = wsl_distro.as_deref();
+            wsl_command(
+                npx_cmd(),
+                &["-y", "@claude-flow/cli@latest", "memory", "stats", "--json"],
+                wsl,
+            )
+            .output()
         }),
     )
     .await;
@@ -254,6 +270,7 @@ pub async fn get_ruflo_memory_stats() -> Result<serde_json::Value, String> {
 pub async fn sync_ruflo_memory_local(
     app: tauri::AppHandle,
     output_path: String,
+    wsl_distro: Option<String>,
 ) -> Result<String, String> {
     use tauri::Emitter;
     // Validate path is within home dir
@@ -271,8 +288,10 @@ pub async fn sync_ruflo_memory_local(
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(30),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npx_cmd())
-                .args([
+            let wsl = wsl_distro.as_deref();
+            wsl_command(
+                npx_cmd(),
+                &[
                     "-y",
                     "@claude-flow/cli@latest",
                     "memory",
@@ -281,8 +300,10 @@ pub async fn sync_ruflo_memory_local(
                     "json",
                     "--output",
                     &output_path_clone,
-                ])
-                .output()
+                ],
+                wsl,
+            )
+            .output()
         }),
     )
     .await;
@@ -305,15 +326,24 @@ pub async fn sync_ruflo_memory_local(
 
 /// Consolidate memory (compress + cleanup stale entries)
 #[tauri::command]
-pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, String> {
+pub async fn consolidate_ruflo_memory(
+    app: tauri::AppHandle,
+    wsl_distro: Option<String>,
+) -> Result<String, String> {
     use tauri::Emitter;
+
+    let wsl_for_compress = wsl_distro.clone();
     // Run compress first
     let compress_result = tokio::time::timeout(
         std::time::Duration::from_secs(30),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npx_cmd())
-                .args(["-y", "@claude-flow/cli@latest", "memory", "compress"])
-                .output()
+            let wsl = wsl_for_compress.as_deref();
+            wsl_command(
+                npx_cmd(),
+                &["-y", "@claude-flow/cli@latest", "memory", "compress"],
+                wsl,
+            )
+            .output()
         }),
     )
     .await;
@@ -334,9 +364,13 @@ pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, S
     let cleanup_result = tokio::time::timeout(
         std::time::Duration::from_secs(30),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npx_cmd())
-                .args(["-y", "@claude-flow/cli@latest", "memory", "cleanup"])
-                .output()
+            let wsl = wsl_distro.as_deref();
+            wsl_command(
+                npx_cmd(),
+                &["-y", "@claude-flow/cli@latest", "memory", "cleanup"],
+                wsl,
+            )
+            .output()
         }),
     )
     .await;
@@ -362,6 +396,7 @@ pub async fn consolidate_ruflo_memory(app: tauri::AppHandle) -> Result<String, S
 pub async fn set_ruflo_memory_backend(
     app: tauri::AppHandle,
     backend: String,
+    wsl_distro: Option<String>,
 ) -> Result<String, String> {
     use tauri::Emitter;
     // Validate backend value
@@ -376,16 +411,20 @@ pub async fn set_ruflo_memory_backend(
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         tokio::task::spawn_blocking(move || {
-            crate::claude_binary::create_command_with_env(npx_cmd())
-                .args([
+            let wsl = wsl_distro.as_deref();
+            wsl_command(
+                npx_cmd(),
+                &[
                     "-y",
                     "@claude-flow/cli@latest",
                     "memory",
                     "configure",
                     "--backend",
                     &backend_clone,
-                ])
-                .output()
+                ],
+                wsl,
+            )
+            .output()
         }),
     )
     .await;

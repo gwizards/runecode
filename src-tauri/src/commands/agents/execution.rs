@@ -13,6 +13,7 @@ use tokio::process::ChildStdout;
 use tokio::process::ChildStderr;
 
 use super::{create_command_with_env, find_claude_binary, AgentDb};
+use crate::claude_binary::silent_command;
 use crate::commands::agents::db::get_agent;
 use crate::process::ProcessRegistry;
 
@@ -77,7 +78,10 @@ pub async fn list_claude_installations(
 // Execute agent
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Execute a CC agent with streaming output
+/// Execute a CC agent with streaming output.
+///
+/// When `wsl_distro` is provided on Windows, the Claude process is spawned
+/// inside the specified WSL distribution via `create_system_command_wsl`.
 #[tauri::command]
 pub async fn execute_agent(
     app: AppHandle,
@@ -86,6 +90,7 @@ pub async fn execute_agent(
     task: String,
     model: Option<String>,
     permission_mode: Option<String>,
+    wsl_distro: Option<String>,
     db: State<'_, AgentDb>,
     registry: State<'_, crate::process::ProcessRegistryState>,
 ) -> Result<i64, String> {
@@ -157,19 +162,36 @@ pub async fn execute_agent(
     }
 
     spawn_agent_system(app, run_id, agent_id, agent.name.clone(),
-        claude_path, args, project_path, task, execution_model, db, registry).await
+        claude_path, args, project_path, task, execution_model, wsl_distro, db, registry).await
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Creates a system binary command for agent execution
+/// Creates a system binary command for agent execution.
+///
+/// When `wsl_distro` is provided on Windows, the command is wrapped to run
+/// inside the specified WSL distribution via `create_system_command_wsl`.
 pub(crate) fn create_agent_system_command(
     claude_path: &str,
     args: Vec<String>,
     project_path: &str,
+    wsl_distro: Option<&str>,
 ) -> tokio::process::Command {
+    #[cfg(target_os = "windows")]
+    if wsl_distro.is_some() && wsl_distro.map_or(false, |d| !d.is_empty()) {
+        let mut cmd = crate::commands::claude::create_system_command_wsl(
+            claude_path,
+            args,
+            project_path,
+            wsl_distro,
+        );
+        cmd.stdin(Stdio::null());
+        return cmd;
+    }
+    let _ = wsl_distro; // suppress unused warning on non-Windows
+
     let mut cmd = create_command_with_env(claude_path);
     for arg in args { cmd.arg(arg); }
     cmd.current_dir(project_path)
@@ -260,10 +282,11 @@ pub(crate) async fn spawn_agent_system(
     project_path: String,
     task: String,
     execution_model: String,
+    wsl_distro: Option<String>,
     db: State<'_, AgentDb>,
     registry: State<'_, crate::process::ProcessRegistryState>,
 ) -> Result<i64, String> {
-    let mut cmd = create_agent_system_command(&claude_path, args, &project_path);
+    let mut cmd = create_agent_system_command(&claude_path, args, &project_path, wsl_distro.as_deref());
 
     info!("Spawning Claude system process...");
     let mut child = cmd.spawn().map_err(|e| {
@@ -380,7 +403,7 @@ pub(crate) async fn spawn_agent_system(
 async fn kill_process_by_pid(pid: u32) {
     let pid_s = pid.to_string();
     let result = tokio::task::spawn_blocking(move || {
-        std::process::Command::new("kill").arg("-TERM").arg(&pid_s).output()
+        silent_command("kill").arg("-TERM").arg(&pid_s).output()
     })
     .await;
     match result {
@@ -388,7 +411,7 @@ async fn kill_process_by_pid(pid: u32) {
         _ => {
             let pid_s2 = pid.to_string();
             let _ = tokio::task::spawn_blocking(move || {
-                std::process::Command::new("kill").arg("-KILL").arg(&pid_s2).output()
+                silent_command("kill").arg("-KILL").arg(&pid_s2).output()
             }).await;
         }
     }

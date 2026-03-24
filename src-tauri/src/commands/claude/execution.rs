@@ -3,6 +3,8 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::claude_binary::silent_command;
+
 use super::{
     create_system_command_wsl, find_claude_binary, get_claude_dir, guard_path_within_home,
     validate_path_component, ClaudeProcessState,
@@ -49,7 +51,7 @@ pub async fn open_new_session(app: AppHandle, path: Option<String>) -> Result<St
 
     #[cfg(debug_assertions)]
     {
-        let mut cmd = std::process::Command::new(claude_path);
+        let mut cmd = silent_command(&claude_path);
         if let Some(project_path) = path {
             let guarded = guard_path_within_home(&PathBuf::from(&project_path))?;
             cmd.current_dir(&guarded);
@@ -68,11 +70,14 @@ pub async fn open_new_session(app: AppHandle, path: Option<String>) -> Result<St
     }
 }
 
-/// Loads the JSONL history for a specific session
+/// Loads the JSONL history for a specific session.
+/// When `wsl_distro` is provided (Windows only), reads the session file from
+/// inside the specified WSL distribution.
 #[tauri::command]
 pub async fn load_session_history(
     session_id: String,
     project_id: String,
+    wsl_distro: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     log::info!(
         "Loading session history for session: {} in project: {}",
@@ -81,6 +86,14 @@ pub async fn load_session_history(
 
     validate_path_component(&project_id, "project_id")?;
     validate_path_component(&session_id, "session_id")?;
+
+    #[cfg(target_os = "windows")]
+    if let Some(ref distro) = wsl_distro {
+        if !distro.is_empty() {
+            return load_session_history_wsl(&session_id, &project_id, distro).await;
+        }
+    }
+    let _ = wsl_distro; // suppress unused warning on non-Windows
 
     let claude_dir = get_claude_dir().map_err(|e| e.to_string())?;
     let session_path = claude_dir
@@ -121,6 +134,49 @@ pub async fn load_session_history(
     .map_err(|e| e.to_string())??;
 
     Ok(messages)
+}
+
+/// Reads a session JSONL file from inside a WSL distribution.
+#[cfg(target_os = "windows")]
+async fn load_session_history_wsl(
+    session_id: &str,
+    project_id: &str,
+    distro: &str,
+) -> Result<Vec<serde_json::Value>, String> {
+    let sid = session_id.to_string();
+    let pid = project_id.to_string();
+    let d = distro.to_string();
+    tokio::task::spawn_blocking(move || {
+        let output = crate::claude_binary::silent_command("wsl")
+            .args([
+                "-d",
+                &d,
+                "--",
+                "cat",
+                &format!(
+                    "$HOME/.claude/projects/{}/{}.jsonl",
+                    pid, sid
+                ),
+            ])
+            .output()
+            .map_err(|e| format!("WSL load_session_history: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Session file not found in WSL: {} ({})", sid, stderr.trim()));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut messages = Vec::new();
+        for line in stdout.lines() {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+                messages.push(json);
+            }
+        }
+        Ok(messages)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Execute a new interactive Claude Code session with streaming output
@@ -262,10 +318,10 @@ pub async fn cancel_claude_execution(
                         log::info!("Attempting system kill as last resort for PID: {}", pid);
                         let kill_result = tokio::task::spawn_blocking(move || {
                             if cfg!(target_os = "windows") {
-                                std::process::Command::new("taskkill")
+                                silent_command("taskkill")
                                     .args(["/F", "/PID", &pid.to_string()]).output()
                             } else {
-                                std::process::Command::new("kill")
+                                silent_command("kill")
                                     .args(["-KILL", &pid.to_string()]).output()
                             }
                         }).await;

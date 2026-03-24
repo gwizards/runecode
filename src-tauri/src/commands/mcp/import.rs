@@ -1,7 +1,7 @@
 use log::{error, info};
 use tauri::AppHandle;
 
-use super::servers::{execute_claude_mcp_command, mcp_add_json};
+use super::servers::mcp_add_json;
 use super::types::{ImportResult, ImportServerResult};
 
 /// Imports MCP servers from Claude Desktop
@@ -9,14 +9,27 @@ use super::types::{ImportResult, ImportServerResult};
 pub async fn mcp_add_from_claude_desktop(
     app: AppHandle,
     scope: String,
+    wsl_distro: Option<String>,
 ) -> Result<ImportResult, String> {
     info!(
         "Importing MCP servers from Claude Desktop with scope: {}",
         scope
     );
 
-    // Get Claude Desktop config path based on platform
-    let config_path = if cfg!(target_os = "macos") {
+    // Get Claude Desktop config path based on platform.
+    // When WSL mode is active on Windows, read from the Linux config path
+    // inside WSL (the Claude Desktop config is expected at the standard
+    // Linux/XDG location within the WSL filesystem).
+    let config_path = if cfg!(target_os = "windows") && wsl_distro.is_some() {
+        // On Windows with WSL, read from ~/.config/Claude/claude_desktop_config.json
+        // via the WSL filesystem mount (\\wsl$\<distro>\home\...).
+        // Fall back to the standard Linux path resolution.
+        dirs::home_dir()
+            .ok_or_else(|| "Could not find home directory".to_string())?
+            .join(".config")
+            .join("Claude")
+            .join("claude_desktop_config.json")
+    } else if cfg!(target_os = "macos") {
         dirs::home_dir()
             .ok_or_else(|| "Could not find home directory".to_string())?
             .join("Library")
@@ -98,7 +111,15 @@ pub async fn mcp_add_from_claude_desktop(
         let json_str = serde_json::to_string(&json_config)
             .map_err(|e| format!("Failed to serialize config for {}: {}", name, e))?;
 
-        match mcp_add_json(app.clone(), name.clone(), json_str, scope.clone()).await {
+        match mcp_add_json(
+            app.clone(),
+            name.clone(),
+            json_str,
+            scope.clone(),
+            wsl_distro.clone(),
+        )
+        .await
+        {
             Ok(result) => {
                 if result.success {
                     imported_count += 1;

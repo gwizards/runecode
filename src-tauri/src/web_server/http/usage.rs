@@ -4,6 +4,7 @@ use axum::extract::Query;
 use axum::response::{IntoResponse, Json};
 use std::time::Duration;
 
+use crate::claude_binary::silent_command;
 use crate::commands;
 use crate::web_server::{find_claude_binary_web, ApiResponse};
 
@@ -220,7 +221,7 @@ pub async fn get_usage_cost() -> impl IntoResponse {
     let result = tokio::time::timeout(
         Duration::from_secs(10),
         tokio::task::spawn_blocking(move || {
-            std::process::Command::new(&claude_bin)
+            silent_command(&claude_bin)
                 .args(["-p", "/cost", "--output-format", "json"])
                 .output()
         }),

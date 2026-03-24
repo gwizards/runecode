@@ -65,6 +65,13 @@ const emptyDocker: DockerStats = { available: false, running: 0, total: 0, total
 
 async function fetchDocker(): Promise<DockerStats> {
   try {
+    const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+    if (isRealTauri) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const mode = localStorage.getItem('runecode-platform-mode');
+      const wslDistro = mode === 'wsl' ? localStorage.getItem('runecode-wsl-distro') : null;
+      return await invoke('get_docker_stats', { wslDistro }) as DockerStats;
+    }
     const res = await fetch('/api/resources/docker', { headers: applyStartupToken({}) });
     if (!res.ok) return emptyDocker;
     return await res.json();

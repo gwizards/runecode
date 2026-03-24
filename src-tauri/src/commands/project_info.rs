@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+use crate::claude_binary::silent_command;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInfo {
@@ -188,7 +190,7 @@ pub fn collect_project_info(project_path: &str) -> ProjectInfo {
     }
 
     // --- Git branch and dirty file count ---
-    let git_branch = std::process::Command::new("git")
+    let git_branch = silent_command("git")
         .args(["-C", project_path, "rev-parse", "--abbrev-ref", "HEAD"])
         .output()
         .ok()
@@ -202,7 +204,7 @@ pub fn collect_project_info(project_path: &str) -> ProjectInfo {
             }
         });
 
-    let dirty_file_count = std::process::Command::new("git")
+    let dirty_file_count = silent_command("git")
         .args(["-C", project_path, "status", "--porcelain"])
         .output()
         .ok()

@@ -12,7 +12,8 @@ pub async fn load_session_history(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<Vec<serde_json::Value>>> {
     let limit = params.get("limit").and_then(|l| l.parse::<usize>().ok());
-    match commands::claude::load_session_history(session_id, project_id).await {
+    let wsl_distro = params.get("wslDistro").or(params.get("wsl_distro")).cloned();
+    match commands::claude::load_session_history(session_id, project_id, wsl_distro).await {
         Ok(history) => {
             let result = if let Some(limit) = limit {
                 let len = history.len();

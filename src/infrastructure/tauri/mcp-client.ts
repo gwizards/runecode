@@ -1,6 +1,7 @@
 // Infrastructure client — Tauri IPC adapter for MCP domain
 
 import { apiCall } from '@/lib/apiAdapter';
+import { isWslMode, getWslDistro } from '@/lib/platformMode';
 import type {
   AddServerResult,
   ImportResult,
@@ -9,6 +10,11 @@ import type {
   ServerStatus,
   SlashCommand,
 } from './types';
+
+/** Helper: returns the WSL distro parameter when WSL mode is active. */
+function wslParam(): { wslDistro: string | null } {
+  return { wslDistro: isWslMode() ? getWslDistro() : null };
+}
 
 /**
  * Adds a new MCP server
@@ -23,7 +29,7 @@ export async function mcpAdd(
   scope: string = 'local'
 ): Promise<AddServerResult> {
   try {
-    return await apiCall<AddServerResult>('mcp_add', { name, transport, command, args, env, url, scope });
+    return await apiCall<AddServerResult>('mcp_add', { name, transport, command, args, env, url, scope, ...wslParam() });
   } catch (error) {
     console.error('Failed to add MCP server:', error);
     throw error;
@@ -35,7 +41,7 @@ export async function mcpAdd(
  */
 export async function mcpList(): Promise<MCPServer[]> {
   try {
-    const result = await apiCall<MCPServer[]>('mcp_list');
+    const result = await apiCall<MCPServer[]>('mcp_list', { ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('API: Failed to list MCP servers:', error);
@@ -48,7 +54,7 @@ export async function mcpList(): Promise<MCPServer[]> {
  */
 export async function mcpGet(name: string): Promise<MCPServer> {
   try {
-    return await apiCall<MCPServer>('mcp_get', { name });
+    return await apiCall<MCPServer>('mcp_get', { name, ...wslParam() });
   } catch (error) {
     console.error('Failed to get MCP server:', error);
     throw error;
@@ -60,7 +66,7 @@ export async function mcpGet(name: string): Promise<MCPServer> {
  */
 export async function mcpRemove(name: string): Promise<string> {
   try {
-    return await apiCall<string>('mcp_remove', { name });
+    return await apiCall<string>('mcp_remove', { name, ...wslParam() });
   } catch (error) {
     console.error('Failed to remove MCP server:', error);
     throw error;
@@ -76,7 +82,7 @@ export async function mcpAddJson(
   scope: string = 'local'
 ): Promise<AddServerResult> {
   try {
-    return await apiCall<AddServerResult>('mcp_add_json', { name, jsonConfig, scope });
+    return await apiCall<AddServerResult>('mcp_add_json', { name, jsonConfig, scope, ...wslParam() });
   } catch (error) {
     console.error('Failed to add MCP server from JSON:', error);
     throw error;
@@ -88,7 +94,7 @@ export async function mcpAddJson(
  */
 export async function mcpAddFromClaudeDesktop(scope: string = 'local'): Promise<ImportResult> {
   try {
-    return await apiCall<ImportResult>('mcp_add_from_claude_desktop', { scope });
+    return await apiCall<ImportResult>('mcp_add_from_claude_desktop', { scope, ...wslParam() });
   } catch (error) {
     console.error('Failed to import from Claude Desktop:', error);
     throw error;
@@ -100,7 +106,7 @@ export async function mcpAddFromClaudeDesktop(scope: string = 'local'): Promise<
  */
 export async function mcpServe(): Promise<string> {
   try {
-    return await apiCall<string>('mcp_serve');
+    return await apiCall<string>('mcp_serve', { ...wslParam() });
   } catch (error) {
     console.error('Failed to start MCP server:', error);
     throw error;
@@ -112,7 +118,7 @@ export async function mcpServe(): Promise<string> {
  */
 export async function mcpTestConnection(name: string): Promise<string> {
   try {
-    return await apiCall<string>('mcp_test_connection', { name });
+    return await apiCall<string>('mcp_test_connection', { name, ...wslParam() });
   } catch (error) {
     console.error('Failed to test MCP connection:', error);
     throw error;
@@ -124,7 +130,7 @@ export async function mcpTestConnection(name: string): Promise<string> {
  */
 export async function mcpResetProjectChoices(): Promise<string> {
   try {
-    return await apiCall<string>('mcp_reset_project_choices');
+    return await apiCall<string>('mcp_reset_project_choices', { ...wslParam() });
   } catch (error) {
     console.error('Failed to reset project choices:', error);
     throw error;
@@ -136,7 +142,7 @@ export async function mcpResetProjectChoices(): Promise<string> {
  */
 export async function mcpGetServerStatus(): Promise<Record<string, ServerStatus>> {
   try {
-    return await apiCall<Record<string, ServerStatus>>('mcp_get_server_status');
+    return await apiCall<Record<string, ServerStatus>>('mcp_get_server_status', { ...wslParam() });
   } catch (error) {
     console.error('Failed to get server status:', error);
     throw error;

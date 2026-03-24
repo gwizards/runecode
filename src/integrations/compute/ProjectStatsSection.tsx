@@ -47,8 +47,19 @@ export function ProjectStatsSection() {
   const { data: processData } = useQuery<{ processes: ProcessInfo[] }>({
     queryKey: ['project-processes'],
     queryFn: async () => {
-      const res = await fetch('/api/resources/processes', { headers: applyStartupToken({}) });
-      return res.ok ? res.json() : { processes: [] };
+      try {
+        const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+        if (isRealTauri) {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const mode = localStorage.getItem('runecode-platform-mode');
+          const wslDistro = mode === 'wsl' ? localStorage.getItem('runecode-wsl-distro') : null;
+          return await invoke('get_running_processes', { wslDistro }) as { processes: ProcessInfo[] };
+        }
+        const res = await fetch('/api/resources/processes', { headers: applyStartupToken({}) });
+        return res.ok ? res.json() : { processes: [] };
+      } catch {
+        return { processes: [] };
+      }
     },
     refetchInterval: 3000,
     staleTime: 2000,
