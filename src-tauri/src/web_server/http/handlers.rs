@@ -286,19 +286,34 @@ pub async fn get_project_info(
         }
     };
 
-    if let Err(e) =
-        crate::path_guard::require_within_home(std::path::Path::new(&project_path))
-    {
-        return axum::Json(serde_json::json!({
-            "error": format!("Path outside home directory: {}", e)
-        }))
-        .into_response();
-    }
+    let wsl_distro = params.get("wslDistro").cloned().filter(|s| !s.is_empty());
 
-    let result = tokio::task::spawn_blocking(move || {
-        crate::commands::project_info::collect_project_info(&project_path)
-    })
-    .await;
+    let result = if let Some(distro) = wsl_distro {
+        // WSL mode — skip path guard (Linux path cannot be canonicalized on Windows)
+        if !project_path.starts_with('/') {
+            return axum::Json(serde_json::json!({
+                "error": "WSL project path must be an absolute Linux path"
+            }))
+            .into_response();
+        }
+        tokio::task::spawn_blocking(move || {
+            crate::commands::project_info::collect_project_info_wsl(&project_path, &distro)
+        })
+        .await
+    } else {
+        if let Err(e) =
+            crate::path_guard::require_within_home(std::path::Path::new(&project_path))
+        {
+            return axum::Json(serde_json::json!({
+                "error": format!("Path outside home directory: {}", e)
+            }))
+            .into_response();
+        }
+        tokio::task::spawn_blocking(move || {
+            crate::commands::project_info::collect_project_info(&project_path)
+        })
+        .await
+    };
 
     match result {
         Ok(info) => axum::Json(serde_json::to_value(info).unwrap_or_default()).into_response(),

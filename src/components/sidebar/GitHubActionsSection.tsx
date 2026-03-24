@@ -3,6 +3,7 @@ import { applyStartupToken } from '@/lib/startupToken';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, ChevronRight, GitBranch, ExternalLink, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { isWslMode, getWslDistro } from '@/lib/platformMode';
 
 interface WorkflowRun {
   databaseId: number;
@@ -65,7 +66,11 @@ export function GitHubActionsSection({ projectPath }: { projectPath?: string }) 
     queryKey: ['github-actions', projectPath],
     queryFn: async () => {
       try {
-        const params = projectPath ? `?path=${encodeURIComponent(projectPath)}` : '';
+        let params = projectPath ? `?path=${encodeURIComponent(projectPath)}` : '';
+        if (projectPath && isWslMode()) {
+          const distro = getWslDistro();
+          if (distro) params += `&wslDistro=${encodeURIComponent(distro)}`;
+        }
         const res = await fetch(`/api/github/actions${params}`, { headers: applyStartupToken({}) });
         return res.ok ? res.json() : { runs: [] };
       } catch (err) {

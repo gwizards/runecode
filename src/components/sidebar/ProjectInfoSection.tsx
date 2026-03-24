@@ -1,6 +1,7 @@
 import { Code2, ExternalLink, GitBranch, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { applyStartupToken } from "@/lib/startupToken";
+import { isWslMode, getWslDistro } from "@/lib/platformMode";
 
 interface ProjectInfo {
   name: string;
@@ -24,7 +25,12 @@ export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
     queryKey: ['project-info', projectPath],
     queryFn: async () => {
       if (!projectPath) return null;
-      const res = await fetch(`/api/project-info?path=${encodeURIComponent(projectPath)}`, { headers: applyStartupToken({}) });
+      let url = `/api/project-info?path=${encodeURIComponent(projectPath)}`;
+      if (isWslMode()) {
+        const distro = getWslDistro();
+        if (distro) url += `&wslDistro=${encodeURIComponent(distro)}`;
+      }
+      const res = await fetch(url, { headers: applyStartupToken({}) });
       if (!res.ok) {
         console.warn('[ProjectInfoSection] Failed to fetch project info:', res.status, res.statusText);
         return null;

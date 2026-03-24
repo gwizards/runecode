@@ -19,15 +19,15 @@ pub(super) async fn list_projects_wsl(distro: &str) -> Result<Vec<Project>, Stri
 for dir in ~/.claude/projects/*/; do
   [ -d "$dir" ] || continue
   dname=$(basename "$dir")
-  mtime=$(stat -c %Y "$dir" 2>/dev/null || echo 0)
+  mtime=$(stat -c %Y "$dir" 2>/dev/null || date -r "$dir" +%s 2>/dev/null || echo 0)
   count=0; newest=0; cwd=""
   for f in "$dir"*.jsonl; do
     [ -f "$f" ] || continue
     count=$((count + 1))
-    fmtime=$(stat -c %Y "$f" 2>/dev/null || echo 0)
-    [ "$fmtime" -gt "$newest" ] && newest=$fmtime
+    fmtime=$(stat -c %Y "$f" 2>/dev/null || date -r "$f" +%s 2>/dev/null || echo 0)
+    [ "$fmtime" -gt "$newest" ] 2>/dev/null && newest=$fmtime
     if [ -z "$cwd" ]; then
-      cwd=$(head -20 "$f" | grep -oP '"cwd"\s*:\s*"\K[^"]+' | head -1)
+      cwd=$(head -20 "$f" | grep -o '"cwd":"[^"]*"' | head -1 | sed 's/"cwd":"//;s/"$//')
     fi
   done
   echo "${dname}|${mtime}|${count}|${newest}|${cwd}"
@@ -38,7 +38,13 @@ done
             .output()
             .map_err(|e| format!("WSL list projects: {}", e))?;
 
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::warn!("WSL list_projects script exited with {}: {}", output.status, stderr);
+        }
+
         let stdout = String::from_utf8_lossy(&output.stdout);
+        log::debug!("WSL list_projects raw output ({} bytes): {:?}", stdout.len(), &stdout[..stdout.len().min(500)]);
         let mut projects = Vec::new();
 
         for line in stdout.lines() {
@@ -107,18 +113,16 @@ for f in "$projdir"/*.jsonl; do
   sid=$(basename "$f" .jsonl)
   mtime=$(stat -c %Y "$f" 2>/dev/null || echo 0)
   # Extract cwd and first user message from the JSONL (first 20 lines)
-  cwd=$(head -20 "$f" | grep -oP '"cwd"\s*:\s*"\K[^"]+' | head -1)
+  cwd=$(head -20 "$f" | grep -o '"cwd":"[^"]*"' | head -1 | sed 's/"cwd":"//;s/"$//')
   msg=$(head -100 "$f" \
     | grep -v 'Caveat: The messages below' \
     | grep -v '<command-name>' \
     | grep -v '<local-command-stdout>' \
     | grep '"role"' | grep '"user"' \
-    | grep -oP '"content"\s*:\s*"\K[^"]+' \
-    | head -1)
+    | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//;s/"$//')
   ts=$(head -100 "$f" \
     | grep '"role"' | grep '"user"' \
-    | grep -oP '"timestamp"\s*:\s*"\K[^"]+' \
-    | head -1)
+    | grep -o '"timestamp":"[^"]*"' | head -1 | sed 's/"timestamp":"//;s/"$//')
   echo "${{sid}}|${{mtime}}|${{msg}}|${{ts}}|${{cwd}}"
 done
 "#,
@@ -128,6 +132,11 @@ done
             .args(["-d", &d, "--", "bash", "-lc", &script])
             .output()
             .map_err(|e| format!("WSL get_project_sessions: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::warn!("WSL get_project_sessions script exited with {}: {}", output.status, stderr);
+        }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut sessions = Vec::new();

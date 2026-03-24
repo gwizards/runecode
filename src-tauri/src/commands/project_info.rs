@@ -257,9 +257,137 @@ pub fn collect_project_info(project_path: &str) -> ProjectInfo {
     }
 }
 
+/// Collect project info when the project lives inside a WSL distribution.
+///
+/// File-system scans (package.json, Cargo.toml, etc.) are skipped because the
+/// Windows host cannot read Linux paths directly.  Git branch / dirty-file info
+/// is obtained by running `git` inside WSL via `wsl -d <distro>`.
+pub fn collect_project_info_wsl(project_path: &str, distro: &str) -> ProjectInfo {
+    // Derive a project name from the path basename
+    let name = project_path
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or("unknown")
+        .to_string();
+
+    let git_branch = run_wsl_git(distro, project_path, &["rev-parse", "--abbrev-ref", "HEAD"]);
+
+    let dirty_file_count = run_wsl_git(distro, project_path, &["status", "--porcelain"])
+        .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
+        .unwrap_or(0);
+
+    // Try to detect tech stack via a quick WSL file-existence check
+    let tech_stack = detect_tech_stack_wsl(distro, project_path);
+
+    // Try to get repo URL
+    let repo_url = run_wsl_git(distro, project_path, &["config", "--get", "remote.origin.url"])
+        .map(|url| {
+            let url = url.trim().to_string();
+            if url.starts_with("git@") {
+                url.replace("git@", "https://")
+                    .replace(":", "/")
+                    .trim_end_matches(".git")
+                    .replace("https:///", "https://")
+                    .to_string()
+            } else {
+                url.trim_end_matches(".git").to_string()
+            }
+        });
+
+    ProjectInfo {
+        name,
+        description: None,
+        tech_stack,
+        repo_url,
+        env_files: Vec::new(),
+        git_branch,
+        dirty_file_count,
+    }
+}
+
+/// Run a git command inside a WSL distribution and return trimmed stdout on success.
+fn run_wsl_git(distro: &str, project_path: &str, git_args: &[&str]) -> Option<String> {
+    let git_cmd = format!(
+        "cd {} && git {}",
+        shell_escape(project_path),
+        git_args
+            .iter()
+            .map(|a| shell_escape(a))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    silent_command("wsl")
+        .args(["-d", distro, "--", "bash", "-lc", &git_cmd])
+        .output()
+        .ok()
+        .and_then(|output| {
+            if output.status.success() {
+                String::from_utf8(output.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            } else {
+                None
+            }
+        })
+}
+
+/// Detect tech stack by checking for common files inside WSL.
+fn detect_tech_stack_wsl(distro: &str, project_path: &str) -> Vec<String> {
+    let script = format!(
+        r#"cd {} 2>/dev/null || exit 0
+s=""
+[ -f package.json ] && s="${{s}}node "
+[ -f Cargo.toml ] && s="${{s}}rust "
+[ -f go.mod ] && s="${{s}}go "
+[ -f pyproject.toml ] || [ -f requirements.txt ] && s="${{s}}python "
+echo "$s"
+"#,
+        shell_escape(project_path)
+    );
+    let output = silent_command("wsl")
+        .args(["-d", distro, "--", "bash", "-lc", &script])
+        .output()
+        .ok();
+    let mut stack = Vec::new();
+    if let Some(out) = output {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for token in stdout.trim().split_whitespace() {
+            match token {
+                "node" => stack.push("Node.js".to_string()),
+                "rust" => stack.push("Rust".to_string()),
+                "go" => stack.push("Go".to_string()),
+                "python" => stack.push("Python".to_string()),
+                _ => {}
+            }
+        }
+    }
+    stack
+}
+
+/// Minimal shell escaping: wraps value in single quotes, escaping embedded quotes.
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 /// Tauri IPC command to get project info
 #[tauri::command]
-pub async fn get_project_info(path: String) -> Result<ProjectInfo, String> {
+pub async fn get_project_info(
+    path: String,
+    wsl_distro: Option<String>,
+) -> Result<ProjectInfo, String> {
+    if let Some(ref distro) = wsl_distro {
+        // WSL path — cannot canonicalize on Windows; validate it looks like a Linux path
+        if !path.starts_with('/') {
+            return Err("WSL project path must be an absolute Linux path".to_string());
+        }
+        let d = distro.clone();
+        let p = path.clone();
+        return tokio::task::spawn_blocking(move || collect_project_info_wsl(&p, &d))
+            .await
+            .map_err(|e| format!("spawn_blocking failed: {}", e));
+    }
     crate::commands::claude::guard_path_within_home(&PathBuf::from(&path))?;
     let path_owned = path.clone();
     tokio::task::spawn_blocking(move || collect_project_info(&path_owned))

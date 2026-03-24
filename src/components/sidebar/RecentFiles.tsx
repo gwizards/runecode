@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { applyStartupToken } from '@/lib/startupToken';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, ChevronRight, FileText, Clock } from 'lucide-react';
+import { isWslMode, getWslDistro } from '@/lib/platformMode';
 
 interface RecentFile {
   path: string;
@@ -19,7 +20,12 @@ export function RecentFiles({ projectPath }: { projectPath?: string }) {
     queryFn: async () => {
       if (!projectPath) return [];
       try {
-        const res = await fetch(`/api/git/recent-files?path=${encodeURIComponent(projectPath)}&limit=10`, { headers: applyStartupToken({}) });
+        let url = `/api/git/recent-files?path=${encodeURIComponent(projectPath)}&limit=10`;
+        if (isWslMode()) {
+          const distro = getWslDistro();
+          if (distro) url += `&wslDistro=${encodeURIComponent(distro)}`;
+        }
+        const res = await fetch(url, { headers: applyStartupToken({}) });
         if (!res.ok) return [];
         return res.json();
       } catch (err) {
