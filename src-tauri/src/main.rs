@@ -3,8 +3,10 @@
 
 mod checkpoint;
 mod claude_binary;
+mod claude_binary_env;
 mod commands;
 mod process;
+mod terminal_pty;
 mod terminal_server;
 
 use checkpoint::state::CheckpointState;

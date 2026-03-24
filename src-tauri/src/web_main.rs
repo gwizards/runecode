@@ -8,10 +8,14 @@ mod checkpoint;
 #[allow(dead_code)]
 mod claude_binary;
 #[allow(dead_code)]
+mod claude_binary_env;
+#[allow(dead_code)]
 mod commands;
 #[allow(dead_code)]
 mod process;
 mod path_guard;
+#[allow(dead_code)]
+mod terminal_pty;
 mod ws_types;
 mod web_server;
 

@@ -8,6 +8,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use tauri::Manager;
 
+// Re-export create_command_with_env so that existing `crate::claude_binary::create_command_with_env`
+// paths continue to work after the split.
+pub use crate::claude_binary_env::create_command_with_env;
+
 /// Create a std::process::Command with CREATE_NO_WINDOW on Windows
 /// to prevent console windows from flashing during background operations
 pub fn silent_command(program: &str) -> Command {
@@ -122,16 +126,14 @@ pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
     installations.sort_by(|a, b| {
         match (&a.version, &b.version) {
             (Some(v1), Some(v2)) => {
-                // Compare versions in descending order (newest first)
                 match compare_versions(v2, v1) {
                     Ordering::Equal => {
-                        // If versions are equal, prefer by source
                         source_preference(a).cmp(&source_preference(b))
                     }
                     other => other,
                 }
             }
-            (Some(_), None) => Ordering::Less, // Version comes before no version
+            (Some(_), None) => Ordering::Less,
             (None, Some(_)) => Ordering::Greater,
             (None, None) => source_preference(a).cmp(&source_preference(b)),
         }
@@ -143,7 +145,7 @@ pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
 /// Returns a preference score for installation sources (lower is better)
 fn source_preference(installation: &ClaudeInstallation) -> u8 {
     match installation.source.as_str() {
-        "login-shell" => 1, // macOS: most accurate — sources full user environment
+        "login-shell" => 1,
         "which" | "where" => 2,
         "homebrew" => 3,
         "system" => 3,
@@ -168,24 +170,16 @@ fn source_preference(installation: &ClaudeInstallation) -> u8 {
 fn discover_system_installations() -> Vec<ClaudeInstallation> {
     let mut installations = Vec::new();
 
-    // Unix (macOS + Linux): ask a login shell for the real PATH-resolved binary.
-    // Desktop launchers (Finder/Spotlight on macOS, GNOME/KDE on Linux) inherit
-    // a minimal PATH that lacks NVM, Homebrew, ~/.local/bin, volta, etc.
-    // A login shell sources the user's profile so those paths are visible.
     #[cfg(unix)]
     if let Some(inst) = try_login_shell_which() {
         installations.push(inst);
     }
 
-    // 1. Try 'which' command first (now works in production)
     if let Some(installation) = try_which_command() {
         installations.push(installation);
     }
 
-    // 2. Check NVM paths (includes current active NVM)
     installations.extend(find_nvm_installations());
-
-    // 3. Check standard paths
     installations.extend(find_standard_installations());
 
     // Remove duplicates by path
@@ -208,7 +202,6 @@ fn try_which_command() -> Option<ClaudeInstallation> {
                 return None;
             }
 
-            // Parse aliased output: "claude: aliased to /path/to/claude"
             let path = if output_str.starts_with("claude:") && output_str.contains("aliased to") {
                 output_str
                     .split("aliased to")
@@ -220,13 +213,11 @@ fn try_which_command() -> Option<ClaudeInstallation> {
 
             debug!("'which' found claude at: {}", path);
 
-            // Verify the path exists
             if !PathBuf::from(&path).exists() {
                 warn!("Path from 'which' does not exist: {}", path);
                 return None;
             }
 
-            // Get version
             let version = get_claude_version(&path).ok().flatten();
 
             Some(ClaudeInstallation {
@@ -252,7 +243,6 @@ fn try_which_command() -> Option<ClaudeInstallation> {
                 return None;
             }
 
-            // On Windows, `where` can return multiple paths, newline-separated. We take the first one.
             let path = output_str.lines().next().unwrap_or("").trim().to_string();
 
             if path.is_empty() {
@@ -261,13 +251,11 @@ fn try_which_command() -> Option<ClaudeInstallation> {
 
             debug!("'where' found claude at: {}", path);
 
-            // Verify the path exists
             if !PathBuf::from(&path).exists() {
                 warn!("Path from 'where' does not exist: {}", path);
                 return None;
             }
 
-            // Get version
             let version = get_claude_version(&path).ok().flatten();
 
             Some(ClaudeInstallation {
@@ -286,7 +274,6 @@ fn try_which_command() -> Option<ClaudeInstallation> {
 fn find_nvm_installations() -> Vec<ClaudeInstallation> {
     let mut installations = Vec::new();
 
-    // First check NVM_BIN environment variable (current active NVM)
     if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
         let claude_path = PathBuf::from(&nvm_bin).join("claude");
         if claude_path.exists() && claude_path.is_file() {
@@ -303,7 +290,6 @@ fn find_nvm_installations() -> Vec<ClaudeInstallation> {
         }
     }
 
-    // Then check all NVM directories
     if let Ok(home) = std::env::var("HOME") {
         let nvm_dir = PathBuf::from(&home)
             .join(".nvm")
@@ -323,7 +309,6 @@ fn find_nvm_installations() -> Vec<ClaudeInstallation> {
 
                         debug!("Found Claude in NVM node {}: {}", node_version, path_str);
 
-                        // Get Claude version
                         let version = get_claude_version(&path_str).ok().flatten();
 
                         installations.push(ClaudeInstallation {
@@ -359,7 +344,6 @@ fn find_nvm_installations() -> Vec<ClaudeInstallation> {
 
                         debug!("Found Claude in NVM node {}: {}", node_version, path_str);
 
-                        // Get Claude version
                         let version = get_claude_version(&path_str).ok().flatten();
 
                         installations.push(ClaudeInstallation {
@@ -378,18 +362,10 @@ fn find_nvm_installations() -> Vec<ClaudeInstallation> {
 }
 
 /// Unix: ask a login shell for the PATH-resolved claude binary.
-///
-/// GUI apps launched from a desktop environment (Finder/Spotlight on macOS,
-/// GNOME/KDE on Linux) inherit a minimal PATH that lacks Homebrew, NVM, volta,
-/// ~/.local/bin, etc.  Spawning a login shell (`-l`) sources the user's profile
-/// (`.zprofile`, `.bash_profile`, `.profile`) so those paths are visible.
-///
-/// Shell selection priority: $SHELL env var → /bin/bash → /bin/sh
 #[cfg(unix)]
 fn try_login_shell_which() -> Option<ClaudeInstallation> {
     let shell = std::env::var("SHELL")
         .unwrap_or_else(|_| "/bin/bash".to_string());
-    // Only attempt with shells known to support `-l`
     let shell_bin = if shell.ends_with("zsh") || shell.ends_with("bash")
         || shell.ends_with("sh") || shell.ends_with("fish")
     {
@@ -402,12 +378,10 @@ fn try_login_shell_which() -> Option<ClaudeInstallation> {
         .args(["-l", "-c", "which claude 2>/dev/null || command -v claude 2>/dev/null"])
         .output()
         .ok()?;
-    // Some shells exit non-zero when `which` finds nothing — check stdout instead
     let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if raw.is_empty() {
         return None;
     }
-    // Some shells output "claude: aliased to /path/to/claude"
     let path = if raw.contains("aliased to") {
         raw.split("aliased to").nth(1)?.trim().to_string()
     } else {
@@ -426,176 +400,8 @@ fn try_login_shell_which() -> Option<ClaudeInstallation> {
     })
 }
 
-/// Check standard installation paths
-#[cfg(unix)]
-fn find_standard_installations() -> Vec<ClaudeInstallation> {
-    let mut installations = Vec::new();
-
-    // Common installation paths for claude
-    let mut paths_to_check: Vec<(String, String)> = vec![
-        ("/usr/local/bin/claude".to_string(), "system".to_string()),
-        (
-            "/opt/homebrew/bin/claude".to_string(),
-            "homebrew".to_string(),
-        ),
-        ("/usr/bin/claude".to_string(), "system".to_string()),
-        ("/bin/claude".to_string(), "system".to_string()),
-        // Snap packages (Ubuntu/Debian)
-        ("/snap/bin/claude".to_string(), "snap".to_string()),
-    ];
-
-    // Also check user-specific paths
-    if let Ok(home) = std::env::var("HOME") {
-        paths_to_check.extend(vec![
-            (
-                format!("{}/.claude/local/claude", home),
-                "claude-local".to_string(),
-            ),
-            (
-                format!("{}/.local/bin/claude", home),
-                "local-bin".to_string(),
-            ),
-            (
-                format!("{}/.npm-global/bin/claude", home),
-                "npm-global".to_string(),
-            ),
-            (format!("{}/.yarn/bin/claude", home), "yarn".to_string()),
-            (format!("{}/.bun/bin/claude", home), "bun".to_string()),
-            (format!("{}/bin/claude", home), "home-bin".to_string()),
-            // volta
-            (format!("{}/.volta/bin/claude", home), "volta".to_string()),
-            // fnm default alias
-            (format!("{}/.fnm/aliases/default/bin/claude", home), "fnm".to_string()),
-            // pnpm global bin
-            (format!("{}/.pnpm-global/bin/claude", home), "pnpm-global".to_string()),
-            // Check common node_modules locations
-            (
-                format!("{}/node_modules/.bin/claude", home),
-                "node-modules".to_string(),
-            ),
-            (
-                format!("{}/.config/yarn/global/node_modules/.bin/claude", home),
-                "yarn-global".to_string(),
-            ),
-        ]);
-    }
-
-    // Check each path
-    for (path, source) in paths_to_check {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() && path_buf.is_file() {
-            debug!("Found claude at standard path: {} ({})", path, source);
-
-            // Get version
-            let version = get_claude_version(&path).ok().flatten();
-
-            installations.push(ClaudeInstallation {
-                path,
-                version,
-                source,
-                installation_type: InstallationType::System,
-            });
-        }
-    }
-
-    // Also check if claude is available in PATH (without full path)
-    if let Ok(output) = silent_command("claude").arg("--version").output() {
-        if output.status.success() {
-            debug!("claude is available in PATH");
-            let version = extract_version_from_output(&output.stdout);
-
-            installations.push(ClaudeInstallation {
-                path: "claude".to_string(),
-                version,
-                source: "PATH".to_string(),
-                installation_type: InstallationType::System,
-            });
-        }
-    }
-
-    installations
-}
-
-#[cfg(windows)]
-fn find_standard_installations() -> Vec<ClaudeInstallation> {
-    let mut installations = Vec::new();
-
-    // Common installation paths for claude on Windows
-    let mut paths_to_check: Vec<(String, String)> = vec![];
-
-    // Check user-specific paths
-    if let Ok(user_profile) = std::env::var("USERPROFILE") {
-        paths_to_check.extend(vec![
-            (
-                format!("{}\\.claude\\local\\claude.exe", user_profile),
-                "claude-local".to_string(),
-            ),
-            (
-                format!("{}\\.local\\bin\\claude.exe", user_profile),
-                "local-bin".to_string(),
-            ),
-            (
-                format!("{}\\AppData\\Roaming\\npm\\claude.cmd", user_profile),
-                "npm-global".to_string(),
-            ),
-            (
-                format!("{}\\.yarn\\bin\\claude.cmd", user_profile),
-                "yarn".to_string(),
-            ),
-            (
-                format!("{}\\.bun\\bin\\claude.exe", user_profile),
-                "bun".to_string(),
-            ),
-            // volta
-            (
-                format!("{}\\.volta\\bin\\claude.exe", user_profile),
-                "volta".to_string(),
-            ),
-            // scoop
-            (
-                format!("{}\\scoop\\shims\\claude.exe", user_profile),
-                "scoop".to_string(),
-            ),
-            // winget installs to AppData\Local\Microsoft\WinGet\Packages\*\claude.exe
-            // — can't predict the exact subfolder, so fall through to `where` command.
-        ]);
-    }
-
-    // Check each path
-    for (path, source) in paths_to_check {
-        let path_buf = PathBuf::from(&path);
-        if path_buf.exists() && path_buf.is_file() {
-            debug!("Found claude at standard path: {} ({})", path, source);
-
-            // Get version
-            let version = get_claude_version(&path).ok().flatten();
-
-            installations.push(ClaudeInstallation {
-                path,
-                version,
-                source,
-                installation_type: InstallationType::System,
-            });
-        }
-    }
-
-    // Also check if claude is available in PATH (without full path)
-    if let Ok(output) = silent_command("claude.exe").arg("--version").output() {
-        if output.status.success() {
-            debug!("claude.exe is available in PATH");
-            let version = extract_version_from_output(&output.stdout);
-
-            installations.push(ClaudeInstallation {
-                path: "claude.exe".to_string(),
-                version,
-                source: "PATH".to_string(),
-                installation_type: InstallationType::System,
-            });
-        }
-    }
-
-    installations
-}
+// Standard installation path discovery lives in claude_binary_env.rs
+use crate::claude_binary_env::find_standard_installations;
 
 /// Get Claude version by running --version command
 fn get_claude_version(path: &str) -> Result<Option<String>, String> {
@@ -617,18 +423,8 @@ fn get_claude_version(path: &str) -> Result<Option<String>, String> {
 /// Extract version string from command output
 fn extract_version_from_output(stdout: &[u8]) -> Option<String> {
     let output_str = String::from_utf8_lossy(stdout);
-
-    // Debug log the raw output
     debug!("Raw version output: {:?}", output_str);
 
-    // Use regex to directly extract version pattern (e.g., "1.0.41")
-    // This pattern matches:
-    // - One or more digits, followed by
-    // - A dot, followed by
-    // - One or more digits, followed by
-    // - A dot, followed by
-    // - One or more digits
-    // - Optionally followed by pre-release/build metadata
     let version_regex =
         regex::Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok()?;
 
@@ -646,23 +442,11 @@ fn extract_version_from_output(stdout: &[u8]) -> Option<String> {
 
 /// Select the best installation based on version
 fn select_best_installation(installations: Vec<ClaudeInstallation>) -> Option<ClaudeInstallation> {
-    // In production builds, version information may not be retrievable because
-    // spawning external processes can be restricted. We therefore no longer
-    // discard installations that lack a detected version – the mere presence
-    // of a readable binary on disk is enough to consider it valid. We still
-    // prefer binaries with version information when it is available so that
-    // in development builds we keep the previous behaviour of picking the
-    // most recent version.
     installations.into_iter().max_by(|a, b| {
         match (&a.version, &b.version) {
-            // If both have versions, compare them semantically.
             (Some(v1), Some(v2)) => compare_versions(v1, v2),
-            // Prefer the entry that actually has version information.
             (Some(_), None) => Ordering::Greater,
             (None, Some(_)) => Ordering::Less,
-            // Neither have version info: prefer the one that is not just
-            // the bare "claude" lookup from PATH, because that may fail
-            // at runtime if PATH is modified.
             (None, None) => {
                 if a.path == "claude" && b.path != "claude" {
                     Ordering::Less
@@ -678,11 +462,9 @@ fn select_best_installation(installations: Vec<ClaudeInstallation>) -> Option<Cl
 
 /// Compare two version strings
 fn compare_versions(a: &str, b: &str) -> Ordering {
-    // Simple semantic version comparison
     let a_parts: Vec<u32> = a
         .split('.')
         .filter_map(|s| {
-            // Handle versions like "1.0.17-beta" by taking only numeric part
             s.chars()
                 .take_while(|c| c.is_numeric())
                 .collect::<String>()
@@ -702,7 +484,6 @@ fn compare_versions(a: &str, b: &str) -> Ordering {
         })
         .collect();
 
-    // Compare each part
     for i in 0..std::cmp::max(a_parts.len(), b_parts.len()) {
         let a_val = a_parts.get(i).unwrap_or(&0);
         let b_val = b_parts.get(i).unwrap_or(&0);
@@ -713,157 +494,4 @@ fn compare_versions(a: &str, b: &str) -> Ordering {
     }
 
     Ordering::Equal
-}
-
-/// Helper function to create a Command with proper environment variables
-/// This ensures commands like Claude can find Node.js and other dependencies
-pub fn create_command_with_env(program: &str) -> Command {
-    let mut cmd = silent_command(program);
-
-    info!("Creating command for: {}", program);
-
-    // Inherit essential environment variables from parent process
-    for (key, value) in std::env::vars() {
-        // Pass through PATH and other essential environment variables
-        if key == "PATH"
-            || key == "HOME"
-            || key == "USER"
-            || key == "SHELL"
-            || key == "LANG"
-            || key == "LC_ALL"
-            || key.starts_with("LC_")
-            || key == "NODE_PATH"
-            || key == "NVM_DIR"
-            || key == "NVM_BIN"
-            || key == "HOMEBREW_PREFIX"
-            || key == "HOMEBREW_CELLAR"
-            // Add proxy environment variables (only uppercase)
-            || key == "HTTP_PROXY"
-            || key == "HTTPS_PROXY"
-            || key == "NO_PROXY"
-            || key == "ALL_PROXY"
-            // Windows-specific paths (no-op on non-Windows)
-            || key == "USERPROFILE"
-            || key == "APPDATA"
-            || key == "LOCALAPPDATA"
-            || key == "SYSTEMROOT"
-            // Additional Windows env vars needed for npm/npx/Node.js
-            || key == "COMSPEC"
-            || key == "TEMP"
-            || key == "TMP"
-            || key == "SystemDrive"
-            || key == "USERNAME"
-            || key == "PATHEXT"
-            // Lowercase proxy vars (Linux/macOS convention)
-            || key == "http_proxy"
-            || key == "https_proxy"
-            || key == "no_proxy"
-            || key == "all_proxy"
-        {
-            debug!("Inheriting env var: {}={}", key, value);
-            cmd.env(&key, &value);
-        }
-    }
-
-    // Log proxy-related environment variables for debugging
-    info!("Command will use proxy settings:");
-    if let Ok(http_proxy) = std::env::var("HTTP_PROXY") {
-        info!("  HTTP_PROXY={}", http_proxy);
-    }
-    if let Ok(https_proxy) = std::env::var("HTTPS_PROXY") {
-        info!("  HTTPS_PROXY={}", https_proxy);
-    }
-
-    // Add NVM support if the program is in an NVM directory
-    if program.contains("/.nvm/versions/node/") {
-        if let Some(node_bin_dir) = std::path::Path::new(program).parent() {
-            // Ensure the Node.js bin directory is in PATH
-            let current_path = std::env::var("PATH").unwrap_or_default();
-            let node_bin_str = node_bin_dir.to_string_lossy();
-            if !current_path.contains(&node_bin_str.as_ref()) {
-                let sep = if cfg!(windows) { ";" } else { ":" };
-                let new_path = format!("{}{}{}", node_bin_str, sep, current_path);
-                debug!("Adding NVM bin directory to PATH: {}", node_bin_str);
-                cmd.env("PATH", new_path);
-            }
-        }
-    }
-
-    // Add Homebrew support if the program is in a Homebrew directory
-    if program.contains("/homebrew/") || program.contains("/opt/homebrew/") {
-        if let Some(program_dir) = std::path::Path::new(program).parent() {
-            // Ensure the Homebrew bin directory is in PATH
-            let current_path = std::env::var("PATH").unwrap_or_default();
-            let homebrew_bin_str = program_dir.to_string_lossy();
-            if !current_path.contains(&homebrew_bin_str.as_ref()) {
-                let sep = if cfg!(windows) { ";" } else { ":" };
-                let new_path = format!("{}{}{}", homebrew_bin_str, sep, current_path);
-                debug!(
-                    "Adding Homebrew bin directory to PATH: {}",
-                    homebrew_bin_str
-                );
-                cmd.env("PATH", new_path);
-            }
-        }
-    }
-
-    // Windows: ensure %APPDATA%\npm is in PATH.
-    // Global npm packages (including @claude-flow/cli, claude, npx) are installed
-    // there, but GUI apps on Windows inherit the registry PATH which typically does
-    // NOT include it — only interactive shells (cmd/PowerShell) add it via profile.
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            let npm_global_bin = format!("{}\\npm", appdata);
-            let current_path = std::env::var("PATH").unwrap_or_default();
-            if !current_path.contains(&npm_global_bin) {
-                let new_path = format!("{};{}", npm_global_bin, current_path);
-                debug!("Prepending %APPDATA%\\npm to PATH for npm/npx resolution");
-                cmd.env("PATH", new_path);
-            }
-        }
-    }
-
-    // Linux: prepend common user-local bin directories.
-    // GUI apps launched from a desktop environment inherit a stripped PATH
-    // (/usr/bin:/bin) that omits ~/.local/bin, NVM bins, volta, fnm, etc.
-    // We inject them here so npx/@claude-flow/cli/claude resolve correctly.
-    #[cfg(target_os = "linux")]
-    {
-        if let Ok(home) = std::env::var("HOME") {
-            let current_path = std::env::var("PATH").unwrap_or_default();
-            let mut extra: Vec<String> = Vec::new();
-
-            // Active NVM version bin (highest priority — user's chosen node)
-            if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
-                if !current_path.contains(&nvm_bin) {
-                    extra.push(nvm_bin);
-                }
-            }
-            // Standard user-local directories
-            for candidate in &[
-                format!("{}/.local/bin", home),
-                format!("{}/.npm-global/bin", home),
-                format!("{}/.volta/bin", home),
-                format!("{}/.fnm/aliases/default/bin", home),
-                format!("{}/.bun/bin", home),
-                format!("{}/.cargo/bin", home),
-                "/usr/local/bin".to_string(),
-            ] {
-                if std::path::Path::new(candidate).exists()
-                    && !current_path.contains(candidate.as_str())
-                {
-                    extra.push(candidate.clone());
-                }
-            }
-
-            if !extra.is_empty() {
-                let new_path = format!("{}:{}", extra.join(":"), current_path);
-                debug!("Linux: augmenting PATH with: {}", extra.join(":"));
-                cmd.env("PATH", new_path);
-            }
-        }
-    }
-
-    cmd
 }

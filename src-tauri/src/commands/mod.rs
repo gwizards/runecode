@@ -8,5 +8,6 @@ pub mod resources;
 pub mod skills;
 pub mod slash_commands;
 pub mod storage;
+pub mod storage_query;
 pub mod ruflo;
 pub mod usage;
