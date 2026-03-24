@@ -11,8 +11,14 @@ use super::domain;
 #[tauri::command]
 pub async fn check_ruflo_installed(wsl_distro: Option<String>) -> RuFloStatus {
     // Return cached result if still within TTL (60 s) to avoid repeated npx/claude calls
+    // Use a separate cache file per platform mode (Windows native vs WSL distro)
+    // to avoid stale results when the user switches between modes.
+    let cache_key = match wsl_distro.as_deref() {
+        Some(d) => format!("runecode_ruflo_cache_wsl_{}.json", d),
+        None => "runecode_ruflo_cache.json".to_string(),
+    };
     if let Some(cached) =
-        try_read_cache::<RuFloStatus>("runecode_ruflo_cache.json", RUFLO_STATUS_CACHE_TTL_SECS)
+        try_read_cache::<RuFloStatus>(&cache_key, RUFLO_STATUS_CACHE_TTL_SECS)
     {
         return cached;
     }
@@ -131,7 +137,7 @@ pub async fn check_ruflo_installed(wsl_distro: Option<String>) -> RuFloStatus {
 
     match result {
         Ok(Ok(status)) => {
-            write_cache("runecode_ruflo_cache.json", &status);
+            write_cache(&cache_key, &status);
             status
         }
         // Timed out or task panicked — return "not installed" immediately

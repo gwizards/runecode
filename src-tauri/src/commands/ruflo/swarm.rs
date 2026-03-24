@@ -8,9 +8,13 @@ use super::domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloSwarmStatu
 
 #[tauri::command]
 pub async fn get_ruflo_swarm_status(wsl_distro: Option<String>) -> RuFloSwarmStatus {
-    // Return cached result if still within TTL (10 s) to avoid repeated npx calls
+    // Use a separate cache file per platform mode (Windows native vs WSL distro)
+    let swarm_cache_key = match wsl_distro.as_deref() {
+        Some(d) => format!("runecode_swarm_cache_wsl_{}.json", d),
+        None => "runecode_swarm_cache.json".to_string(),
+    };
     if let Some(cached) =
-        try_read_cache::<RuFloSwarmStatus>("runecode_swarm_cache.json", RUFLO_SWARM_CACHE_TTL_SECS)
+        try_read_cache::<RuFloSwarmStatus>(&swarm_cache_key, RUFLO_SWARM_CACHE_TTL_SECS)
     {
         return cached;
     }
@@ -20,6 +24,7 @@ pub async fn get_ruflo_swarm_status(wsl_distro: Option<String>) -> RuFloSwarmSta
         std::time::Duration::from_secs(8),
         tokio::task::spawn_blocking(move || {
             let wsl = wsl_for_agents.as_deref();
+            // wsl_command() auto-rewrites npx @claude-flow/cli → claude-flow in WSL mode
             wsl_command(
                 npx_cmd(),
                 &["--no-install", "@claude-flow/cli", "agent", "list", "--json"],
@@ -102,7 +107,7 @@ pub async fn get_ruflo_swarm_status(wsl_distro: Option<String>) -> RuFloSwarmSta
         agents,
         memory_entries,
     };
-    write_cache("runecode_swarm_cache.json", &result);
+    write_cache(&swarm_cache_key, &result);
     result
 }
 

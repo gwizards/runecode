@@ -43,13 +43,33 @@ fn wsl_command(program: &str, args: &[&str], wsl_distro: Option<&str>) -> std::p
     if let Some(distro) = wsl_distro {
         // Inside WSL, .cmd extensions don't exist — strip them.
         let prog = program.strip_suffix(".cmd").unwrap_or(program);
+
+        // Smart rewrite: when calling `npx [--no-install] @claude-flow/cli <subcommands>`,
+        // replace with `claude-flow <subcommands>` directly. npx --no-install misses
+        // globally installed packages in WSL, and npx without --no-install downloads
+        // on every call. The global binary is faster and more reliable.
+        let (effective_prog, effective_args): (String, Vec<String>) = {
+            let is_npx = prog == "npx" || prog == "npx.cmd";
+            let cf_idx = args.iter().position(|a| *a == "@claude-flow/cli");
+            if is_npx && cf_idx.is_some() {
+                let idx = cf_idx.unwrap();
+                // Skip npx flags (--no-install, etc.) and @claude-flow/cli, keep the rest
+                let remaining: Vec<String> = args.iter()
+                    .skip(idx + 1)
+                    .map(|s| s.to_string())
+                    .collect();
+                ("claude-flow".to_string(), remaining)
+            } else {
+                (prog.to_string(), args.iter().map(|s| s.to_string()).collect())
+            }
+        };
+
         // Use bash -lc to ensure login shell loads nvm/PATH properly.
-        // Direct `wsl -- npx` won't find nvm-managed binaries.
-        let full_cmd = if args.is_empty() {
-            prog.to_string()
+        let full_cmd = if effective_args.is_empty() {
+            effective_prog
         } else {
-            format!("{} {}", prog, args.iter().map(|a| {
-                if a.contains(' ') { format!("\"{}\"", a) } else { a.to_string() }
+            format!("{} {}", effective_prog, effective_args.iter().map(|a| {
+                if a.contains(' ') { format!("\"{}\"", a) } else { a.clone() }
             }).collect::<Vec<_>>().join(" "))
         };
         let mut cmd = crate::claude_binary::silent_command("wsl");
