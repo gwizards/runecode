@@ -8,6 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useState, useMemo } from "react";
 import { applyStartupToken } from "@/lib/startupToken";
+import { isRealTauri } from "@/lib/tauri-env";
 import { ArrowLeft, Cpu, MemoryStick, RefreshCw, FolderOpen, Container, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDockerMonitor } from "./ResourceMonitor";
@@ -38,8 +39,7 @@ export function ResourceDetails({ onBack }: { onBack: () => void }) {
     queryKey: ["resource-processes"],
     queryFn: async () => {
       try {
-        const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
-        if (isRealTauri) {
+        if (isRealTauri()) {
           const { invoke } = await import('@tauri-apps/api/core');
           const mode = localStorage.getItem('runecode-platform-mode');
           const wslDistro = mode === 'wsl' ? localStorage.getItem('runecode-wsl-distro') : null;

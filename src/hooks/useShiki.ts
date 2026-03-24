@@ -75,7 +75,7 @@ export function useShiki() {
     }
     getHighlighter().then(h => {
       if (!cancelled) setHighlighter(h);
-    });
+    }).catch(console.warn);
     return () => { cancelled = true; };
   }, []);
 

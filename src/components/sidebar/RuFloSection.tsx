@@ -45,6 +45,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
 
   const fetchData = useCallback(async () => {
     if (!projectPath) return;
+    if (document.hidden) return; // Skip when tab not visible
     const projResult = await ruFloService.getProjectStatus(projectPath);
     if (!projResult.ok) {
       setIsStale(true);

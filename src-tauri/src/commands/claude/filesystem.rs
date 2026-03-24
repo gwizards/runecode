@@ -337,17 +337,22 @@ async fn search_files_via_wsl(
 ) -> Result<Vec<FileEntry>, String> {
     let distro = distro.to_string();
     let base = base_path.to_string();
-    // Use find with -iname for case-insensitive glob match, limit depth to 5
+    // Use find with -iname for case-insensitive glob match, limit depth to 5.
+    // Pass arguments directly to `find` instead of piping through `sh -c`
+    // to prevent shell injection via crafted distro/base/query values.
     let pattern = format!("*{}*", query);
-    let find_cmd = format!(
-        "find {} -maxdepth 5 -iname '{}' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/target/*' 2>/dev/null | head -50",
-        shell_escape(&base),
-        shell_escape(&pattern),
-    );
 
     let output = tokio::task::spawn_blocking(move || {
         crate::claude_binary::silent_command("wsl")
-            .args(["-d", &distro, "--", "sh", "-c", &find_cmd])
+            .args([
+                "-d", &distro, "--",
+                "find", &base,
+                "-maxdepth", "5",
+                "-iname", &pattern,
+                "-not", "-path", "*/node_modules/*",
+                "-not", "-path", "*/.git/*",
+                "-not", "-path", "*/target/*",
+            ])
             .output()
     })
     .await
@@ -390,10 +395,4 @@ async fn search_files_via_wsl(
     }
 
     Ok(results)
-}
-
-/// Minimal shell escaping for single-quoted strings used in WSL commands.
-#[cfg(target_os = "windows")]
-fn shell_escape(s: &str) -> String {
-    s.replace('\'', "'\\''")
 }

@@ -451,7 +451,8 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({
 };
 
 export { CollapsibleToolOutput };
-export default StreamMessageComponent;
-export { StreamMessageComponent };
+const MemoizedStreamMessage = React.memo(StreamMessageComponent);
+export default MemoizedStreamMessage;
+export { MemoizedStreamMessage as StreamMessageComponent };
 // Named alias for backwards compatibility
-export { StreamMessageComponent as StreamMessage };
+export { MemoizedStreamMessage as StreamMessage };

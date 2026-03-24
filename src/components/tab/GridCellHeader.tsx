@@ -186,6 +186,7 @@ export function GridCellHeader({
         {/* Close */}
         <button className="text-muted-foreground hover:text-foreground p-0.5 relative z-20"
           onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
+          aria-label="Close tab"
         >
           <X className="w-3 h-3" />
         </button>

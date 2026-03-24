@@ -33,7 +33,7 @@ import { setRuFloEventListener } from './domain/ruflo';
 if (!isWebMode) {
   import('./infrastructure/ruflo/tauri-event-listener').then(({ tauriRuFloEventListener }) => {
     setRuFloEventListener(tauriRuFloEventListener);
-  });
+  }).catch(console.warn);
 }
 
 // Initialize analytics before rendering

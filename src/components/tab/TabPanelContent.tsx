@@ -3,6 +3,8 @@ import { useTabState } from '@/hooks/useTabState';
 import { useScreenTracking } from '@/hooks/useAnalytics';
 import { Tab } from '@/contexts/TabContext';
 import { Loader2 } from 'lucide-react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { isWindowsPlatform } from '@/lib/platformMode';
 import { ProjectsTabView } from './ProjectsTabView';
 
 // Lazy load heavy components
@@ -19,15 +21,6 @@ const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor').then(m =
 const ClaudeFileEditor = lazy(() => import('@/components/ClaudeFileEditor').then(m => ({ default: m.ClaudeFileEditor })));
 const EmbeddedTerminal = lazy(() => import('@/components/EmbeddedTerminal').then(m => ({ default: m.EmbeddedTerminal })));
 const BrowserPanel = lazy(() => import('@/components/BrowserPanel').then(m => ({ default: m.BrowserPanel })));
-
-// Returns true when running on Windows (WebView2 UA always contains "Windows NT").
-// Used to suppress tmux-based features that are not available on Windows.
-function isWindowsPlatform(): boolean {
-  return (
-    navigator.userAgent.includes('Windows') ||
-    (typeof navigator.platform === 'string' && navigator.platform.startsWith('Win'))
-  );
-}
 
 // Default flags for a normal Claude launch — teammate mode on Unix, none on Windows.
 // In WSL mode on Windows, Claude runs inside Linux where tmux is available.
@@ -220,15 +213,17 @@ export const TabPanel: React.FC<TabPanelProps> = React.memo(({ tab, isActive, ow
   return (
     <>
       <div className="h-full w-full" style={panelStyle}>
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-          }
-        >
-          {renderContent()}
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            }
+          >
+            {renderContent()}
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </>
   );

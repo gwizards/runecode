@@ -78,6 +78,7 @@ const SubAgentTrackerComponent: React.FC<SubAgentTrackerProps> = ({ className })
   // Prune completed agents after 30s to prevent unbounded Map growth
   useEffect(() => {
     const interval = setInterval(() => {
+      if (document.hidden) return; // Skip when tab not visible
       setAgents(prev => {
         const now = Date.now();
         let changed = false;

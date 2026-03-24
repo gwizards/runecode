@@ -1,7 +1,7 @@
 // Infrastructure client — Tauri IPC adapter for MCP domain
 
 import { apiCall } from '@/lib/apiAdapter';
-import { isWslMode, getWslDistro } from '@/lib/platformMode';
+import { wslParam } from '@/lib/platformMode';
 import type {
   AddServerResult,
   ImportResult,
@@ -10,11 +10,6 @@ import type {
   ServerStatus,
   SlashCommand,
 } from './types';
-
-/** Helper: returns the WSL distro parameter when WSL mode is active. */
-function wslParam(): { wslDistro: string | null } {
-  return { wslDistro: isWslMode() ? getWslDistro() : null };
-}
 
 /**
  * Adds a new MCP server

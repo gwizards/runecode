@@ -209,7 +209,7 @@ export const HooksEditor: React.FC<HooksEditorProps> = ({
     HooksManager.validateConfig(hooks).then(result => {
       setValidationErrors(result.errors.map(e => e.message));
       setValidationWarnings(result.warnings.map(w => `${w.message} in command: ${(w.command || '').substring(0, 50)}...`));
-    });
+    }).catch(console.warn);
   }, [hooks]);
 
   const handleSave = async () => {

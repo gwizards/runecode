@@ -115,6 +115,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                     exit={{ opacity: 0, scale: 0.8 }}
                     className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center hover:bg-destructive/90 transition-colors"
                     onClick={(e) => handleRemove(e, index)}
+                    aria-label="Remove image"
                   >
                     <X className="h-3 w-3" />
                   </motion.button>

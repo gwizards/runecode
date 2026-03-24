@@ -10,18 +10,17 @@ export function PlatformBadge() {
   const [mode, setMode] = useState(getPlatformMode());
   const [distro, setDistro] = useState(getWslDistro());
 
-  // Re-read from localStorage on storage events (settings page changes)
+  // Listen for platform mode changes via custom event + cross-tab storage events
   useEffect(() => {
     const handler = () => {
       setMode(getPlatformMode());
       setDistro(getWslDistro());
     };
     window.addEventListener('storage', handler);
-    // Also poll briefly since same-tab localStorage changes don't fire 'storage'
-    const interval = setInterval(handler, 2000);
+    window.addEventListener('runecode:platform-changed', handler);
     return () => {
       window.removeEventListener('storage', handler);
-      clearInterval(interval);
+      window.removeEventListener('runecode:platform-changed', handler);
     };
   }, []);
 

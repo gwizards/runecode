@@ -9,20 +9,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { applyStartupToken } from '../../lib/startupToken';
-import { isWslMode, getWslDistro } from '../../lib/platformMode';
-
-/**
- * Convert a Windows-style path (e.g. C:\Users\foo) to a WSL mount path
- * (e.g. /mnt/c/Users/foo).  Non-Windows paths are returned unchanged.
- */
-function windowsToWslPath(winPath: string): string {
-  const normalized = winPath.replace(/\\/g, '/');
-  if (normalized.length >= 2 && normalized[1] === ':') {
-    const drive = normalized[0].toLowerCase();
-    return `/mnt/${drive}${normalized.substring(2)}`;
-  }
-  return normalized;
-}
+import { isWslMode, getWslDistro, windowsToWslPath } from '../../lib/platformMode';
 
 // Persistent WebSocket connections per session tab
 const sessionSockets = new Map<string, WebSocket>();

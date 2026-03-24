@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FolderOpen, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { isWslMode, getWslDistro } from '@/lib/platformMode';
+import { isRealTauri } from '@/lib/tauri-env';
 import { WslFileBrowser } from '@/components/wsl/WslFileBrowser';
 
 interface CreateProjectDialogProps {
@@ -24,8 +25,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
       return;
     }
     try {
-      const isRealTauri = window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
-      if (isRealTauri) {
+      if (isRealTauri()) {
         const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
         const selected = await openDialog({
           directory: true,

@@ -5,6 +5,7 @@
 
 import { useCallback } from "react";
 import type { ClaudeStreamMessage } from "@/components/AgentExecution";
+import { isRealTauri } from "@/lib/tauri-env";
 
 // ---------------------------------------------------------------------------
 // Tauri / web-mode event bridge (shared module-level singleton)
@@ -13,11 +14,7 @@ let tauriListen: any;
 export type UnlistenFn = () => void;
 
 try {
-  const isRealTauri =
-    typeof window !== "undefined" &&
-    window.__TAURI__ &&
-    !(window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
-  if (isRealTauri) {
+  if (isRealTauri()) {
     tauriListen = require("@tauri-apps/api/event").listen;
   }
 } catch {

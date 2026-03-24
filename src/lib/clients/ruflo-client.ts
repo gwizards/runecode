@@ -3,7 +3,7 @@
  * initialization, swarm status, and memory management.
  */
 import { apiCall } from '../apiAdapter';
-import { isWslMode, getWslDistro } from '../platformMode';
+import { wslParam } from '../platformMode';
 import type {
   RuFloStatus,
   RuFloProjectStatus,
@@ -11,11 +11,6 @@ import type {
 } from './types';
 
 export type { RuFloStatus, RuFloProjectStatus, RuFloSwarmStatus };
-
-/** Helper: returns the WSL distro parameter when WSL mode is active. */
-function wslParam(): { wslDistro: string | null } {
-  return { wslDistro: isWslMode() ? getWslDistro() : null };
-}
 
 /** Checks whether the RuFlo CLI is installed and returns its status. */
 export async function checkRufloInstalled(): Promise<RuFloStatus> {

@@ -38,7 +38,7 @@ export function GridCell({ tabId, isFocused, switchToTab, children, ...props }: 
     const startPoll = () => {
       hoveringRef.current = true;
       if (!pollRef.current) {
-        pollRef.current = setInterval(checkFocus, 80);
+        pollRef.current = setInterval(checkFocus, 250);
       }
     };
     const stopPoll = () => {

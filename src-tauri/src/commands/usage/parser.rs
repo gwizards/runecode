@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::types::{
-    JsonlEntry, MessageData, UsageData, UsageEntry,
+    JsonlEntry, UsageData, UsageEntry,
     OPUS_4_CACHE_READ_PRICE, OPUS_4_CACHE_WRITE_PRICE, OPUS_4_INPUT_PRICE, OPUS_4_OUTPUT_PRICE,
     SONNET_4_CACHE_READ_PRICE, SONNET_4_CACHE_WRITE_PRICE, SONNET_4_INPUT_PRICE,
     SONNET_4_OUTPUT_PRICE,

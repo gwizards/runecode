@@ -218,9 +218,9 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ }) => {
                                 <div className="flex items-center justify-between pt-4">
                                   <span className="text-xs text-muted-foreground">Showing {startIndex + 1}-{Math.min(endIndex, stats.by_project.length)} of {stats.by_project.length}</span>
                                   <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => setProjectsPage(prev => Math.max(1, prev - 1))} disabled={projectsPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+                                    <Button variant="outline" size="sm" onClick={() => setProjectsPage(prev => Math.max(1, prev - 1))} disabled={projectsPage === 1} aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></Button>
                                     <span className="text-sm">Page {projectsPage} of {totalPages}</span>
-                                    <Button variant="outline" size="sm" onClick={() => setProjectsPage(prev => Math.min(totalPages, prev + 1))} disabled={projectsPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
+                                    <Button variant="outline" size="sm" onClick={() => setProjectsPage(prev => Math.min(totalPages, prev + 1))} disabled={projectsPage === totalPages} aria-label="Next page"><ChevronRight className="h-4 w-4" /></Button>
                                   </div>
                                 </div>
                               )}
@@ -266,9 +266,9 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ }) => {
                                 <div className="flex items-center justify-between pt-4">
                                   <span className="text-xs text-muted-foreground">Showing {startIndex + 1}-{Math.min(endIndex, sessionStats.length)} of {sessionStats.length}</span>
                                   <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => setSessionsPage(prev => Math.max(1, prev - 1))} disabled={sessionsPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+                                    <Button variant="outline" size="sm" onClick={() => setSessionsPage(prev => Math.max(1, prev - 1))} disabled={sessionsPage === 1} aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></Button>
                                     <span className="text-sm">Page {sessionsPage} of {totalPages}</span>
-                                    <Button variant="outline" size="sm" onClick={() => setSessionsPage(prev => Math.min(totalPages, prev + 1))} disabled={sessionsPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
+                                    <Button variant="outline" size="sm" onClick={() => setSessionsPage(prev => Math.min(totalPages, prev + 1))} disabled={sessionsPage === totalPages} aria-label="Next page"><ChevronRight className="h-4 w-4" /></Button>
                                   </div>
                                 </div>
                               )}

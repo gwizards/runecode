@@ -13,7 +13,6 @@ use axum::{
     routing::{get, post, put},
     Router,
 };
-use chrono;
 use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -494,13 +493,13 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
     };
 
     let localhost_origins = [
-        "http://localhost".parse().unwrap(),
-        "http://localhost:1420".parse().unwrap(),
-        "http://localhost:5173".parse().unwrap(),
-        "http://127.0.0.1".parse().unwrap(),
-        "http://127.0.0.1:1420".parse().unwrap(),
-        "http://127.0.0.1:5173".parse().unwrap(),
-        "tauri://localhost".parse().unwrap(),
+        "http://localhost".parse().expect("valid URL literal"),
+        "http://localhost:1420".parse().expect("valid URL literal"),
+        "http://localhost:5173".parse().expect("valid URL literal"),
+        "http://127.0.0.1".parse().expect("valid URL literal"),
+        "http://127.0.0.1:1420".parse().expect("valid URL literal"),
+        "http://127.0.0.1:5173".parse().expect("valid URL literal"),
+        "tauri://localhost".parse().expect("valid URL literal"),
     ];
     let cors = CorsLayer::new()
         .allow_origin(localhost_origins)

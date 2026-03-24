@@ -6,7 +6,6 @@ pub mod config;
 pub mod installation;
 pub mod swarm;
 
-use domain::{AgentStatus, RuFloAgent, RuFloProjectStatus, RuFloStatus, RuFloSwarmStatus};
 
 // ---------------------------------------------------------------------------
 // Windows: npm/npx are batch files (.cmd), not executables.

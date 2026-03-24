@@ -15,7 +15,7 @@ pub use crate::claude_binary_env::create_command_with_env;
 /// Create a std::process::Command with CREATE_NO_WINDOW on Windows
 /// to prevent console windows from flashing during background operations
 pub fn silent_command(program: &str) -> Command {
-    let mut cmd = Command::new(program);
+    let cmd = Command::new(program);
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;

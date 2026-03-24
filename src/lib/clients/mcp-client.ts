@@ -2,7 +2,7 @@
  * MCP client — MCP server add/list/remove/test and project config management.
  */
 import { apiCall } from '../apiAdapter';
-import { isWslMode, getWslDistro } from '../platformMode';
+import { wslParam } from '../platformMode';
 import type {
   MCPServer,
   MCPProjectConfig,
@@ -10,11 +10,6 @@ import type {
   ImportResult,
   ServerStatus,
 } from './types';
-
-/** Helper: returns the WSL distro parameter when WSL mode is active. */
-function wslParam(): { wslDistro: string | null } {
-  return { wslDistro: isWslMode() ? getWslDistro() : null };
-}
 
 export type { MCPServer, MCPProjectConfig, AddServerResult, ImportResult, ServerStatus };
 

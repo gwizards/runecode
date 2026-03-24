@@ -1,4 +1,3 @@
-use crate::claude_binary::silent_command;
 use serde::{Deserialize, Serialize};
 
 /// Validates WSL distro name -- alphanumeric, hyphens, underscores, periods only.

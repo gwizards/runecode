@@ -3,7 +3,7 @@
 import { apiCall } from '@/lib/apiAdapter';
 import { applyStartupToken } from '@/lib/startupToken';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from '@/lib/devFallback';
-import { isWslMode, getWslDistro } from '@/lib/platformMode';
+import { wslParam } from '@/lib/platformMode';
 import type {
   Project,
   Session,
@@ -13,15 +13,6 @@ import type {
   FileEntry,
   ClaudeInstallation,
 } from './types';
-
-/** Returns `{ wslDistro }` when WSL mode is active, or `{}` otherwise. */
-function wslParam(): { wslDistro?: string } {
-  if (isWslMode()) {
-    const distro = getWslDistro();
-    if (distro) return { wslDistro: distro };
-  }
-  return {};
-}
 
 /**
  * Gets the user's home directory path

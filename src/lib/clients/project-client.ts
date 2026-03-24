@@ -5,7 +5,7 @@
 import { apiCall } from '../apiAdapter';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from '../devFallback';
 import { applyStartupToken } from '../startupToken';
-import { isWslMode, getWslDistro } from '../platformMode';
+import { wslParam } from '../platformMode';
 import type {
   Project,
   Session,
@@ -29,15 +29,6 @@ export type {
   UsageStats,
   ProjectUsage,
 };
-
-/** Returns `{ wslDistro }` when WSL mode is active, or `{}` otherwise. */
-function wslParam(): { wslDistro?: string } {
-  if (isWslMode()) {
-    const distro = getWslDistro();
-    if (distro) return { wslDistro: distro };
-  }
-  return {};
-}
 
 /**
  * Lists all projects in the ~/.claude/projects directory

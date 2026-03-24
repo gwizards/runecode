@@ -9,15 +9,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { isRealTauri } from "@/lib/tauri-env";
 
 // Conditional import for Tauri webview window
 let tauriGetCurrentWebviewWindow: any;
 try {
-  const isRealTauri =
-    typeof window !== "undefined" &&
-    window.__TAURI__ &&
-    !(window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
-  if (isRealTauri) {
+  if (isRealTauri()) {
     tauriGetCurrentWebviewWindow =
       require("@tauri-apps/api/webviewWindow").getCurrentWebviewWindow;
   }

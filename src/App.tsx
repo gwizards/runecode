@@ -113,6 +113,7 @@ function AppMain() {
     if (!isDevMode()) return;
     let cancelled = false;
     const check = async () => {
+      if (document.hidden) return; // Skip when tab not visible
       const ok = await checkBackendConnected();
       if (!cancelled) setBackendConnected(ok);
     };

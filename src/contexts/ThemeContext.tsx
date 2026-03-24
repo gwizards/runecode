@@ -220,7 +220,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setAtmosphereState(newAtm);
           applyAtmosphere(newAtm);
         }
-      });
+      }).catch(console.warn);
     };
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);

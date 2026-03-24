@@ -3,8 +3,8 @@ use anyhow::Result;
 use rusqlite::{params, types::ValueRef, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value as JsonValue};
-use std::collections::{HashMap, HashSet};
-use tauri::{AppHandle, Manager, State};
+use std::collections::HashMap;
+use tauri::State;
 
 // Re-export all items from the query submodule so that
 // `use commands::storage::*` continues to work.

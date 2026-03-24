@@ -1,7 +1,7 @@
 // Infrastructure client — Tauri IPC adapter for session domain
 
 import { apiCall } from '@/lib/apiAdapter';
-import { isWslMode, getWslDistro } from '@/lib/platformMode';
+import { isWslMode, getWslDistro, wslParam, windowsToWslPath } from '@/lib/platformMode';
 import type {
   Checkpoint,
   CheckpointDiff,
@@ -13,32 +13,6 @@ import type {
   UsageStats,
 } from './types';
 
-/**
- * Convert a Windows-style path (e.g. C:\Users\foo) to a WSL mount path
- * (e.g. /mnt/c/Users/foo).  Non-Windows paths are returned unchanged.
- */
-function windowsToWslPath(winPath: string): string {
-  const normalized = winPath.replace(/\\/g, '/');
-  if (normalized.length >= 2 && normalized[1] === ':') {
-    const drive = normalized[0].toLowerCase();
-    return `/mnt/${drive}${normalized.substring(2)}`;
-  }
-  return normalized;
-}
-
-/**
- * Opens a new Claude Code session
- * @param path - Optional path to open the session in
- * @returns Promise resolving when the session is opened
- */
-/** Helper: returns the WSL distro parameter when WSL mode is active. */
-function wslParam(): { wslDistro?: string } {
-  if (isWslMode()) {
-    const distro = getWslDistro();
-    if (distro) return { wslDistro: distro };
-  }
-  return {};
-}
 
 export async function openNewSession(path?: string): Promise<string> {
   try {
