@@ -79,6 +79,21 @@ fn get_terminal_port(state: tauri::State<TerminalServerPort>) -> u16 {
     state.0
 }
 
+/// Toggle DevTools (F12 / Ctrl+Shift+I)
+#[tauri::command]
+fn toggle_devtools(window: tauri::WebviewWindow) {
+    #[cfg(feature = "devtools")]
+    {
+        if window.is_devtools_open() {
+            window.close_devtools();
+        } else {
+            window.open_devtools();
+        }
+    }
+    #[cfg(not(feature = "devtools"))]
+    { let _ = window; }
+}
+
 /// Returns OS platform and feature availability flags.
 #[tauri::command]
 fn get_system_info() -> serde_json::Value {
@@ -325,6 +340,7 @@ fn main() {
             // Terminal server
             get_terminal_port,
             get_system_info,
+            toggle_devtools,
             // Startup token
             crate::commands::claude::get_startup_token,
         ])

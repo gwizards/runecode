@@ -258,6 +258,15 @@ pub fn run_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
         "App state managed (checkpoint, process registry, claude process, terminal server)"
     );
 
+    // Enable DevTools (Ctrl+Shift+I / F12) in all builds
+    #[cfg(feature = "devtools")]
+    if let Some(window) = app.get_webview_window("main") {
+        // Open devtools automatically in debug builds only
+        #[cfg(debug_assertions)]
+        window.open_devtools();
+        let _ = window; // suppress unused in release
+    }
+
     // Apply window vibrancy with rounded corners on macOS
     #[cfg(target_os = "macos")]
     {

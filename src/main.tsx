@@ -36,6 +36,20 @@ if (!isWebMode) {
   }).catch(console.warn);
 }
 
+// Enable F12 / Ctrl+Shift+I to open DevTools in all builds
+if (!isWebMode) {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+      e.preventDefault();
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('toggle_devtools').catch(() => {
+          // Fallback: devtools command may not exist in older builds
+        });
+      });
+    }
+  });
+}
+
 // Initialize analytics before rendering
 analytics.initialize();
 
