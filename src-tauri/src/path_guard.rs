@@ -15,6 +15,9 @@ pub fn require_within_home(path: &Path) -> Result<PathBuf> {
         .canonicalize()
         .with_context(|| format!("path does not exist or is not accessible: {}", path.display()))?;
     let home = dirs::home_dir().context("cannot determine home directory")?;
+    // Canonicalize home so both paths have the same form on all platforms.
+    // On Windows, canonicalize() adds \\?\ prefix; raw home_dir() does not.
+    let home = home.canonicalize().unwrap_or(home);
     if !canonical.starts_with(&home) {
         bail!(
             "access denied: path is outside home directory: {}",

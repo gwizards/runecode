@@ -118,11 +118,16 @@ async fn terminal_ws_upgrade(
     }
 
     // Replace the raw projectPath in params with the validated canonical form.
+    // On Windows, canonicalize() returns \\?\ prefixed paths which CMD.EXE cannot
+    // handle as a working directory. Strip the prefix to get a normal path.
+    let canonical_str = canonical.to_string_lossy().into_owned();
+    #[cfg(windows)]
+    let canonical_str = canonical_str
+        .strip_prefix(r"\\?\")
+        .unwrap_or(&canonical_str)
+        .to_string();
     let mut validated_params = params;
-    validated_params.insert(
-        "projectPath".to_string(),
-        canonical.to_string_lossy().into_owned(),
-    );
+    validated_params.insert("projectPath".to_string(), canonical_str);
 
     ws.on_upgrade(move |socket| handle_terminal_ws(socket, validated_params))
 }
@@ -159,6 +164,8 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
         "--model",
         "--permission-mode",
         "--output-format",
+        "--dangerously-skip-permissions",
+        "--teammate-mode",
     ];
     let flags: Vec<String> = raw_flags
         .into_iter()

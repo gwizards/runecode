@@ -160,7 +160,13 @@ pub(crate) fn guard_path_within_home(path: &PathBuf) -> Result<PathBuf, String> 
     let canonical = path
         .canonicalize()
         .map_err(|e| format!("Failed to resolve path: {}", e))?;
-    if !canonical.starts_with(&home) {
+    // Canonicalize home too so both paths have the same form on all platforms.
+    // On Windows, canonicalize() adds a \\?\ prefix; comparing a prefixed path
+    // against a raw env-var string would always fail.
+    let home_canonical = std::path::PathBuf::from(&home)
+        .canonicalize()
+        .unwrap_or_else(|_| std::path::PathBuf::from(&home));
+    if !canonical.starts_with(&home_canonical) {
         return Err("Path is outside the user's home directory".to_string());
     }
     Ok(canonical)
