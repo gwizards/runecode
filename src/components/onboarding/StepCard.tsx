@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, Loader2, type LucideIcon } from 'lucide-react';
+import { Check, X, Loader2, ChevronLeft, type LucideIcon } from 'lucide-react';
 import React from 'react';
 
 export type StepStatus = 'pending' | 'checking' | 'passed' | 'failed' | 'skipped';
@@ -13,6 +13,7 @@ interface StepCardProps {
   status: StepStatus;
   children?: React.ReactNode;
   onNext?: () => void;
+  onBack?: () => void;
   onSkip?: () => void;
   canSkip?: boolean;
   nextLabel?: string;
@@ -28,6 +29,7 @@ export function StepCard({
   status,
   children,
   onNext,
+  onBack,
   onSkip,
   canSkip = false,
   nextLabel = 'Next',
@@ -119,7 +121,16 @@ export function StepCard({
 
         {/* Actions */}
         <div className="flex items-center justify-between gap-3 pt-2">
-          <div>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-1 text-sm text-white/40 hover:text-white/70 transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Back
+              </button>
+            )}
             {canSkip && onSkip && (
               <button
                 onClick={onSkip}

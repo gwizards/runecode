@@ -235,6 +235,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
   };
 
+  const prevStep = () => {
+    const minStep = IS_WINDOWS ? 0 : 1;
+    if (currentStep > minStep) {
+      setCurrentStep((s) => s - 1);
+    }
+  };
+
   const skipStep = () => {
     setStatus(currentStep, 'skipped');
     nextStep();
@@ -332,6 +339,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             onThemeChange={setSelectedTheme}
             onThemeSave={() => localStorage.setItem('runecode-theme', selectedTheme)}
             onNext={nextStep}
+            onBack={prevStep}
             onSkip={skipStep}
             onSetStatus={setStatus}
             onFinish={finishOnboarding}

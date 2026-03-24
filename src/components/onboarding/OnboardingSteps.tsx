@@ -39,7 +39,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
     selectedPermission, onPermissionChange, onPermissionSave,
     analyticsEnabled, onAnalyticsChange,
     selectedTheme, onThemeChange, onThemeSave,
-    onNext, onSkip, onSetStatus, onFinish,
+    onNext, onBack, onSkip, onSetStatus, onFinish,
     onCopyWebModeCommand, onOpenBrowser,
   } = props;
 
@@ -63,7 +63,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
           description="Choose where new projects will be created by default."
           icon={FolderOpen} status={statuses[5] ?? 'pending'}
           onNext={() => { onSetStatus(5, 'passed'); onNext(); }}
-          onSkip={onSkip} canSkip
+          onBack={onBack} onSkip={onSkip} canSkip
         >
           <input
             type="text" value={projectDir}
@@ -88,6 +88,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
           description="Control how much autonomy Claude has when modifying your project."
           icon={Shield} status={statuses[6] ?? 'pending'}
           onNext={() => { onPermissionSave(); onSetStatus(6, 'passed'); onNext(); }}
+          onBack={onBack}
           onSkip={onSkip} canSkip
         >
           <div className="flex flex-col gap-2">
@@ -123,6 +124,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
           description="Help improve RuneCode by sharing anonymous usage data."
           icon={BarChart3} status={statuses[7] ?? 'pending'}
           onNext={() => { onSetStatus(7, 'passed'); onNext(); }}
+          onBack={onBack}
           onSkip={onSkip} canSkip
         >
           <label className="flex items-center gap-3 cursor-pointer">
@@ -150,6 +152,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
           description="Choose your preferred color theme."
           icon={Palette} status={statuses[8] ?? 'pending'}
           onNext={() => { onThemeSave(); onSetStatus(8, 'passed'); onNext(); }}
+          onBack={onBack}
           onSkip={onSkip} canSkip
         >
           <div className="flex gap-2">
@@ -172,7 +175,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
           title="Quick Tour"
           description="A few things to get you started with RuneCode."
           icon={Sparkles} status={statuses[9] ?? 'pending'}
-          onNext={onFinish} nextLabel="Get Started"
+          onNext={onFinish} onBack={onBack} nextLabel="Get Started"
         >
           <ul className="flex flex-col gap-3">
             {[

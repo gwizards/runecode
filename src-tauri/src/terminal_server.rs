@@ -157,20 +157,42 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
 
     // 1c. Flags whitelist -- only permit known safe Claude CLI flags to prevent
     //     argument injection attacks.
+    //     Flags with arguments (e.g. --teammate-mode tmux) are passed as two
+    //     comma-separated entries.  When we see a whitelisted flag that takes a
+    //     value, the NEXT entry is accepted unconditionally as its argument.
     const ALLOWED_FLAGS: &[&str] = &[
         "--shell",
         "--resume",
         "--continue",
+        "--dangerously-skip-permissions",
+    ];
+    /// Flags that require exactly one argument value after them.
+    const ALLOWED_FLAGS_WITH_ARG: &[&str] = &[
         "--model",
         "--permission-mode",
         "--output-format",
-        "--dangerously-skip-permissions",
         "--teammate-mode",
     ];
-    let flags: Vec<String> = raw_flags
-        .into_iter()
-        .filter(|f| ALLOWED_FLAGS.iter().any(|allowed| f.starts_with(allowed)))
-        .collect();
+    let mut flags: Vec<String> = Vec::new();
+    let mut accept_next = false;
+    for f in raw_flags {
+        if accept_next {
+            flags.push(f);
+            accept_next = false;
+            continue;
+        }
+        if ALLOWED_FLAGS.iter().any(|a| f == *a) {
+            flags.push(f);
+        } else if ALLOWED_FLAGS_WITH_ARG.iter().any(|a| f.starts_with(a)) {
+            // Handle --flag=value (single entry) or --flag value (two entries)
+            if f.contains('=') {
+                flags.push(f);
+            } else {
+                flags.push(f);
+                accept_next = true; // next entry is the argument
+            }
+        }
+    }
 
     // WSL distro -- when present, the command is wrapped to run inside WSL.
     let wsl_distro = params.get("wslDistro").cloned().unwrap_or_default();
