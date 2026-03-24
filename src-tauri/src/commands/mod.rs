@@ -11,3 +11,4 @@ pub mod storage;
 pub mod storage_query;
 pub mod ruflo;
 pub mod usage;
+pub mod wsl;

@@ -30,8 +30,18 @@ function isWindowsPlatform(): boolean {
 }
 
 // Default flags for a normal Claude launch — teammate mode on Unix, none on Windows.
+// In WSL mode on Windows, Claude runs inside Linux where tmux is available.
 export function defaultClaudeFlags(): string[] {
-  return isWindowsPlatform() ? [] : ['--teammate-mode', 'tmux'];
+  if (isWindowsPlatform()) {
+    try {
+      const mode = localStorage.getItem('runecode-platform-mode');
+      if (mode === 'wsl') {
+        return ['--teammate-mode', 'tmux'];
+      }
+    } catch { /* localStorage unavailable */ }
+    return []; // Windows native — no tmux
+  }
+  return ['--teammate-mode', 'tmux'];
 }
 
 export interface TabPanelProps {

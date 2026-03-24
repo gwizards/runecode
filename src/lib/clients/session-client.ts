@@ -9,6 +9,20 @@ import {
   streamSessionOutput as _streamSessionOutput,
 } from '@/infrastructure/tauri/session-client';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from '../devFallback';
+import { isWslMode, getWslDistro } from '../platformMode';
+
+/**
+ * Convert a Windows-style path (e.g. C:\Users\foo) to a WSL mount path
+ * (e.g. /mnt/c/Users/foo).  Non-Windows paths are returned unchanged.
+ */
+function windowsToWslPath(winPath: string): string {
+  const normalized = winPath.replace(/\\/g, '/');
+  if (normalized.length >= 2 && normalized[1] === ':') {
+    const drive = normalized[0].toLowerCase();
+    return `/mnt/${drive}${normalized.substring(2)}`;
+  }
+  return normalized;
+}
 import type {
   Project,
   Session,
@@ -211,8 +225,26 @@ export async function executeClaudeCode(
     };
   }
 ): Promise<any> {
+  // When WSL mode is active, convert Windows project path and inject distro
+  let effectivePath = projectPath;
+  let effectiveAgentConfig = agentConfig;
+  if (isWslMode()) {
+    const wslDistro = getWslDistro();
+    effectivePath = windowsToWslPath(projectPath);
+    if (wslDistro) {
+      effectiveAgentConfig = {
+        ...agentConfig,
+        environment: {
+          type: 'wsl',
+          ...agentConfig?.environment,
+          wslDistro,
+        },
+      };
+    }
+  }
+
   return apiCall('execute_claude_code', {
-    projectPath,
+    projectPath: effectivePath,
     prompt,
     model,
     thinkingMode,
@@ -221,7 +253,7 @@ export async function executeClaudeCode(
     effort,
     resumeAt,
     permissionMode,
-    ...agentConfig,
+    ...effectiveAgentConfig,
   });
 }
 

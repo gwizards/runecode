@@ -9,8 +9,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-const TOTAL_STEPS = 9;
-
 export interface OnboardingStepsProps extends InstallStepsProps {
   // Step 5 props
   projectDir: string;
@@ -36,7 +34,7 @@ export interface OnboardingStepsProps extends InstallStepsProps {
 
 export function OnboardingSteps(props: OnboardingStepsProps) {
   const {
-    currentStep, statuses,
+    currentStep, totalSteps, statuses,
     projectDir, onProjectDirChange,
     selectedPermission, onPermissionChange, onPermissionSave,
     analyticsEnabled, onAnalyticsChange,
@@ -44,6 +42,11 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
     onNext, onSkip, onSetStatus, onFinish,
     onCopyWebModeCommand, onOpenBrowser,
   } = props;
+
+  const TOTAL_STEPS = totalSteps;
+  const { stepOffset } = props;
+  /** Display step = internal step + offset (accounts for platform step on Windows) */
+  const displayStep = (s: number) => s + stepOffset;
 
   // Steps 1-4 are handled by the install steps module
   if (currentStep >= 1 && currentStep <= 4) {
@@ -55,7 +58,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
     case 5:
       return (
         <StepCard
-          key="step-5" step={5} totalSteps={TOTAL_STEPS}
+          key="step-5" step={displayStep(5)} totalSteps={TOTAL_STEPS}
           title="Default Project Directory"
           description="Choose where new projects will be created by default."
           icon={FolderOpen} status={statuses[5] ?? 'pending'}
@@ -80,7 +83,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
       ];
       return (
         <StepCard
-          key="step-6" step={6} totalSteps={TOTAL_STEPS}
+          key="step-6" step={displayStep(6)} totalSteps={TOTAL_STEPS}
           title="Permission Mode"
           description="Control how much autonomy Claude has when modifying your project."
           icon={Shield} status={statuses[6] ?? 'pending'}
@@ -115,7 +118,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
     case 7:
       return (
         <StepCard
-          key="step-7" step={7} totalSteps={TOTAL_STEPS}
+          key="step-7" step={displayStep(7)} totalSteps={TOTAL_STEPS}
           title="Analytics"
           description="Help improve RuneCode by sharing anonymous usage data."
           icon={BarChart3} status={statuses[7] ?? 'pending'}
@@ -142,7 +145,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
       ];
       return (
         <StepCard
-          key="step-8" step={8} totalSteps={TOTAL_STEPS}
+          key="step-8" step={displayStep(8)} totalSteps={TOTAL_STEPS}
           title="Appearance"
           description="Choose your preferred color theme."
           icon={Palette} status={statuses[8] ?? 'pending'}
@@ -165,7 +168,7 @@ export function OnboardingSteps(props: OnboardingStepsProps) {
     case 9:
       return (
         <StepCard
-          key="step-9" step={9} totalSteps={TOTAL_STEPS}
+          key="step-9" step={displayStep(9)} totalSteps={TOTAL_STEPS}
           title="Quick Tour"
           description="A few things to get you started with RuneCode."
           icon={Sparkles} status={statuses[9] ?? 'pending'}

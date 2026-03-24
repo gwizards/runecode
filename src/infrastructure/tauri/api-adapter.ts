@@ -9,6 +9,20 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { applyStartupToken } from '../../lib/startupToken';
+import { isWslMode, getWslDistro } from '../../lib/platformMode';
+
+/**
+ * Convert a Windows-style path (e.g. C:\Users\foo) to a WSL mount path
+ * (e.g. /mnt/c/Users/foo).  Non-Windows paths are returned unchanged.
+ */
+function windowsToWslPath(winPath: string): string {
+  const normalized = winPath.replace(/\\/g, '/');
+  if (normalized.length >= 2 && normalized[1] === ':') {
+    const drive = normalized[0].toLowerCase();
+    return `/mnt/${drive}${normalized.substring(2)}`;
+  }
+  return normalized;
+}
 
 // Persistent WebSocket connections per session tab
 const sessionSockets = new Map<string, WebSocket>();
@@ -94,9 +108,20 @@ async function initSession(params: {
     };
 
     const onOpen = () => {
+      // When WSL mode is active, convert the project path and inject distro
+      let effectivePath = params.projectPath;
+      let effectiveEnv = params.environment;
+      if (isWslMode()) {
+        effectivePath = windowsToWslPath(params.projectPath);
+        const wslDistro = getWslDistro();
+        if (wslDistro) {
+          effectiveEnv = { type: 'wsl', ...params.environment, wslDistro };
+        }
+      }
+
       ws.send(JSON.stringify({
         type: 'init',
-        project_path: params.projectPath,
+        project_path: effectivePath,
         text: params.prompt,
         model: params.model || 'sonnet',
         session_id: params.sessionId,
@@ -105,7 +130,7 @@ async function initSession(params: {
         effort: params.effort || 'high',
         resume_at: params.resumeAt,
         teams_enabled: params.teamsEnabled,
-        environment: params.environment,
+        environment: effectiveEnv,
       }));
     };
 
@@ -753,17 +778,28 @@ async function initAgentSession(params: {
 
     const onOpen = () => {
       try {
+        // When WSL mode is active, convert the project path and inject distro
+        let effectivePath = params.projectPath;
+        let effectiveEnv = params.environment;
+        if (isWslMode()) {
+          effectivePath = windowsToWslPath(params.projectPath);
+          const wslDistro = getWslDistro();
+          if (wslDistro) {
+            effectiveEnv = { type: 'wsl', ...params.environment, wslDistro };
+          }
+        }
+
         ws.send(JSON.stringify({
           type: 'init_agent',
           agent_name: params.agentName,
-          project_path: params.projectPath,
+          project_path: effectivePath,
           text: params.prompt,
           model: params.model || 'sonnet',
           thinking_mode: params.thinkingMode || 'auto',
           permission_mode: params.permissionMode || 'default',
           effort: params.effort || 'high',
           teams_enabled: params.teamsEnabled,
-          environment: params.environment,
+          environment: effectiveEnv,
         }));
       } catch (err) {
         settle(() => reject(new Error(`Failed to send init_agent: ${err}`)));

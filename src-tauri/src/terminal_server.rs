@@ -33,7 +33,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
-use crate::terminal_pty::{build_pty_path, home_dir, resolve_command};
+use crate::terminal_pty::{build_pty_path, home_dir, resolve_command_wsl};
 
 // ---------------------------------------------------------------------------
 // Server state
@@ -172,7 +172,15 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
         .filter(|f| ALLOWED_FLAGS.iter().any(|allowed| f.starts_with(allowed)))
         .collect();
 
-    let (program, program_args) = resolve_command(&flags);
+    // WSL distro -- when present, the command is wrapped to run inside WSL.
+    let wsl_distro = params.get("wslDistro").cloned().unwrap_or_default();
+    let wsl_distro_opt = if wsl_distro.is_empty() { None } else { Some(wsl_distro.as_str()) };
+
+    let (program, program_args) = resolve_command_wsl(
+        &flags,
+        wsl_distro_opt,
+        Some(project_path.as_str()),
+    );
 
     // --- Open PTY -----------------------------------------------------------
     let pty_system = native_pty_system();

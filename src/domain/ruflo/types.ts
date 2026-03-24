@@ -152,9 +152,9 @@ export function parseVersion(raw: string): { major: number; minor: number; patch
   return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) };
 }
 
-/** True if installation is fully configured (installed + MCP + slash command) */
+/** True if installation is fully configured (installed + MCP active) */
 export function isFullyConfigured(inst: RuFloInstallation): boolean {
-  return inst.installed && inst.mcpActive && inst.slashCommandExists;
+  return inst.installed && inst.mcpActive;
 }
 
 /** True if version is >= minimum supported (3.0.0) */

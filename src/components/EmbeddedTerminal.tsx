@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { isWindowsPlatform } from '@/lib/platformMode';
 import '@xterm/xterm/css/xterm.css';
 
 interface EmbeddedTerminalProps {
@@ -154,6 +155,20 @@ export function EmbeddedTerminal({
       }
       params.set('cols', String(term.cols));
       params.set('rows', String(term.rows));
+
+      // If running on Windows in WSL mode, pass the WSL distro so the backend
+      // spawns the terminal process inside the correct WSL distribution.
+      if (isWindowsPlatform()) {
+        try {
+          const { getPlatformMode, getWslDistro } = await import('@/lib/platformMode');
+          if (getPlatformMode() === 'wsl') {
+            const distro = getWslDistro();
+            if (distro) {
+              params.set('wslDistro', distro);
+            }
+          }
+        } catch { /* platformMode not available — skip */ }
+      }
 
       // In Tauri desktop mode, window.location is tauri://localhost/ — no port.
       // Retrieve the actual embedded terminal server port via IPC and build a

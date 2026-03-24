@@ -60,6 +60,7 @@ use commands::usage::{
     get_session_stats, get_usage_by_date_range, get_usage_details, get_usage_stats,
     load_usage_ledgers, persist_usage_ledger,
 };
+use commands::wsl::{detect_wsl, install_claude_in_wsl, wsl_execute};
 use process::ProcessRegistryState;
 use std::sync::Mutex;
 use tauri::Manager;
@@ -630,6 +631,10 @@ fn main() {
             sync_ruflo_memory_local,
             consolidate_ruflo_memory,
             set_ruflo_memory_backend,
+            // WSL Detection & Management
+            detect_wsl,
+            wsl_execute,
+            install_claude_in_wsl,
             // Terminal server
             get_terminal_port,
             get_system_info,

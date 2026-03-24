@@ -10,22 +10,92 @@
 ///
 /// - `--shell` present -> native interactive shell
 /// - Empty OR any other flags -> `claude <flags>` (empty = `claude` with no extra args)
+///
+/// When `wsl_distro` is `Some(distro)` (Windows only), the resolved command is
+/// wrapped to run inside WSL: `wsl -d <distro> --cd <project_path> -- <program> <args>`.
+#[allow(dead_code)]
 pub fn resolve_command(flags: &[String]) -> (String, Vec<String>) {
+    resolve_command_wsl(flags, None, None)
+}
+
+/// WSL-aware variant of [`resolve_command`].
+///
+/// If `wsl_distro` is provided on Windows, the command is wrapped with
+/// `wsl -d <distro> --cd <project_path> -- ...`.
+pub fn resolve_command_wsl(
+    flags: &[String],
+    wsl_distro: Option<&str>,
+    project_path: Option<&str>,
+) -> (String, Vec<String>) {
     let is_shell_mode = flags.iter().any(|f| f == "--shell");
 
-    if is_shell_mode {
+    let (program, program_args) = if is_shell_mode {
         let shell = detect_shell();
-        // On macOS, launch as a LOGIN shell so that /etc/zprofile is sourced.
-        // path_helper then adds /opt/homebrew/bin, and ~/.zprofile adds NVM/volta.
-        // Without --login, Finder-launched apps only get /usr/bin:/bin:/usr/sbin:/sbin.
         #[cfg(target_os = "macos")]
-        return (shell, vec!["--login".to_string()]);
+        let args = vec!["--login".to_string()];
         #[cfg(not(target_os = "macos"))]
-        return (shell, vec![]);
+        let args = vec![];
+        (shell, args)
     } else {
-        // Find the Claude CLI binary on this machine.
         let claude = find_claude_binary().unwrap_or_else(|| "claude".to_string());
         (claude, flags.to_vec())
+    };
+
+    // On Windows, wrap via WSL if a distro is specified.
+    #[cfg(target_os = "windows")]
+    if let Some(distro) = wsl_distro {
+        if !distro.is_empty() {
+            return wrap_wsl_pty(&program, &program_args, distro, project_path, is_shell_mode);
+        }
+    }
+    let _ = (wsl_distro, project_path); // suppress unused warnings on non-Windows
+
+    (program, program_args)
+}
+
+/// Build a WSL-wrapped command for PTY spawning (Windows only).
+#[cfg(target_os = "windows")]
+fn wrap_wsl_pty(
+    _program: &str,
+    program_args: &[String],
+    distro: &str,
+    project_path: Option<&str>,
+    is_shell_mode: bool,
+) -> (String, Vec<String>) {
+    let mut args = vec!["-d".to_string(), distro.to_string()];
+
+    if let Some(path) = project_path {
+        let wsl_path = windows_to_wsl_path(path);
+        args.push("--cd".to_string());
+        args.push(wsl_path);
+    }
+
+    args.push("--".to_string());
+
+    if is_shell_mode {
+        // Launch bash as a login shell inside WSL
+        args.push("bash".to_string());
+        args.push("-l".to_string());
+    } else {
+        // Run claude inside WSL -- use "claude" directly since WSL has its own PATH
+        args.push("claude".to_string());
+        args.extend(program_args.iter().cloned());
+    }
+
+    ("wsl".to_string(), args)
+}
+
+/// Converts a Windows-style path to a WSL-compatible `/mnt/` path.
+///
+/// Example: `C:\Users\foo\project` becomes `/mnt/c/Users/foo/project`.
+#[cfg(target_os = "windows")]
+fn windows_to_wsl_path(win_path: &str) -> String {
+    let path = win_path.replace('\\', "/");
+    if path.len() >= 2 && path.as_bytes()[1] == b':' {
+        let drive = (path.as_bytes()[0] as char).to_ascii_lowercase();
+        format!("/mnt/{}{}", drive, &path[2..])
+    } else {
+        path
     }
 }
 

@@ -7,6 +7,7 @@ import { useSessionConfig } from '@/hooks/useSessionConfig';
 import { SessionList } from '@/components/SessionList';
 import { Button } from '@/components/ui/button';
 import { getSystemInfo } from '@/infrastructure/tauri/system-client';
+import { isWslMode } from '@/lib/platformMode';
 
 interface ProjectSessionViewProps {
   project: Project;
@@ -63,8 +64,16 @@ export function ProjectSessionView({
     } catch { return []; }
   });
 
-  // Use Tauri IPC to check platform/tmux — works in both desktop and web mode
+  // Use Tauri IPC to check platform/tmux — works in both desktop and web mode.
+  // In WSL mode on Windows, Claude runs inside Linux where tmux is available.
   React.useEffect(() => {
+    // WSL mode: tmux is available inside the Linux distro
+    if (isWslMode()) {
+      setTmuxAvailability(true);
+      setTeammateMode(true);
+      return;
+    }
+
     const isTauri = !!(
       (window as any).__TAURI__ ||
       (window as any).__TAURI_INTERNALS__ ||

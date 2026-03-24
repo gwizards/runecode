@@ -4,7 +4,6 @@ import {
   ruFloService,
   useRuFloStore,
   swarmHealthLabel,
-  isFullyConfigured,
   type RuFloProjectStatus,
   type RuFloAgent,
 } from '@/domain/ruflo';
@@ -110,7 +109,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
     <div className="px-3 py-1">
       <div className="flex items-center gap-1.5 px-1 pb-1">
         <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">RuFlo</div>
-        {installation && !isFullyConfigured(installation) && installation.installed && (
+        {installation && installation.installed && !installation.mcpActive && (
           <button
             onClick={async () => {
               setIsActivating(true);
@@ -119,7 +118,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
               try {
                 await activateMcp();
                 await fetchInstallation();
-                setMcpLog({ ok: true, msg: 'MCP activated ✓' });
+                setMcpLog({ ok: true, msg: 'MCP activated' });
                 mcpLogTimer.current = setTimeout(() => setMcpLog(null), 4000);
               } catch (err) {
                 const msg = String(err).replace(/^Error:\s*/i, '');
@@ -132,7 +131,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
             title="Click to activate RuFlo MCP"
             className="text-[9px] text-amber-400/60 hover:text-amber-400 transition-colors disabled:opacity-50 cursor-pointer"
           >
-            {isActivating ? 'activating…' : 'setup incomplete ↗'}
+            {isActivating ? 'activating...' : 'MCP not registered'}
           </button>
         )}
       </div>

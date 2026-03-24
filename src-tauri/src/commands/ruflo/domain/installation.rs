@@ -118,11 +118,11 @@ impl RuFloStatus {
         self.installed && self.mcp_active
     }
 
-    /// True if fully set up (installed + mcp + slash command)
+    /// True if fully set up (installed + mcp active)
     // TODO(v0.6): used by onboarding checklist to show completion status
     #[allow(dead_code)]
     pub fn is_fully_configured(&self) -> bool {
-        self.installed && self.mcp_active && self.slash_command_exists
+        self.installed && self.mcp_active
     }
 }
 

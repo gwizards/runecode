@@ -7,19 +7,22 @@ import { getEnvironmentInfo } from '@/lib/apiAdapter';
 import { useSessionConfig } from '@/hooks/useSessionConfig';
 import { ConsentManager } from '@/infrastructure/analytics';
 import type { PermissionMode } from '@/hooks/useSessionConfig';
+import { isWindowsPlatform, setPlatformMode, setWslDistro } from '@/lib/platformMode';
+import { PlatformStep } from '@/components/onboarding/PlatformStep';
 
 // In web/server mode, Tauri IPC is unavailable — we can't detect or install
 // Node.js, Claude Code, or RuFlo. Show manual instructions instead.
 const IS_WEB_MODE = !getEnvironmentInfo().isTauri;
 
-const TOTAL_STEPS = 9;
+const IS_WINDOWS = isWindowsPlatform();
+const TOTAL_STEPS = IS_WINDOWS ? 10 : 9;
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
 export function Onboarding({ onComplete }: OnboardingProps) {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(IS_WINDOWS ? 0 : 1);
   const [statuses, setStatuses] = useState<Record<number, StepStatus>>({});
   const [installLines, setInstallLines] = useState<string[]>([]);
   const [nodeVersion, setNodeVersion] = useState<string | null>(null);
@@ -33,6 +36,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [rufloLines, setRufloLines] = useState<string[]>([]);
 
   const { setPermissionMode } = useSessionConfig();
+
+  const handlePlatformSelect = useCallback((mode: 'windows' | 'wsl', distro?: string) => {
+    setPlatformMode(mode);
+    if (mode === 'wsl' && distro) {
+      setWslDistro(distro);
+    }
+    setCurrentStep(1);
+  }, []);
 
   // Listen for install-progress events (dynamic import to avoid crash if Tauri not ready)
   useEffect(() => {
@@ -287,8 +298,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         )}
 
         <AnimatePresence mode="wait">
+          {currentStep === 0 && IS_WINDOWS ? (
+            <div key="step-platform" className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6 shadow-2xl backdrop-blur-sm">
+              <div className="text-[11px] text-white/30 font-medium mb-4">Step 1 of {TOTAL_STEPS}</div>
+              <PlatformStep onSelect={handlePlatformSelect} />
+            </div>
+          ) : (
           <OnboardingSteps
             currentStep={currentStep}
+            totalSteps={TOTAL_STEPS}
+            stepOffset={IS_WINDOWS ? 1 : 0}
             statuses={statuses}
             IS_WEB_MODE={IS_WEB_MODE}
             nodeVersion={nodeVersion}
@@ -319,6 +338,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             onCopyWebModeCommand={copyWebModeCommand}
             onOpenBrowser={openBrowser}
           />
+          )}
         </AnimatePresence>
       </div>
     </div>

@@ -262,6 +262,13 @@ pub async fn activate_ruflo_mcp(app: tauri::AppHandle) -> Result<String, String>
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
 
     if output.status.success() {
+        // Auto-create the slash command file if it doesn't exist yet
+        if let Some(home) = dirs::home_dir() {
+            let slash_cmd_path = home.join(".claude").join("commands").join("setup-ruflo.md");
+            if !slash_cmd_path.exists() {
+                let _ = super::create_ruflo_slash_command();
+            }
+        }
         let _ = app.emit("ruflo-mcp-changed", "activated");
         let msg = if stdout.is_empty() {
             "MCP server activated".to_string()

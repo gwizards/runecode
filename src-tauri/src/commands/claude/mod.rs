@@ -247,6 +247,67 @@ pub(super) fn create_system_command(
     cmd
 }
 
+/// Creates a system command that may be wrapped to run inside WSL.
+///
+/// When `wsl_distro` is `Some(distro)` on Windows, the command is rewritten to
+/// `wsl -d <distro> --cd <wsl_path> -- <program> <args...>` so that Claude Code
+/// executes inside the specified WSL distribution.  On non-Windows platforms or
+/// when no distro is given, the command is built normally.
+pub(super) fn create_system_command_wsl(
+    claude_path: &str,
+    args: Vec<String>,
+    project_path: &str,
+    wsl_distro: Option<&str>,
+) -> Command {
+    let (program, final_args, work_dir) = maybe_wrap_wsl(claude_path, &args, project_path, wsl_distro);
+    create_system_command(&program, final_args, &work_dir)
+}
+
+/// Wraps a Claude command to execute inside WSL if a WSL distro is specified.
+/// On non-Windows or when no distro is given, returns the command unchanged.
+pub(crate) fn maybe_wrap_wsl(
+    program: &str,
+    args: &[String],
+    project_path: &str,
+    wsl_distro: Option<&str>,
+) -> (String, Vec<String>, String) {
+    #[cfg(target_os = "windows")]
+    if let Some(distro) = wsl_distro {
+        if !distro.is_empty() {
+            // Convert Windows path to WSL path: C:\Users\foo -> /mnt/c/Users/foo
+            let wsl_path = windows_to_wsl_path(project_path);
+            let mut wsl_args = vec![
+                "-d".to_string(),
+                distro.to_string(),
+                "--cd".to_string(),
+                wsl_path.clone(),
+                "--".to_string(),
+                program.to_string(),
+            ];
+            wsl_args.extend(args.iter().cloned());
+            return ("wsl".to_string(), wsl_args, wsl_path);
+        }
+    }
+    let _ = wsl_distro; // suppress unused warning on non-Windows
+    (program.to_string(), args.to_vec(), project_path.to_string())
+}
+
+/// Converts a Windows-style path to a WSL-compatible `/mnt/` path.
+///
+/// Example: `C:\Users\foo\project` becomes `/mnt/c/Users/foo/project`.
+/// If the path does not start with a drive letter, slashes are normalised but
+/// no `/mnt/` prefix is added.
+#[cfg(target_os = "windows")]
+fn windows_to_wsl_path(win_path: &str) -> String {
+    let path = win_path.replace('\\', "/");
+    if path.len() >= 2 && path.as_bytes()[1] == b':' {
+        let drive = (path.as_bytes()[0] as char).to_ascii_lowercase();
+        format!("/mnt/{}{}", drive, &path[2..])
+    } else {
+        path
+    }
+}
+
 /// Checks if Claude Code is installed and gets its version
 #[tauri::command]
 pub async fn check_claude_version(app: tauri::AppHandle) -> Result<ClaudeVersionStatus, String> {

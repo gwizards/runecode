@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::{
-    create_system_command, find_claude_binary, get_claude_dir, guard_path_within_home,
+    create_system_command_wsl, find_claude_binary, get_claude_dir, guard_path_within_home,
     validate_path_component, ClaudeProcessState,
 };
 
@@ -131,10 +131,11 @@ pub async fn execute_claude_code(
     prompt: String,
     model: String,
     permission_mode: Option<String>,
+    wsl_distro: Option<String>,
 ) -> Result<(), String> {
     log::info!(
-        "Starting new Claude Code session in: {} with model: {}",
-        project_path, model
+        "Starting new Claude Code session in: {} with model: {} (wsl_distro: {:?})",
+        project_path, model, wsl_distro
     );
     guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
     validate_model(&model)?;
@@ -146,7 +147,7 @@ pub async fn execute_claude_code(
         "--verbose".to_string(),
     ];
     maybe_add_bypass_flag(&mut args, permission_mode.as_deref().unwrap_or("default"));
-    let cmd = create_system_command(&claude_path, args, &project_path);
+    let cmd = create_system_command_wsl(&claude_path, args, &project_path, wsl_distro.as_deref());
     super::process::spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 
@@ -158,10 +159,11 @@ pub async fn continue_claude_code(
     prompt: String,
     model: String,
     permission_mode: Option<String>,
+    wsl_distro: Option<String>,
 ) -> Result<(), String> {
     log::info!(
-        "Continuing Claude Code conversation in: {} with model: {}",
-        project_path, model
+        "Continuing Claude Code conversation in: {} with model: {} (wsl_distro: {:?})",
+        project_path, model, wsl_distro
     );
     guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
     validate_model(&model)?;
@@ -174,7 +176,7 @@ pub async fn continue_claude_code(
         "--verbose".to_string(),
     ];
     maybe_add_bypass_flag(&mut args, permission_mode.as_deref().unwrap_or("default"));
-    let cmd = create_system_command(&claude_path, args, &project_path);
+    let cmd = create_system_command_wsl(&claude_path, args, &project_path, wsl_distro.as_deref());
     super::process::spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 
@@ -187,10 +189,11 @@ pub async fn resume_claude_code(
     prompt: String,
     model: String,
     permission_mode: Option<String>,
+    wsl_distro: Option<String>,
 ) -> Result<(), String> {
     log::info!(
-        "Resuming Claude Code session: {} in: {} with model: {}",
-        session_id, project_path, model
+        "Resuming Claude Code session: {} in: {} with model: {} (wsl_distro: {:?})",
+        session_id, project_path, model, wsl_distro
     );
     validate_path_component(&session_id, "session_id")?;
     guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
@@ -204,7 +207,7 @@ pub async fn resume_claude_code(
         "--verbose".to_string(),
     ];
     maybe_add_bypass_flag(&mut args, permission_mode.as_deref().unwrap_or("default"));
-    let cmd = create_system_command(&claude_path, args, &project_path);
+    let cmd = create_system_command_wsl(&claude_path, args, &project_path, wsl_distro.as_deref());
     super::process::spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 

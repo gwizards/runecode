@@ -304,7 +304,7 @@ export function useSessionCommands(opts: SessionCommandsOptions) {
             // Execute
             const sessionConfig = useSessionConfig.getState();
             const selectedEnv = getSelectedEnvironment();
-            const environmentConfig = selectedEnv
+            let environmentConfig = selectedEnv
               ? {
                   type: selectedEnv.type, sshHost: selectedEnv.sshHost,
                   sshPort: selectedEnv.sshPort, sshIdentityFile: selectedEnv.sshIdentityFile,
@@ -312,6 +312,26 @@ export function useSessionCommands(opts: SessionCommandsOptions) {
                   dockerContainer: selectedEnv.dockerContainer,
                 }
               : undefined;
+
+            // When no explicit environment is selected but the user is in WSL
+            // mode, auto-inject the WSL distro so the backend spawns inside WSL.
+            if (!environmentConfig) {
+              try {
+                const platformMode = localStorage.getItem('runecode-platform-mode');
+                if (platformMode === 'wsl') {
+                  const wslDistro = localStorage.getItem('runecode-wsl-distro');
+                  if (wslDistro) {
+                    environmentConfig = {
+                      type: 'wsl', wslDistro,
+                      sshHost: undefined, sshPort: undefined,
+                      sshIdentityFile: undefined, startDirectory: undefined,
+                      dockerContainer: undefined,
+                    };
+                  }
+                }
+              } catch { /* localStorage unavailable */ }
+            }
+
             const agentConfig = { teamsEnabled: sessionConfig.teamsEnabled, environment: environmentConfig };
 
             if (connectionIdRef.current) {

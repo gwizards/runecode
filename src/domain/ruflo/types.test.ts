@@ -42,10 +42,17 @@ describe('isVersionSupported', () => {
 });
 
 describe('isFullyConfigured', () => {
-  it('true when installed, mcpActive, and slashCommandExists are all set', () => {
+  it('true when installed and mcpActive', () => {
     expect(isFullyConfigured({
       installed: true, version: '3.5.0', mcpActive: true,
       slashCommandExists: true, isSupported: true,
+    })).toBe(true);
+  });
+
+  it('true when installed and mcpActive even without slash command', () => {
+    expect(isFullyConfigured({
+      installed: true, version: '3.5.0', mcpActive: true,
+      slashCommandExists: false, isSupported: true,
     })).toBe(true);
   });
 
@@ -53,13 +60,6 @@ describe('isFullyConfigured', () => {
     expect(isFullyConfigured({
       installed: true, version: '3.5.0', mcpActive: false,
       slashCommandExists: true, isSupported: true,
-    })).toBe(false);
-  });
-
-  it('false when slashCommandExists is false', () => {
-    expect(isFullyConfigured({
-      installed: true, version: '3.5.0', mcpActive: true,
-      slashCommandExists: false, isSupported: true,
     })).toBe(false);
   });
 

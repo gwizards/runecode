@@ -22,6 +22,7 @@ import { PluginsSettings } from "./settings/PluginsSettings";
 import { ProjectExplorer } from "./settings/ProjectExplorer";
 import { RuFloSettings } from "./settings/RuFloSettings";
 import { CreditsSettings } from "./settings/CreditsSettings";
+import { WslSettings } from "./settings/WslSettings";
 import { version } from "../../package.json";
 
 interface SettingsProps {
@@ -219,6 +220,8 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
             }}
           />
         );
+      case 'wsl':
+        return <WslSettings />;
 
       // Integrations group
       case 'partner-stack':

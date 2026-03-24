@@ -133,7 +133,11 @@ export function RuFloSettings() {
       {/* Card 2: MCP Server */}
       <Card>
         <CardTitle>MCP Server</CardTitle>
-        <StatusRow active={status?.mcpActive ?? false} label={status?.mcpActive ? 'Active in Claude Code' : 'Inactive'} />
+        <StatusRow active={status?.mcpActive ?? false} label={
+          status?.mcpActive ? 'Active in Claude Code'
+            : status?.installed ? 'Installed (MCP not registered)'
+            : 'Not installed'
+        } />
         <div className="font-mono text-[10px] text-white/30 bg-black/30 rounded px-3 py-2 break-all">
           claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
         </div>

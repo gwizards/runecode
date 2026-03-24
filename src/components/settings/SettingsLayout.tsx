@@ -1,7 +1,7 @@
 import {
   Palette, Settings2, Puzzle,
   Timer, Shield, Variable,
-  Terminal,
+  Terminal, Monitor,
   Sparkles, Globe, Database, Plug, FolderOpen, Blocks, Zap, Heart
 } from 'lucide-react';
 
@@ -48,6 +48,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
       { id: 'permissions', label: 'Permissions', icon: Shield },
       { id: 'environment', label: 'Environment', icon: Variable },
       { id: 'commands-hooks', label: 'Commands & Hooks', icon: Terminal },
+      { id: 'wsl', label: 'Platform / WSL', icon: Monitor },
     ],
   },
   {
