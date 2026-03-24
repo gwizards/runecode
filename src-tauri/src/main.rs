@@ -411,15 +411,16 @@ fn main() {
             // Generate and manage the startup secret for frontend authentication.
             let startup_secret = uuid::Uuid::new_v4().to_string();
             startup_log!("Startup secret generated (first 8 chars: {}...)", &startup_secret[..8]);
-            app.manage(commands::claude::StartupSecret(startup_secret));
+            app.manage(commands::claude::StartupSecret(startup_secret.clone()));
 
             // Start the embedded terminal WebSocket server.
             // Binds to 127.0.0.1:0 (OS-assigned ephemeral port) so it never
             // conflicts with other services.  The frontend retrieves the port
             // via the `get_terminal_port` command and constructs the WS URL.
+            // The startup_secret is passed so every WS upgrade is authenticated.
             startup_log!("Starting embedded terminal server...");
             let terminal_port = tauri::async_runtime::block_on(async {
-                terminal_server::start_terminal_server().await.unwrap_or(0)
+                terminal_server::start_terminal_server(startup_secret).await.unwrap_or(0)
             });
             if terminal_port > 0 {
                 startup_log!("Terminal server listening on 127.0.0.1:{}", terminal_port);

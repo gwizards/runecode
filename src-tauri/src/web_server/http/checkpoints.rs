@@ -1,6 +1,7 @@
 /// `/api/checkpoints/*` route handlers — wired to the real CheckpointManager.
 
 use axum::extract::{Path, Query, State as AxumState};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 
 use crate::checkpoint::storage::CheckpointStorage;
@@ -21,6 +22,59 @@ pub fn extract_checkpoint_params(
     (session_id, project_id, project_path)
 }
 
+/// Validate a `session_id`: alphanumeric plus `-` and `_`, max 128 chars.
+///
+/// Empty strings pass (callers that require a non-empty session_id check separately).
+fn validate_session_id(
+    session_id: &str,
+) -> Result<(), (StatusCode, axum::Json<serde_json::Value>)> {
+    if session_id.is_empty() {
+        return Ok(());
+    }
+    if session_id.len() > 128
+        || !session_id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({"error": "Invalid session_id"})),
+        ));
+    }
+    Ok(())
+}
+
+/// Canonicalize `project_path` and verify it is within the user's home directory.
+///
+/// Returns the canonical `PathBuf` on success, or `Err((StatusCode, Json))` for early return.
+fn guard_project_path(
+    project_path: &str,
+) -> Result<std::path::PathBuf, (StatusCode, axum::Json<serde_json::Value>)> {
+    let pp = std::path::PathBuf::from(project_path);
+    let canonical_pp = pp.canonicalize().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({"error": "Invalid project path"})),
+        )
+    })?;
+
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    let home_path = std::path::PathBuf::from(&home)
+        .canonicalize()
+        .unwrap_or_else(|_| std::path::PathBuf::from(&home));
+
+    if !canonical_pp.starts_with(&home_path) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            axum::Json(serde_json::json!({"error": "Path outside home directory"})),
+        ));
+    }
+
+    Ok(canonical_pp)
+}
+
 // ---------------------------------------------------------------------------
 // List checkpoints
 // ---------------------------------------------------------------------------
@@ -37,9 +91,24 @@ pub async fn list_checkpoints_handler(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": [], "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": [],
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => {
             let checkpoints = mgr.list_checkpoints().await;
             axum::Json(serde_json::json!({
@@ -71,9 +140,24 @@ pub async fn create_checkpoint_handler(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => match mgr.create_checkpoint(description, None).await {
             Ok(result) => axum::Json(serde_json::json!({
                 "success": true, "data": result, "error": null
@@ -108,9 +192,24 @@ pub async fn restore_checkpoint_handler(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => match mgr.restore_checkpoint(&checkpoint_id).await {
             Ok(result) => axum::Json(serde_json::json!({
                 "success": true, "data": result, "error": null
@@ -145,9 +244,24 @@ pub async fn get_checkpoint_handler(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => {
             let checkpoints = mgr.list_checkpoints().await;
             let found = checkpoints.into_iter().find(|c| c.id == id);
@@ -186,6 +300,22 @@ pub async fn get_checkpoint_diff_handler(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     // Wrap all disk I/O in spawn_blocking so the async executor is not stalled.
     let result = tokio::task::spawn_blocking(move || {
         let home = std::env::var("HOME")
@@ -200,10 +330,9 @@ pub async fn get_checkpoint_diff_handler(
                 let mut modified_files = Vec::<serde_json::Value>::new();
                 let mut added_files = Vec::<String>::new();
                 let mut deleted_files = Vec::<String>::new();
-                let pp = std::path::PathBuf::from(&project_path);
 
                 for snapshot in &snapshots {
-                    let full_path = pp.join(&snapshot.file_path);
+                    let full_path = canonical_pp.join(&snapshot.file_path);
                     if snapshot.is_deleted {
                         if full_path.exists() {
                             deleted_files
@@ -280,9 +409,24 @@ pub async fn fork_from_checkpoint(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => match mgr.fork_from_checkpoint(&checkpoint_id, description).await {
             Ok(result) => axum::Json(serde_json::json!({
                 "success": true, "data": result, "error": null
@@ -324,9 +468,24 @@ pub async fn get_session_timeline(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => {
             let timeline = mgr.get_timeline().await;
             axum::Json(serde_json::json!({
@@ -371,9 +530,24 @@ pub async fn update_checkpoint_settings(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => match mgr.update_settings(auto_enabled, strategy).await {
             Ok(_) => axum::Json(serde_json::json!({
                 "success": true, "data": null, "error": null
@@ -407,9 +581,23 @@ pub async fn track_checkpoint_message(
         }));
     }
 
+    if validate_session_id(&session_id).is_err() {
+        return axum::Json(serde_json::json!({
+            "success": true, "data": null, "error": null
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err(_) => {
+            return axum::Json(serde_json::json!({
+                "success": true, "data": null, "error": null
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    if let Ok(mgr) = cs.get_or_create_manager(session_id, project_id, pp).await {
+    if let Ok(mgr) = cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         let _ = mgr.track_message(message).await;
     }
     axum::Json(serde_json::json!({
@@ -434,9 +622,23 @@ pub async fn check_auto_checkpoint(
         }));
     }
 
+    if validate_session_id(&session_id).is_err() {
+        return axum::Json(serde_json::json!({
+            "success": true, "data": false, "error": null
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err(_) => {
+            return axum::Json(serde_json::json!({
+                "success": true, "data": false, "error": null
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => {
             let should = mgr.should_auto_checkpoint(&message).await;
             axum::Json(serde_json::json!({
@@ -469,10 +671,25 @@ pub async fn cleanup_old_checkpoints(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": 0, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": 0,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
     match cs
-        .get_or_create_manager(session_id.clone(), project_id.clone(), pp)
+        .get_or_create_manager(session_id.clone(), project_id.clone(), canonical_pp)
         .await
     {
         Ok(mgr) => {
@@ -517,9 +734,24 @@ pub async fn get_checkpoint_settings(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err((_status, err_json)) => {
+            return axum::Json(serde_json::json!({
+                "success": false, "data": null,
+                "error": err_json["error"]
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    match cs.get_or_create_manager(session_id, project_id, pp).await {
+    match cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         Ok(mgr) => {
             let timeline = mgr.get_timeline().await;
             axum::Json(serde_json::json!({
@@ -563,6 +795,12 @@ pub async fn delete_checkpoint(
         }));
     }
 
+    if let Err((_status, err_json)) = validate_session_id(&session_id) {
+        return axum::Json(serde_json::json!({
+            "success": false, "data": null, "error": err_json["error"]
+        }));
+    }
+
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().into_owned());
@@ -600,10 +838,13 @@ pub async fn clear_checkpoint_manager(
 ) -> impl IntoResponse {
     let session_id = params.get("sessionId").cloned().unwrap_or_default();
     if !session_id.is_empty() {
-        state
-            .checkpoint_state
-            .remove_manager(&session_id)
-            .await;
+        // Silently ignore invalid session_ids for this eviction-only endpoint.
+        if validate_session_id(&session_id).is_ok() {
+            state
+                .checkpoint_state
+                .remove_manager(&session_id)
+                .await;
+        }
     }
     axum::Json(serde_json::json!({
         "success": true, "data": null, "error": null
@@ -627,9 +868,23 @@ pub async fn track_session_messages(
         }));
     }
 
+    if validate_session_id(&session_id).is_err() {
+        return axum::Json(serde_json::json!({
+            "success": true, "data": null, "error": null
+        }));
+    }
+
+    let canonical_pp = match guard_project_path(&project_path) {
+        Ok(p) => p,
+        Err(_) => {
+            return axum::Json(serde_json::json!({
+                "success": true, "data": null, "error": null
+            }));
+        }
+    };
+
     let cs = state.checkpoint_state.clone();
-    let pp = std::path::PathBuf::from(&project_path);
-    if let Ok(mgr) = cs.get_or_create_manager(session_id, project_id, pp).await {
+    if let Ok(mgr) = cs.get_or_create_manager(session_id, project_id, canonical_pp).await {
         for line in messages.lines() {
             let _ = mgr.track_message(line.to_string()).await;
         }

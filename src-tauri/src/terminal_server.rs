@@ -13,12 +13,14 @@
 ///   - Otherwise (including empty) → spawn `claude <flags>` so it launches by default
 ///
 /// ## URL
-/// `ws://127.0.0.1:<port>/ws/terminal?projectPath=...&cols=...&rows=...&flags=...`
+/// `ws://127.0.0.1:<port>/ws/terminal?token=<secret>&projectPath=...&cols=...&rows=...&flags=...`
 /// The port is obtained via the `get_terminal_port` Tauri IPC command.
+/// The `token` must match the per-process startup secret from `get_startup_token`.
 
 use axum::{
-    extract::{Query, WebSocketUpgrade, ws::{Message, WebSocket}},
-    response::Response,
+    extract::{Query, State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    http::StatusCode,
+    response::{IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -27,14 +29,30 @@ use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::net::TcpListener;
+
+// ---------------------------------------------------------------------------
+// Server state
+// ---------------------------------------------------------------------------
+
+/// Shared state for the terminal WebSocket server.
+#[derive(Clone)]
+struct TerminalServerState {
+    /// Per-process startup secret used to authenticate incoming WS connections.
+    startup_secret: Arc<String>,
+}
 
 // ---------------------------------------------------------------------------
 // Server lifecycle
 // ---------------------------------------------------------------------------
 
 /// Start the embedded terminal WebSocket server on an OS-assigned ephemeral port.
-pub async fn start_terminal_server() -> Result<u16, String> {
+///
+/// `startup_secret` is the same token exposed to the frontend via `get_startup_token`.
+/// Every WS upgrade request must supply it as `?token=<secret>`.
+pub async fn start_terminal_server(startup_secret: String) -> Result<u16, String> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
     let listener = TcpListener::bind(addr)
         .await
@@ -45,7 +63,13 @@ pub async fn start_terminal_server() -> Result<u16, String> {
         .map_err(|e| format!("terminal_server: local_addr: {e}"))?
         .port();
 
-    let app = Router::new().route("/ws/terminal", get(terminal_ws_upgrade));
+    let state = TerminalServerState {
+        startup_secret: Arc::new(startup_secret),
+    };
+
+    let app = Router::new()
+        .route("/ws/terminal", get(terminal_ws_upgrade))
+        .with_state(state);
 
     tokio::spawn(async move {
         if let Err(e) = axum::serve(listener, app).await {
@@ -61,10 +85,44 @@ pub async fn start_terminal_server() -> Result<u16, String> {
 // ---------------------------------------------------------------------------
 
 async fn terminal_ws_upgrade(
+    State(state): State<TerminalServerState>,
     ws: WebSocketUpgrade,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
-    ws.on_upgrade(move |socket| handle_terminal_ws(socket, params))
+    // 1a. Startup token validation — reject unauthenticated connections.
+    let provided_token = params.get("token").map(|s| s.as_str()).unwrap_or("");
+    if provided_token != state.startup_secret.as_str() {
+        return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+    }
+
+    // 1b. Path guard — resolve and verify project_path is within the user's home dir.
+    let raw_path = params.get("projectPath").cloned().unwrap_or_else(home_dir);
+    let canonical = match std::fs::canonicalize(&raw_path) {
+        Ok(p) => p,
+        Err(_) => {
+            // Path does not exist yet (new project); fall back to home dir.
+            let home = home_dir();
+            PathBuf::from(&home)
+                .canonicalize()
+                .unwrap_or_else(|_| PathBuf::from(&home))
+        }
+    };
+    let home = home_dir();
+    let home_path = PathBuf::from(&home)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(&home));
+    if !canonical.starts_with(&home_path) {
+        return (StatusCode::FORBIDDEN, "Path outside home directory").into_response();
+    }
+
+    // Replace the raw projectPath in params with the validated canonical form.
+    let mut validated_params = params;
+    validated_params.insert(
+        "projectPath".to_string(),
+        canonical.to_string_lossy().into_owned(),
+    );
+
+    ws.on_upgrade(move |socket| handle_terminal_ws(socket, validated_params))
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +130,7 @@ async fn terminal_ws_upgrade(
 // ---------------------------------------------------------------------------
 
 async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) {
+    // projectPath has already been validated and canonicalized by terminal_ws_upgrade.
     let project_path = params
         .get("projectPath")
         .cloned()
@@ -83,11 +142,26 @@ async fn handle_terminal_ws(socket: WebSocket, params: HashMap<String, String>) 
     // Decode flags: comma-separated list forwarded from EmbeddedTerminal.
     // "--shell" (or no flags) → plain shell; otherwise → claude <flags>
     let flags_str = params.get("flags").cloned().unwrap_or_default();
-    let flags: Vec<String> = if flags_str.is_empty() {
+    let raw_flags: Vec<String> = if flags_str.is_empty() {
         vec![]
     } else {
         flags_str.split(',').map(String::from).collect()
     };
+
+    // 1c. Flags whitelist — only permit known safe Claude CLI flags to prevent
+    //     argument injection attacks.
+    const ALLOWED_FLAGS: &[&str] = &[
+        "--shell",
+        "--resume",
+        "--continue",
+        "--model",
+        "--permission-mode",
+        "--output-format",
+    ];
+    let flags: Vec<String> = raw_flags
+        .into_iter()
+        .filter(|f| ALLOWED_FLAGS.iter().any(|allowed| f.starts_with(allowed)))
+        .collect();
 
     let (program, program_args) = resolve_command(&flags);
 
