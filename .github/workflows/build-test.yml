@@ -1,9 +1,14 @@
 name: Build Test
 
-# Trigger on every push and pull request
+# Only on PRs and non-main branches — main pushes are handled by Build & Release
 on:
   push:
-    branches: [ main, develop, 'release/**', 'feature/**' ]
+    branches: [ develop, 'release/**', 'feature/**' ]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'tasks/**'
+      - 'logs/**'
   pull_request:
     branches: [ main, develop ]
     types: [opened, synchronize, reopened]

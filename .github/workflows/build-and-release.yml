@@ -3,6 +3,13 @@ name: Build & Release
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.github/workflows/claude*.yml'
+      - '.github/workflows/pr-check.yml'
+      - 'tasks/**'
+      - 'logs/**'
 
 # Cancel in-progress runs on new push
 concurrency:
@@ -72,6 +79,15 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun
+            node_modules
+          key: linux-bun-${{ hashFiles('bun.lockb', 'package.json') }}
+          restore-keys: linux-bun-
+
       - name: Install dependencies
         run: bun install
 
@@ -111,6 +127,15 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.bun
+            node_modules
+          key: windows-bun-${{ hashFiles('bun.lockb', 'package.json') }}
+          restore-keys: windows-bun-
 
       - name: Install dependencies
         run: bun install
@@ -173,6 +198,15 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun
+            node_modules
+          key: macos-bun-${{ hashFiles('bun.lockb', 'package.json') }}
+          restore-keys: macos-bun-
 
       - name: Install dependencies
         run: bun install

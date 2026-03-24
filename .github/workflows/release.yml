@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  # Only manual dispatch — Build & Release handles tag creation and asset upload
+  # Keeping this workflow for manual re-releases of specific versions
   workflow_dispatch:
     inputs:
       version:
