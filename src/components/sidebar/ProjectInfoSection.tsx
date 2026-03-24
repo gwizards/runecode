@@ -20,12 +20,15 @@ interface ProjectInfoSectionProps {
 }
 
 export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
-  const { data: info } = useQuery<ProjectInfo | null>({
+  const { data: info, isError } = useQuery<ProjectInfo | null>({
     queryKey: ['project-info', projectPath],
     queryFn: async () => {
       if (!projectPath) return null;
       const res = await fetch(`/api/project-info?path=${encodeURIComponent(projectPath)}`, { headers: applyStartupToken({}) });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        console.warn('[ProjectInfoSection] Failed to fetch project info:', res.status, res.statusText);
+        return null;
+      }
       const data = await res.json();
       return {
         name: data.name || "",
@@ -46,7 +49,20 @@ export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
     placeholderData: (prev: any) => prev, // Keep previous project's data while loading
   });
 
-  if (!info) return null;
+  if (!projectPath) return null;
+
+  if (!info && !isError) return null;
+
+  if (!info || isError) {
+    // Show minimal fallback with just the project directory name
+    const dirName = projectPath.split('/').pop() || projectPath.split('\\').pop() || projectPath;
+    return (
+      <div className="px-4 py-2 space-y-1.5">
+        <h3 className="text-sm font-semibold text-foreground truncate">{dirName}</h3>
+        <p className="text-[10px] text-muted-foreground/50">Project info unavailable</p>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-2 space-y-1.5">

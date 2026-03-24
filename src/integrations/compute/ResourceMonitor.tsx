@@ -45,8 +45,9 @@ async function fetchResources(): Promise<SystemResources> {
     const res = await fetch('/api/resources', { headers: applyStartupToken({}) });
     if (!res.ok) throw new Error('Failed to fetch resources');
     return await res.json();
-  } catch {
-    // Return zeros if monitoring unavailable
+  } catch (err) {
+    // Return zeros if monitoring unavailable — log so WSL issues are debuggable
+    console.warn('[ResourceMonitor] Failed to fetch system resources:', err);
     return { cpuPercent: 0, ramPercent: 0, ramUsedGb: 0, ramTotalGb: 0, diskPercent: 0, diskUsedGb: 0, diskTotalGb: 0 };
   }
 }

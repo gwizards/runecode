@@ -64,9 +64,14 @@ export function GitHubActionsSection({ projectPath }: { projectPath?: string }) 
   const { data } = useQuery<{ runs: WorkflowRun[]; repo?: string; error?: string }>({
     queryKey: ['github-actions', projectPath],
     queryFn: async () => {
-      const params = projectPath ? `?path=${encodeURIComponent(projectPath)}` : '';
-      const res = await fetch(`/api/github/actions${params}`, { headers: applyStartupToken({}) });
-      return res.ok ? res.json() : { runs: [] };
+      try {
+        const params = projectPath ? `?path=${encodeURIComponent(projectPath)}` : '';
+        const res = await fetch(`/api/github/actions${params}`, { headers: applyStartupToken({}) });
+        return res.ok ? res.json() : { runs: [] };
+      } catch (err) {
+        console.warn('[GitHubActionsSection] Failed to fetch actions:', err);
+        return { runs: [] };
+      }
     },
     refetchInterval: 15000,
     staleTime: 15000,  // Don't refetch if we have data less than 15s old (prevents rapid fetches on project switch)

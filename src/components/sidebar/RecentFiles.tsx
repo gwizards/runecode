@@ -22,7 +22,10 @@ export function RecentFiles({ projectPath }: { projectPath?: string }) {
         const res = await fetch(`/api/git/recent-files?path=${encodeURIComponent(projectPath)}&limit=10`, { headers: applyStartupToken({}) });
         if (!res.ok) return [];
         return res.json();
-      } catch { return []; }
+      } catch (err) {
+        console.warn('[RecentFiles] Failed to fetch recent files:', err);
+        return [];
+      }
     },
     staleTime: 30_000,
     refetchInterval: 60_000,

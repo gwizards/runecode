@@ -11,7 +11,8 @@ interface CreateProjectDialogProps {
 }
 
 export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateProjectDialogProps) {
-  const [projectPath, setProjectPath] = useState('');
+  const defaultDir = localStorage.getItem('runecode-default-project-dir') || '';
+  const [projectPath, setProjectPath] = useState(defaultDir);
   const [projectName, setProjectName] = useState('');
   const [creating, setCreating] = useState(false);
   const [showWslBrowser, setShowWslBrowser] = useState(false);
@@ -74,14 +75,14 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
 
       onProjectCreated(projectPath, name);
       // Reset state
-      setProjectPath('');
+      setProjectPath(defaultDir);
       setProjectName('');
       onClose();
     } catch (err) {
       console.error('Failed to create project:', err);
       // Still try to open even if initialization fails
       onProjectCreated(projectPath, name);
-      setProjectPath('');
+      setProjectPath(defaultDir);
       setProjectName('');
       onClose();
     } finally {
@@ -139,6 +140,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
           {showWslBrowser && (
             <WslFileBrowser
               distro={getWslDistro() || 'Ubuntu'}
+              initialPath={defaultDir || undefined}
               onSelect={(path) => {
                 setProjectPath(path);
                 const name = path.split('/').pop() || '';

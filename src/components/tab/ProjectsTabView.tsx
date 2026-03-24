@@ -448,6 +448,7 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
                   <h2 className="text-lg font-semibold mb-3">Browse WSL Filesystem</h2>
                   <WslFileBrowser
                     distro={getWslDistro() || 'Ubuntu'}
+                    initialPath={localStorage.getItem('runecode-default-project-dir') || undefined}
                     onSelect={handleWslOpenSelect}
                     onCancel={() => setShowWslOpenBrowser(false)}
                   />
