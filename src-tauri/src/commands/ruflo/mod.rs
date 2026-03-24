@@ -42,8 +42,10 @@ fn npx_cmd() -> &'static str {
 fn wsl_command(program: &str, args: &[&str], wsl_distro: Option<&str>) -> std::process::Command {
     #[cfg(target_os = "windows")]
     if let Some(distro) = wsl_distro {
+        // Inside WSL, .cmd extensions don't exist — strip them.
+        let prog = program.strip_suffix(".cmd").unwrap_or(program);
         let mut cmd = crate::claude_binary::create_command_with_env("wsl");
-        cmd.arg("-d").arg(distro).arg("--").arg(program);
+        cmd.arg("-d").arg(distro).arg("--").arg(prog);
         for arg in args {
             cmd.arg(arg);
         }

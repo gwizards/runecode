@@ -32,6 +32,7 @@ pub async fn check_ruflo_installed(wsl_distro: Option<String>) -> RuFloStatus {
             let wsl = wsl_distro.as_deref();
 
             // npx --no-install: don't download if not cached, just check presence
+            // wsl_command() strips .cmd suffix when routing through WSL.
             let output = wsl_command(
                 npx_cmd(),
                 &["--no-install", "@claude-flow/cli", "--version"],

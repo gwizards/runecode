@@ -42,6 +42,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     if (mode === 'wsl' && distro) {
       setWslDistro(distro);
     }
+    // Re-fetch home directory for the selected platform (WSL home differs from Windows home)
+    api.getHomeDirectory().then((home) => {
+      setProjectDir(`${home}/Projects`);
+    }).catch(() => {});
     setCurrentStep(1);
   }, []);
 
