@@ -43,16 +43,31 @@ done
             log::warn!("WSL list_projects script exited with {}: {}", output.status, stderr);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        log::debug!("WSL list_projects raw output ({} bytes): {:?}", stdout.len(), &stdout[..stdout.len().min(500)]);
+        let raw_stdout = String::from_utf8_lossy(&output.stdout);
+        // WSL on Windows may produce \r\n line endings; bash login shell may
+        // print startup messages (nvm, conda, etc.) before our script output.
+        // Strip \r and only process lines containing '|' (our delimiter).
+        let stdout = raw_stdout.replace('\r', "");
+        log::info!("WSL list_projects raw output ({} bytes, {} lines)",
+            stdout.len(),
+            stdout.lines().count());
+        if stdout.len() < 500 {
+            log::info!("WSL list_projects output: {:?}", &stdout);
+        } else {
+            log::info!("WSL list_projects first 500 chars: {:?}", &stdout[..500]);
+        }
         let mut projects = Vec::new();
 
         for line in stdout.lines() {
+            // Skip shell startup noise — our lines always contain '|'
+            if !line.contains('|') {
+                continue;
+            }
             let parts: Vec<&str> = line.splitn(5, '|').collect();
             if parts.len() < 4 {
                 continue;
             }
-            let dir_name = parts[0];
+            let dir_name = parts[0].trim();
             let created_at: u64 = parts[1].parse().unwrap_or(0);
             let _session_count: usize = parts[2].parse().unwrap_or(0);
             let newest_session: u64 = parts[3].parse().unwrap_or(0);
@@ -85,6 +100,59 @@ done
             (None, Some(_)) => std::cmp::Ordering::Greater,
             (None, None) => b.created_at.cmp(&a.created_at),
         });
+
+        // Fallback: if wsl.exe script returned nothing, try reading via
+        // the \\wsl$\<distro>\ UNC path which Windows mounts automatically.
+        if projects.is_empty() {
+            log::info!("WSL script returned 0 projects, trying UNC path fallback");
+            // Get the WSL home directory via wsl.exe
+            let home_output = crate::claude_binary::silent_command("wsl")
+                .args(["-d", &d, "--", "bash", "-lc", "echo $HOME"])
+                .output()
+                .ok();
+            let wsl_home = home_output
+                .as_ref()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().replace('\r', "").to_string())
+                .unwrap_or_else(|| "/home".to_string());
+
+            // Convert to UNC path: /home/user → \\wsl$\Ubuntu\home\user
+            let unc_projects = format!(
+                "\\\\wsl$\\{}{}/.claude/projects",
+                d,
+                wsl_home.replace('/', "\\")
+            );
+            log::info!("Trying UNC path: {}", unc_projects);
+            let unc_path = std::path::PathBuf::from(&unc_projects);
+            if unc_path.exists() {
+                if let Ok(entries) = std::fs::read_dir(&unc_path) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            if let Some(dir_name) = path.file_name().and_then(|n| n.to_str()) {
+                                let decoded = decode_project_path(dir_name);
+                                let created_at = path.metadata()
+                                    .and_then(|m| m.modified().or(m.created()))
+                                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs();
+                                projects.push(Project {
+                                    id: dir_name.to_string(),
+                                    path: decoded,
+                                    sessions: Vec::new(),
+                                    created_at,
+                                    most_recent_session: None,
+                                });
+                            }
+                        }
+                    }
+                    projects.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                    log::info!("UNC fallback found {} projects", projects.len());
+                }
+            } else {
+                log::warn!("UNC path does not exist: {}", unc_projects);
+            }
+        }
 
         log::info!("Found {} WSL projects in distro {}", projects.len(), d);
         Ok(projects)
