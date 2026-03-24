@@ -282,7 +282,7 @@ done
             }
             let dir_name = parts[0];
             let created_at: u64 = parts[1].parse().unwrap_or(0);
-            let session_count: usize = parts[2].parse().unwrap_or(0);
+            let _session_count: usize = parts[2].parse().unwrap_or(0);
             let newest_session: u64 = parts[3].parse().unwrap_or(0);
             let cwd = if parts.len() >= 5 && !parts[4].is_empty() {
                 parts[4].to_string()

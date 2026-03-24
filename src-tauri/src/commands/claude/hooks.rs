@@ -539,6 +539,7 @@ pub async fn install_claude_code(app: AppHandle, wsl_distro: Option<String>) -> 
 
     #[cfg(target_os = "windows")]
     {
+        #[allow(unused_imports)]
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000);
     }

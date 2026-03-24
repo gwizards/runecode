@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "windows")]
+use crate::claude_binary::silent_command;
 
 /// Validates WSL distro name -- alphanumeric, hyphens, underscores, periods only.
 pub fn validate_distro_name(name: &str) -> Result<(), String> {
@@ -57,8 +59,8 @@ pub async fn detect_wsl() -> Result<WslStatus, String> {
                 .output()
         })
         .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| format!("WSL not available: {}", e))?;
+        .map_err(|e: tokio::task::JoinError| e.to_string())?
+        .map_err(|e: std::io::Error| format!("WSL not available: {}", e))?;
 
         if !output.status.success() {
             return Ok(WslStatus {
@@ -172,7 +174,7 @@ pub async fn wsl_execute(distro: String, command: String) -> Result<String, Stri
                 .output()
         })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e: tokio::task::JoinError| e.to_string())?;
 
         match output {
             Ok(o) if o.status.success() => {
