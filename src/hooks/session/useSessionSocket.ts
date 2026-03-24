@@ -8,9 +8,24 @@ import type { ClaudeStreamMessage } from "@/components/AgentExecution";
 import { isRealTauri } from "@/lib/tauri-env";
 
 // ---------------------------------------------------------------------------
+// Event payload types
+// ---------------------------------------------------------------------------
+
+/** Shape emitted by Tauri's `listen()` — mirrors `@tauri-apps/api/event.Event`. */
+export interface TauriEvent<T = unknown> {
+  payload: T;
+}
+
+/** A listen function that registers a callback and returns an unlisten handle. */
+type ListenFn = (
+  eventName: string,
+  callback: (event: TauriEvent<string>) => void,
+) => Promise<UnlistenFn>;
+
+// ---------------------------------------------------------------------------
 // Tauri / web-mode event bridge (shared module-level singleton)
 // ---------------------------------------------------------------------------
-let tauriListen: any;
+let tauriListen: ListenFn | undefined;
 export type UnlistenFn = () => void;
 
 try {
@@ -21,10 +36,11 @@ try {
   // Tauri APIs not available — web mode
 }
 
-export const listen =
+export const listen: ListenFn =
   tauriListen ||
-  ((eventName: string, callback: (event: any) => void) => {
-    const handler = (event: any) => callback({ payload: event.detail });
+  ((eventName: string, callback: (event: TauriEvent<string>) => void) => {
+    const handler = (event: Event) =>
+      callback({ payload: (event as CustomEvent).detail });
     window.addEventListener(eventName, handler);
     return Promise.resolve(() => window.removeEventListener(eventName, handler));
   });
@@ -69,18 +85,18 @@ export function useSessionSocket(opts: SessionSocketOptions) {
     ) => {
       const specificOutputUnlisten = await listen(
         `claude-output:${sid}`,
-        (evt: any) => { handleStreamMessage(evt.payload); },
+        (evt: TauriEvent<string>) => { handleStreamMessage(evt.payload); },
       );
       const specificErrorUnlisten = await listen(
         `claude-error:${sid}`,
-        (evt: any) => {
+        (evt: TauriEvent<string>) => {
           console.error("Claude error (scoped):", evt.payload);
           setError(evt.payload);
         },
       );
       const specificCompleteUnlisten = await listen(
         `claude-complete:${sid}`,
-        (evt: any) => { processComplete(evt.payload, prompt); },
+        (evt: TauriEvent<string>) => { processComplete(evt.payload as unknown as boolean, prompt); },
       );
 
       unlistenRefs.current.forEach((u) => u());
@@ -108,7 +124,7 @@ export function useSessionSocket(opts: SessionSocketOptions) {
     ) => {
       const genericOutputUnlisten = await listen(
         "claude-output",
-        async (event: any) => {
+        async (event: TauriEvent<string>) => {
           handleStreamMessage(event.payload);
 
           try {
@@ -132,7 +148,7 @@ export function useSessionSocket(opts: SessionSocketOptions) {
 
       const genericErrorUnlisten = await listen(
         "claude-error",
-        (evt: any) => {
+        (evt: TauriEvent<string>) => {
           console.error("Claude error:", evt.payload);
           setError(evt.payload);
         },
@@ -140,7 +156,7 @@ export function useSessionSocket(opts: SessionSocketOptions) {
 
       const genericCompleteUnlisten = await listen(
         "claude-complete",
-        (evt: any) => { processComplete(evt.payload, prompt); },
+        (evt: TauriEvent<string>) => { processComplete(evt.payload as unknown as boolean, prompt); },
       );
 
       unlistenRefs.current = [
@@ -166,7 +182,7 @@ export function useSessionSocket(opts: SessionSocketOptions) {
 
       const outputUnlisten = await listen(
         `claude-output:${sid}`,
-        async (event: any) => {
+        async (event: TauriEvent<string>) => {
           try {
             if (!isMountedRef.current) return;
             const message = JSON.parse(event.payload) as ClaudeStreamMessage;
@@ -179,7 +195,7 @@ export function useSessionSocket(opts: SessionSocketOptions) {
 
       const errorUnlisten = await listen(
         `claude-error:${sid}`,
-        (event: any) => {
+        (event: TauriEvent<string>) => {
           console.error("Claude error:", event.payload);
           if (isMountedRef.current) setError(event.payload);
         },

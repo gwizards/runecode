@@ -4,6 +4,7 @@ pub mod checkpoints_diff;
 pub mod discovery;
 pub mod docker;
 pub mod files;
+pub mod handlers;
 pub mod hooks;
 pub mod mcp;
 pub mod sessions;

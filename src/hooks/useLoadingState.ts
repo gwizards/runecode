@@ -4,7 +4,7 @@ interface LoadingState<T> {
   data: T | null;
   isLoading: boolean;
   error: Error | null;
-  execute: (...args: any[]) => Promise<T>;
+  execute: (...args: unknown[]) => Promise<T>;
   reset: () => void;
 }
 
@@ -13,14 +13,14 @@ interface LoadingState<T> {
  * Reduces boilerplate code for async operations
  */
 export function useLoadingState<T>(
-  asyncFunction: (...args: any[]) => Promise<T>
+  asyncFunction: (...args: unknown[]) => Promise<T>
 ): LoadingState<T> {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const execute = useCallback(
-    async (...args: any[]): Promise<T> => {
+    async (...args: unknown[]): Promise<T> => {
       try {
         setIsLoading(true);
         setError(null);

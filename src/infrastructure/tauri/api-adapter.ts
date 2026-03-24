@@ -296,8 +296,10 @@ declare global {
     __TAURI_METADATA__?: Record<string, unknown>;
     __TAURI_INTERNALS__?: {
       __WEB_MODE_MOCK__?: boolean;
-      transformCallback?: (callback: ((response: any) => void) | undefined, once?: boolean) => string | number;
-      [key: string]: any;
+      transformCallback?: (callback: ((response: unknown) => void) | undefined, once?: boolean) => string | number;
+      invoke?: (cmd: string, ...args: unknown[]) => Promise<unknown>;
+      metadata?: Record<string, unknown>;
+      [key: string]: unknown;
     };
   }
 }
@@ -336,7 +338,7 @@ function detectEnvironment(): boolean {
 /**
  * Make a REST API call to our web server
  */
-async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
+async function restApiCall<T>(endpoint: string, params?: Record<string, unknown>): Promise<T> {
   // First handle path parameters in the endpoint string
   let processedEndpoint = endpoint;
   if (params) {
@@ -418,7 +420,7 @@ async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
 /**
  * Unified API adapter that works in both Tauri and web environments
  */
-export async function apiCall<T>(command: string, params?: any): Promise<T> {
+export async function apiCall<T>(command: string, params?: Record<string, unknown>): Promise<T> {
   const isWeb = !detectEnvironment();
 
   if (!isWeb) {
@@ -435,7 +437,7 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
 
   // Special handling for cancel — interrupt via persistent connectionId
   if (command === 'cancel_claude_execution') {
-    const connId = params?.connectionId;
+    const connId = params?.connectionId as string | undefined;
     if (connId) {
       interruptSession(connId);
     }
@@ -448,24 +450,32 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
   const streamingCommands = ['execute_claude_code', 'continue_claude_code', 'resume_claude_code'];
   if (streamingCommands.includes(command)) {
     // Check if this session already has a persistent connection
-    const connId = params?.connectionId;
+    const connId = params?.connectionId as string | undefined;
     if (connId && sessionSockets.has(connId)) {
       // Send follow-up prompt to existing session
-      await sendPrompt(connId, params.prompt, params.thinkingMode);
+      await sendPrompt(connId, params!.prompt as string, params!.thinkingMode as string | undefined);
       return {} as T;
     }
     // Initialize new persistent session
     const newConnId = await initSession({
-      projectPath: params?.projectPath || '',
-      prompt: params?.prompt || '',
-      model: params?.model,
-      sessionId: params?.sessionId,
-      thinkingMode: params?.thinkingMode,
-      permissionMode: params?.permissionMode,
-      effort: params?.effort,
-      resumeAt: params?.resumeAt,
-      teamsEnabled: params?.teamsEnabled,
-      environment: params?.environment,
+      projectPath: (params?.projectPath as string) || '',
+      prompt: (params?.prompt as string) || '',
+      model: params?.model as string | undefined,
+      sessionId: params?.sessionId as string | undefined,
+      thinkingMode: params?.thinkingMode as string | undefined,
+      permissionMode: params?.permissionMode as string | undefined,
+      effort: params?.effort as string | undefined,
+      resumeAt: params?.resumeAt as string | undefined,
+      teamsEnabled: params?.teamsEnabled as boolean | undefined,
+      environment: params?.environment as {
+        type: string;
+        sshHost?: string;
+        sshPort?: number;
+        sshIdentityFile?: string;
+        startDirectory?: string;
+        wslDistro?: string;
+        dockerContainer?: string;
+      } | undefined,
     });
     // Return the connectionId so the caller can use it for follow-up prompts
     return { connectionId: newConnId } as T;
@@ -506,7 +516,7 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
 /**
  * Map Tauri command names to REST API endpoints
  */
-function mapCommandToEndpoint(command: string, _params?: any): string {
+function mapCommandToEndpoint(command: string, _params?: Record<string, unknown>): string {
   const commandToEndpoint: Record<string, string> = {
     // Project and session commands
     'list_projects': '/api/projects',
@@ -635,13 +645,14 @@ function mapCommandToEndpoint(command: string, _params?: any): string {
 
   // Interpolate params into URL template placeholders like {tableName}, {id}, {projectId}
   if (_params && endpoint.includes('{')) {
-    endpoint = endpoint.replace(/\{(\w+)\}/g, (_match, key) => {
+    endpoint = endpoint.replace(/\{(\w+)\}/g, (_match, key: string) => {
       // Check params directly, then common nested patterns
-      let val = _params[key];
-      if (val == null) val = _params.primaryKeyValues?.[key];
+      let val: unknown = _params[key];
+      const pkValues = _params.primaryKeyValues as Record<string, unknown> | undefined;
+      if (val == null) val = pkValues?.[key];
       // For storage {id}, try primaryKeyValues.key (common pattern for app_settings)
       if (val == null && key === 'id') {
-        val = _params.primaryKeyValues?.key ?? _params.id;
+        val = pkValues?.key ?? _params.id;
       }
       return val != null ? encodeURIComponent(String(val)) : _match;
     });
@@ -671,15 +682,16 @@ export function initializeWebMode() {
     // for transformCallback. Must exist before any @tauri-apps imports execute.
     if (!window.__TAURI_INTERNALS__) {
       window.__TAURI_INTERNALS__ = {
-        transformCallback: (callback?: (response: any) => void, once?: boolean) => {
+        transformCallback: (callback?: (response: unknown) => void, once?: boolean) => {
           const id = `_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-          (window as any)[id] = (response: any) => {
-            if (once) delete (window as any)[id];
+          const win = window as unknown as Record<string, unknown>;
+          win[id] = (response: unknown) => {
+            if (once) delete win[id];
             if (callback) callback(response);
           };
           return id;
         },
-        invoke: (cmd: string, ..._args: any[]) => {
+        invoke: (cmd: string, ..._args: unknown[]) => {
           // Handle Tauri event plugin specially — return a no-op listener
           if (cmd === 'plugin:event|listen' || cmd === 'plugin:event|unlisten') {
             return Promise.resolve(0);
@@ -696,9 +708,9 @@ export function initializeWebMode() {
     if (!window.__TAURI__) {
       window.__TAURI__ = {
         event: {
-          listen: (eventName: string, callback: (event: any) => void) => {
+          listen: (eventName: string, callback: (event: { payload: unknown }) => void) => {
             // Listen for custom events that simulate Tauri events
-            const handler = (e: any) => callback({ payload: e.detail });
+            const handler = (e: Event) => callback({ payload: (e as CustomEvent).detail });
             window.addEventListener(`${eventName}`, handler);
             return Promise.resolve(() => {
               window.removeEventListener(`${eventName}`, handler);
@@ -706,13 +718,13 @@ export function initializeWebMode() {
           },
           emit: () => Promise.resolve(),
         },
-        invoke: (...args: any[]) => {
+        invoke: (...args: unknown[]) => {
           console.debug('[Web] Tauri invoke called in web mode:', args[0]);
           return Promise.reject(new Error('Not available in web mode'));
         },
         // Mock the core module that includes transformCallback
         core: {
-          invoke: (...args: any[]) => {
+          invoke: (...args: unknown[]) => {
             console.debug('[Web] Tauri core.invoke called in web mode:', args[0]);
             return Promise.reject(new Error('Not available in web mode'));
           },

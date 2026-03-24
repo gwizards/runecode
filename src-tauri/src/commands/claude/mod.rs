@@ -10,7 +10,10 @@ pub mod checkpoint_ops;
 pub mod execution;
 pub mod filesystem;
 pub mod hooks;
+pub mod install;
 pub mod project;
+#[cfg(target_os = "windows")]
+pub(self) mod project_wsl;
 pub mod settings;
 pub(self) mod process;
 
@@ -27,6 +30,8 @@ pub use execution::*;
 pub use filesystem::*;
 #[allow(unused_imports)]
 pub use hooks::*;
+#[allow(unused_imports)]
+pub use install::*;
 #[allow(unused_imports)]
 pub use project::*;
 #[allow(unused_imports)]

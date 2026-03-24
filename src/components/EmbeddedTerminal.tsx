@@ -147,8 +147,8 @@ export function EmbeddedTerminal({
         try {
           const stored = localStorage.getItem('runecode-remote-environments');
           if (stored) {
-            const envs = JSON.parse(stored);
-            const env = envs.find((e: any) => e.id === environmentIdRef.current);
+            const envs = JSON.parse(stored) as Array<{ id: string; [key: string]: unknown }>;
+            const env = envs.find((e) => e.id === environmentIdRef.current);
             if (env) params.set('environment', JSON.stringify(env));
           }
         } catch {}
@@ -176,11 +176,16 @@ export function EmbeddedTerminal({
       let wsHost = window.location.host;
       let wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
+      const win = window as Window & {
+        __TAURI__?: unknown;
+        __TAURI_INTERNALS__?: { __WEB_MODE_MOCK__?: boolean };
+        __TAURI_METADATA__?: unknown;
+      };
       const isTauri = !!(
-        (window as any).__TAURI__ ||
-        (window as any).__TAURI_INTERNALS__ ||
-        (window as any).__TAURI_METADATA__
-      ) && !((window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
+        win.__TAURI__ ||
+        win.__TAURI_INTERNALS__ ||
+        win.__TAURI_METADATA__
+      ) && !(win.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__);
 
       if (isTauri) {
         wsProtocol = 'ws:'; // always plain WS for the local embedded server

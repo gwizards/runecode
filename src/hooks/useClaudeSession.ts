@@ -178,10 +178,10 @@ export function useClaudeSession({
         const toolsUsed = new Set<string>();
         currentMessages.forEach((msg) => {
           if (msg.type === "assistant" && msg.message?.content) {
-            const tools = msg.message.content.filter(
-              (c: any) => c.type === "tool_use",
+            const tools = (msg.message.content as Array<{ type: string; name?: string }>).filter(
+              (c) => c.type === "tool_use",
             );
-            tools.forEach((tool: any) => toolsUsed.add(tool.name));
+            tools.forEach((tool) => { if (tool.name) toolsUsed.add(tool.name); });
           }
         });
 
@@ -350,15 +350,15 @@ export function useClaudeSession({
         }
 
         const loadedMessages: ClaudeStreamMessage[] = history.map(
-          (entry: any) => ({
+          (entry: Record<string, unknown>) => ({
             ...entry,
-            type: entry.type || "assistant",
-          }),
+            type: (entry.type as ClaudeStreamMessage["type"]) || "assistant",
+          } as ClaudeStreamMessage),
         );
 
         startTransition(() => {
           setMessages(loadedMessages);
-          setRawJsonlOutput(history.map((h: any) => JSON.stringify(h)));
+          setRawJsonlOutput(history.map((h: Record<string, unknown>) => JSON.stringify(h)));
         });
       } catch (err) {
         console.error("Failed to load session history:", err);

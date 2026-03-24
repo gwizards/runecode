@@ -9,12 +9,12 @@ import { useShiki, highlightCode } from "@/hooks/useShiki";
 import { Button } from "@/components/ui/button";
 import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
-import { getLanguage } from "./types";
+import { getLanguage, type ToolResult } from "./types";
 
 /**
  * Widget for Write tool
  */
-export const WriteWidget: React.FC<{ filePath: string; content: string; result?: any }> = ({ filePath, content, result: _result }) => {
+export const WriteWidget: React.FC<{ filePath: string; content: string; result?: ToolResult }> = ({ filePath, content, result: _result }) => {
   const [isMaximized, setIsMaximized] = useState(false);
   const highlighter = useShiki();
   

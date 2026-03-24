@@ -4,7 +4,7 @@ import { version } from '../../../package.json';
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/30">{title}</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">{title}</h3>
       {children}
     </div>
   );
@@ -39,7 +39,7 @@ export function CreditsSettings() {
         <div className="bg-white/5 rounded-xl p-4 space-y-2 text-sm text-white/70">
           <div>mufeedvh</div>
           <div>123vviekr</div>
-          <div className="text-white/30 text-xs pt-1">© 2025 Wizards. All rights reserved.</div>
+          <div className="text-white/50 text-xs pt-1">© 2025 Wizards. All rights reserved.</div>
         </div>
       </Section>
 

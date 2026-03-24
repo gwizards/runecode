@@ -53,12 +53,12 @@ export async function copySessionAsMarkdown(
           if (typeof content.content === 'string') {
             contentText = content.content;
           } else if (content.content && typeof content.content === 'object') {
-            if (content.content.text) {
-              contentText = content.content.text;
-            } else if (Array.isArray(content.content)) {
+            if (Array.isArray(content.content)) {
               contentText = content.content
-                .map((c: any) => (typeof c === 'string' ? c : c.text || JSON.stringify(c)))
+                .map((c: { type?: string; text?: string }) => (typeof c === 'string' ? c : c.text || JSON.stringify(c)))
                 .join('\n');
+            } else if (content.content.text) {
+              contentText = content.content.text;
             } else {
               contentText = JSON.stringify(content.content, null, 2);
             }

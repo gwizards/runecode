@@ -7,7 +7,8 @@
 
 import React from "react";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
-import type { ClaudeStreamMessage } from "../AgentExecution";
+import type { ClaudeStreamMessage, ContentBlock } from "../AgentExecution";
+import type { ToolResult } from "../widgets/types";
 import {
   EditResultWidget,
   MultiEditResultWidget,
@@ -73,7 +74,7 @@ function stripMetadataTags(content: string): string {
 // ─── Exported Component ───────────────────────────────────────────────────────
 
 interface ToolResultBlockProps {
-  content: any;
+  content: ToolResult & { tool_use_id?: string };
   idx: number;
   streamMessages: ClaudeStreamMessage[];
   onRendered: () => void;
@@ -101,10 +102,10 @@ export const ToolResultBlock: React.FC<ToolResultBlockProps> = ({
         Array.isArray(prevMsg.message.content)
       ) {
         const toolUse = prevMsg.message.content.find(
-          (c: any) => c.type === "tool_use" && c.id === content.tool_use_id
+          (c: ContentBlock) => c.type === "tool_use" && "id" in c && c.id === content.tool_use_id
         );
-        if (toolUse) {
-          const tn = toolUse.name?.toLowerCase();
+        if (toolUse && toolUse.type === "tool_use") {
+          const tn = toolUse.name?.toLowerCase() ?? "";
           if (TOOLS_WITH_WIDGETS.includes(tn) || toolUse.name?.startsWith("mcp__")) {
             return null; // dedicated widget handles this
           }
@@ -119,12 +120,12 @@ export const ToolResultBlock: React.FC<ToolResultBlockProps> = ({
   if (typeof content.content === "string") {
     contentText = content.content;
   } else if (content.content && typeof content.content === "object") {
-    if (content.content.text) {
-      contentText = content.content.text;
-    } else if (Array.isArray(content.content)) {
+    if (Array.isArray(content.content)) {
       contentText = content.content
-        .map((c: any) => (typeof c === "string" ? c : c.text || JSON.stringify(c)))
+        .map((c: string | { text?: string }) => (typeof c === "string" ? c : c.text || JSON.stringify(c)))
         .join("\n");
+    } else if (content.content.text) {
+      contentText = content.content.text;
     } else {
       contentText = JSON.stringify(content.content, null, 2);
     }
@@ -204,9 +205,9 @@ export const ToolResultBlock: React.FC<ToolResultBlockProps> = ({
           Array.isArray(prevMsg.message.content)
         ) {
           const toolUse = prevMsg.message.content.find(
-            (c: any) =>
+            (c: ContentBlock) =>
               c.type === "tool_use" &&
-              c.id === content.tool_use_id &&
+              "id" in c && c.id === content.tool_use_id &&
               c.name?.toLowerCase() === "ls"
           );
           if (toolUse) { isFromLSTool = true; break; }
@@ -250,13 +251,13 @@ export const ToolResultBlock: React.FC<ToolResultBlockProps> = ({
           Array.isArray(prevMsg.message.content)
         ) {
           const toolUse = prevMsg.message.content.find(
-            (c: any) =>
+            (c: ContentBlock) =>
               c.type === "tool_use" &&
-              c.id === content.tool_use_id &&
+              "id" in c && c.id === content.tool_use_id &&
               c.name?.toLowerCase() === "read"
           );
-          if (toolUse?.input?.file_path) {
-            filePath = toolUse.input.file_path;
+          if (toolUse && toolUse.type === "tool_use" && toolUse.input?.file_path) {
+            filePath = toolUse.input.file_path as string;
             break;
           }
         }

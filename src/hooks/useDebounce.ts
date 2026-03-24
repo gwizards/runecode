@@ -24,7 +24,7 @@ export function useDebounce<T>(value: T, delay: number): T {
  * Custom hook that returns a debounced callback
  * The callback will only be invoked after the delay has passed since the last call
  */
-export function useDebouncedCallback<T extends (...args: any[]) => any>(
+export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number
 ): T {

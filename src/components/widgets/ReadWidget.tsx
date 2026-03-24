@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useShiki, highlightCode } from "@/hooks/useShiki";
-import { extractResultContent } from "./types";
+import { extractResultContent, type ToolResult } from "./types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ShikiCodeBlock } from "../ShikiCodeBlock";
@@ -16,7 +16,7 @@ import { ShikiCodeBlock } from "../ShikiCodeBlock";
 /**
  * Widget for Read tool
  */
-export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ filePath, result }) => {
+export const ReadWidget: React.FC<{ filePath: string; result?: ToolResult }> = ({ filePath, result }) => {
   if (result) {
     const { content: resultContent } = extractResultContent(result);
     if (resultContent) {
@@ -82,7 +82,8 @@ const MarkdownFileCard: React.FC<{ filePath: string; content: string }> = ({ fil
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              code({ node, inline, className, children, ...props }: any) {
+              code({ className, children, ...props }: React.ComponentProps<"code"> & { node?: unknown }) {
+                const inline = !className;
                 const match = /language-(\w+)/.exec(className || '');
                 return !inline && match ? (
                   <ShikiCodeBlock

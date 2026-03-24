@@ -164,7 +164,7 @@ export const RewindPanel: React.FC<RewindPanelProps> = ({
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {(selectedUuid || confirmAction) && (
-              <button onClick={confirmAction ? () => setConfirmAction(null) : resetSelection} className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={confirmAction ? () => setConfirmAction(null) : resetSelection} aria-label="Go back" className="text-muted-foreground hover:text-foreground transition-colors">
                 <ChevronLeft className="h-4 w-4" />
               </button>
             )}
@@ -175,7 +175,7 @@ export const RewindPanel: React.FC<RewindPanelProps> = ({
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[9px] text-muted-foreground/40">{allCheckpoints.length} points</span>
-            <button onClick={onClose} className="ml-1 text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={onClose} aria-label="Close rewind panel" className="ml-1 text-muted-foreground hover:text-foreground transition-colors">
               <X className="h-4 w-4" />
             </button>
           </div>

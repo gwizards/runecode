@@ -60,7 +60,7 @@ export const useTabState = () => {
   );
 
   const createAgentExecutionTab = useCallback(
-    (agent: any, _tabId: string, projectPath?: string) =>
+    (agent: { name: string; [key: string]: unknown }, _tabId: string, projectPath?: string) =>
       addTab({ type: 'agent-execution', title: `Run: ${agent.name}`, agentData: agent, projectPath, status: 'idle', hasUnsavedChanges: false, icon: 'bot' }),
     [addTab],
   );

@@ -4,15 +4,15 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { extractResultContent } from "./types";
+import { extractResultContent, type ToolResult } from "./types";
 
 /**
  * Widget for Bash tool
  */
-export const BashWidget: React.FC<{ 
-  command: string; 
+export const BashWidget: React.FC<{
+  command: string;
   description?: string;
-  result?: any;
+  result?: ToolResult;
 }> = ({ command, description, result }) => {
   const { content: resultContent, isError } = extractResultContent(result);
   

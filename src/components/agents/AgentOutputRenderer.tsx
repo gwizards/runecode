@@ -40,9 +40,9 @@ export function useDisplayableMessages(messages: ClaudeStreamMessage[]) {
                 for (let i = messages.indexOf(message) - 1; i >= 0; i--) {
                   const prevMsg = messages[i];
                   if (prevMsg.type === 'assistant' && prevMsg.message?.content && Array.isArray(prevMsg.message.content)) {
-                    const toolUse = prevMsg.message.content.find((c: any) => c.type === 'tool_use' && c.id === content.tool_use_id);
-                    if (toolUse) {
-                      const toolName = toolUse.name?.toLowerCase();
+                    const toolUse = prevMsg.message.content.find((c) => c.type === 'tool_use' && 'id' in c && c.id === content.tool_use_id);
+                    if (toolUse && toolUse.type === 'tool_use') {
+                      const toolName = toolUse.name?.toLowerCase() ?? '';
                       const toolsWithWidgets = ['task', 'edit', 'multiedit', 'todowrite', 'ls', 'read', 'glob', 'bash', 'write', 'grep'];
                       if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) {
                         willBeSkipped = true;

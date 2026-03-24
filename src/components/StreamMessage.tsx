@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ShikiCodeBlock } from "./ShikiCodeBlock";
-import type { ClaudeStreamMessage } from "./AgentExecution";
+import type { ClaudeStreamMessage, ContentBlock } from "./AgentExecution";
+import type { ToolResult } from "./widgets/types";
 import {
   CommandWidget,
   CommandOutputWidget,
@@ -78,7 +79,8 @@ function MarkdownContent({ text }: { text: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          code({ node, inline, className, children, ...props }: any) {
+          code({ className, children, ...props }: React.ComponentProps<"code"> & { node?: unknown }) {
+            const inline = !className;
             const match = /language-(\w+)/.exec(className || "");
             return !inline && match ? (
               <ShikiCodeBlock
@@ -130,9 +132,9 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({
     )
       return null;
     const sc = message.message.content.find(
-      (c: any) => c.type === "tool_use" && c.name?.toLowerCase() === "skill"
+      (c): c is Extract<ContentBlock, { type: "tool_use" }> => c.type === "tool_use" && c.name?.toLowerCase() === "skill"
     );
-    return sc?.input?.skill || null;
+    return (sc?.input?.skill as string) || null;
   }, [message]);
 
   useEffect(() => {
@@ -141,15 +143,15 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({
     return () => removeActiveSkill(skillName);
   }, [skillName, addActiveSkill, removeActiveSkill]);
 
-  const [toolResults, setToolResults] = useState<Map<string, any>>(new Map());
+  const [toolResults, setToolResults] = useState<Map<string, ToolResult>>(new Map());
 
   useEffect(() => {
-    const results = new Map<string, any>();
+    const results = new Map<string, ToolResult>();
     streamMessages.forEach((msg) => {
       if (msg.type === "user" && msg.message?.content && Array.isArray(msg.message.content)) {
-        msg.message.content.forEach((c: any) => {
+        msg.message.content.forEach((c) => {
           if (c.type === "tool_result" && c.tool_use_id)
-            results.set(c.tool_use_id, c);
+            results.set(c.tool_use_id, c as ToolResult);
         });
       }
     });
@@ -219,11 +221,12 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({
               <RuneCodeLogo size={18} className="mt-[3px] flex-shrink-0" />
               <div className="flex-1 space-y-2 min-w-0 overflow-hidden">
                 {msg.content && Array.isArray(msg.content) &&
-                  msg.content.map((content: any, idx: number) => {
+                  msg.content.map((content, idx: number) => {
                     if (content.type === "text") {
-                      const raw = typeof content.text === "string"
-                        ? content.text
-                        : content.text?.text || JSON.stringify(content.text || content);
+                      const textVal = content.text;
+                      const raw = typeof textVal === "string"
+                        ? textVal
+                        : (textVal as { text?: string })?.text || JSON.stringify(textVal || content);
                       const { notifications, cleanContent } = parseTaskNotifications(raw);
                       const textContent = stripMetadataTags(cleanContent);
                       if (!textContent && notifications.length === 0) return null;
@@ -326,7 +329,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({
 
                 {/* Array content */}
                 {Array.isArray(msg.content) &&
-                  msg.content.map((content: any, idx: number) => {
+                  msg.content.map((content, idx: number) => {
                     if (content.type === "tool_result") {
                       return (
                         <ToolResultBlock
@@ -340,9 +343,10 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({
                     }
 
                     if (content.type === "text") {
-                      const textContent = typeof content.text === "string"
-                        ? content.text
-                        : content.text?.text || JSON.stringify(content.text);
+                      const userTextVal = content.text;
+                      const textContent = typeof userTextVal === "string"
+                        ? userTextVal
+                        : (userTextVal as { text?: string })?.text || JSON.stringify(userTextVal);
                       renderedSomething = true;
                       return <div key={idx} className="text-sm break-words">{textContent}</div>;
                     }
@@ -389,7 +393,8 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
-                              code({ node, inline, className, children, ...props }: any) {
+                              code({ className, children, ...props }: React.ComponentProps<"code"> & { node?: unknown }) {
+                                const inline = !className;
                                 const match = /language-(\w+)/.exec(className || "");
                                 return !inline && match ? (
                                   <ShikiCodeBlock code={String(children).replace(/\n$/, "")} language={match[1]} />

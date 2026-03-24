@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import type { ClaudeStreamMessage } from "@/components/AgentExecution";
+import type { ClaudeStreamMessage, ContentBlock } from "@/components/AgentExecution";
 
 const TOOLS_WITH_WIDGETS = new Set([
   'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read',
@@ -72,9 +72,11 @@ export function useDisplayableMessages(
         const content = message.message?.content;
         if (!content) return false;
         if (Array.isArray(content) && content.length === 0) return false;
-        if (Array.isArray(content) && content.every((b: any) =>
-          b.type === 'text' && (!b.text || b.text.trim() === '')
-        )) return false;
+        if (Array.isArray(content) && content.every((b: ContentBlock) => {
+          if (b.type !== 'text') return false;
+          const text = typeof b.text === 'string' ? b.text : b.text?.text;
+          return !text || text.trim() === '';
+        })) return false;
       }
 
       if (message.isMeta && !message.leafUuid && !message.summary) return false;

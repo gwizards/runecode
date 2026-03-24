@@ -68,10 +68,17 @@ export async function streamSessionOutput(runId: number): Promise<void> {
 /**
  * Loads the JSONL history for a specific session
  */
-export async function loadSessionHistory(sessionId: string, projectId: string): Promise<any[]> {
+/** A single JSONL message entry from a Claude session history file */
+export interface SessionHistoryEntry {
+  type?: string;
+  message?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export async function loadSessionHistory(sessionId: string, projectId: string): Promise<SessionHistoryEntry[]> {
   try {
     const wslDistro = isWslMode() ? getWslDistro() : null;
-    const result = await apiCall<any[]>('load_session_history', {
+    const result = await apiCall<SessionHistoryEntry[]>('load_session_history', {
       sessionId,
       projectId,
       ...(wslDistro ? { wslDistro } : {}),
@@ -89,9 +96,9 @@ export async function loadSessionHistory(sessionId: string, projectId: string): 
  * @param sessionId - The session ID (UUID)
  * @returns Promise resolving to array of session messages
  */
-export async function loadAgentSessionHistory(sessionId: string): Promise<any[]> {
+export async function loadAgentSessionHistory(sessionId: string): Promise<SessionHistoryEntry[]> {
   try {
-    const result = await apiCall<any[]>('load_agent_session_history', { sessionId });
+    const result = await apiCall<SessionHistoryEntry[]>('load_agent_session_history', { sessionId });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to load agent session history:', error);
@@ -126,7 +133,7 @@ export async function executeClaudeCode(
       dockerContainer?: string;
     };
   }
-): Promise<any> {
+): Promise<{ connectionId?: string | null } | void> {
   // When WSL mode is active, convert Windows project path and inject distro
   let effectivePath = projectPath;
   let effectiveAgentConfig = agentConfig;

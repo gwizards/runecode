@@ -7,16 +7,16 @@ import {
 import { cn } from "@/lib/utils";
 import { useShiki, highlightCode } from "@/hooks/useShiki";
 import * as Diff from 'diff';
-import { getLanguage } from "./types";
+import { getLanguage, type ToolResult } from "./types";
 
 /**
  * Widget for Edit tool - shows the edit operation
  */
-export const EditWidget: React.FC<{ 
-  file_path: string; 
-  old_string: string; 
+export const EditWidget: React.FC<{
+  file_path: string;
+  old_string: string;
   new_string: string;
-  result?: any;
+  result?: ToolResult;
 }> = ({ file_path, old_string, new_string, result: _result }) => {
   const highlighter = useShiki();
 

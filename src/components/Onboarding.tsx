@@ -311,7 +311,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         <AnimatePresence mode="wait">
           {currentStep === 0 && IS_WINDOWS ? (
             <div key="step-platform" className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6 shadow-2xl backdrop-blur-sm">
-              <div className="text-[11px] text-white/30 font-medium mb-4">Step 1 of {TOTAL_STEPS}</div>
+              <div className="text-[11px] text-white/50 font-medium mb-4">Step 1 of {TOTAL_STEPS}</div>
               <PlatformStep onSelect={handlePlatformSelect} />
             </div>
           ) : (

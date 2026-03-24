@@ -26,7 +26,7 @@ export function createTrackEventMethods() {
     },
 
     // Feature usage
-    featureUsed: (feature: string, subfeature?: string, metadata?: Record<string, any>) => {
+    featureUsed: (feature: string, subfeature?: string, metadata?: Record<string, unknown>) => {
       const event = eventBuilders.feature(feature, subfeature, metadata);
       analytics.track(event.event, event.properties);
     },
@@ -68,7 +68,7 @@ export function createTrackEventMethods() {
     },
 
     // Settings
-    settingsChanged: (setting: string, value: any) => {
+    settingsChanged: (setting: string, value: unknown) => {
       analytics.track(ANALYTICS_EVENTS.SETTINGS_CHANGED, { setting, value });
     },
 

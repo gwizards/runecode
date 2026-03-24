@@ -2,11 +2,20 @@ import { useEffect, useCallback } from 'react';
 import { useAgentDomainStore } from '../domain/agent';
 import { useTabState } from './useTabState';
 
+interface AgentLifecyclePayload {
+  event: 'started' | 'completed' | 'failed';
+  agent_id: string;
+  agent_name?: string;
+  reason?: string;
+}
+
 export function useAgentLifecycle() {
   const { createAgentTab } = useTabState();
 
-  const handleEvent = useCallback((event: any) => {
-    const payload = event.detail || event.payload;
+  const handleEvent = useCallback((event: Event | { payload?: AgentLifecyclePayload }) => {
+    const payload: AgentLifecyclePayload | undefined =
+      (event as CustomEvent<AgentLifecyclePayload>).detail ||
+      (event as { payload?: AgentLifecyclePayload }).payload;
     if (!payload) return;
 
     const store = useAgentDomainStore.getState();

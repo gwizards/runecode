@@ -45,7 +45,7 @@ export interface Session {
   /** The project path */
   project_path: string;
   /** Optional todo data associated with this session */
-  todo_data?: any;
+  todo_data?: Record<string, unknown>;
   /** Unix timestamp when the session file was created */
   created_at: number;
   /** First user message content (if available) */
@@ -58,7 +58,7 @@ export interface Session {
  * Represents the settings from ~/.claude/settings.json
  */
 export interface ClaudeSettings {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

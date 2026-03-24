@@ -49,6 +49,7 @@ function CopyableCommand({ command }: { command: string }) {
         onClick={handleCopy}
         className="flex-shrink-0 p-1.5 rounded-md hover:bg-white/10 transition-colors text-white/50 hover:text-white/80"
         title="Copy command"
+        aria-label="Copy command"
       >
         {copied ? (
           <CheckCircle2 className="w-4 h-4 text-green-400" />
@@ -476,7 +477,7 @@ function CheckItem({ label, checked }: { label: string; checked: boolean }) {
       {checked ? (
         <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
       ) : (
-        <XCircle className="w-4 h-4 text-white/30 flex-shrink-0" />
+        <XCircle className="w-4 h-4 text-white/50 flex-shrink-0" />
       )}
       <span className={checked ? 'text-white/80' : 'text-white/40'}>{label}</span>
     </div>

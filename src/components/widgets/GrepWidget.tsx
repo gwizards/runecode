@@ -12,17 +12,17 @@ import {
   FilePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { extractResultContent } from "./types";
+import { extractResultContent, type ToolResult } from "./types";
 
 /**
  * Widget for Grep tool
  */
-export const GrepWidget: React.FC<{ 
-  pattern: string; 
-  include?: string; 
+export const GrepWidget: React.FC<{
+  pattern: string;
+  include?: string;
   path?: string;
   exclude?: string;
-  result?: any;
+  result?: ToolResult;
 }> = ({ pattern, include, path, exclude, result }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   

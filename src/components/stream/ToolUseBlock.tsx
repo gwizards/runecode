@@ -31,6 +31,7 @@ import {
   WebFetchWidget,
 } from "../ToolWidgets";
 import { SkillBadgeWidget } from "../widgets/SkillBadgeWidget";
+import type { ToolResult, TodoItem } from "../widgets/types";
 
 // ─── CollapsibleToolOutput ────────────────────────────────────────────────────
 
@@ -78,9 +79,9 @@ interface ToolUseBlockProps {
     type: "tool_use";
     id?: string;
     name?: string;
-    input?: any;
+    input?: Record<string, unknown>;
   };
-  toolResult: any;
+  toolResult: ToolResult | null;
   idx: number;
   onRendered: () => void;
 }
@@ -113,13 +114,13 @@ export const ToolUseBlock: React.FC<ToolUseBlockProps> = ({
 
   const toolDisplayName = content.name || "Tool";
   const toolSummary = input?.command
-    ? input.command.substring(0, 80)
+    ? String(input.command).substring(0, 80)
     : input?.file_path
-    ? input.file_path
+    ? String(input.file_path)
     : input?.pattern
-    ? `pattern: ${input.pattern}`
+    ? `pattern: ${String(input.pattern)}`
     : input?.query
-    ? input.query
+    ? String(input.query)
     : undefined;
 
   return (
@@ -146,8 +147,8 @@ function renderToolWidget({
 }: {
   toolName: string;
   contentName: string;
-  input: any;
-  toolResult: any;
+  input: Record<string, unknown> | undefined;
+  toolResult: ToolResult | null;
   onRendered: () => void;
 }): React.ReactNode {
   // Task tool — sub-agent tasks
@@ -155,9 +156,9 @@ function renderToolWidget({
     onRendered();
     return (
       <TaskWidget
-        description={input.description}
-        prompt={input.prompt}
-        result={toolResult}
+        description={input.description as string | undefined}
+        prompt={input.prompt as string | undefined}
+        result={toolResult ?? undefined}
       />
     );
   }
@@ -165,49 +166,62 @@ function renderToolWidget({
   // Edit tool
   if (toolName === "edit" && input?.file_path) {
     onRendered();
-    return <EditWidget {...input} result={toolResult} />;
+    return (
+      <EditWidget
+        file_path={input.file_path as string}
+        old_string={input.old_string as string}
+        new_string={input.new_string as string}
+        result={toolResult ?? undefined}
+      />
+    );
   }
 
   // MultiEdit tool
   if (toolName === "multiedit" && input?.file_path && input?.edits) {
     onRendered();
-    return <MultiEditWidget {...input} result={toolResult} />;
+    return (
+      <MultiEditWidget
+        file_path={input.file_path as string}
+        edits={input.edits as Array<{ old_string: string; new_string: string }>}
+        result={toolResult ?? undefined}
+      />
+    );
   }
 
   // MCP tools
   if (contentName?.startsWith("mcp__")) {
     onRendered();
-    return <MCPWidget toolName={contentName} input={input} result={toolResult} />;
+    return <MCPWidget toolName={contentName} input={input} result={toolResult ?? undefined} />;
   }
 
   // TodoWrite
   if (toolName === "todowrite" && input?.todos) {
     onRendered();
-    return <TodoWidget todos={input.todos} result={toolResult} />;
+    return <TodoWidget todos={input.todos as TodoItem[]} result={toolResult ?? undefined} />;
   }
 
   // TodoRead
   if (toolName === "todoread") {
     onRendered();
-    return <TodoReadWidget todos={input?.todos} result={toolResult} />;
+    return <TodoReadWidget todos={input?.todos as TodoItem[] | undefined} result={toolResult ?? undefined} />;
   }
 
   // LS
   if (toolName === "ls" && input?.path) {
     onRendered();
-    return <LSWidget path={input.path} result={toolResult} />;
+    return <LSWidget path={input.path as string} result={toolResult ?? undefined} />;
   }
 
   // Read
   if (toolName === "read" && input?.file_path) {
     onRendered();
-    return <ReadWidget filePath={input.file_path} result={toolResult} />;
+    return <ReadWidget filePath={input.file_path as string} result={toolResult ?? undefined} />;
   }
 
   // Glob
   if (toolName === "glob" && input?.pattern) {
     onRendered();
-    return <GlobWidget pattern={input.pattern} result={toolResult} />;
+    return <GlobWidget pattern={input.pattern as string} result={toolResult ?? undefined} />;
   }
 
   // Bash
@@ -215,9 +229,9 @@ function renderToolWidget({
     onRendered();
     return (
       <BashWidget
-        command={input.command}
-        description={input.description}
-        result={toolResult}
+        command={input.command as string}
+        description={input.description as string | undefined}
+        result={toolResult ?? undefined}
       />
     );
   }
@@ -227,9 +241,9 @@ function renderToolWidget({
     onRendered();
     return (
       <WriteWidget
-        filePath={input.file_path}
-        content={input.content}
-        result={toolResult}
+        filePath={input.file_path as string}
+        content={input.content as string}
+        result={toolResult ?? undefined}
       />
     );
   }
@@ -239,11 +253,11 @@ function renderToolWidget({
     onRendered();
     return (
       <GrepWidget
-        pattern={input.pattern}
-        include={input.include}
-        path={input.path}
-        exclude={input.exclude}
-        result={toolResult}
+        pattern={input.pattern as string}
+        include={input.include as string | undefined}
+        path={input.path as string | undefined}
+        exclude={input.exclude as string | undefined}
+        result={toolResult ?? undefined}
       />
     );
   }
@@ -251,13 +265,13 @@ function renderToolWidget({
   // WebSearch
   if (toolName === "websearch" && input?.query) {
     onRendered();
-    return <WebSearchWidget query={input.query} result={toolResult} />;
+    return <WebSearchWidget query={input.query as string} result={toolResult ?? undefined} />;
   }
 
   // WebFetch
   if (toolName === "webfetch" && input?.url) {
     onRendered();
-    return <WebFetchWidget url={input.url} prompt={input.prompt} result={toolResult} />;
+    return <WebFetchWidget url={input.url as string} prompt={input.prompt as string | undefined} result={toolResult ?? undefined} />;
   }
 
   // Agent tool — sub-agent/team spawning
@@ -270,27 +284,27 @@ function renderToolWidget({
           <span className="font-medium text-cyan-300/90">
             {input.team_name ? "Spawning Teammate" : "Spawning Sub-Agent"}
           </span>
-          {input.name && (
+          {input.name ? (
             <span className="text-muted-foreground/60 font-mono">
-              {input.name}
+              {String(input.name)}
             </span>
-          )}
-          {input.team_name && (
+          ) : null}
+          {input.team_name ? (
             <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-purple-500/15 text-purple-400 font-mono">
-              team: {input.team_name}
+              team: {String(input.team_name)}
             </span>
-          )}
+          ) : null}
         </div>
-        {input.description && (
+        {input.description ? (
           <p className="text-[11px] text-muted-foreground/70 pl-5.5">
-            {input.description}
+            {String(input.description)}
           </p>
-        )}
-        {input.model && (
+        ) : null}
+        {input.model ? (
           <span className="text-[9px] text-muted-foreground/40 pl-5.5 font-mono">
-            model: {input.model}
+            model: {String(input.model)}
           </span>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -303,20 +317,20 @@ function renderToolWidget({
         <div className="flex items-center gap-2 text-xs">
           <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
           <span className="font-medium text-purple-300/90">Agent Message</span>
-          {input.to && (
+          {input.to ? (
             <>
               <span className="text-muted-foreground/30">→</span>
-              <span className="font-mono text-purple-400/70">{input.to}</span>
+              <span className="font-mono text-purple-400/70">{String(input.to)}</span>
             </>
-          )}
+          ) : null}
         </div>
-        {input.content && (
+        {input.content ? (
           <p className="text-[11px] text-muted-foreground/70 pl-5.5 whitespace-pre-wrap">
             {typeof input.content === "string"
-              ? input.content.slice(0, 300)
+              ? (input.content as string).slice(0, 300)
               : JSON.stringify(input.content).slice(0, 300)}
           </p>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -324,7 +338,7 @@ function renderToolWidget({
   // Skill tool
   if (toolName === "skill") {
     onRendered();
-    return <SkillBadgeWidget skillName={input?.skill || "unknown"} />;
+    return <SkillBadgeWidget skillName={(input?.skill as string) || "unknown"} />;
   }
 
   // Fallback — raw JSON display

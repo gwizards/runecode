@@ -94,10 +94,10 @@ export function SidebarBookmarks() {
                     {item.text}
                   </span>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <button onClick={() => handleCopy(item.text)} className="p-0.5 hover:bg-muted/50 rounded" title="Copy">
+                    <button onClick={() => handleCopy(item.text)} className="p-0.5 hover:bg-muted/50 rounded" title="Copy" aria-label="Copy bookmark">
                       <Copy className="h-2.5 w-2.5 text-muted-foreground/40" />
                     </button>
-                    <button onClick={() => handleRemove(item.id)} className="p-0.5 hover:bg-muted/50 rounded" title="Remove">
+                    <button onClick={() => handleRemove(item.id)} className="p-0.5 hover:bg-muted/50 rounded" title="Remove" aria-label="Remove bookmark">
                       <X className="h-2.5 w-2.5 text-muted-foreground/40" />
                     </button>
                   </div>

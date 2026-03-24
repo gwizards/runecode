@@ -51,7 +51,7 @@ export function WslSettings() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Platform Mode</h3>
-        <Button size="sm" variant="ghost" onClick={refresh} disabled={loading}>
+        <Button size="sm" variant="ghost" onClick={refresh} disabled={loading} aria-label="Refresh WSL status">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
@@ -99,9 +99,9 @@ export function WslSettings() {
                 <span className={selectedDistro === d.name ? 'text-white font-medium' : ''}>{d.name}</span>
                 {d.is_default && <span className="text-[9px] px-1 py-0.5 rounded bg-white/10">default</span>}
                 {selectedDistro === d.name && <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-300">active</span>}
-                <span className="text-white/30">WSL{d.version}</span>
+                <span className="text-white/50">WSL{d.version}</span>
               </div>
-              <span className={d.state === 'Running' ? 'text-green-400' : 'text-white/30'}>
+              <span className={d.state === 'Running' ? 'text-green-400' : 'text-white/50'}>
                 {d.state}
               </span>
             </button>

@@ -9,16 +9,16 @@ import {
   Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { extractResultContent } from "./types";
+import { extractResultContent, type ToolResult } from "./types";
 import { open } from "@tauri-apps/plugin-shell";
 
 /**
  * Widget for WebFetch tool - displays URL fetching with optional prompts
  */
-export const WebFetchWidget: React.FC<{ 
+export const WebFetchWidget: React.FC<{
   url: string;
   prompt?: string;
-  result?: any;
+  result?: ToolResult;
 }> = ({ url, prompt, result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);

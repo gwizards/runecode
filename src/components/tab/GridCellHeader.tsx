@@ -158,6 +158,7 @@ export function GridCellHeader({
           <button className="text-muted-foreground/50 hover:text-foreground p-0.5 relative z-20"
             onClick={(e) => { e.stopPropagation(); onOpenShell(tab); }}
             title="Open shell for this project"
+            aria-label="Open shell for this project"
           >
             <TerminalSquare className="w-3 h-3" />
           </button>
@@ -168,6 +169,7 @@ export function GridCellHeader({
           <button className="text-muted-foreground/50 hover:text-foreground p-0.5 relative z-20"
             onClick={(e) => { e.stopPropagation(); onOpenBrowser(tab); }}
             title="Open browser for this project"
+            aria-label="Open browser for this project"
           >
             <Globe className="w-3 h-3" />
           </button>
@@ -178,6 +180,7 @@ export function GridCellHeader({
           <button className="text-muted-foreground/50 hover:text-amber-400 p-0.5 relative z-20"
             onClick={(e) => { e.stopPropagation(); onSeparate(tab); }}
             title="Separate to own grid"
+            aria-label="Separate to own grid"
           >
             <Ungroup className="w-3 h-3" />
           </button>

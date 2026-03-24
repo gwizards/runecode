@@ -8,7 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useShiki, highlightCode } from "@/hooks/useShiki";
 import * as Diff from 'diff';
-import { getLanguage } from "./types";
+import { getLanguage, type ToolResult } from "./types";
 
 /**
  * Widget for displaying MultiEdit tool usage
@@ -16,7 +16,7 @@ import { getLanguage } from "./types";
 export const MultiEditWidget: React.FC<{
   file_path: string;
   edits: Array<{ old_string: string; new_string: string }>;
-  result?: any;
+  result?: ToolResult;
 }> = ({ file_path, edits, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const language = getLanguage(file_path);

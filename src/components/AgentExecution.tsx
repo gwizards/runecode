@@ -32,6 +32,13 @@ interface AgentExecutionProps {
   className?: string;
 }
 
+/** A single content block inside a ClaudeStreamMessage's message.content array. */
+export type ContentBlock =
+  | { type: "text"; text: string | { text?: string } }
+  | { type: "thinking"; thinking?: string; signature?: string }
+  | { type: "tool_use"; id?: string; name?: string; input?: Record<string, unknown> }
+  | { type: "tool_result"; tool_use_id?: string; content?: string | { text?: string } | Array<{ type?: string; text?: string }>; is_error?: boolean };
+
 export interface ClaudeStreamMessage {
   type: "system" | "assistant" | "user" | "result" | "summary" | "start" | "partial" | "response" | "error" | "output" | "session_info" | "rate_limit_event";
   subtype?: string;
@@ -40,7 +47,7 @@ export interface ClaudeStreamMessage {
   uuid?: string;
   message?: {
     role?: "user" | "assistant";
-    content?: any[];
+    content?: ContentBlock[];
     model?: string;
     id?: string;
     type?: string;
@@ -62,7 +69,7 @@ export interface ClaudeStreamMessage {
     content?: string;
     partial_tool_call_index?: number;
     accumulated_content?: string;
-    [key: string]: any;
+    [key: string]: unknown;  // eslint-disable-line @typescript-eslint/no-explicit-any
   }>;
   result?: string;
   total_cost_usd?: number;
@@ -79,6 +86,12 @@ export interface ClaudeStreamMessage {
   model?: string;
   cwd?: string;
   tools?: string[];
+  // Index signature kept as `any` because the Claude streaming protocol
+  // attaches numerous ad-hoc fields (isMeta, summary, leafUuid, content,
+  // task_id, status, cost_usd, error, etc.) that vary by message type.
+  // Typing every possible field explicitly is impractical; the discriminated
+  // `type` field above provides compile-time safety where it matters.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 
@@ -141,9 +154,9 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
                 for (let i = index - 1; i >= 0; i--) {
                   const prevMsg = messages[i];
                   if (prevMsg.type === 'assistant' && prevMsg.message?.content && Array.isArray(prevMsg.message.content)) {
-                    const toolUse = prevMsg.message.content.find((c: any) => c.type === 'tool_use' && c.id === content.tool_use_id);
-                    if (toolUse) {
-                      const toolName = toolUse.name?.toLowerCase();
+                    const toolUse = prevMsg.message.content.find((c) => c.type === 'tool_use' && 'id' in c && c.id === content.tool_use_id);
+                    if (toolUse && toolUse.type === 'tool_use') {
+                      const toolName = toolUse.name?.toLowerCase() ?? '';
                       const toolsWithWidgets = ['task', 'edit', 'multiedit', 'todowrite', 'ls', 'read', 'glob', 'bash', 'write', 'grep'];
                       if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) willBeSkipped = true;
                       break;

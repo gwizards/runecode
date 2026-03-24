@@ -138,7 +138,7 @@ export function RuFloSettings() {
             : status?.installed ? 'Installed (MCP not registered)'
             : 'Not installed'
         } />
-        <div className="font-mono text-[10px] text-white/30 bg-black/30 rounded px-3 py-2 break-all">
+        <div className="font-mono text-[10px] text-white/50 bg-black/30 rounded px-3 py-2 break-all">
           claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
         </div>
         <div className="flex gap-2">
@@ -242,7 +242,7 @@ export function RuFloSettings() {
         {memoryStats && (
           <div className="flex gap-3 text-xs text-white/60">
             <span>{memoryStats.total ?? 0} entries</span>
-            <span className="text-white/30">·</span>
+            <span className="text-white/50">·</span>
             <span className="text-purple-400/70">{memoryStats.backend ?? 'hybrid'}</span>
           </div>
         )}
@@ -296,7 +296,7 @@ export function RuFloSettings() {
             <option value="hnsw">hnsw (vector-only)</option>
           </select>
         </div>
-        <p className="text-xs text-white/30">agentdb = SQLite · hnsw = vector search · hybrid = both</p>
+        <p className="text-xs text-white/50">agentdb = SQLite · hnsw = vector search · hybrid = both</p>
       </Card>
     </div>
   );

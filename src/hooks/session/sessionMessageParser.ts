@@ -3,8 +3,19 @@
  * Extracted from useSessionCommands to keep the hook under 500 lines.
  */
 
-import type { ClaudeStreamMessage } from "@/components/AgentExecution";
+import type { ClaudeStreamMessage, ContentBlock } from "@/components/AgentExecution";
 import type { SessionMetrics } from "@/hooks/useClaudeSession";
+
+// ─── Content block type guards ───────────────────────────────────────────────
+
+type ToolUseBlock = Extract<ContentBlock, { type: "tool_use" }>;
+type ToolResultBlock = Extract<ContentBlock, { type: "tool_result" }>;
+type TextBlock = Extract<ContentBlock, { type: "text" }>;
+
+/** Timestamp-augmented message used in session history. */
+interface TimestampedMessage extends ClaudeStreamMessage {
+  timestamp?: number;
+}
 
 // ─── Tool-use classification ─────────────────────────────────────────────────
 
@@ -18,16 +29,16 @@ export function trackToolUses(
 ): string[] {
   if (message.type !== "assistant" || !message.message?.content) return [];
 
-  const toolUses = message.message.content.filter(
-    (c: any) => c.type === "tool_use",
+  const toolUses = (message.message.content as ContentBlock[]).filter(
+    (c): c is ToolUseBlock => c.type === "tool_use",
   );
 
   const names: string[] = [];
 
-  toolUses.forEach((toolUse: any) => {
+  toolUses.forEach((toolUse) => {
     metrics.toolsExecuted += 1;
     metrics.lastActivityTime = Date.now();
-    names.push(toolUse.name);
+    if (toolUse.name) names.push(toolUse.name);
 
     const toolName = toolUse.name?.toLowerCase() || "";
     if (toolName.includes("create") || toolName.includes("write")) {
@@ -58,16 +69,20 @@ export function trackToolResults(
 ): string[] {
   if (message.type !== "user" || !message.message?.content) return [];
 
-  const toolResults = message.message.content.filter(
-    (c: any) => c.type === "tool_result",
+  const toolResults = (message.message.content as ContentBlock[]).filter(
+    (c): c is ToolResultBlock => c.type === "tool_result",
   );
 
   const errors: string[] = [];
-  toolResults.forEach((result: any) => {
+  toolResults.forEach((result) => {
     if (result.is_error) {
       metrics.toolsFailed += 1;
       metrics.errorsEncountered += 1;
-      errors.push(result.content);
+      const content = result.content;
+      const errorText = typeof content === 'string'
+        ? content
+        : content != null ? JSON.stringify(content) : 'Unknown error';
+      errors.push(errorText);
     }
   });
   return errors;
@@ -80,11 +95,12 @@ export function countCodeBlocks(message: ClaudeStreamMessage): number {
   if (message.type !== "assistant" || !message.message?.content) return 0;
 
   let total = 0;
-  const codeBlocks = message.message.content.filter(
-    (c: any) => c.type === "text" && c.text?.includes("```"),
+  const textBlocks = (message.message.content as ContentBlock[]).filter(
+    (c): c is TextBlock => c.type === "text",
   );
-  codeBlocks.forEach((block: any) => {
-    const matches = (block.text.match(/```/g) || []).length;
+  textBlocks.forEach((block) => {
+    const text = typeof block.text === 'string' ? block.text : block.text?.text || '';
+    const matches = (text.match(/```/g) || []).length;
     total += Math.floor(matches / 2);
   });
   return total;
@@ -146,7 +162,7 @@ export function buildSessionStoppedPayload(
 ): SessionStoppedPayload {
   const sessionStartTimeValue =
     opts.messages.length > 0
-      ? (opts.messages[0] as any).timestamp || Date.now()
+      ? (opts.messages[0] as TimestampedMessage).timestamp || Date.now()
       : Date.now();
   const duration = Date.now() - sessionStartTimeValue;
   const timeToFirstMessage = metrics.firstMessageTime

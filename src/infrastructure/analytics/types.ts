@@ -7,7 +7,7 @@ export interface AnalyticsEvent {
     action?: string;
     label?: string;
     value?: number;
-    [key: string]: any;
+    [key: string]: string | number | boolean | undefined;
   };
   timestamp: number;
   sessionId: string;
@@ -29,7 +29,7 @@ export interface AnalyticsConfig {
   autocapture?: boolean;
   disable_session_recording?: boolean;
   opt_out_capturing_by_default?: boolean;
-  loaded?: (posthog: any) => void;
+  loaded?: (posthog: unknown) => void;
 }
 
 export type EventName = 
@@ -106,7 +106,7 @@ export type EventName =
 export interface FeatureUsageProperties {
   feature: string;
   subfeature?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string | number | boolean>;
 }
 
 export interface ErrorProperties {

@@ -312,7 +312,7 @@ export function PluginsSettings() {
                     plugin.enabled ? "border-border/30 bg-muted/5" : "border-border/15 bg-muted/[0.02] opacity-60"
                   )}>
                     <div className="flex items-center gap-2 px-3 py-2.5">
-                      <button onClick={() => setExpanded(isExpanded ? null : key)} className="text-muted-foreground/40 hover:text-muted-foreground">
+                      <button onClick={() => setExpanded(isExpanded ? null : key)} aria-label={isExpanded ? "Collapse plugin details" : "Expand plugin details"} className="text-muted-foreground/40 hover:text-muted-foreground">
                         {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                       </button>
                       <div className="flex-1 min-w-0">

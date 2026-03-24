@@ -27,7 +27,7 @@ const TAB_SCREEN_NAMES: Record<string, string> = {
 };
 
 interface UseAnalyticsReturn {
-  track: (eventName: EventName | string, properties?: Record<string, any>) => void;
+  track: (eventName: EventName | string, properties?: Record<string, unknown>) => void;
   trackEvent: ReturnType<typeof useTrackEvent>;
   isEnabled: boolean;
   hasConsented: boolean;
@@ -37,7 +37,7 @@ export function useAnalytics(): UseAnalyticsReturn {
   const isEnabled = analytics.isEnabled();
   const hasConsented = analytics.hasConsented();
 
-  const track = useCallback((eventName: EventName | string, properties?: Record<string, any>) => {
+  const track = useCallback((eventName: EventName | string, properties?: Record<string, unknown>) => {
     analytics.track(eventName, properties);
   }, []);
 
@@ -54,7 +54,7 @@ export function useTrackEvent() {
   return createTrackEventMethods();
 }
 
-export function usePageView(pageName: string, properties?: Record<string, any>) {
+export function usePageView(pageName: string, properties?: Record<string, unknown>) {
   const hasTracked = useRef(false);
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export function useComponentMetrics(componentName: string) {
 }
 
 export function useInteractionTracking(interactionType: string) {
-  return useCallback((details?: Record<string, any>) => {
+  return useCallback((details?: Record<string, unknown>) => {
     analytics.track('user_interaction', { interaction_type: interactionType, ...details });
   }, [interactionType]);
 }

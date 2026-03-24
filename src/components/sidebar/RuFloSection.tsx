@@ -224,7 +224,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
                   />
                 </div>
                 <span className="text-[9px] text-purple-400/70">{swarmStatus?.memoryEntries}</span>
-                <span className="text-[9px] text-white/20 bg-white/5 rounded px-1">{memoryBackend}</span>
+                <span className="text-[9px] text-white/50 bg-white/5 rounded px-1">{memoryBackend}</span>
               </div>
             </div>
           )}

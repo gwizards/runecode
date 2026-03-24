@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-interface ApiCallOptions {
-  onSuccess?: (data: any) => void;
+interface ApiCallOptions<T = unknown> {
+  onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
   showErrorToast?: boolean;
   showSuccessToast?: boolean;
@@ -13,7 +13,7 @@ interface ApiCallState<T> {
   data: T | null;
   isLoading: boolean;
   error: Error | null;
-  call: (...args: any[]) => Promise<T | null>;
+  call: (...args: unknown[]) => Promise<T | null>;
   reset: () => void;
 }
 
@@ -22,8 +22,8 @@ interface ApiCallState<T> {
  * Includes automatic toast notifications and cleanup on unmount
  */
 export function useApiCall<T>(
-  apiFunction: (...args: any[]) => Promise<T>,
-  options: ApiCallOptions = {}
+  apiFunction: (...args: unknown[]) => Promise<T>,
+  options: ApiCallOptions<T> = {}
 ): ApiCallState<T> {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +41,7 @@ export function useApiCall<T>(
   } = options;
 
   const call = useCallback(
-    async (...args: any[]): Promise<T | null> => {
+    async (...args: unknown[]): Promise<T | null> => {
       try {
         // Cancel any pending request
         if (abortControllerRef.current) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createHighlighter, type Highlighter } from 'shiki';
+import { createHighlighter, type Highlighter, type BundledLanguage } from 'shiki';
 
 const SAFE_LANGUAGES = new Set([
   'typescript', 'javascript', 'tsx', 'jsx', 'python', 'rust', 'go',
@@ -46,22 +46,22 @@ function getHighlighter(): Promise<Highlighter> {
 async function ensureLanguageLoaded(highlighter: Highlighter, lang: string): Promise<boolean> {
   const safeLang = sanitizeLang(lang);
   const loadedLangs = highlighter.getLoadedLanguages();
-  if (loadedLangs.includes(safeLang as any)) return true;
+  if (loadedLangs.includes(safeLang as BundledLanguage)) return true;
 
   // Check if already loading
   if (pendingLangLoads.has(safeLang)) {
     await pendingLangLoads.get(safeLang);
-    return highlighter.getLoadedLanguages().includes(safeLang as any);
+    return highlighter.getLoadedLanguages().includes(safeLang as BundledLanguage);
   }
 
   // Attempt to load the language
-  const loadPromise = highlighter.loadLanguage(safeLang as any)
+  const loadPromise = highlighter.loadLanguage(safeLang as BundledLanguage)
     .then(() => { pendingLangLoads.delete(safeLang); })
     .catch(() => { pendingLangLoads.delete(safeLang); });
   pendingLangLoads.set(safeLang, loadPromise);
   await loadPromise;
 
-  return highlighter.getLoadedLanguages().includes(safeLang as any);
+  return highlighter.getLoadedLanguages().includes(safeLang as BundledLanguage);
 }
 
 export function useShiki() {
@@ -86,7 +86,7 @@ export function highlightCode(highlighter: Highlighter, code: string, lang: stri
   try {
     const safeLang = sanitizeLang(lang);
     const loadedLangs = highlighter.getLoadedLanguages();
-    const isLoaded = loadedLangs.includes(safeLang as any);
+    const isLoaded = loadedLangs.includes(safeLang as BundledLanguage);
     const actualLang = isLoaded ? safeLang : 'text';
 
     // Trigger on-demand load for next render if language is missing

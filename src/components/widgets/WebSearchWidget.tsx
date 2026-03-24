@@ -6,16 +6,16 @@ import {
   AlertCircle,
   Globe2,
 } from "lucide-react";
-import { extractResultContent } from "./types";
+import { extractResultContent, type ToolResult } from "./types";
 import ReactMarkdown from "react-markdown";
 import { open } from "@tauri-apps/plugin-shell";
 
 /**
  * Widget for WebSearch tool - displays web search query and results
  */
-export const WebSearchWidget: React.FC<{ 
-  query: string; 
-  result?: any;
+export const WebSearchWidget: React.FC<{
+  query: string;
+  result?: ToolResult;
 }> = ({ query, result }) => {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   

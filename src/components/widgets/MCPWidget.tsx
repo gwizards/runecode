@@ -12,13 +12,15 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useShiki, highlightCode } from "@/hooks/useShiki";
 
+import type { ToolResult } from "./types";
+
 /**
  * Widget for MCP (Model Context Protocol) tools
  */
-export const MCPWidget: React.FC<{ 
-  toolName: string; 
-  input?: any;
-  result?: any;
+export const MCPWidget: React.FC<{
+  toolName: string;
+  input?: Record<string, unknown>;
+  result?: ToolResult;
 }> = ({ toolName, input, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const highlighter = useShiki();

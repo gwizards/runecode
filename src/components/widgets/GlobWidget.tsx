@@ -3,12 +3,12 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { extractResultContent } from "./types";
+import { extractResultContent, type ToolResult } from "./types";
 
 /**
  * Widget for Glob tool
  */
-export const GlobWidget: React.FC<{ pattern: string; result?: any }> = ({ pattern, result }) => {
+export const GlobWidget: React.FC<{ pattern: string; result?: ToolResult }> = ({ pattern, result }) => {
   const { content: resultContent, isError } = extractResultContent(result);
   
   return (

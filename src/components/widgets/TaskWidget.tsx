@@ -6,14 +6,15 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ToolResult } from "./types";
 
 /**
  * Widget for Task tool - displays sub-agent task information
  */
-export const TaskWidget: React.FC<{ 
-  description?: string; 
+export const TaskWidget: React.FC<{
+  description?: string;
   prompt?: string;
-  result?: any;
+  result?: ToolResult;
 }> = ({ description, prompt, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   

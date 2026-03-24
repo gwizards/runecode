@@ -8,12 +8,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { extractResultContent } from "./types";
+import { extractResultContent, type ToolResult } from "./types";
 
 /**
  * Widget for LS (List Directory) tool
  */
-export const LSWidget: React.FC<{ path: string; result?: any }> = ({ path, result }) => {
+export const LSWidget: React.FC<{ path: string; result?: ToolResult }> = ({ path, result }) => {
   if (result) {
     const { content: resultContent } = extractResultContent(result);
     
