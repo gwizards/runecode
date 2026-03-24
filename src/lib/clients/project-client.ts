@@ -4,6 +4,7 @@
  */
 import { apiCall } from '../apiAdapter';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from '../devFallback';
+import { applyStartupToken } from '../startupToken';
 import type {
   Project,
   Session,
@@ -72,7 +73,7 @@ export async function initializeProject(
     try {
       const response = await fetch('/api/project/init', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ path: projectPath, name: projectName }),
       });
       if (!response.ok) {
@@ -209,7 +210,7 @@ export async function updateAgent(
       ).toString(),
       {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(agent),
       }
     );
@@ -234,7 +235,7 @@ export async function deleteAgent(name: string, scope?: 'user' | 'project'): Pro
         `/api/agents/${encodeURIComponent(name)}${params}`,
         window.location.origin
       ).toString(),
-      { method: 'DELETE' }
+      { method: 'DELETE', headers: applyStartupToken({}) }
     );
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
   } catch (error) {

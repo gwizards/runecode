@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, ChevronRight, FolderOpen, TerminalSquare, Globe, Cpu, MemoryStick } from 'lucide-react';
 import { useTabContext } from '@/contexts/TabContext';
@@ -46,7 +47,7 @@ export function ProjectStatsSection() {
   const { data: processData } = useQuery<{ processes: ProcessInfo[] }>({
     queryKey: ['project-processes'],
     queryFn: async () => {
-      const res = await fetch('/api/resources/processes');
+      const res = await fetch('/api/resources/processes', { headers: applyStartupToken({}) });
       return res.ok ? res.json() : { processes: [] };
     },
     refetchInterval: 3000,

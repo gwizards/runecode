@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { applyStartupToken } from '@/lib/startupToken';
 
 export interface SystemResources {
   cpuPercent: number;
@@ -41,7 +42,7 @@ async function fetchResources(): Promise<SystemResources> {
       const { invoke } = await import('@tauri-apps/api/core');
       return await invoke('get_system_resources') as SystemResources;
     }
-    const res = await fetch('/api/resources');
+    const res = await fetch('/api/resources', { headers: applyStartupToken({}) });
     if (!res.ok) throw new Error('Failed to fetch resources');
     return await res.json();
   } catch {
@@ -64,7 +65,7 @@ const emptyDocker: DockerStats = { available: false, running: 0, total: 0, total
 
 async function fetchDocker(): Promise<DockerStats> {
   try {
-    const res = await fetch('/api/resources/docker');
+    const res = await fetch('/api/resources/docker', { headers: applyStartupToken({}) });
     if (!res.ok) return emptyDocker;
     return await res.json();
   } catch {

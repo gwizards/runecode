@@ -178,6 +178,9 @@ export function EmbeddedTerminal({
             term.writeln('\r\n\x1b[31m— Terminal server failed to start. Restart RuneCode. —\x1b[0m');
             return;
           }
+          // Attach startup token for terminal server auth
+          const token = await invoke<string>('get_startup_token');
+          if (token) params.set('token', token);
         } catch {
           // fall through to window.location.host (web mode fallback)
         }

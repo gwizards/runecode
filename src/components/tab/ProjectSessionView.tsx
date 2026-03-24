@@ -1,4 +1,5 @@
 import React from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { ArrowLeft, Loader2, TerminalSquare, Globe, Server, Container, Monitor } from 'lucide-react';
 import type { RemoteEnvironment } from '@/components/settings/EnvironmentsSettings';
 import type { Project, Session, ClaudeMdFile } from '@/lib/api';
@@ -80,7 +81,7 @@ export function ProjectSessionView({
       }).catch(() => setTmuxAvailability(false));
     } else {
       // Web mode: fall back to the HTTP endpoint
-      fetch('/api/check/tmux').then(r => r.json()).then(d => {
+      fetch('/api/check/tmux', { headers: applyStartupToken({}) }).then(r => r.json()).then(d => {
         setTmuxAvailability(d.installed);
         if (d.installed) setTeammateMode(true);
       }).catch(() => setTmuxAvailability(false));

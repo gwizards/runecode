@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Blocks, RefreshCw, Loader2, ExternalLink, ChevronDown, ChevronRight, Zap, Sparkles, Search, Download } from 'lucide-react';
 import { api } from '@/lib/api';
+import { applyStartupToken } from '@/lib/startupToken';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,7 +126,7 @@ export function PluginsSettings() {
     try {
       setLoading(true);
       const [registryRes, settingsRes] = await Promise.all([
-        fetch('/api/plugins/list'),
+        fetch('/api/plugins/list', { headers: applyStartupToken({}) }),
         api.getClaudeSettings(),
       ]);
       const registry = registryRes.ok ? await registryRes.json() : [];
@@ -165,7 +166,7 @@ export function PluginsSettings() {
       // Use the CLI to install the plugin
       const res = await fetch('/api/exec-cli', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ command: `claude plugin install ${name}` }),
       });
       if (res.ok) {

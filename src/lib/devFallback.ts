@@ -10,6 +10,7 @@
  */
 
 import type { Project, Session } from './api';
+import { applyStartupToken } from './startupToken';
 
 /** True when running in the Vite dev server without a Tauri / web backend. */
 export function isDevMode(): boolean {
@@ -97,7 +98,7 @@ export async function checkBackendConnected(): Promise<boolean> {
   }
 
   try {
-    const res = await fetch('/api/projects', { method: 'GET' });
+    const res = await fetch('/api/projects', { method: 'GET', headers: applyStartupToken({}) });
     _backendStatus = res.ok;
   } catch {
     _backendStatus = false;

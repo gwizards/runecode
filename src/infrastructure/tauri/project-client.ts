@@ -1,6 +1,7 @@
 // Infrastructure client — Tauri IPC adapter for project domain
 
 import { apiCall } from '@/lib/apiAdapter';
+import { applyStartupToken } from '@/lib/startupToken';
 import { isDevMode, DEV_PROJECTS, DEV_SESSIONS } from '@/lib/devFallback';
 import type {
   Project,
@@ -71,7 +72,7 @@ export async function initializeProject(projectPath: string, projectName: string
     try {
       const response = await fetch('/api/project/init', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ path: projectPath, name: projectName }),
       });
       if (!response.ok) {

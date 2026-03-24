@@ -7,6 +7,7 @@
  *   3. projects   — browse projects / sessions
  */
 import React, { lazy } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { ArrowLeft, Loader2, TerminalSquare, Monitor, Server, Container, RefreshCw } from 'lucide-react';
 import type { RemoteEnvironment } from '@/components/settings/EnvironmentsSettings';
 import { api, type Project, type Session, type ClaudeMdFile } from '@/lib/api';
@@ -96,7 +97,7 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
       if (!env) { setClaudeCheck({ checking: false, found: false, error: 'Environment not found' }); return; }
       const res = await fetch('/api/environments/test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(env),
       });
       const data = await res.json();

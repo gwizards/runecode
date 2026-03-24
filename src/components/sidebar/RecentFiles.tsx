@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { applyStartupToken } from '@/lib/startupToken';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, ChevronRight, FileText, Clock } from 'lucide-react';
 
@@ -18,7 +19,7 @@ export function RecentFiles({ projectPath }: { projectPath?: string }) {
     queryFn: async () => {
       if (!projectPath) return [];
       try {
-        const res = await fetch(`/api/git/recent-files?path=${encodeURIComponent(projectPath)}&limit=10`);
+        const res = await fetch(`/api/git/recent-files?path=${encodeURIComponent(projectPath)}&limit=10`, { headers: applyStartupToken({}) });
         if (!res.ok) return [];
         return res.json();
       } catch { return []; }

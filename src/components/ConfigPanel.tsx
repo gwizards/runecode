@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import { useSessionConfig, type ThinkingMode, type EffortLevel, type PermissionMode } from '@/hooks/useSessionConfig';
 import { cn } from '@/lib/utils';
+import { applyStartupToken } from '@/lib/startupToken';
 
 interface ConfigPanelProps {
   onClose: () => void;
@@ -16,7 +17,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
   const { data: sdkModels } = useQuery({
     queryKey: ['sdk-models'],
     queryFn: async () => {
-      const res = await fetch('/api/models');
+      const res = await fetch('/api/models', { headers: applyStartupToken({}) });
       if (!res.ok) return [];
       return res.json();
     },

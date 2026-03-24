@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { applyStartupToken } from "@/lib/startupToken";
 import { motion, AnimatePresence } from "motion/react";
 import { Plug, Plus, Search, RefreshCw, AlertCircle } from "lucide-react";
 import { api, type MCPServer } from "@/lib/api";
@@ -49,7 +50,7 @@ export function MCPSettings() {
 
   const loadLiveStatus = async () => {
     try {
-      const res = await fetch("/api/mcp/status");
+      const res = await fetch("/api/mcp/status", { headers: applyStartupToken({}) });
       if (res.ok) {
         const data = await res.json();
         const statusMap = new Map<string, any>();

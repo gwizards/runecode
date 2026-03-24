@@ -4572,7 +4572,7 @@ dependencies = [
 
 [[package]]
 name = "runecode"
-version = "0.5.85"
+version = "0.5.86"
 dependencies = [
  "anyhow",
  "async-trait",

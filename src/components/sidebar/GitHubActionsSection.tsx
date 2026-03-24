@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, ChevronRight, GitBranch, ExternalLink, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -64,7 +65,7 @@ export function GitHubActionsSection({ projectPath }: { projectPath?: string }) 
     queryKey: ['github-actions', projectPath],
     queryFn: async () => {
       const params = projectPath ? `?path=${encodeURIComponent(projectPath)}` : '';
-      const res = await fetch(`/api/github/actions${params}`);
+      const res = await fetch(`/api/github/actions${params}`, { headers: applyStartupToken({}) });
       return res.ok ? res.json() : { runs: [] };
     },
     refetchInterval: 15000,

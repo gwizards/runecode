@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { User } from 'lucide-react';
 
 export function EnvironmentSelector() {
@@ -7,7 +8,7 @@ export function EnvironmentSelector() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/auth/status');
+        const res = await fetch('/api/auth/status', { headers: applyStartupToken({}) });
         if (res.ok) {
           const data = await res.json();
           if (data.email) setAccount({ email: data.email, organization: data.organization });

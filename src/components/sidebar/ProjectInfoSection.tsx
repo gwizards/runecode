@@ -1,5 +1,6 @@
 import { Code2, ExternalLink, GitBranch, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { applyStartupToken } from "@/lib/startupToken";
 
 interface ProjectInfo {
   name: string;
@@ -23,7 +24,7 @@ export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
     queryKey: ['project-info', projectPath],
     queryFn: async () => {
       if (!projectPath) return null;
-      const res = await fetch(`/api/project-info?path=${encodeURIComponent(projectPath)}`);
+      const res = await fetch(`/api/project-info?path=${encodeURIComponent(projectPath)}`, { headers: applyStartupToken({}) });
       if (!res.ok) return null;
       const data = await res.json();
       return {

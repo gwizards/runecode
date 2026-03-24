@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Terminal, Monitor, Server,
@@ -49,7 +50,7 @@ export function EnvironmentCard({
     try {
       const res = await fetch('/api/environments/test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(env),
       });
       if (res.ok) {

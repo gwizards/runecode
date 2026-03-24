@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { IntegrationConfig, DEFAULT_CONFIG } from '../types';
+import { applyStartupToken } from '@/lib/startupToken';
 
 export function useIntegrationConfig() {
   const queryClient = useQueryClient();
@@ -8,7 +9,7 @@ export function useIntegrationConfig() {
     queryKey: ['integrations-config'],
     queryFn: async () => {
       try {
-        const res = await fetch('/api/integrations');
+        const res = await fetch('/api/integrations', { headers: applyStartupToken({}) });
         if (!res.ok) return DEFAULT_CONFIG;
         const data = await res.json();
         // Deep merge with defaults so missing fields don't crash
@@ -36,7 +37,7 @@ export function useIntegrationConfig() {
       };
       await fetch('/api/integrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(merged),
       });
       return merged;

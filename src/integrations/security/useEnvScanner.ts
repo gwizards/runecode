@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { useSessionStore } from '../../domain/session';
 
 interface EnvScanResult {
@@ -109,7 +110,8 @@ export function useEnvScanner(projectPath: string): EnvScanResult {
     async function scanApi() {
       try {
         const res = await fetch(
-          `/api/project-info?path=${encodeURIComponent(projectPath)}`
+          `/api/project-info?path=${encodeURIComponent(projectPath)}`,
+          { headers: applyStartupToken({}) }
         );
         if (!res.ok) return;
         const data = await res.json();

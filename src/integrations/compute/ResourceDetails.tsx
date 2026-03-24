@@ -7,6 +7,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import React, { useState, useMemo } from "react";
+import { applyStartupToken } from "@/lib/startupToken";
 import { ArrowLeft, Cpu, MemoryStick, RefreshCw, FolderOpen, Container, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDockerMonitor } from "./ResourceMonitor";
@@ -36,7 +37,7 @@ export function ResourceDetails({ onBack }: { onBack: () => void }) {
   const { data, isLoading, refetch, isFetching } = useQuery<{ processes: ProcessInfo[] }>({
     queryKey: ["resource-processes"],
     queryFn: async () => {
-      const res = await fetch("/api/resources/processes");
+      const res = await fetch("/api/resources/processes", { headers: applyStartupToken({}) });
       if (!res.ok) return { processes: [] };
       return res.json();
     },

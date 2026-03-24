@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { applyStartupToken } from "@/lib/startupToken";
 import {
   X,
   Command,
@@ -37,11 +38,11 @@ async function fetchAllCommandData(projectPath: string | undefined): Promise<Com
 
   const [builtinResult, customResult, agentsResult, mcpResult, skillsResult] =
     await Promise.allSettled([
-      fetch('/api/commands/builtin').then(r => r.ok ? r.json() : null),
+      fetch('/api/commands/builtin', { headers: applyStartupToken({}) }).then(r => r.ok ? r.json() : null),
       api.slashCommandsList(projectPath),
-      fetch('/api/commands/agents').then(r => r.ok ? r.json() : null),
-      fetch('/api/commands/mcp').then(r => r.ok ? r.json() : null),
-      fetch('/api/skills').then(r => r.ok ? r.json() : null),
+      fetch('/api/commands/agents', { headers: applyStartupToken({}) }).then(r => r.ok ? r.json() : null),
+      fetch('/api/commands/mcp', { headers: applyStartupToken({}) }).then(r => r.ok ? r.json() : null),
+      fetch('/api/skills', { headers: applyStartupToken({}) }).then(r => r.ok ? r.json() : null),
     ]);
 
   if (builtinResult.status === 'fulfilled' && builtinResult.value) {

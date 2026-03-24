@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { applyStartupToken } from "@/lib/startupToken";
 import { Zap, Clock, AlertTriangle, XCircle } from "lucide-react";
 
 interface RateLimitInfo {
@@ -33,7 +34,7 @@ export function PlanUsagePanel() {
   const { data } = useQuery<PlanWindowData>({
     queryKey: ["plan-usage-panel"],
     queryFn: async () => {
-      const res = await fetch("/api/usage/window");
+      const res = await fetch("/api/usage/window", { headers: applyStartupToken({}) });
       if (!res.ok) return {} as PlanWindowData;
       return res.json();
     },

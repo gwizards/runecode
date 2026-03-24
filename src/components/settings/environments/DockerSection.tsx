@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,7 +30,7 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/docker/status');
+        const res = await fetch('/api/docker/status', { headers: applyStartupToken({}) });
         if (res.ok) setDockerStatus(await res.json());
       } catch {}
       setLoadingDocker(false);
@@ -43,7 +44,7 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
     try {
       const res = await fetch('/api/docker/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: newName.trim(), image: newImage.trim() }),
       });
       const data = await res.json();
@@ -52,7 +53,7 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
         setDockerImage(newImage.trim());
         setCreateStatus(data.claudeInstalled ? 'Created with Claude Code!' : 'Created (Claude Code install failed — you can install manually)');
         setShowCreate(false);
-        const statusRes = await fetch('/api/docker/status');
+        const statusRes = await fetch('/api/docker/status', { headers: applyStartupToken({}) });
         if (statusRes.ok) setDockerStatus(await statusRes.json());
       } else {
         setCreateStatus(`Failed: ${data.error || 'Unknown error'}`);
@@ -68,7 +69,7 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
     try {
       const res = await fetch('/api/docker/install-claude', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ container: containerName }),
       });
       const data = await res.json();

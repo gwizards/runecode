@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { applyStartupToken } from '@/lib/startupToken';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Server, Plus,
@@ -57,7 +58,7 @@ export function EnvironmentsSettings() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/auth/status');
+        const res = await fetch('/api/auth/status', { headers: applyStartupToken({}) });
         if (res.ok) {
           const data = await res.json();
           if (data.email) {
