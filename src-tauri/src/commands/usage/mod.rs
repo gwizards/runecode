@@ -11,9 +11,11 @@ use parser::get_all_usage_entries;
 use types::{ProjectUsage, UsageEntry, UsageStats};
 
 // Re-export persistence commands and migration helper (called from agents module)
+#[allow(unused_imports)]
 pub use persistence::{load_usage_ledgers, migrate_usage_ledgers_table, persist_usage_ledger};
 
 // Re-export public types used by the command registration in lib.rs / main.rs
+#[allow(unused_imports)]
 pub use types::{DailyUsage, ModelUsage};
 
 #[command]

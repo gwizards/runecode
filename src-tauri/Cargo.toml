@@ -81,6 +81,8 @@ window-vibrancy = "0.5"
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+# Enable devtools in all builds (F12 / Ctrl+Shift+I)
+devtools = []
 
 [profile.release]
 strip = true

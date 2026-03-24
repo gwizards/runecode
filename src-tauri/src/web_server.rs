@@ -52,6 +52,7 @@ pub struct SessionConfig {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ClaudeExecutionRequest {
     pub project_path: String,
     pub prompt: String,

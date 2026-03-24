@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+// Fields are deserialized from the WebSocket client but may not all be read
+// by every handler. Allow dead_code to suppress warnings for future-proofed fields.
+#[allow(dead_code)]
+
 /// All message types the TypeScript client can send over the WebSocket.
 ///
 /// The `type` field is used as a serde tag (snake_case). Field names mirror
@@ -67,6 +71,7 @@ pub enum WsClientMessage {
 /// Messages the server sends back to the client.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum WsServerMessage {
     /// Streaming output line from Claude stdout.
     Output {
