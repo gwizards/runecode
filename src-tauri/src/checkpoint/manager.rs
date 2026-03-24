@@ -148,7 +148,9 @@ impl CheckpointManager {
                 .ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| {
-                    Utc.timestamp_opt(d.as_secs() as i64, d.subsec_nanos())
+                    let secs = i64::try_from(d.as_secs())
+                        .unwrap_or_else(|_| chrono::Utc::now().timestamp());
+                    Utc.timestamp_opt(secs, d.subsec_nanos())
                         .single()
                         .unwrap_or_else(Utc::now)
                 })

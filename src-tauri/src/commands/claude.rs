@@ -691,7 +691,11 @@ pub async fn get_system_prompt() -> Result<String, String> {
         return Ok(String::new());
     }
 
-    fs::read_to_string(&claude_md_path).map_err(|e| format!("Failed to read CLAUDE.md: {}", e))
+    tokio::task::spawn_blocking(move || {
+        fs::read_to_string(&claude_md_path).map_err(|e| format!("Failed to read CLAUDE.md: {}", e))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Checks if Claude Code is installed and gets its version
@@ -807,7 +811,11 @@ pub async fn save_system_prompt(content: String) -> Result<String, String> {
     let claude_dir = get_claude_dir().map_err(|e| e.to_string())?;
     let claude_md_path = claude_dir.join("CLAUDE.md");
 
-    fs::write(&claude_md_path, content).map_err(|e| format!("Failed to write CLAUDE.md: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        fs::write(&claude_md_path, content).map_err(|e| format!("Failed to write CLAUDE.md: {}", e))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     Ok("System prompt saved successfully".to_string())
 }
@@ -829,8 +837,12 @@ pub async fn save_claude_settings(settings: serde_json::Value) -> Result<String,
         return Err(format!("Settings payload too large: {} bytes (max 1 MB)", json_string.len()));
     }
 
-    fs::write(&settings_path, json_string)
-        .map_err(|e| format!("Failed to write settings file: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        fs::write(&settings_path, json_string)
+            .map_err(|e| format!("Failed to write settings file: {}", e))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     Ok("Settings saved successfully".to_string())
 }
@@ -848,8 +860,13 @@ pub async fn find_claude_md_files(project_path: String) -> Result<Vec<ClaudeMdFi
     // Guard: resolved path must be within the user's home directory
     let canonical_path = guard_path_within_home(&path)?;
 
-    let mut claude_files = Vec::new();
-    find_claude_md_recursive(&canonical_path, &canonical_path, &mut claude_files)?;
+    let mut claude_files = tokio::task::spawn_blocking(move || {
+        let mut files = Vec::new();
+        find_claude_md_recursive(&canonical_path, &canonical_path, &mut files)?;
+        Ok::<_, String>(files)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     // Sort by relative path
     claude_files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
@@ -1065,19 +1082,24 @@ pub async fn load_session_history(
         ));
     }
 
-    let file =
-        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {}", e))?;
+    let messages = tokio::task::spawn_blocking(move || {
+        let file = fs::File::open(&session_path)
+            .map_err(|e| format!("Failed to open session file: {}", e))?;
+        let reader = BufReader::new(file);
+        let mut messages = Vec::new();
 
-    let reader = BufReader::new(file);
-    let mut messages = Vec::new();
-
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
-                messages.push(json);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+                    messages.push(json);
+                }
             }
         }
-    }
+
+        Ok::<_, String>(messages)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     Ok(messages)
 }
@@ -1583,48 +1605,54 @@ pub async fn list_directory_contents(directory_path: String) -> Result<Vec<FileE
         return Err(format!("Path is not a directory: {}", directory_path));
     }
 
-    let mut entries = Vec::new();
+    let mut entries = tokio::task::spawn_blocking(move || {
+        let dir_entries =
+            fs::read_dir(&path).map_err(|e| format!("Failed to read directory: {}", e))?;
 
-    let dir_entries =
-        fs::read_dir(&path).map_err(|e| format!("Failed to read directory: {}", e))?;
+        let mut entries = Vec::new();
 
-    for entry in dir_entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-        let entry_path = entry.path();
-        let metadata = entry
-            .metadata()
-            .map_err(|e| format!("Failed to read metadata: {}", e))?;
+        for entry in dir_entries {
+            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+            let entry_path = entry.path();
+            let metadata = entry
+                .metadata()
+                .map_err(|e| format!("Failed to read metadata: {}", e))?;
 
-        // Skip hidden files/directories unless they are .claude directories
-        if let Some(name) = entry_path.file_name().and_then(|n| n.to_str()) {
-            if name.starts_with('.') && name != ".claude" {
-                continue;
+            // Skip hidden files/directories unless they are .claude directories
+            if let Some(name) = entry_path.file_name().and_then(|n| n.to_str()) {
+                if name.starts_with('.') && name != ".claude" {
+                    continue;
+                }
             }
+
+            let name = entry_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+
+            let extension = if metadata.is_file() {
+                entry_path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.to_string())
+            } else {
+                None
+            };
+
+            entries.push(FileEntry {
+                name,
+                path: entry_path.to_string_lossy().to_string(),
+                is_directory: metadata.is_dir(),
+                size: metadata.len(),
+                extension,
+            });
         }
 
-        let name = entry_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_string();
-
-        let extension = if metadata.is_file() {
-            entry_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(|e| e.to_string())
-        } else {
-            None
-        };
-
-        entries.push(FileEntry {
-            name,
-            path: entry_path.to_string_lossy().to_string(),
-            is_directory: metadata.is_dir(),
-            size: metadata.len(),
-            extension,
-        });
-    }
+        Ok::<_, String>(entries)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     // Sort: directories first, then files, alphabetically within each group
     entries.sort_by(|a, b| match (a.is_directory, b.is_directory) {
@@ -1665,9 +1693,16 @@ pub async fn search_files(base_path: String, query: String) -> Result<Vec<FileEn
     log::debug!("Resolved search base path: {:?}", canonical_path);
 
     let query_lower = query.to_lowercase();
-    let mut results = Vec::new();
 
-    search_files_recursive(&canonical_path, &canonical_path, &query_lower, &mut results, 0)?;
+    let mut results = tokio::task::spawn_blocking(move || {
+        let mut results = Vec::new();
+        search_files_recursive(&canonical_path, &canonical_path, &query_lower, &mut results, 0)?;
+        Ok::<_, String>(results)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let query_lower = query.to_lowercase();
 
     // Sort by relevance: exact matches first, then by name
     results.sort_by(|a, b| {
@@ -1877,8 +1912,12 @@ pub async fn restore_checkpoint(
         .load_checkpoint(&result.checkpoint.project_id, &session_id, &checkpoint_id)
         .map_err(|e| format!("Failed to load checkpoint data: {}", e))?;
 
-    fs::write(&session_path, messages)
-        .map_err(|e| format!("Failed to update session file: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        fs::write(&session_path, messages)
+            .map_err(|e| format!("Failed to update session file: {}", e))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     Ok(result)
 }

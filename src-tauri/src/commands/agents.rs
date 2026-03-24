@@ -168,6 +168,11 @@ impl AgentRunMetrics {
 
 /// Read JSONL content from a session file
 pub async fn read_session_jsonl(session_id: &str, project_path: &str) -> Result<String, String> {
+    // Validate session_id to prevent filename injection
+    if !session_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') || session_id.len() > 128 {
+        return Err(format!("Invalid session_id: {}", session_id));
+    }
+
     let claude_dir = dirs::home_dir()
         .ok_or("Failed to get home directory")?
         .join(".claude")
@@ -694,7 +699,8 @@ pub async fn execute_agent(
 ) -> Result<i64, String> {
     info!("Executing agent {} with task: {}", agent_id, task);
 
-    crate::commands::claude::guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
+    let canonical_project_path = crate::commands::claude::guard_path_within_home(&std::path::PathBuf::from(&project_path))?;
+    let project_path = canonical_project_path.to_string_lossy().into_owned();
 
     // Get the agent from database
     let agent = get_agent(db.clone(), agent_id).await?;
@@ -1658,13 +1664,13 @@ pub async fn export_agent_to_file(
     id: i64,
     file_path: String,
 ) -> Result<(), String> {
-    crate::commands::claude::guard_path_within_home(&std::path::PathBuf::from(&file_path))?;
+    let canonical_file_path = crate::commands::claude::guard_path_within_home(&std::path::PathBuf::from(&file_path))?;
 
     // Get the JSON data
     let json_data = export_agent(db, id).await?;
 
     // Write to file
-    std::fs::write(&file_path, json_data).map_err(|e| format!("Failed to write file: {}", e))?;
+    std::fs::write(&canonical_file_path, json_data).map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
 }
@@ -1874,9 +1880,11 @@ pub async fn import_agent_from_file(
     db: State<'_, AgentDb>,
     file_path: String,
 ) -> Result<Agent, String> {
+    let canonical_file_path =
+        crate::commands::claude::guard_path_within_home(&std::path::PathBuf::from(&file_path))?;
     // Read the file
-    let mut json_data =
-        std::fs::read_to_string(&file_path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let mut json_data = std::fs::read_to_string(&canonical_file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
 
     // Normalize potential BOM and whitespace issues
     if json_data.starts_with('\u{feff}') {

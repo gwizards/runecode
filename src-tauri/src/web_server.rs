@@ -1344,8 +1344,14 @@ async fn interrupt_session_process(state: &AppState, ws_session_id: &str) {
         // Spawn a watchdog that escalates to SIGKILL after 3 s.
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(3)).await;
-            unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
-            warn!("[WS] SIGKILL sent to PID {} (escalation after timeout)", pid);
+            // Only escalate if the process is still alive (signal 0 = existence check).
+            let still_alive = unsafe { libc::kill(pid as libc::pid_t, 0) } == 0;
+            if still_alive {
+                unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
+                warn!("[WS] SIGKILL sent to PID {} (escalation after timeout)", pid);
+            } else {
+                debug!("[WS] PID {} already exited; skipping SIGKILL", pid);
+            }
         });
     }
 

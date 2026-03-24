@@ -69,7 +69,7 @@ class AnalyticsService {
     try {
       const token = this.config.apiKey;
       if (!token || token === '' || token === 'undefined') {
-        console.log('[Analytics] Skipping PostHog init: no valid API key');
+        console.debug('[Analytics] Skipping PostHog init: no valid API key');
         return;
       }
 
@@ -78,7 +78,7 @@ class AnalyticsService {
         typeof window !== 'undefined' &&
         (!tauriInternals || tauriInternals.__WEB_MODE_MOCK__);
       if (isWebMode) {
-        console.log('[Analytics] Skipping PostHog init: running in web mode');
+        console.debug('[Analytics] Skipping PostHog init: running in web mode');
         return;
       }
 

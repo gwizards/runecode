@@ -62,7 +62,7 @@ export function useApiCall<T>(
         setData(result);
         
         if (showSuccessToast) {
-          console.log('Success:', successMessage);
+          console.debug('Success:', successMessage);
         }
 
         onSuccess?.(result);
