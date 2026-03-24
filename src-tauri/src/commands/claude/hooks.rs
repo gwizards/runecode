@@ -296,6 +296,11 @@ pub fn check_node_installed(wsl_distro: Option<String>) -> serde_json::Value {
 pub async fn install_node(app: AppHandle, wsl_distro: Option<String>) -> Result<String, String> {
     log::info!("Installing Node.js");
 
+    // Suppress unused-variable warning on non-Windows targets where the
+    // cfg(target_os = "windows") block is compiled out entirely.
+    #[cfg(not(target_os = "windows"))]
+    let _ = &wsl_distro;
+
     #[cfg(target_os = "windows")]
     {
         // WSL path: install nvm + Node 22 inside the distro

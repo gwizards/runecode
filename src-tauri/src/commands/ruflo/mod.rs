@@ -50,29 +50,8 @@ fn wsl_command(program: &str, args: &[&str], wsl_distro: Option<&str>) -> std::p
         return cmd;
     }
 
-    let mut cmd = crate::claude_binary::create_command_with_env(program);
-    for arg in args {
-        cmd.arg(arg);
-    }
-    cmd
-}
-
-/// Like `wsl_command` but accepts owned String args (for use in closures that
-/// move owned data). Returns the fully-built Command.
-fn wsl_command_owned(
-    program: &str,
-    args: &[String],
-    wsl_distro: Option<&str>,
-) -> std::process::Command {
-    #[cfg(target_os = "windows")]
-    if let Some(distro) = wsl_distro {
-        let mut cmd = crate::claude_binary::create_command_with_env("wsl");
-        cmd.arg("-d").arg(distro).arg("--").arg(program);
-        for arg in args {
-            cmd.arg(arg);
-        }
-        return cmd;
-    }
+    // Suppress unused-variable warning on non-Windows where the cfg block is compiled out
+    let _ = wsl_distro;
 
     let mut cmd = crate::claude_binary::create_command_with_env(program);
     for arg in args {

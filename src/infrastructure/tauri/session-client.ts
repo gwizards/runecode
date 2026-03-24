@@ -31,9 +31,18 @@ function windowsToWslPath(winPath: string): string {
  * @param path - Optional path to open the session in
  * @returns Promise resolving when the session is opened
  */
+/** Helper: returns the WSL distro parameter when WSL mode is active. */
+function wslParam(): { wslDistro?: string } {
+  if (isWslMode()) {
+    const distro = getWslDistro();
+    if (distro) return { wslDistro: distro };
+  }
+  return {};
+}
+
 export async function openNewSession(path?: string): Promise<string> {
   try {
-    return await apiCall<string>('open_new_session', { path });
+    return await apiCall<string>('open_new_session', { path, ...wslParam() });
   } catch (error) {
     console.error('Failed to open new session:', error);
     throw error;
