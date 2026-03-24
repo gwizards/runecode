@@ -52,7 +52,7 @@ export async function listProjects(): Promise<Project[]> {
  */
 export async function createProject(path: string): Promise<Project> {
   try {
-    return await apiCall<Project>('create_project', { path });
+    return await apiCall<Project>('create_project', { path, ...wslParam() });
   } catch (error) {
     console.error('Failed to create project:', error);
     throw error;

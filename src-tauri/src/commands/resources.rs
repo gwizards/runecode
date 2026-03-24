@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use sysinfo::System;
+use sysinfo::{Disks, System};
 
 /// Minimum interval between sysinfo refreshes — prevents latency spikes on rapid IPC calls.
 const REFRESH_TTL: Duration = Duration::from_secs(2);
@@ -9,6 +9,7 @@ const REFRESH_TTL: Duration = Duration::from_secs(2);
 /// Cached system info: the sysinfo handle plus the timestamp of the last refresh.
 struct CachedSystem {
     sys: System,
+    disks: Disks,
     last_refresh: Instant,
 }
 
@@ -16,8 +17,10 @@ static SYSTEM: once_cell::sync::Lazy<Mutex<CachedSystem>> =
     once_cell::sync::Lazy::new(|| {
         let mut sys = System::new_all();
         sys.refresh_all();
+        let disks = Disks::new_with_refreshed_list();
         Mutex::new(CachedSystem {
             sys,
+            disks,
             last_refresh: Instant::now(),
         })
     });
@@ -32,6 +35,12 @@ pub struct SystemResources {
     ram_used_gb: f32,
     #[serde(rename = "ramTotalGb")]
     ram_total_gb: f32,
+    #[serde(rename = "diskPercent")]
+    disk_percent: f32,
+    #[serde(rename = "diskUsedGb")]
+    disk_used_gb: f32,
+    #[serde(rename = "diskTotalGb")]
+    disk_total_gb: f32,
 }
 
 #[tauri::command]
@@ -42,10 +51,10 @@ pub fn get_system_resources() -> Result<SystemResources, String> {
     };
 
     // Only refresh sysinfo if the cached data is older than REFRESH_TTL (2 s).
-    // This prevents repeated expensive kernel calls on rapid successive IPC requests.
     if cache.last_refresh.elapsed() >= REFRESH_TTL {
         cache.sys.refresh_cpu_usage();
         cache.sys.refresh_memory();
+        cache.disks.refresh(true);
         cache.last_refresh = Instant::now();
     }
 
@@ -58,10 +67,28 @@ pub fn get_system_resources() -> Result<SystemResources, String> {
         0.0
     };
 
+    // Sum disk space across all mounted disks
+    let mut total_disk: u64 = 0;
+    let mut used_disk: u64 = 0;
+    for disk in cache.disks.list() {
+        total_disk += disk.total_space();
+        used_disk += disk.total_space() - disk.available_space();
+    }
+    let disk_total = total_disk as f64;
+    let disk_used = used_disk as f64;
+    let disk_percent = if disk_total > 0.0 {
+        (disk_used / disk_total * 100.0) as f32
+    } else {
+        0.0
+    };
+
     Ok(SystemResources {
         cpu_percent,
         ram_percent,
         ram_used_gb: (used_memory / 1_073_741_824.0) as f32,
         ram_total_gb: (total_memory / 1_073_741_824.0) as f32,
+        disk_percent,
+        disk_used_gb: (disk_used / 1_073_741_824.0) as f32,
+        disk_total_gb: (disk_total / 1_073_741_824.0) as f32,
     })
 }

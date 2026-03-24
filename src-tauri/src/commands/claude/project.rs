@@ -242,10 +242,43 @@ pub async fn list_projects(wsl_distro: Option<String>) -> Result<Vec<Project>, S
     .map_err(|e| e.to_string())?
 }
 
-/// Creates a new project for the given directory path
+/// Creates a new project for the given directory path.
+/// When `wsl_distro` is provided, creates the project inside WSL's ~/.claude/projects/.
 #[tauri::command]
-pub async fn create_project(path: String) -> Result<Project, String> {
-    log::info!("Creating project for path: {}", path);
+pub async fn create_project(path: String, wsl_distro: Option<String>) -> Result<Project, String> {
+    log::info!("Creating project for path: {} (wsl: {:?})", path, wsl_distro);
+
+    // In WSL mode, create project dir inside WSL and return immediately
+    #[cfg(target_os = "windows")]
+    if let Some(ref distro) = wsl_distro {
+        let project_id = path.replace('/', "-");
+        // Trim leading dash from Linux paths like /home/user → -home-user
+        let project_id = project_id.trim_start_matches('-').to_string();
+        let d = distro.clone();
+        let pid = project_id.clone();
+        let p = path.clone();
+        let now = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        tokio::task::spawn_blocking(move || {
+            let script = format!("mkdir -p ~/.claude/projects/{}", pid);
+            crate::claude_binary::silent_command("wsl")
+                .args(["-d", &d, "--", "bash", "-lc", &script])
+                .output()
+                .ok();
+        }).await.map_err(|e| e.to_string())?;
+
+        return Ok(Project {
+            id: project_id,
+            path: p,
+            sessions: Vec::new(),
+            created_at: now,
+            most_recent_session: None,
+        });
+    }
+    let _ = &wsl_distro;
 
     guard_path_within_home(&PathBuf::from(&path))?;
 
