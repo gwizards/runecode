@@ -17,6 +17,7 @@ import { api, type Agent } from '@/lib/api';
 import { GitHubAgentBrowser } from '@/components/GitHubAgentBrowser';
 import { CreateAgent } from '@/components/CreateAgent';
 import { useTabState } from '@/hooks/useTabState';
+import { readAgentImportFile, exportAgentToFile } from '@/infrastructure/tauri/agent-client';
 
 export const Agents: React.FC = () => {
   const [activeTab, setActiveTab] = useState('agents');
@@ -139,9 +140,8 @@ export const Agents: React.FC = () => {
       });
 
       if (selected) {
-        // importAgentFromFile no longer exists; read file via invoke and use importAgent
-        const { invoke } = await import('@tauri-apps/api/core');
-        const content = await invoke<string>('read_text_file', { path: selected as string });
+        // importAgentFromFile no longer exists; read file via agent-client and use importAgent
+        const content = await readAgentImportFile(selected as string);
         const importedAgent = await api.importAgent(content, 'user');
         setToast({ message: `Imported agent: ${importedAgent.name}`, type: 'success' });
         loadAgents();
@@ -160,7 +160,6 @@ export const Agents: React.FC = () => {
         return;
       }
       const { save } = await import('@tauri-apps/plugin-dialog');
-      const { invoke } = await import('@tauri-apps/api/core');
       const path = await save({
         defaultPath: `${agent.name.toLowerCase().replace(/\s+/g, '-')}.runecode.json`,
         filters: [
@@ -169,7 +168,7 @@ export const Agents: React.FC = () => {
       });
 
       if (path && agent.name) {
-        await invoke('export_agent_to_file', { id: agent.name, filePath: path });
+        await exportAgentToFile(agent.name, path);
         setToast({ message: `Exported agent: ${agent.name}`, type: 'success' });
       }
     } catch (error) {

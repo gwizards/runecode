@@ -10,6 +10,7 @@ pub mod terminal_server;
 pub mod web_server;
 pub mod ws_types;
 
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()

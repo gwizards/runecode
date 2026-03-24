@@ -9,7 +9,7 @@
 
 import type { DomainEvent } from '../shared/event-bus';
 import { ProjectId } from '../shared/project-id';
-import { UserId } from '../identity/types';
+import { UserId } from '../shared/user-id';
 import { Result, Ok, Err } from '../shared/result';
 import {
   makeConsentGranted,
@@ -19,7 +19,7 @@ import {
 // ─── Re-exports from shared kernel ────────────────────────────────────────────
 
 export { ProjectId } from '../shared/project-id';
-export { UserId } from '../identity/types';
+export { UserId } from '../shared/user-id';
 
 // ─── SessionId (aliased from session context) ─────────────────────────────────
 

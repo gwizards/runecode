@@ -180,3 +180,18 @@ grep -rn "readonly _brand" src/domain --include="*.ts" | grep -v "\.test\."
 - Task 003: Class VO migration (9 ID types across 6 contexts)
 - Task 004: ProjectId VO consolidation + shared kernel
 - Task 005: Identity VO hardening + fromSnapshot()
+
+## §6 Codec / Algorithmic Exception
+
+Mathematical pre-condition violations in codec and quantizer code MAY throw
+rather than returning `Result<T>`:
+
+- `src/domain/shared/quantization.ts` — dimension mismatch, unknown codec codes
+- `src/domain/ruflo/quantization.ts` — untrained codebook, K-means convergence invariants
+
+**Rationale:** These are programmer errors (mismatched codec versions, calling encode before train),
+not user-input errors. Throwing is idiomatic for pre-condition violations in mathematical code.
+These files MUST NOT accept external user input directly without prior validation at the boundary.
+
+**Enforcement:** `grep "throw new Error" src/domain/shared/quantization.ts src/domain/ruflo/quantization.ts`
+is expected to return results; this is explicitly allowed. All other domain files must remain throw-free.

@@ -1,6 +1,6 @@
 /**
  * API Adapter - Compatibility layer for Tauri vs Web environments
- * 
+ *
  * This module detects whether we're running in Tauri (desktop app) or web browser
  * and provides a unified interface that switches between:
  * - Tauri invoke calls (for desktop)
@@ -8,6 +8,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { applyStartupToken } from './startupToken';
 
 // Persistent WebSocket connections per session tab
 const sessionSockets = new Map<string, WebSocket>();
@@ -362,9 +363,9 @@ async function restApiCall<T>(endpoint: string, params?: any): Promise<T> {
   try {
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: {
+      headers: applyStartupToken({
         'Content-Type': 'application/json',
-      },
+      }),
     });
 
     if (!response.ok) {
@@ -471,7 +472,7 @@ export async function apiCall<T>(command: string, params?: any): Promise<T> {
     try {
       const response = await fetch(new URL(endpoint, window.location.origin).toString(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: applyStartupToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(params),
       });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);

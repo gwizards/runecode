@@ -12,7 +12,7 @@ import {
   makeUsageRecordAdded,
   makeUsageLedgerSealed,
 } from './events';
-import { UserId } from '../identity/types';
+import { UserId } from '../shared/user-id';
 import { SessionId } from '../shared/session-id';
 import { ProjectId } from '../shared/project-id';
 

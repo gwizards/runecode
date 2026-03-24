@@ -104,6 +104,8 @@ pub struct AppState {
         Arc<Mutex<std::collections::HashMap<String, SessionConfig>>>,
     // Checkpoint state for managing checkpoint managers per session
     pub checkpoint_state: CheckpointState,
+    // Startup secret used to authenticate requests from the frontend.
+    pub startup_secret: String,
 }
 
 /// Runtime-mutable configuration for a single WS session.
@@ -983,8 +985,26 @@ async fn get_claude_session_output(Path(session_id): Path<String>) -> Json<ApiRe
 }
 
 /// WebSocket handler for Claude execution with streaming output
-async fn claude_websocket(ws: WebSocketUpgrade, AxumState(state): AxumState<AppState>) -> Response {
+async fn claude_websocket(
+    ws: WebSocketUpgrade,
+    headers: axum::http::HeaderMap,
+    AxumState(state): AxumState<AppState>,
+) -> impl IntoResponse {
+    // Validate Origin header — reject cross-site WebSocket connections.
+    // Tauri webviews send no Origin; browser connections must be localhost.
+    let origin = headers
+        .get(axum::http::header::ORIGIN)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !origin.is_empty()
+        && !origin.starts_with("http://localhost")
+        && !origin.starts_with("http://127.0.0.1")
+        && !origin.starts_with("tauri://")
+    {
+        return (axum::http::StatusCode::FORBIDDEN, "Origin not allowed").into_response();
+    }
     ws.on_upgrade(move |socket| claude_websocket_handler(socket, state))
+        .into_response()
 }
 
 async fn claude_websocket_handler(socket: WebSocket, state: AppState) {
@@ -3124,6 +3144,33 @@ async fn search_files_handler(
     }))
 }
 
+/// Middleware that enforces the startup token on all HTTP routes except health checks
+/// and WebSocket upgrade paths (the latter has its own Origin check).
+async fn require_startup_token(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    headers: axum::http::HeaderMap,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let path = request.uri().path().to_owned();
+    // Health check and WS upgrade paths are exempt — WS has its own Origin check.
+    if path == "/api/health" || path.starts_with("/ws/") {
+        return next.run(request).await;
+    }
+    let token = headers
+        .get("x-startup-token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if token != state.startup_secret {
+        return (
+            axum::http::StatusCode::UNAUTHORIZED,
+            axum::Json(serde_json::json!({"error": "Unauthorized"})),
+        )
+            .into_response();
+    }
+    next.run(request).await
+}
+
 /// Create the web server
 pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let checkpoint_state = CheckpointState::new();
@@ -3133,11 +3180,15 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
     let claude_dir = std::path::PathBuf::from(&home_for_cp).join(".claude");
     checkpoint_state.set_claude_dir(claude_dir).await;
 
+    let startup_secret = uuid::Uuid::new_v4().to_string();
+    info!("Web server startup secret generated (first 8 chars: {}...)", &startup_secret[..8]);
+
     let state = AppState {
         active_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
         active_pids: Arc::new(Mutex::new(std::collections::HashMap::new())),
         session_config: Arc::new(Mutex::new(std::collections::HashMap::new())),
         checkpoint_state,
+        startup_secret: startup_secret.clone(),
     };
 
     // CORS layer — restrict to localhost origins to prevent cross-origin attacks.
@@ -3372,6 +3423,10 @@ pub async fn create_web_server(port: u16) -> Result<(), Box<dyn std::error::Erro
         // Serve embedded frontend assets with SPA fallback
         .fallback(serve_frontend)
         .layer(cors)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            require_startup_token,
+        ))
         .with_state(state);
 
     // Bind to localhost only by default to prevent unauthenticated LAN access.

@@ -10,8 +10,8 @@
 
 import { Result, Ok, Err } from '../shared/result';
 import type { DomainEvent } from '../shared/event-bus';
-import { SessionId } from '../session';
-import { ProjectId } from '../project/types';
+import { SessionId } from '../shared/session-id';
+import { ProjectId } from '../shared/project-id';
 import {
   makeTabOpened,
   makeTabClosed,

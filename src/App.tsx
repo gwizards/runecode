@@ -5,6 +5,7 @@ import { Bot, FolderCode, Loader2 } from "lucide-react";
 import { RotatingRune } from "./components/RuneCodeLogo";
 import { api, type Project, type Session, type ClaudeMdFile } from "@/lib/api";
 import { initializeWebMode } from "@/lib/apiAdapter";
+import { initStartupToken } from "@/lib/startupToken";
 import { isDevMode, checkBackendConnected } from "@/lib/devFallback";
 import { OutputCacheProvider } from "@/lib/outputCache";
 import { TabProvider } from "@/contexts/TabContext";
@@ -622,6 +623,10 @@ function App() {
   useEffect(() => {
     let timer: number | undefined;
     (async () => {
+      // Fetch the startup secret token early so all subsequent HTTP calls
+      // to the local embedded web server carry the X-Startup-Token header.
+      await initStartupToken();
+
       try {
         const pref = await api.getSetting('startup_intro_enabled');
         const enabled = pref === null ? true : pref === 'true';

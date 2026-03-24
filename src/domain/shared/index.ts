@@ -2,6 +2,8 @@ export { DomainEventBus, globalEventBus } from './event-bus';
 export type { DomainEvent, EventHandler } from './event-bus';
 
 export { ProjectId } from './project-id';
+export { SessionId } from './session-id';
+export { UserId } from './user-id';
 
 export { Ok, Err, unwrap, mapResult, mapErr, flatMap, tryResult } from './result';
 export type { Result } from './result';

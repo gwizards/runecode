@@ -408,6 +408,11 @@ fn main() {
             // Initialize Claude process state
             app.manage(ClaudeProcessState::default());
 
+            // Generate and manage the startup secret for frontend authentication.
+            let startup_secret = uuid::Uuid::new_v4().to_string();
+            startup_log!("Startup secret generated (first 8 chars: {}...)", &startup_secret[..8]);
+            app.manage(commands::claude::StartupSecret(startup_secret));
+
             // Start the embedded terminal WebSocket server.
             // Binds to 127.0.0.1:0 (OS-assigned ephemeral port) so it never
             // conflicts with other services.  The frontend retrieves the port
@@ -625,6 +630,8 @@ fn main() {
             // Terminal server
             get_terminal_port,
             get_system_info,
+            // Startup token
+            crate::commands::claude::get_startup_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application"); // safe: top-level entry point, process must abort on runtime failure

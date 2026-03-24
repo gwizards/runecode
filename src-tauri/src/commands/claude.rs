@@ -2754,6 +2754,18 @@ pub async fn install_claude_code(app: AppHandle) -> Result<String, String> {
     }
 }
 
+/// Holds the per-process startup secret used to authenticate frontend HTTP requests.
+/// Managed as Tauri state so the frontend can retrieve it via `get_startup_token`.
+pub struct StartupSecret(pub String);
+
+/// Exposes the per-session startup secret to the frontend so it can authenticate
+/// HTTP requests it makes to any embedded web service endpoints.
+#[tauri::command]
+pub async fn get_startup_token(app: tauri::AppHandle) -> Result<String, String> {
+    let state = app.state::<StartupSecret>();
+    Ok(state.0.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

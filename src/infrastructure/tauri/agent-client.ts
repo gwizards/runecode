@@ -193,3 +193,27 @@ export async function importAgentFromGitHub(downloadUrl: string): Promise<Agent>
     throw error;
   }
 }
+
+/**
+ * Reads the text content of a file chosen by the user for agent import.
+ * Delegates to the Tauri `read_text_file` command rather than calling invoke
+ * directly from UI components.
+ * @param filePath - Absolute path to the file to read
+ * @returns Promise resolving to the file contents as a string
+ */
+export async function readAgentImportFile(filePath: string): Promise<string> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<string>('read_text_file', { path: filePath });
+}
+
+/**
+ * Exports an agent to a file at the specified path via Tauri.
+ * Delegates to the Tauri `export_agent_to_file` command rather than calling
+ * invoke directly from UI components.
+ * @param agentId - The agent name/id to export
+ * @param filePath - Absolute destination path chosen by the user
+ */
+export async function exportAgentToFile(agentId: string, filePath: string): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<void>('export_agent_to_file', { id: agentId, filePath });
+}
