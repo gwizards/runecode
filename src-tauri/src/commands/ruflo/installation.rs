@@ -31,15 +31,22 @@ pub async fn check_ruflo_installed(wsl_distro: Option<String>) -> RuFloStatus {
         tokio::task::spawn_blocking(move || {
             let wsl = wsl_distro.as_deref();
 
-            // npx --no-install: don't download if not cached, just check presence
-            // wsl_command() strips .cmd suffix when routing through WSL.
-            let output = wsl_command(
-                npx_cmd(),
-                &["--no-install", "@claude-flow/cli", "--version"],
-                wsl,
-            )
-            .output()
-            .ok();
+            // Check if claude-flow CLI is installed.
+            // In WSL mode, use `claude-flow --version` directly (finds global npm installs).
+            // On native Windows, use `npx --no-install` which checks the local cache.
+            let output = if wsl.is_some() {
+                wsl_command("claude-flow", &["--version"], wsl)
+                    .output()
+                    .ok()
+            } else {
+                wsl_command(
+                    npx_cmd(),
+                    &["--no-install", "@claude-flow/cli", "--version"],
+                    wsl,
+                )
+                .output()
+                .ok()
+            };
 
             let installed = output.as_ref().map(|o| o.status.success()).unwrap_or(false);
 

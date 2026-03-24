@@ -43,11 +43,17 @@ fn wsl_command(program: &str, args: &[&str], wsl_distro: Option<&str>) -> std::p
     if let Some(distro) = wsl_distro {
         // Inside WSL, .cmd extensions don't exist — strip them.
         let prog = program.strip_suffix(".cmd").unwrap_or(program);
-        let mut cmd = crate::claude_binary::create_command_with_env("wsl");
-        cmd.arg("-d").arg(distro).arg("--").arg(prog);
-        for arg in args {
-            cmd.arg(arg);
-        }
+        // Use bash -lc to ensure login shell loads nvm/PATH properly.
+        // Direct `wsl -- npx` won't find nvm-managed binaries.
+        let full_cmd = if args.is_empty() {
+            prog.to_string()
+        } else {
+            format!("{} {}", prog, args.iter().map(|a| {
+                if a.contains(' ') { format!("\"{}\"", a) } else { a.to_string() }
+            }).collect::<Vec<_>>().join(" "))
+        };
+        let mut cmd = crate::claude_binary::silent_command("wsl");
+        cmd.arg("-d").arg(distro).arg("--").arg("bash").arg("-lc").arg(&full_cmd);
         return cmd;
     }
 
