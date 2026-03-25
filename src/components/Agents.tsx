@@ -40,18 +40,10 @@ export const Agents: React.FC = () => {
   const [showGitHubBrowser, setShowGitHubBrowser] = useState(false);
   const { createAgentTab } = useTabState();
 
-  // Load agents on mount
-  useEffect(() => {
-    loadAgents();
-    loadRunningAgents();
-  }, []);
+  useEffect(() => { loadAgents(); loadRunningAgents(); }, []);
 
-  // Refresh running agents periodically
   useEffect(() => {
-    const interval = setInterval(() => {
-      loadRunningAgents();
-    }, 3000); // Refresh every 3 seconds
-
+    const interval = setInterval(() => loadRunningAgents(), 3000);
     return () => clearInterval(interval);
   }, []);
 

@@ -75,12 +75,7 @@ export function formatCellValue(value: unknown, maxLength = 100): string {
 export function getInputType(column: ColumnInfo): string {
   const type = column.type_name.toUpperCase();
   if (type.includes("INT")) return "number";
-  if (
-    type.includes("REAL") ||
-    type.includes("FLOAT") ||
-    type.includes("DOUBLE")
-  )
-    return "number";
+  if (type.includes("REAL") || type.includes("FLOAT") || type.includes("DOUBLE")) return "number";
   if (type.includes("BOOL")) return "checkbox";
   return "text";
 }
@@ -487,21 +482,9 @@ export const SqlEditorDialog: React.FC<{
         )}
       </div>
       <DialogFooter>
-        <Button
-          variant="outline"
-          onClick={onClose}
-        >
-          Close
-        </Button>
-        <Button
-          onClick={onExecute}
-          disabled={loading || !sqlQuery.trim()}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            "Execute"
-          )}
+        <Button variant="outline" onClick={onClose}>Close</Button>
+        <Button onClick={onExecute} disabled={loading || !sqlQuery.trim()}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Execute"}
         </Button>
       </DialogFooter>
     </DialogContent>

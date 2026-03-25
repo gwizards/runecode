@@ -50,8 +50,6 @@ export interface FloatingPromptInputRef {
   addImage: (imagePath: string) => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 const FloatingPromptInputInner = (
   {
     onSend,
@@ -496,6 +494,4 @@ const FloatingPromptInputInner = (
   );
 };
 
-export const FloatingPromptInput = React.forwardRef<FloatingPromptInputRef, FloatingPromptInputProps>(
-  FloatingPromptInputInner
-);
+export const FloatingPromptInput = React.forwardRef<FloatingPromptInputRef, FloatingPromptInputProps>(FloatingPromptInputInner);
