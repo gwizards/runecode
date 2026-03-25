@@ -75,6 +75,8 @@ export const ClaudeMemoriesDropdown: React.FC<ClaudeMemoriesDropdownProps> = ({
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="w-full flex items-center justify-between p-3 hover:bg-accent/50 transition-colors"
+          aria-expanded={isOpen}
+          aria-label="Toggle CLAUDE.md memories"
         >
           <div className="flex items-center space-x-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -141,6 +143,7 @@ export const ClaudeMemoriesDropdown: React.FC<ClaudeMemoriesDropdownProps> = ({
                             e.stopPropagation();
                             onEditFile(file);
                           }}
+                          aria-label={`Edit ${file.relative_path}`}
                         >
                           <Edit2 className="h-3 w-3" />
                         </Button>

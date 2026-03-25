@@ -245,7 +245,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
                     <input ref={renameInputRef} value={renameValue} onChange={e => setRenameValue(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') { if (renameValue.trim()) { saveGridName(pseudoProjectPath!, renameValue.trim()); setGridNames(loadGridNames()); } setRenamingGrid(null); } if (e.key === 'Escape') setRenamingGrid(null); }}
                       onBlur={() => { if (renameValue.trim()) { saveGridName(pseudoProjectPath!, renameValue.trim()); setGridNames(loadGridNames()); } setRenamingGrid(null); }}
-                      className="h-6 px-2 text-xs font-medium bg-background border border-primary/40 rounded outline-none w-32" autoFocus />
+                      className="h-6 px-2 text-xs font-medium bg-background border border-primary/40 rounded outline-none w-32" autoFocus aria-label="Rename grid tab" />
                   </div>
                 );
               }
@@ -290,23 +290,24 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
       <TooltipProvider>
         <div className="flex items-center gap-0.5">
           <TooltipSimple content="Project Explorer" side="bottom">
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => { createSettingsTab(); setTimeout(() => { window.dispatchEvent(new CustomEvent('runecode:open-settings', { detail: { section: 'project-explorer' } })); }, 100); }} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"><FolderOpen className="w-3.5 h-3.5" /></motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => { createSettingsTab(); setTimeout(() => { window.dispatchEvent(new CustomEvent('runecode:open-settings', { detail: { section: 'project-explorer' } })); }, 100); }} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors" aria-label="Project Explorer"><FolderOpen className="w-3.5 h-3.5" /></motion.button>
           </TooltipSimple>
           <TooltipSimple content="Agents" side="bottom">
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => createAgentsTab()} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"><Bot className="w-3.5 h-3.5" /></motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => createAgentsTab()} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors" aria-label="Agents"><Bot className="w-3.5 h-3.5" /></motion.button>
           </TooltipSimple>
           <TooltipSimple content="System Processes" side="bottom">
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => window.dispatchEvent(new CustomEvent('open-resource-details'))} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"><Cpu className="w-3.5 h-3.5" /></motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => window.dispatchEvent(new CustomEvent('open-resource-details'))} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors" aria-label="System Processes"><Cpu className="w-3.5 h-3.5" /></motion.button>
           </TooltipSimple>
           <TooltipSimple content="Settings" side="bottom">
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => createSettingsTab()} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"><Settings className="w-3.5 h-3.5" /></motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => createSettingsTab()} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors" aria-label="Settings"><Settings className="w-3.5 h-3.5" /></motion.button>
           </TooltipSimple>
         </div>
       </TooltipProvider>
 
       <motion.button whileTap={{ scale: 0.95 }} onClick={() => window.dispatchEvent(new Event('runecode:toggle-sidebar'))}
         className={cn("flex-shrink-0 px-2 h-8 rounded-md flex items-center gap-1.5 text-xs transition-colors mr-1", "text-muted-foreground hover:text-foreground hover:bg-muted/60")}
-        title={sidebarOpen ? "Close sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}>
+        title={sidebarOpen ? "Close sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}
+        aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}>
         {sidebarOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
       </motion.button>
 

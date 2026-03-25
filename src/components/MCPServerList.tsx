@@ -263,6 +263,7 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
                 onClick={() => handleTestConnection(server.name)}
                 disabled={testingServer === server.name}
                 className="hover:bg-green-500/10 hover:text-green-600"
+                aria-label={`Test connection for ${server.name}`}
               >
                 {testingServer === server.name ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -276,6 +277,7 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
                 onClick={() => handleRemoveServer(server.name)}
                 disabled={removingServer === server.name}
                 className="hover:bg-destructive/10 hover:text-destructive"
+                aria-label={`Remove ${server.name}`}
               >
                 {removingServer === server.name ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

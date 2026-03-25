@@ -173,6 +173,7 @@ export function BrowserPanel({ tabId, initialUrl, projectName, onActivate }: Bro
             placeholder="http://localhost:3000"
             className="flex-1 px-3 py-2 rounded-lg border border-border/50 bg-background text-sm font-mono focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/20"
             autoFocus
+            aria-label="Enter project URL"
           />
           <button
             onClick={handleSubmit}
@@ -209,6 +210,7 @@ export function BrowserPanel({ tabId, initialUrl, projectName, onActivate }: Bro
           }}
           className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
           title="Reload"
+          aria-label="Reload page"
         >
           <RotateCw className="w-3.5 h-3.5" />
         </button>
@@ -222,11 +224,12 @@ export function BrowserPanel({ tabId, initialUrl, projectName, onActivate }: Bro
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               className="flex-1 px-2 py-1 rounded-md border border-border/50 bg-muted/30 text-xs font-mono focus:border-purple-500/50 focus:outline-none"
+              aria-label="Edit URL"
             />
-            <button onClick={handleSubmit} disabled={!inputValue.trim()} className="p-1 rounded-md hover:bg-emerald-500/20 text-emerald-400 transition-colors" title="Go">
+            <button onClick={handleSubmit} disabled={!inputValue.trim()} className="p-1 rounded-md hover:bg-emerald-500/20 text-emerald-400 transition-colors" title="Go" aria-label="Navigate to URL">
               <Check className="w-3.5 h-3.5" />
             </button>
-            <button onClick={() => { setInputValue(url); setIsEditing(false); }} className="p-1 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors" title="Cancel">
+            <button onClick={() => { setInputValue(url); setIsEditing(false); }} className="p-1 rounded-md hover:bg-muted/50 text-muted-foreground transition-colors" title="Cancel" aria-label="Cancel URL edit">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>

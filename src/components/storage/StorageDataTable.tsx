@@ -107,6 +107,7 @@ export const StorageDataTable: React.FC<StorageDataTableProps> = ({
                       size="icon"
                       onClick={() => onEditRow(row)}
                       className="h-6 w-6"
+                      aria-label="Edit row"
                     >
                       <Edit3 className="h-3 w-3" />
                     </Button>
@@ -115,6 +116,7 @@ export const StorageDataTable: React.FC<StorageDataTableProps> = ({
                       size="icon"
                       onClick={() => onDeleteRow(row)}
                       className="h-6 w-6 hover:text-destructive"
+                      aria-label="Delete row"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>

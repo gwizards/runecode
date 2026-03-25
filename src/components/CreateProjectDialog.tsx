@@ -103,6 +103,8 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      role="dialog"
+      aria-label="Create new project"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -127,6 +129,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
               placeholder={isWslMode() ? '/home/user/project' : '/path/to/your/project'}
               className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
               autoFocus
+              aria-label="Project directory path"
             />
             <button
               onClick={handleBrowse}
@@ -160,6 +163,7 @@ export function CreateProjectDialog({ open, onClose, onProjectCreated }: CreateP
             onChange={(e) => setProjectName(e.target.value)}
             placeholder="my-project"
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            aria-label="Project name"
           />
         </div>
 

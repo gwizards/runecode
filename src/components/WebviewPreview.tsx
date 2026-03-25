@@ -219,6 +219,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
                       size="icon"
                       onClick={onToggleMaximize}
                       className="h-7 w-7"
+                      aria-label={isMaximized ? "Exit full screen" : "Enter full screen"}
                     >
                       {isMaximized ? (
                         <Minimize2 className="h-3.5 w-3.5" />
@@ -238,6 +239,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
               size="icon"
               onClick={onClose}
               className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+              aria-label="Close preview"
             >
               <X className="h-3.5 w-3.5" />
             </Button>
@@ -254,6 +256,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
               onClick={handleGoBack}
               disabled={true} // TODO: Enable when implementing actual navigation
               className="h-8 w-8"
+              aria-label="Go back"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -263,6 +266,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
               onClick={handleGoForward}
               disabled={true} // TODO: Enable when implementing actual navigation
               className="h-8 w-8"
+              aria-label="Go forward"
             >
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -272,6 +276,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
               onClick={handleRefresh}
               disabled={isLoading}
               className="h-8 w-8"
+              aria-label="Refresh page"
             >
               <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             </Button>
@@ -280,6 +285,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
               size="icon"
               onClick={handleGoHome}
               className="h-8 w-8"
+              aria-label="Go to home page"
             >
               <Home className="h-4 w-4" />
             </Button>
@@ -302,6 +308,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
                 size="icon"
                 onClick={handleNavigate}
                 className="absolute right-1 top-1 h-6 w-6"
+                aria-label="Navigate to URL"
               >
                 <ArrowRight className="h-3 w-3" />
               </Button>

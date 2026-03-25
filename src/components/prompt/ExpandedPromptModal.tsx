@@ -53,6 +53,8 @@ export const ExpandedPromptModal: React.FC<ExpandedPromptModalProps> = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+        role="dialog"
+        aria-label="Compose prompt"
         onClick={onClose}
       >
         <motion.div
@@ -72,6 +74,7 @@ export const ExpandedPromptModal: React.FC<ExpandedPromptModalProps> = ({
                   size="icon"
                   onClick={onClose}
                   className="h-8 w-8"
+                  aria-label="Minimize prompt editor"
                 >
                   <Minimize2 className="h-4 w-4" />
                 </Button>
@@ -111,6 +114,7 @@ export const ExpandedPromptModal: React.FC<ExpandedPromptModalProps> = ({
                   disabled={!prompt.trim() || disabled}
                   size="default"
                   className="min-w-[60px]"
+                  aria-label="Send message"
                 >
                   {isLoading ? (
                     <RotatingRune size={16} className="text-primary-foreground" />

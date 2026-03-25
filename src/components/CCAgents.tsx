@@ -248,6 +248,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
                 size="icon"
                 onClick={onBack}
                 className="h-8 w-8"
+                aria-label="Go back"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>

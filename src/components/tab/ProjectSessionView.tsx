@@ -244,6 +244,7 @@ export function ProjectSessionView({
                     value={customModel}
                     onChange={(e) => setCustomModel(e.target.value)}
                     className="mt-1 w-full px-2 py-1 rounded border border-border/30 bg-background text-xs"
+                    aria-label="Select model override"
                   >
                     <option value="">Default</option>
                     <option value="sonnet">Sonnet</option>

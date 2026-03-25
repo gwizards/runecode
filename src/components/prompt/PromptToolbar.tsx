@@ -56,6 +56,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = React.memo(({
           onClick={() =>
             setOrchestrationMode(orchestrationMode === "subagents" ? "normal" : "subagents")
           }
+          aria-label="Toggle sub-agents orchestration mode"
           className={cn(
             "p-1.5 rounded-md transition-all",
             orchestrationMode === "subagents"
@@ -71,6 +72,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = React.memo(({
           onClick={() =>
             setOrchestrationMode(orchestrationMode === "team" ? "normal" : "team")
           }
+          aria-label="Toggle team orchestration mode"
           className={cn(
             "p-1.5 rounded-md transition-all",
             orchestrationMode === "team"
@@ -92,6 +94,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = React.memo(({
         <select
           value={selectedEnvId || ""}
           onChange={(e) => setSelectedEnvId(e.target.value || null)}
+          aria-label="Select execution environment"
           className={cn(
             "h-8 px-2 rounded-md border text-[10px] font-medium bg-transparent transition-all appearance-none cursor-pointer",
             selectedEnvId
@@ -137,6 +140,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = React.memo(({
         onClick={() => window.dispatchEvent(new Event("runecode:open-timeline"))}
         className="h-9 w-9 shrink-0"
         style={{ color: "var(--color-text-muted)" }}
+        aria-label="Rewind Timeline"
       >
         <GitBranch className="h-4 w-4" />
       </Button>
