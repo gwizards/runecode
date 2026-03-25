@@ -70,11 +70,11 @@ fn wrap_wsl_pty(
         args.push(wsl_path);
     }
 
-    args.push("--".to_string());
+    args.push("-e".to_string());
 
     if is_shell_mode {
         // Launch bash as a login shell inside WSL
-        args.push("bash".to_string());
+        args.push("/bin/bash".to_string());
         args.push("-l".to_string());
     } else {
         // Run claude inside WSL -- use "claude" directly since WSL has its own PATH

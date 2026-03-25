@@ -266,7 +266,7 @@ pub(super) fn create_system_command(
 /// Creates a system command that may be wrapped to run inside WSL.
 ///
 /// When `wsl_distro` is `Some(distro)` on Windows, the command is rewritten to
-/// `wsl -d <distro> --cd <wsl_path> -- <program> <args...>` so that Claude Code
+/// `wsl -d <distro> --cd <wsl_path> -e <program> <args...>` so that Claude Code
 /// executes inside the specified WSL distribution.  On non-Windows platforms or
 /// when no distro is given, the command is built normally.
 pub(crate) fn create_system_command_wsl(
@@ -297,7 +297,7 @@ pub(crate) fn maybe_wrap_wsl(
                 distro.to_string(),
                 "--cd".to_string(),
                 wsl_path.clone(),
-                "--".to_string(),
+                "-e".to_string(),
                 program.to_string(),
             ];
             wsl_args.extend(args.iter().cloned());
@@ -344,7 +344,7 @@ pub async fn check_claude_version(
                 std::time::Duration::from_secs(10),
                 tokio::task::spawn_blocking(move || {
                     crate::claude_binary::silent_command("wsl")
-                        .args(["-d", &distro_owned, "--", "claude", "--version"])
+                        .args(["-d", &distro_owned, "-e", "claude", "--version"])
                         .output()
                 }),
             )

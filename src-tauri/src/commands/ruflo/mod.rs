@@ -34,7 +34,7 @@ fn npx_cmd() -> &'static str {
 // ---------------------------------------------------------------------------
 // WSL-aware command builder.
 // When running on Windows with a WSL distro active, binaries like npm, npx,
-// and claude live inside WSL and must be invoked via `wsl -d <distro> -- <prog>`.
+// and claude live inside WSL and must be invoked via `wsl -d <distro> -e /bin/bash -lc <cmd>`.
 // On non-Windows or when wsl_distro is None, this falls back to the native
 // command using create_command_with_env (which inherits PATH/NVM).
 // ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ fn wsl_command(program: &str, args: &[&str], wsl_distro: Option<&str>) -> std::p
             }).collect::<Vec<_>>().join(" "))
         };
         let mut cmd = crate::claude_binary::silent_command("wsl");
-        cmd.arg("-d").arg(distro).arg("--").arg("bash").arg("-lc").arg(&full_cmd);
+        cmd.arg("-d").arg(distro).arg("-e").arg("/bin/bash").arg("-lc").arg(&full_cmd);
         return cmd;
     }
 

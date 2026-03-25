@@ -139,7 +139,7 @@ pub async fn validate_hook_command(
             if let Some(ref distro) = wsl_distro {
                 if !distro.is_empty() {
                     let mut cmd = crate::claude_binary::silent_command("wsl");
-                    cmd.args(["-d", distro, "--", "bash", "-n", "-c", &command]);
+                    cmd.args(["-d", distro, "-e", "/bin/bash", "-n", "-c", &command]);
                     return cmd.output();
                 }
             }

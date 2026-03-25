@@ -318,7 +318,7 @@ fn run_wsl_git(distro: &str, project_path: &str, git_args: &[&str]) -> Option<St
             .join(" ")
     );
     silent_command("wsl")
-        .args(["-d", distro, "--", "bash", "-lc", &git_cmd])
+        .args(["-d", distro, "-e", "/bin/bash", "-lc", &git_cmd])
         .output()
         .ok()
         .and_then(|output| {
@@ -347,7 +347,7 @@ echo "$s"
         shell_escape(project_path)
     );
     let output = silent_command("wsl")
-        .args(["-d", distro, "--", "bash", "-lc", &script])
+        .args(["-d", distro, "-e", "/bin/bash", "-lc", &script])
         .output()
         .ok();
     let mut stack = Vec::new();

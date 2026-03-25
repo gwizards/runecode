@@ -108,7 +108,7 @@ async fn get_home_directory_wsl(distro: &str) -> Result<String, String> {
     let d = distro.to_string();
     tokio::task::spawn_blocking(move || {
         let output = crate::claude_binary::silent_command("wsl")
-            .args(["-d", &d, "--", "bash", "-lc", "echo $HOME"])
+            .args(["-d", &d, "-e", "/bin/bash", "-lc", "echo $HOME"])
             .output()
             .map_err(|e| format!("WSL home dir: {}", e))?;
         let home = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -265,7 +265,7 @@ pub async fn create_project(path: String, wsl_distro: Option<String>) -> Result<
         tokio::task::spawn_blocking(move || {
             let script = format!("mkdir -p ~/.claude/projects/{}", pid);
             crate::claude_binary::silent_command("wsl")
-                .args(["-d", &d, "--", "bash", "-lc", &script])
+                .args(["-d", &d, "-e", "/bin/bash", "-lc", &script])
                 .output()
                 .ok();
         }).await.map_err(|e| e.to_string())?;

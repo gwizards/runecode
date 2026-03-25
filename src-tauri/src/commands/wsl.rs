@@ -115,7 +115,7 @@ pub async fn detect_wsl() -> Result<WslStatus, String> {
 
             let claude = tokio::task::spawn_blocking(move || {
                 silent_command("wsl")
-                    .args(["-d", &d_claude, "--", "which", "claude"])
+                    .args(["-d", &d_claude, "-e", "/bin/bash", "-lc", "which claude"])
                     .output()
                     .map(|o| o.status.success())
                     .unwrap_or(false)
@@ -125,7 +125,7 @@ pub async fn detect_wsl() -> Result<WslStatus, String> {
 
             let node = tokio::task::spawn_blocking(move || {
                 silent_command("wsl")
-                    .args(["-d", &d_node, "--", "which", "node"])
+                    .args(["-d", &d_node, "-e", "/bin/bash", "-lc", "which node"])
                     .output()
                     .map(|o| o.status.success())
                     .unwrap_or(false)
@@ -170,7 +170,7 @@ pub async fn wsl_execute(distro: String, command: String) -> Result<String, Stri
         // Try bash -lc first
         let output = tokio::task::spawn_blocking(move || {
             silent_command("wsl")
-                .args(["-d", &distro_clone, "--", "bash", "-lc", &command_clone])
+                .args(["-d", &distro_clone, "-e", "/bin/bash", "-lc", &command_clone])
                 .output()
         })
         .await
@@ -185,7 +185,7 @@ pub async fn wsl_execute(distro: String, command: String) -> Result<String, Stri
                 log::debug!("bash -lc failed in WSL, falling back to sh -c");
                 let output = tokio::task::spawn_blocking(move || {
                     silent_command("wsl")
-                        .args(["-d", &distro, "--", "sh", "-c", &command])
+                        .args(["-d", &distro, "-e", "/bin/sh", "-c", &command])
                         .output()
                 })
                 .await

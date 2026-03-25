@@ -3,6 +3,9 @@
 //! Extracted from `project.rs` to keep each module under 500 lines.
 //! These functions are only compiled on Windows (`#[cfg(target_os = "windows")]`).
 
+use std::io::Write;
+use std::process::Stdio;
+
 use super::{decode_project_path, Project, Session};
 
 /// Lists projects by reading ~/.claude/projects inside a WSL distribution.
@@ -13,6 +16,25 @@ use super::{decode_project_path, Project, Session};
 pub(super) async fn list_projects_wsl(distro: &str) -> Result<Vec<Project>, String> {
     let d = distro.to_string();
     tokio::task::spawn_blocking(move || {
+        let mut projects = Vec::new();
+
+        // PRIMARY: try UNC path first (fast, no shell overhead)
+        if let Some(unc_dir) = resolve_wsl_unc_projects_dir(&d) {
+            read_projects_from_dir(&unc_dir, &mut projects);
+            if !projects.is_empty() {
+                projects.sort_by(|a, b| match (a.most_recent_session, b.most_recent_session) {
+                    (Some(a_time), Some(b_time)) => b_time.cmp(&a_time),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => b.created_at.cmp(&a.created_at),
+                });
+                log::info!("UNC primary found {} projects in distro {}", projects.len(), d);
+                return Ok(projects);
+            }
+            log::info!("UNC primary returned 0 projects, falling back to wsl -e");
+        }
+
+        // FALLBACK: use `wsl -e /bin/bash -l` with stdin piping
         // Single shell invocation that outputs one line per project dir:
         //   <dir_name>|<mtime_epoch>|<session_count>|<newest_session_mtime>|<cwd_from_jsonl>
         let script = r#"
@@ -33,10 +55,25 @@ for dir in ~/.claude/projects/*/; do
   echo "${dname}|${mtime}|${count}|${newest}|${cwd}"
 done
 "#;
-        let output = crate::claude_binary::silent_command("wsl")
-            .args(["-d", &d, "--", "bash", "-lc", script])
-            .output()
-            .map_err(|e| format!("WSL list projects: {}", e))?;
+        let child = crate::claude_binary::silent_command("wsl")
+            .args(["-d", &d, "-e", "/bin/bash", "-l"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+
+        let output = match child {
+            Ok(mut child) => {
+                if let Some(ref mut stdin) = child.stdin {
+                    let _ = stdin.write_all(script.as_bytes());
+                }
+                // Drop stdin to signal EOF
+                child.stdin.take();
+                child.wait_with_output()
+                    .map_err(|e| format!("WSL list projects wait: {}", e))?
+            }
+            Err(e) => return Err(format!("WSL list projects spawn: {}", e)),
+        };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -56,7 +93,6 @@ done
         } else {
             log::info!("WSL list_projects first 500 chars: {:?}", &stdout[..500]);
         }
-        let mut projects = Vec::new();
 
         for line in stdout.lines() {
             // Skip shell startup noise — our lines always contain '|'
@@ -101,19 +137,6 @@ done
             (None, None) => b.created_at.cmp(&a.created_at),
         });
 
-        // Fallback: if wsl.exe script returned nothing, try reading via
-        // Windows UNC paths that map into the WSL filesystem.
-        if projects.is_empty() {
-            log::info!("WSL script returned 0 projects, trying UNC path fallback");
-            if let Some(unc_dir) = resolve_wsl_unc_projects_dir(&d) {
-                read_projects_from_dir(&unc_dir, &mut projects);
-                if !projects.is_empty() {
-                    projects.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-                    log::info!("UNC fallback found {} projects", projects.len());
-                }
-            }
-        }
-
         log::info!("Found {} WSL projects in distro {}", projects.len(), d);
         Ok(projects)
     })
@@ -130,6 +153,26 @@ pub(super) async fn get_project_sessions_wsl(
     let pid = project_id.to_string();
     let d = distro.to_string();
     tokio::task::spawn_blocking(move || {
+        let mut sessions = Vec::new();
+        let project_path = decode_project_path(&pid);
+
+        // PRIMARY: try UNC path first (fast, no shell overhead)
+        if let Some(unc_dir) = resolve_wsl_unc_session_dir(&d, &pid) {
+            if unc_dir.exists() {
+                sessions = read_sessions_from_unc_dir(&unc_dir, &pid, &project_path);
+                if !sessions.is_empty() {
+                    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                    log::info!(
+                        "UNC primary found {} sessions for project {} in distro {}",
+                        sessions.len(), pid, d
+                    );
+                    return Ok(sessions);
+                }
+            }
+            log::info!("UNC primary returned 0 sessions for {}, falling back to wsl -e", pid);
+        }
+
+        // FALLBACK: use `wsl -e /bin/bash -l` with stdin piping
         // Output one line per .jsonl file:
         //   <session_id>|<mtime_epoch>|<first_user_message>|<message_timestamp>|<cwd>
         let script = format!(
@@ -156,10 +199,26 @@ done
 "#,
             pid = pid
         );
-        let output = crate::claude_binary::silent_command("wsl")
-            .args(["-d", &d, "--", "bash", "-lc", &script])
-            .output()
-            .map_err(|e| format!("WSL get_project_sessions: {}", e))?;
+
+        let child = crate::claude_binary::silent_command("wsl")
+            .args(["-d", &d, "-e", "/bin/bash", "-l"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+
+        let output = match child {
+            Ok(mut child) => {
+                if let Some(ref mut stdin) = child.stdin {
+                    let _ = stdin.write_all(script.as_bytes());
+                }
+                // Drop stdin to signal EOF
+                child.stdin.take();
+                child.wait_with_output()
+                    .map_err(|e| format!("WSL get_project_sessions wait: {}", e))?
+            }
+            Err(e) => return Err(format!("WSL get_project_sessions spawn: {}", e)),
+        };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -168,8 +227,6 @@ done
 
         let raw_stdout = String::from_utf8_lossy(&output.stdout);
         let stdout = raw_stdout.replace('\r', "");
-        let mut sessions = Vec::new();
-        let project_path = decode_project_path(&pid);
 
         for line in stdout.lines() {
             // Skip empty lines and shell startup noise
@@ -207,17 +264,6 @@ done
             });
         }
 
-        // UNC fallback: if wsl.exe returned no sessions, read via Windows UNC paths
-        if sessions.is_empty() {
-            log::info!("WSL sessions script returned 0, trying UNC fallback for {}", pid);
-            if let Some(unc_dir) = resolve_wsl_unc_session_dir(&d, &pid) {
-                if unc_dir.exists() {
-                    sessions = read_sessions_from_unc_dir(&unc_dir, &pid, &project_path);
-                    log::info!("UNC fallback found {} sessions", sessions.len());
-                }
-            }
-        }
-
         sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
 
         log::info!(
@@ -245,7 +291,7 @@ done
 fn resolve_wsl_unc_projects_dir(distro: &str) -> Option<std::path::PathBuf> {
     // Get WSL home dir
     let home_output = crate::claude_binary::silent_command("wsl")
-        .args(["-d", distro, "--", "bash", "-c", "echo $HOME"])
+        .args(["-d", distro, "-e", "/bin/bash", "-c", "echo $HOME"])
         .output()
         .ok();
 
@@ -263,7 +309,7 @@ fn resolve_wsl_unc_projects_dir(distro: &str) -> Option<std::path::PathBuf> {
     // Try wslpath first (converts Linux path to Windows UNC path)
     let projects_linux = format!("{}/.claude/projects", wsl_home);
     let wslpath_output = crate::claude_binary::silent_command("wsl")
-        .args(["-d", distro, "--", "wslpath", "-w", &projects_linux])
+        .args(["-d", distro, "-e", "wslpath", "-w", &projects_linux])
         .output()
         .ok();
 

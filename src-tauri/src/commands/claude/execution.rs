@@ -151,10 +151,11 @@ async fn load_session_history_wsl(
             .args([
                 "-d",
                 &d,
-                "--",
-                "cat",
+                "-e",
+                "/bin/bash",
+                "-c",
                 &format!(
-                    "$HOME/.claude/projects/{}/{}.jsonl",
+                    "cat \"$HOME/.claude/projects/{}/{}.jsonl\"",
                     pid, sid
                 ),
             ])

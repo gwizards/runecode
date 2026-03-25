@@ -123,7 +123,7 @@ async fn list_directory_via_wsl(distro: &str, directory_path: &str) -> Result<Ve
 
     let output = tokio::task::spawn_blocking(move || {
         crate::claude_binary::silent_command("wsl")
-            .args(["-d", &distro, "--", "ls", "-la", &dir_path])
+            .args(["-d", &distro, "-e", "ls", "-la", &dir_path])
             .output()
     })
     .await
@@ -345,7 +345,7 @@ async fn search_files_via_wsl(
     let output = tokio::task::spawn_blocking(move || {
         crate::claude_binary::silent_command("wsl")
             .args([
-                "-d", &distro, "--",
+                "-d", &distro, "-e",
                 "find", &base,
                 "-maxdepth", "5",
                 "-iname", &pattern,

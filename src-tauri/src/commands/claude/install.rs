@@ -19,7 +19,7 @@ pub fn check_node_installed(wsl_distro: Option<String>) -> serde_json::Value {
     if let Some(ref distro) = wsl_distro {
         if !distro.is_empty() {
             if let Ok(output) = crate::claude_binary::silent_command("wsl")
-                .args(["-d", distro, "--", "node", "--version"])
+                .args(["-d", distro, "-e", "node", "--version"])
                 .output()
             {
                 if output.status.success() {
@@ -162,7 +162,7 @@ pub async fn install_node(app: AppHandle, wsl_distro: Option<String>) -> Result<
             if !distro.is_empty() {
                 let nvm_install_script = r#"curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash && export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm install 22"#;
                 let mut child = tokio::process::Command::new("wsl")
-                    .args(["-d", distro, "--", "bash", "-lc", nvm_install_script])
+                    .args(["-d", distro, "-e", "/bin/bash", "-lc", nvm_install_script])
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .spawn()
@@ -314,7 +314,7 @@ pub async fn install_claude_code(app: AppHandle, wsl_distro: Option<String>) -> 
     if let Some(ref distro) = wsl_distro {
         if !distro.is_empty() {
             let mut child = tokio::process::Command::new("wsl")
-                .args(["-d", distro, "--", "npm", "install", "-g", "@anthropic-ai/claude-code"])
+                .args(["-d", distro, "-e", "npm", "install", "-g", "@anthropic-ai/claude-code"])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()

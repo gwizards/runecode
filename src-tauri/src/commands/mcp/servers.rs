@@ -33,7 +33,7 @@ pub(super) async fn execute_claude_mcp_command(
             std::time::Duration::from_secs(30),
             tokio::task::spawn_blocking(move || {
                 let mut cmd = create_command_with_env("wsl");
-                cmd.arg("-d").arg(&distro_owned).arg("--").arg("claude").arg("mcp");
+                cmd.arg("-d").arg(&distro_owned).arg("-e").arg("claude").arg("mcp");
                 for arg in &args_owned {
                     cmd.arg(arg);
                 }
@@ -366,7 +366,7 @@ pub async fn mcp_serve(app: AppHandle, wsl_distro: Option<String>) -> Result<Str
     #[cfg(target_os = "windows")]
     if let Some(ref distro) = wsl_distro {
         let mut cmd = create_command_with_env("wsl");
-        cmd.arg("-d").arg(distro).arg("--").arg("claude").arg("mcp").arg("serve");
+        cmd.arg("-d").arg(distro).arg("-e").arg("claude").arg("mcp").arg("serve");
         match cmd.spawn() {
             Ok(_) => {
                 info!("Successfully started Claude Code MCP server via WSL");

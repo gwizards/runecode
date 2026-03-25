@@ -46,7 +46,7 @@ pub async fn get_docker_stats(wsl_distro: Option<String>) -> Result<DockerStats,
                     .args([
                         "-d",
                         distro,
-                        "--",
+                        "-e",
                         "docker",
                         "ps",
                         "-a",
@@ -129,7 +129,7 @@ pub async fn get_running_processes(
             #[cfg(target_os = "windows")]
             {
                 silent_command("wsl")
-                    .args(["-d", distro, "--", "ps", "aux", "--sort=-%cpu"])
+                    .args(["-d", distro, "-e", "ps", "aux", "--sort=-%cpu"])
                     .output()
             }
             #[cfg(not(target_os = "windows"))]
