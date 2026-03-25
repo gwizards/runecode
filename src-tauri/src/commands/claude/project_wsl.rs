@@ -206,19 +206,21 @@ done
             log::warn!("WSL get_project_sessions script exited with {}: {}", output.status, stderr);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let raw_stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = raw_stdout.replace('\r', "");
         let mut sessions = Vec::new();
         let project_path = decode_project_path(&pid);
 
         for line in stdout.lines() {
-            if line.is_empty() {
+            // Skip empty lines and shell startup noise
+            if line.is_empty() || !line.contains('|') {
                 continue;
             }
             let parts: Vec<&str> = line.splitn(5, '|').collect();
             if parts.is_empty() {
                 continue;
             }
-            let session_id = parts[0];
+            let session_id = parts[0].trim();
             let created_at: u64 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
             let first_message = parts
                 .get(2)
@@ -243,6 +245,72 @@ done
                 first_message,
                 message_timestamp,
             });
+        }
+
+        // UNC fallback: if wsl.exe returned no sessions, read via \\wsl$\
+        if sessions.is_empty() {
+            log::info!("WSL sessions script returned 0, trying UNC fallback for {}", pid);
+            let home_output = crate::claude_binary::silent_command("wsl")
+                .args(["-d", &d, "--", "bash", "-lc", "echo $HOME"])
+                .output()
+                .ok();
+            let wsl_home = home_output
+                .as_ref()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().replace('\r', "").to_string())
+                .unwrap_or_else(|| "/home".to_string());
+            let unc_dir = format!(
+                "\\\\wsl$\\{}{}/.claude/projects/{}",
+                d,
+                wsl_home.replace('/', "\\"),
+                pid
+            );
+            let unc_path = std::path::PathBuf::from(&unc_dir);
+            if unc_path.exists() {
+                if let Ok(entries) = std::fs::read_dir(&unc_path) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+                            let session_id = path.file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            let created_at = path.metadata()
+                                .and_then(|m| m.modified())
+                                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs();
+                            // Try to read first user message from the JSONL
+                            let first_message = std::fs::read_to_string(&path)
+                                .ok()
+                                .and_then(|content| {
+                                    content.lines().take(100).find_map(|line| {
+                                        if line.contains("\"role\"") && line.contains("\"user\"") {
+                                            // Extract content field
+                                            let start = line.find("\"content\":\"")?;
+                                            let after = &line[start + 11..];
+                                            let end = after.find('"')?;
+                                            Some(after[..end].to_string())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                });
+                            sessions.push(Session {
+                                id: session_id,
+                                project_id: pid.clone(),
+                                project_path: project_path.clone(),
+                                todo_data: None,
+                                created_at,
+                                first_message,
+                                message_timestamp: None,
+                            });
+                        }
+                    }
+                    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                    log::info!("UNC fallback found {} sessions", sessions.len());
+                }
+            }
         }
 
         sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
