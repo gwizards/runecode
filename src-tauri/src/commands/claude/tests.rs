@@ -151,3 +151,59 @@ fn test_guard_path_within_home_rejects_empty() {
     let path = PathBuf::from("");
     assert!(guard_path_within_home(&path).is_err());
 }
+
+// ─── decode_project_path tests ───────────────────────────────────────────────
+
+#[test]
+fn test_decode_project_path() {
+    assert_eq!(
+        project::decode_project_path("-home-user-project"),
+        "/home/user/project"
+    );
+    assert_eq!(
+        project::decode_project_path("-home-user-GitHub-runecode"),
+        "/home/user/GitHub/runecode"
+    );
+}
+
+#[test]
+fn test_decode_project_path_empty() {
+    assert_eq!(project::decode_project_path(""), "");
+}
+
+#[test]
+fn test_decode_project_path_no_hyphens() {
+    assert_eq!(project::decode_project_path("simple"), "simple");
+}
+
+// ─── validate_path_component tests ───────────────────────────────────────────
+
+#[test]
+fn test_validate_path_component_valid() {
+    assert!(validate_path_component("valid-name", "test").is_ok());
+    assert!(validate_path_component("abc123", "test").is_ok());
+    assert!(validate_path_component("a", "test").is_ok());
+}
+
+#[test]
+fn test_validate_path_component_empty() {
+    assert!(validate_path_component("", "test").is_err());
+}
+
+#[test]
+fn test_validate_path_component_traversal() {
+    assert!(validate_path_component("../traversal", "test").is_err());
+    assert!(validate_path_component("..%2f", "test").is_err());
+    assert!(validate_path_component("..", "test").is_err());
+}
+
+#[test]
+fn test_validate_path_component_slashes() {
+    assert!(validate_path_component("path/slash", "test").is_err());
+    assert!(validate_path_component("back\\slash", "test").is_err());
+}
+
+#[test]
+fn test_validate_path_component_null_byte() {
+    assert!(validate_path_component("null\0byte", "test").is_err());
+}

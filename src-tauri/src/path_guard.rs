@@ -26,3 +26,46 @@ pub fn require_within_home(path: &Path) -> Result<PathBuf> {
     }
     Ok(canonical)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_require_within_home_valid_path() {
+        let home = dirs::home_dir().unwrap();
+        let test_path = home.join(".claude");
+        // Only test if the path exists
+        if test_path.exists() {
+            let result = require_within_home(&test_path);
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_require_within_home_rejects_outside() {
+        let result = require_within_home(&PathBuf::from("/tmp/evil"));
+        // On most systems /tmp is not under $HOME
+        if !dirs::home_dir()
+            .map(|h| PathBuf::from("/tmp").starts_with(h))
+            .unwrap_or(false)
+        {
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn test_require_within_home_rejects_traversal() {
+        let home = dirs::home_dir().unwrap();
+        let traversal = home.join("..").join("..").join("etc").join("passwd");
+        let result = require_within_home(&traversal);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_require_within_home_nonexistent() {
+        let result = require_within_home(&PathBuf::from("/nonexistent/path/xyz"));
+        assert!(result.is_err());
+    }
+}

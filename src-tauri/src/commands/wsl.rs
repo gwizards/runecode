@@ -215,3 +215,39 @@ pub async fn install_claude_in_wsl(distro: String) -> Result<String, String> {
     )
     .await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_distro_name_valid() {
+        assert!(validate_distro_name("Ubuntu").is_ok());
+        assert!(validate_distro_name("Ubuntu-24.04").is_ok());
+        assert!(validate_distro_name("Debian").is_ok());
+        assert!(validate_distro_name("kali-linux").is_ok());
+        assert!(validate_distro_name("my_distro.v2").is_ok());
+    }
+
+    #[test]
+    fn test_validate_distro_name_empty() {
+        assert!(validate_distro_name("").is_err());
+    }
+
+    #[test]
+    fn test_validate_distro_name_too_long() {
+        let long = "a".repeat(65);
+        assert!(validate_distro_name(&long).is_err());
+        let ok = "a".repeat(64);
+        assert!(validate_distro_name(&ok).is_ok());
+    }
+
+    #[test]
+    fn test_validate_distro_name_invalid_chars() {
+        assert!(validate_distro_name("Ubuntu;rm -rf /").is_err());
+        assert!(validate_distro_name("test$(whoami)").is_err());
+        assert!(validate_distro_name("name with spaces").is_err());
+        assert!(validate_distro_name("name\nnewline").is_err());
+        assert!(validate_distro_name("path/../traversal").is_err());
+    }
+}
