@@ -5,8 +5,15 @@
 
 use std::io::Write;
 use std::process::Stdio;
+use std::sync::Mutex;
+use std::collections::HashMap;
 
 use super::{decode_project_path, Project, Session};
+
+// Cache resolved UNC paths per distro — avoids 2-3 wsl.exe calls per request
+#[cfg(target_os = "windows")]
+static UNC_CACHE: once_cell::sync::Lazy<Mutex<HashMap<String, Option<std::path::PathBuf>>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Lists projects by reading ~/.claude/projects inside a WSL distribution.
 ///
@@ -289,6 +296,24 @@ done
 /// 3. `\\wsl$\<distro>\...\` (Windows 10)
 #[cfg(target_os = "windows")]
 fn resolve_wsl_unc_projects_dir(distro: &str) -> Option<std::path::PathBuf> {
+    // Check cache first — avoids 2-3 wsl.exe spawns on each call
+    if let Ok(cache) = UNC_CACHE.lock() {
+        if let Some(cached) = cache.get(distro) {
+            return cached.clone();
+        }
+    }
+
+    let result = resolve_wsl_unc_projects_dir_uncached(distro);
+
+    // Store in cache
+    if let Ok(mut cache) = UNC_CACHE.lock() {
+        cache.insert(distro.to_string(), result.clone());
+    }
+    result
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_wsl_unc_projects_dir_uncached(distro: &str) -> Option<std::path::PathBuf> {
     // Get WSL home dir
     let home_output = crate::claude_binary::silent_command("wsl")
         .args(["-d", distro, "-e", "/bin/bash", "-c", "echo $HOME"])
@@ -413,21 +438,24 @@ pub(super) fn read_sessions_from_unc_dir(dir: &std::path::Path, project_id: &str
                     .duration_since(std::time::SystemTime::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs();
-                let first_message = std::fs::read_to_string(&path)
-                    .ok()
-                    .and_then(|content| {
-                        content.lines().take(100).find_map(|line| {
-                            if line.contains("\"role\"") && line.contains("\"user\"") {
-                                let start = line.find("\"content\":\"")?;
-                                let after = &line[start + 11..];
-                                let end = after.find('"')?;
-                                let msg = &after[..end];
-                                if msg.is_empty() { None } else { Some(msg.to_string()) }
-                            } else {
-                                None
-                            }
-                        })
-                    });
+                // Read only first 8KB — full JSONL files can be megabytes
+                // and reading them over UNC is very slow
+                let first_message = std::fs::File::open(&path).ok().and_then(|f| {
+                    use std::io::{BufRead, BufReader};
+                    let reader = BufReader::new(f);
+                    reader.lines().take(50).find_map(|line| {
+                        let line = line.ok()?;
+                        if line.contains("\"role\"") && line.contains("\"user\"") {
+                            let start = line.find("\"content\":\"")?;
+                            let after = &line[start + 11..];
+                            let end = after.find('"')?;
+                            let msg = &after[..end];
+                            if msg.is_empty() { None } else { Some(msg.to_string()) }
+                        } else {
+                            None
+                        }
+                    })
+                });
                 sessions.push(Session {
                     id: session_id,
                     project_id: project_id.to_string(),
