@@ -102,55 +102,15 @@ done
         });
 
         // Fallback: if wsl.exe script returned nothing, try reading via
-        // the \\wsl$\<distro>\ UNC path which Windows mounts automatically.
+        // Windows UNC paths that map into the WSL filesystem.
         if projects.is_empty() {
             log::info!("WSL script returned 0 projects, trying UNC path fallback");
-            // Get the WSL home directory via wsl.exe
-            let home_output = crate::claude_binary::silent_command("wsl")
-                .args(["-d", &d, "--", "bash", "-lc", "echo $HOME"])
-                .output()
-                .ok();
-            let wsl_home = home_output
-                .as_ref()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().replace('\r', "").to_string())
-                .unwrap_or_else(|| "/home".to_string());
-
-            // Convert to UNC path: /home/user → \\wsl$\Ubuntu\home\user
-            let unc_projects = format!(
-                "\\\\wsl$\\{}{}/.claude/projects",
-                d,
-                wsl_home.replace('/', "\\")
-            );
-            log::info!("Trying UNC path: {}", unc_projects);
-            let unc_path = std::path::PathBuf::from(&unc_projects);
-            if unc_path.exists() {
-                if let Ok(entries) = std::fs::read_dir(&unc_path) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.is_dir() {
-                            if let Some(dir_name) = path.file_name().and_then(|n| n.to_str()) {
-                                let decoded = decode_project_path(dir_name);
-                                let created_at = path.metadata()
-                                    .and_then(|m| m.modified().or(m.created()))
-                                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-                                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs();
-                                projects.push(Project {
-                                    id: dir_name.to_string(),
-                                    path: decoded,
-                                    sessions: Vec::new(),
-                                    created_at,
-                                    most_recent_session: None,
-                                });
-                            }
-                        }
-                    }
+            if let Some(unc_dir) = resolve_wsl_unc_projects_dir(&d) {
+                read_projects_from_dir(&unc_dir, &mut projects);
+                if !projects.is_empty() {
                     projects.sort_by(|a, b| b.created_at.cmp(&a.created_at));
                     log::info!("UNC fallback found {} projects", projects.len());
                 }
-            } else {
-                log::warn!("UNC path does not exist: {}", unc_projects);
             }
         }
 
@@ -247,67 +207,12 @@ done
             });
         }
 
-        // UNC fallback: if wsl.exe returned no sessions, read via \\wsl$\
+        // UNC fallback: if wsl.exe returned no sessions, read via Windows UNC paths
         if sessions.is_empty() {
             log::info!("WSL sessions script returned 0, trying UNC fallback for {}", pid);
-            let home_output = crate::claude_binary::silent_command("wsl")
-                .args(["-d", &d, "--", "bash", "-lc", "echo $HOME"])
-                .output()
-                .ok();
-            let wsl_home = home_output
-                .as_ref()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().replace('\r', "").to_string())
-                .unwrap_or_else(|| "/home".to_string());
-            let unc_dir = format!(
-                "\\\\wsl$\\{}{}/.claude/projects/{}",
-                d,
-                wsl_home.replace('/', "\\"),
-                pid
-            );
-            let unc_path = std::path::PathBuf::from(&unc_dir);
-            if unc_path.exists() {
-                if let Ok(entries) = std::fs::read_dir(&unc_path) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
-                            let session_id = path.file_stem()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("unknown")
-                                .to_string();
-                            let created_at = path.metadata()
-                                .and_then(|m| m.modified())
-                                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs();
-                            // Try to read first user message from the JSONL
-                            let first_message = std::fs::read_to_string(&path)
-                                .ok()
-                                .and_then(|content| {
-                                    content.lines().take(100).find_map(|line| {
-                                        if line.contains("\"role\"") && line.contains("\"user\"") {
-                                            // Extract content field
-                                            let start = line.find("\"content\":\"")?;
-                                            let after = &line[start + 11..];
-                                            let end = after.find('"')?;
-                                            Some(after[..end].to_string())
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                });
-                            sessions.push(Session {
-                                id: session_id,
-                                project_id: pid.clone(),
-                                project_path: project_path.clone(),
-                                todo_data: None,
-                                created_at,
-                                first_message,
-                                message_timestamp: None,
-                            });
-                        }
-                    }
-                    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            if let Some(unc_dir) = resolve_wsl_unc_session_dir(&d, &pid) {
+                if unc_dir.exists() {
+                    sessions = read_sessions_from_unc_dir(&unc_dir, &pid, &project_path);
                     log::info!("UNC fallback found {} sessions", sessions.len());
                 }
             }
@@ -325,4 +230,170 @@ done
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// UNC path helpers — resolve WSL filesystem paths from Windows
+// ---------------------------------------------------------------------------
+
+/// Resolves the UNC path to ~/.claude/projects inside a WSL distro.
+/// Tries multiple approaches:
+/// 1. `wsl -d <distro> -- bash -c "wslpath -w ..."` (most reliable)
+/// 2. `\\wsl.localhost\<distro>\...\` (Windows 11+)
+/// 3. `\\wsl$\<distro>\...\` (Windows 10)
+#[cfg(target_os = "windows")]
+fn resolve_wsl_unc_projects_dir(distro: &str) -> Option<std::path::PathBuf> {
+    // Get WSL home dir
+    let home_output = crate::claude_binary::silent_command("wsl")
+        .args(["-d", distro, "--", "bash", "-c", "echo $HOME"])
+        .output()
+        .ok();
+
+    let wsl_home = home_output
+        .as_ref()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().replace('\r', "").to_string())
+        .unwrap_or_default();
+
+    if wsl_home.is_empty() {
+        log::warn!("Could not get WSL home for distro {}", distro);
+        return None;
+    }
+
+    // Try wslpath first (converts Linux path to Windows UNC path)
+    let projects_linux = format!("{}/.claude/projects", wsl_home);
+    let wslpath_output = crate::claude_binary::silent_command("wsl")
+        .args(["-d", distro, "--", "wslpath", "-w", &projects_linux])
+        .output()
+        .ok();
+
+    if let Some(ref out) = wslpath_output {
+        if out.status.success() {
+            let win_path = String::from_utf8_lossy(&out.stdout).trim().replace('\r', "").to_string();
+            if !win_path.is_empty() {
+                let p = std::path::PathBuf::from(&win_path);
+                if p.exists() {
+                    log::info!("WSL UNC via wslpath: {}", win_path);
+                    return Some(p);
+                }
+            }
+        }
+    }
+
+    // Fallback: try known UNC prefixes
+    let home_win = wsl_home.trim_start_matches('/').replace('/', "\\");
+    let candidates = [
+        format!("\\\\wsl.localhost\\{}\\{}\\.claude\\projects", distro, home_win),
+        format!("\\\\wsl$\\{}\\{}\\.claude\\projects", distro, home_win),
+    ];
+
+    for c in &candidates {
+        let p = std::path::PathBuf::from(c);
+        log::info!("Trying UNC: {}", c);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    log::warn!("No UNC path found for distro {} (home={})", distro, wsl_home);
+    None
+}
+
+/// Resolves UNC path for a specific project's session directory.
+#[cfg(target_os = "windows")]
+fn resolve_wsl_unc_session_dir(distro: &str, project_id: &str) -> Option<std::path::PathBuf> {
+    resolve_wsl_unc_projects_dir(distro).map(|p| p.join(project_id))
+}
+
+/// Reads project directories from a filesystem path.
+#[cfg(target_os = "windows")]
+fn read_projects_from_dir(dir: &std::path::Path, projects: &mut Vec<Project>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(dir_name) = path.file_name().and_then(|n| n.to_str()) {
+                    let decoded = decode_project_path(dir_name);
+                    let created_at = path.metadata()
+                        .and_then(|m| m.modified().or(m.created()))
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+
+                    let mut newest = 0u64;
+                    if let Ok(files) = std::fs::read_dir(&path) {
+                        for file in files.flatten() {
+                            if file.path().extension().and_then(|e| e.to_str()) == Some("jsonl") {
+                                if let Ok(meta) = file.path().metadata() {
+                                    if let Ok(mt) = meta.modified() {
+                                        let ts = mt.duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                            .unwrap_or_default().as_secs();
+                                        if ts > newest { newest = ts; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    projects.push(Project {
+                        id: dir_name.to_string(),
+                        path: decoded,
+                        sessions: Vec::new(),
+                        created_at,
+                        most_recent_session: if newest > 0 { Some(newest) } else { None },
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Reads sessions from a project directory.
+#[cfg(target_os = "windows")]
+pub(super) fn read_sessions_from_unc_dir(dir: &std::path::Path, project_id: &str, project_path: &str) -> Vec<Session> {
+    let mut sessions = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+                let session_id = path.file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let created_at = path.metadata()
+                    .and_then(|m| m.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let first_message = std::fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|content| {
+                        content.lines().take(100).find_map(|line| {
+                            if line.contains("\"role\"") && line.contains("\"user\"") {
+                                let start = line.find("\"content\":\"")?;
+                                let after = &line[start + 11..];
+                                let end = after.find('"')?;
+                                let msg = &after[..end];
+                                if msg.is_empty() { None } else { Some(msg.to_string()) }
+                            } else {
+                                None
+                            }
+                        })
+                    });
+                sessions.push(Session {
+                    id: session_id,
+                    project_id: project_id.to_string(),
+                    project_path: project_path.to_string(),
+                    todo_data: None,
+                    created_at,
+                    first_message,
+                    message_timestamp: None,
+                });
+            }
+        }
+    }
+    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    sessions
 }
