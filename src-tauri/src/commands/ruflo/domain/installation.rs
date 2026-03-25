@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_version_parse_basic() {
-        let v = RuFloVersion::parse("3.5.42").unwrap();
+        let v = RuFloVersion::parse("3.5.42").expect("valid version literal");
         assert_eq!(v.major, 3);
         assert_eq!(v.minor, 5);
         assert_eq!(v.patch, 42);
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_version_parse_with_v_prefix() {
-        let v = RuFloVersion::parse("v3.0.0").unwrap();
+        let v = RuFloVersion::parse("v3.0.0").expect("valid version literal");
         assert_eq!(v.major, 3);
     }
 
@@ -153,23 +153,23 @@ mod tests {
 
     #[test]
     fn test_version_ordering() {
-        let v300 = RuFloVersion::parse("3.0.0").unwrap();
-        let v350 = RuFloVersion::parse("3.5.0").unwrap();
-        let v290 = RuFloVersion::parse("2.9.9").unwrap();
+        let v300 = RuFloVersion::parse("3.0.0").expect("valid version literal");
+        let v350 = RuFloVersion::parse("3.5.0").expect("valid version literal");
+        let v290 = RuFloVersion::parse("2.9.9").expect("valid version literal");
         assert!(v350 > v300);
         assert!(v300 > v290);
     }
 
     #[test]
     fn test_version_is_supported() {
-        assert!(RuFloVersion::parse("3.0.0").unwrap().is_supported());
-        assert!(RuFloVersion::parse("3.5.42").unwrap().is_supported());
-        assert!(!RuFloVersion::parse("2.9.9").unwrap().is_supported());
+        assert!(RuFloVersion::parse("3.0.0").expect("valid version literal").is_supported());
+        assert!(RuFloVersion::parse("3.5.42").expect("valid version literal").is_supported());
+        assert!(!RuFloVersion::parse("2.9.9").expect("valid version literal").is_supported());
     }
 
     #[test]
     fn test_version_display() {
-        let v = RuFloVersion::parse("3.5.42").unwrap();
+        let v = RuFloVersion::parse("3.5.42").expect("valid version literal");
         assert_eq!(v.to_string(), "3.5.42");
     }
 

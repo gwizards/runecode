@@ -160,9 +160,9 @@ export const streamSessionOutput = _streamSessionOutput;
 /**
  * Loads the JSONL history for a specific session
  */
-export async function loadSessionHistory(sessionId: string, projectId: string): Promise<any[]> {
+export async function loadSessionHistory(sessionId: string, projectId: string): Promise<unknown[]> {
   try {
-    const result = await apiCall<any[]>('load_session_history', { sessionId, projectId, ...wslParam() });
+    const result = await apiCall<unknown[]>('load_session_history', { sessionId, projectId, ...wslParam() });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to load session history:', error);
@@ -174,9 +174,9 @@ export async function loadSessionHistory(sessionId: string, projectId: string): 
  * Loads the JSONL history for a specific agent session.
  * Searches across all project directories.
  */
-export async function loadAgentSessionHistory(sessionId: string): Promise<any[]> {
+export async function loadAgentSessionHistory(sessionId: string): Promise<unknown[]> {
   try {
-    const result = await apiCall<any[]>('load_agent_session_history', { sessionId });
+    const result = await apiCall<unknown[]>('load_agent_session_history', { sessionId });
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to load agent session history:', error);
@@ -211,7 +211,7 @@ export async function executeClaudeCode(
       dockerContainer?: string;
     };
   }
-): Promise<any> {
+): Promise<unknown> {
   // When WSL mode is active, convert Windows project path and inject distro
   let effectivePath = projectPath;
   let effectiveAgentConfig = agentConfig;
@@ -257,9 +257,9 @@ export async function cancelClaudeExecution(
 /**
  * Lists all currently running Claude sessions
  */
-export async function listRunningClaudeSessions(): Promise<any[]> {
+export async function listRunningClaudeSessions(): Promise<Array<{ id?: number; status: string; [key: string]: unknown }>> {
   try {
-    const result = await apiCall<any[]>('list_running_claude_sessions');
+    const result = await apiCall<Array<{ id?: number; status: string; [key: string]: unknown }>>('list_running_claude_sessions');
     return Array.isArray(result) ? result : [];
   } catch {
     return [];

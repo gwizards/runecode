@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { Terminal, Bot, Cpu, GitBranch, Globe, FileText, Search, Pencil, FolderSearch, Loader2, Zap, Shield } from 'lucide-react';
 
 interface ActivityBarProps {
-  messages: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: Array<Record<string, any>>;
   isLoading: boolean;
 }
 

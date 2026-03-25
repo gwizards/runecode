@@ -75,9 +75,9 @@ export function ProjectSessionView({
     }
 
     const isTauri = !!(
-      (window as any).__TAURI__ ||
-      (window as any).__TAURI_INTERNALS__ ||
-      (window as any).__TAURI_METADATA__
+      window.__TAURI__ ||
+      window.__TAURI_INTERNALS__ ||
+      window.__TAURI_METADATA__
     );
     if (isTauri) {
       getSystemInfo().then(info => {

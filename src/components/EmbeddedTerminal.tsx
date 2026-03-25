@@ -151,7 +151,7 @@ export function EmbeddedTerminal({
             const env = envs.find((e) => e.id === environmentIdRef.current);
             if (env) params.set('environment', JSON.stringify(env));
           }
-        } catch {}
+        } catch (e) { console.warn('[EmbeddedTerminal] failed to parse remote environments', e); }
       }
       params.set('cols', String(term.cols));
       params.set('rows', String(term.rows));

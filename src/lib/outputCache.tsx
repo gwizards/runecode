@@ -8,6 +8,7 @@ export interface ClaudeStreamMessage {
   session_id?: string;
   project_id?: string;
   message?: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     content?: any[];
     usage?: {
       input_tokens: number;
@@ -22,8 +23,10 @@ export interface ClaudeStreamMessage {
     content?: string;
     partial_tool_call_index?: number;
     accumulated_content?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any;
   }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 

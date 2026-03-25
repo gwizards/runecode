@@ -94,8 +94,9 @@ const StorageTabInner: React.FC = () => {
     try {
       setLoading(true); setError(null);
       const result = await api.storageListTables();
-      setTables(result);
-      if (result.length > 0 && !selectedTable) setSelectedTable(result[0].name);
+      const tables = result as TableInfo[];
+      setTables(tables);
+      if (tables.length > 0 && !selectedTable) setSelectedTable(tables[0].name);
     } catch { setError("Failed to load tables"); }
     finally { setLoading(false); }
   };
@@ -104,7 +105,7 @@ const StorageTabInner: React.FC = () => {
     if (!selectedTable) return;
     try {
       setLoading(true); setError(null);
-      const result = await api.storageReadTable(selectedTable, page, pageSize, search || searchQuery || undefined);
+      const result = await api.storageReadTable(selectedTable, page, pageSize, search || searchQuery || undefined) as TableData;
       setTableData(result); setCurrentPage(page);
     } catch { setError("Failed to load table data"); }
     finally { setLoading(false); }
@@ -152,7 +153,7 @@ const StorageTabInner: React.FC = () => {
   const handleExecuteSql = async () => {
     try {
       setLoading(true); setSqlError(null);
-      const result = await api.storageExecuteSql(sqlQuery);
+      const result = await api.storageExecuteSql(sqlQuery) as QueryResult;
       setSqlResult(result);
       if (result.rows_affected !== undefined) {
         await loadTables();

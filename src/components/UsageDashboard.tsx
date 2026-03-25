@@ -18,7 +18,7 @@ interface UsageDashboardProps {
   onBack: () => void;
 }
 
-const dataCache = new Map<string, { data: any; timestamp: number }>();
+const dataCache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_DURATION = 10 * 60 * 1000;
 
 export const UsageDashboard: React.FC<UsageDashboardProps> = ({ }) => {
@@ -59,14 +59,14 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ }) => {
     return null;
   }, []);
 
-  const setCachedData = useCallback((key: string, data: any) => {
+  const setCachedData = useCallback((key: string, data: unknown) => {
     dataCache.set(key, { data, timestamp: Date.now() });
   }, []);
 
   const loadUsageStats = useCallback(async () => {
     const cacheKey = `usage-${selectedDateRange}`;
-    const cachedStats = getCachedData(`${cacheKey}-stats`);
-    const cachedSessions = getCachedData(`${cacheKey}-sessions`);
+    const cachedStats = getCachedData(`${cacheKey}-stats`) as UsageStats | null;
+    const cachedSessions = getCachedData(`${cacheKey}-sessions`) as ProjectUsage[] | null;
     if (cachedStats && cachedSessions) { setStats(cachedStats); setSessionStats(cachedSessions); setLoading(false); return; }
 
     try {
@@ -92,7 +92,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ }) => {
 
       setStats(statsData); setSessionStats(sessionData);
       setCachedData(`${cacheKey}-stats`, statsData); setCachedData(`${cacheKey}-sessions`, sessionData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to load usage stats:", err);
       setError("Failed to load usage statistics. Please try again.");
     } finally { setLoading(false); }

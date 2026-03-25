@@ -32,6 +32,9 @@ import {
 
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
+/** Cell value type for SQLite rows */
+export type CellValue = string | number | boolean | null;
+
 export interface ColumnInfo {
   cid: number;
   name: string;
@@ -44,7 +47,7 @@ export interface ColumnInfo {
 export interface TableData {
   table_name: string;
   columns: ColumnInfo[];
-  rows: Record<string, any>[];
+  rows: Record<string, CellValue>[];
   total_rows: number;
   page: number;
   page_size: number;
@@ -53,14 +56,14 @@ export interface TableData {
 
 export interface QueryResult {
   columns: string[];
-  rows: any[][];
+  rows: unknown[][];
   rows_affected?: number;
   last_insert_rowid?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export function formatCellValue(value: any, maxLength = 100): string {
+export function formatCellValue(value: unknown, maxLength = 100): string {
   if (value === null) return "NULL";
   if (value === undefined) return "";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -82,7 +85,7 @@ export function getInputType(column: ColumnInfo): string {
   return "text";
 }
 
-function TruncatedCell({ value }: { value: any }) {
+function TruncatedCell({ value }: { value: unknown }) {
   const fullValue =
     value === null
       ? "NULL"
@@ -123,12 +126,12 @@ function TruncatedCell({ value }: { value: any }) {
 export const EditRowDialog: React.FC<{
   open: boolean;
   onClose: () => void;
-  editingRow: Record<string, any> | null;
-  setEditingRow: (row: Record<string, any>) => void;
+  editingRow: Record<string, CellValue> | null;
+  setEditingRow: (row: Record<string, CellValue>) => void;
   tableData: TableData | null;
   selectedTable: string;
   loading: boolean;
-  onUpdate: (updates: Record<string, any>) => void;
+  onUpdate: (updates: Record<string, CellValue>) => void;
 }> = ({
   open,
   onClose,
@@ -177,7 +180,7 @@ export const EditRowDialog: React.FC<{
                 <Input
                   id={`edit-${column.name}`}
                   type={getInputType(column)}
-                  value={editingRow[column.name] ?? ""}
+                  value={String(editingRow[column.name] ?? "")}
                   onChange={(e) =>
                     setEditingRow({
                       ...editingRow,
@@ -214,12 +217,12 @@ export const EditRowDialog: React.FC<{
 export const NewRowDialog: React.FC<{
   open: boolean;
   onClose: () => void;
-  newRow: Record<string, any> | null;
-  setNewRow: (row: Record<string, any>) => void;
+  newRow: Record<string, CellValue> | null;
+  setNewRow: (row: Record<string, CellValue>) => void;
   tableData: TableData | null;
   selectedTable: string;
   loading: boolean;
-  onInsert: (values: Record<string, any>) => void;
+  onInsert: (values: Record<string, CellValue>) => void;
 }> = ({
   open,
   onClose,
@@ -254,7 +257,7 @@ export const NewRowDialog: React.FC<{
                 <input
                   type="checkbox"
                   id={`new-${column.name}`}
-                  checked={newRow[column.name] || false}
+                  checked={!!newRow[column.name]}
                   onChange={(e) =>
                     setNewRow({
                       ...newRow,
@@ -267,7 +270,7 @@ export const NewRowDialog: React.FC<{
                 <Input
                   id={`new-${column.name}`}
                   type={getInputType(column)}
-                  value={newRow[column.name] ?? ""}
+                  value={String(newRow[column.name] ?? "")}
                   onChange={(e) =>
                     setNewRow({ ...newRow, [column.name]: e.target.value })
                   }
@@ -299,7 +302,7 @@ export const NewRowDialog: React.FC<{
 export const DeleteRowDialog: React.FC<{
   open: boolean;
   onClose: () => void;
-  deletingRow: Record<string, any> | null;
+  deletingRow: Record<string, CellValue> | null;
   loading: boolean;
   onDelete: () => void;
 }> = ({ open, onClose, deletingRow, loading, onDelete }) => (
@@ -394,7 +397,7 @@ export const SqlEditorDialog: React.FC<{
   sqlError: string | null;
   loading: boolean;
   onExecute: () => void;
-  formatCellValue: (value: any, maxLength?: number) => string;
+  formatCellValue: (value: unknown, maxLength?: number) => string;
 }> = ({
   open,
   onClose,

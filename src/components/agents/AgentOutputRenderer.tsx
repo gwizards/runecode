@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback } from 'react';
+import React, { useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RefreshCw } from 'lucide-react';
 import StreamMessage from '../StreamMessage';
@@ -66,7 +66,7 @@ export function useDisplayableMessages(messages: ClaudeStreamMessage[]) {
 /**
  * Renders the scrollable output area with stream messages.
  */
-export function AgentOutputRenderer({
+export const AgentOutputRenderer = React.memo(function AgentOutputRenderer({
   messages,
   loading,
   scrollRef,
@@ -153,4 +153,4 @@ export function AgentOutputRenderer({
       )}
     </div>
   );
-}
+});

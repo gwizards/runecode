@@ -7,7 +7,7 @@ const LS_KEY = 'runecode-browser-url';
 
 /** Detect if running inside Tauri (real desktop, not web mock) */
 function isTauri(): boolean {
-  return !!(window as any).__TAURI__ && !(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+  return !!window.__TAURI__ && !window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
 }
 
 function isLocalUrl(url: string): boolean {

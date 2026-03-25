@@ -16,20 +16,21 @@ export interface SafeSlashCommand {
   accepts_arguments: boolean;
 }
 
-export function safeParseCommand(raw: any): SafeSlashCommand | null {
+export function safeParseCommand(raw: unknown): SafeSlashCommand | null {
   try {
     if (!raw || typeof raw !== 'object') return null;
-    const name = String(raw.name || raw.command || raw.id || '').replace(/^\//, '');
+    const obj = raw as Record<string, unknown>;
+    const name = String(obj.name || obj.command || obj.id || '').replace(/^\//, '');
     if (!name) return null;
     return {
       name,
-      full_command: String(raw.full_command || raw.fullCommand || `/${name}`),
-      description: String(raw.description || raw.desc || raw.help || ''),
-      scope: String(raw.scope || raw.type || 'default'),
-      namespace: String(raw.namespace || raw.category || raw.plugin || 'system'),
-      has_bash_commands: Boolean(raw.has_bash_commands || raw.hasBash || false),
-      has_file_references: Boolean(raw.has_file_references || raw.hasFiles || false),
-      accepts_arguments: Boolean(raw.accepts_arguments || raw.acceptsArgs || raw.args || false),
+      full_command: String(obj.full_command || obj.fullCommand || `/${name}`),
+      description: String(obj.description || obj.desc || obj.help || ''),
+      scope: String(obj.scope || obj.type || 'default'),
+      namespace: String(obj.namespace || obj.category || obj.plugin || 'system'),
+      has_bash_commands: Boolean(obj.has_bash_commands || obj.hasBash || false),
+      has_file_references: Boolean(obj.has_file_references || obj.hasFiles || false),
+      accepts_arguments: Boolean(obj.accepts_arguments || obj.acceptsArgs || obj.args || false),
     };
   } catch {
     return null;
@@ -61,14 +62,15 @@ export interface SafeSkill {
   description: string;
 }
 
-export function safeParseSkill(raw: any): SafeSkill | null {
+export function safeParseSkill(raw: unknown): SafeSkill | null {
   try {
     if (!raw || typeof raw !== 'object') return null;
-    const name = String(raw.name || '');
+    const obj = raw as Record<string, unknown>;
+    const name = String(obj.name || '');
     if (!name) return null;
     return {
       name,
-      description: String(raw.description || raw.desc || ''),
+      description: String(obj.description || obj.desc || ''),
     };
   } catch {
     return null;

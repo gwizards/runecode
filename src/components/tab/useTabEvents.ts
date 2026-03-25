@@ -1,19 +1,21 @@
 import { useEffect } from 'react';
 import { defaultClaudeFlags } from './TabPanelContent';
+import type { Agent } from '@/lib/clients/types';
+import type { Tab } from '@/contexts/TabContext';
 
 interface UseTabEventsParams {
-  tabs: Array<{ id: string; type: string; [key: string]: any }>;
+  tabs: Tab[];
   activeTabId: string | null;
   findTabBySessionId: (sessionId: string) => { id: string } | undefined;
   createChatTab: (sessionId: string, title: string, projectPath: string) => string;
   createClaudeFileTab: (fileId: string, fileName: string) => void;
-  createAgentExecutionTab: (agent: any, tabId: string, projectPath: string) => void;
+  createAgentExecutionTab: (agent: Agent, tabId: string, projectPath: string) => void;
   createCreateAgentTab: () => void;
   createImportAgentTab: () => void;
   createResourceDetailsTab: () => void;
   createTerminalTab: (sessionId?: string, projectPath?: string, flags?: string[]) => string;
   closeTab: (tabId: string) => void;
-  updateTab: (tabId: string, updates: any) => void;
+  updateTab: (tabId: string, updates: Partial<Tab>) => void;
   createSettingsTab: () => void;
 }
 

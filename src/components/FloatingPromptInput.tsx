@@ -138,7 +138,7 @@ const FloatingPromptInputInner = (
     try {
       if (selectedEnvId) localStorage.setItem("runecode-selected-env-id", selectedEnvId);
       else localStorage.removeItem("runecode-selected-env-id");
-    } catch {}
+    } catch (e) { console.warn('[FloatingPromptInput] failed to persist env selection', e); }
   }, [selectedEnvId]);
 
   useEffect(() => {
@@ -293,7 +293,8 @@ const FloatingPromptInputInner = (
     if (ne.isComposing) return true;
     const key = ne.key;
     if (key === "Process" || key === "Unidentified") return true;
-    const kc = (ne as any).keyCode ?? (ne as any).which;
+    // keyCode/which are deprecated but needed for IME detection on some browsers
+    const kc = (ne as unknown as { keyCode?: number; which?: number }).keyCode ?? (ne as unknown as { which?: number }).which;
     return kc === 229;
   };
 

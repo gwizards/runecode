@@ -61,7 +61,7 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
     try {
       const stored = localStorage.getItem('runecode-remote-environments');
       if (stored) setEnvs(JSON.parse(stored).filter((e: RemoteEnvironment) => e.enabled));
-    } catch {}
+    } catch (e) { console.warn('[ProjectsTabView] failed to load environments', e); }
   }, []);
 
   const hasLoadedProjects = React.useRef(false);
@@ -115,8 +115,8 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
         const detail = data.error || '';
         setClaudeCheck({ checking: false, found: false, error: `Connection failed${detail ? ': ' + detail : ''}. Check host, credentials, and that the environment is reachable.` });
       }
-    } catch (err: any) {
-      setClaudeCheck({ checking: false, found: false, error: `Connection error: ${err.message}. The host may be unreachable or the request timed out.` });
+    } catch (err: unknown) {
+      setClaudeCheck({ checking: false, found: false, error: `Connection error: ${err instanceof Error ? err.message : String(err)}. The host may be unreachable or the request timed out.` });
     }
   };
 
@@ -214,7 +214,7 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
       updateTab(tabId, {
         type: 'claude-terminal',
         title: isShell ? `⬛ ${baseName}` : `🔮 ${baseName}`,
-        sessionId: session?.id, sessionData: session,
+        sessionId: session?.id, sessionData: session ?? undefined,
         projectPath: effectiveProjectPath,
         initialProjectPath: selectedProject.path,
         terminalFlags: flags, environmentId,
@@ -245,7 +245,7 @@ export function ProjectsTabView({ tabId, allTabs, updateTab, setActiveProjectPat
       updateTab(tabId, {
         type: 'chat',
         title: `🔮 ${baseName}`,
-        sessionId: session?.id, sessionData: session,
+        sessionId: session?.id, sessionData: session ?? undefined,
         projectPath: effectiveProjectPath,
         initialProjectPath: selectedProject.path,
         environmentId,

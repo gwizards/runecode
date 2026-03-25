@@ -1,3 +1,4 @@
+import React from "react";
 import { Code2, ExternalLink, GitBranch, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { applyStartupToken } from "@/lib/startupToken";
@@ -20,7 +21,7 @@ interface ProjectInfoSectionProps {
   projectPath: string;
 }
 
-export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
+export const ProjectInfoSection = React.memo(function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
   const { data: info, isError } = useQuery<ProjectInfo | null>({
     queryKey: ['project-info', projectPath],
     queryFn: async () => {
@@ -52,7 +53,7 @@ export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
     enabled: !!projectPath,
     staleTime: 30000,       // Reuse cached data for 30s — project info doesn't change often
     refetchInterval: 60000, // Refresh every 60s in background
-    placeholderData: (prev: any) => prev, // Keep previous project's data while loading
+    placeholderData: (prev) => prev, // Keep previous project's data while loading
   });
 
   if (!projectPath) return null;
@@ -151,4 +152,4 @@ export function ProjectInfoSection({ projectPath }: ProjectInfoSectionProps) {
       )}
     </div>
   );
-}
+});

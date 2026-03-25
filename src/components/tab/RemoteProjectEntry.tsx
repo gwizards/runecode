@@ -26,7 +26,7 @@ export function RemoteProjectEntry({ envName, onSelectPath }: RemoteProjectEntry
     try {
       const recent = [trimmed, ...recentPaths.filter(p => p !== trimmed)].slice(0, 10);
       localStorage.setItem('runecode-remote-recent-paths', JSON.stringify(recent));
-    } catch {}
+    } catch (e) { console.warn('[RemoteProjectEntry] failed to save recent paths', e); }
     onSelectPath(trimmed);
   };
 

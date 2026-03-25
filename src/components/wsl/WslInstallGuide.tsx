@@ -37,7 +37,7 @@ function CopyableCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(command).catch(() => {});
+    navigator.clipboard.writeText(command).catch(() => { /* clipboard may fail when unfocused */ });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

@@ -130,12 +130,12 @@ export function PluginsSettings() {
         api.getClaudeSettings(),
       ]);
       const registry = registryRes.ok ? await registryRes.json() : [];
-      const enabledMap: Record<string, boolean> = settingsRes?.enabledPlugins || {};
-      setPlugins(registry.map((p: any) => ({
+      const enabledMap: Record<string, boolean> = (settingsRes?.enabledPlugins as Record<string, boolean>) || {};
+      setPlugins(registry.map((p: { name: string; marketplace?: string }) => ({
         ...p,
         enabled: enabledMap[`${p.name}@${p.marketplace}`] === true,
       })));
-    } catch {}
+    } catch (e) { console.warn('[PluginsSettings] failed to load plugins', e); }
     setLoading(false);
   };
 
@@ -148,9 +148,10 @@ export function PluginsSettings() {
     setSaving(key);
     try {
       const settings = await api.getClaudeSettings();
-      if (!settings.enabledPlugins) settings.enabledPlugins = {};
-      if (newEnabled) settings.enabledPlugins[key] = true;
-      else delete settings.enabledPlugins[key];
+      if (!settings.enabledPlugins) settings.enabledPlugins = {} as Record<string, boolean>;
+      const plugins = settings.enabledPlugins as Record<string, boolean>;
+      if (newEnabled) plugins[key] = true;
+      else delete plugins[key];
       await api.saveClaudeSettings(settings);
       setPlugins(prev => prev.map(p => `${p.name}@${p.marketplace}` === key ? { ...p, enabled: newEnabled } : p));
       setToast({ message: `${plugin.displayName} ${newEnabled ? 'enabled' : 'disabled'}`, type: 'success' });

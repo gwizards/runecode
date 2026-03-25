@@ -292,15 +292,29 @@ pub(crate) fn maybe_wrap_wsl(
         if !distro.is_empty() {
             // Convert Windows path to WSL path: C:\Users\foo -> /mnt/c/Users/foo
             let wsl_path = windows_to_wsl_path(project_path);
-            let mut wsl_args = vec![
+            // Use bash -lc so nvm-installed claude is on PATH.
+            // wsl -e claude fails because -e bypasses .bashrc/nvm.
+            let claude_cmd = if args.is_empty() {
+                program.to_string()
+            } else {
+                format!("{} {}", program, args.iter().map(|a| {
+                    if a.contains(' ') || a.contains('"') {
+                        format!("\"{}\"", a.replace('"', "\\\""))
+                    } else {
+                        a.clone()
+                    }
+                }).collect::<Vec<_>>().join(" "))
+            };
+            let wsl_args = vec![
                 "-d".to_string(),
                 distro.to_string(),
                 "--cd".to_string(),
                 wsl_path.clone(),
                 "-e".to_string(),
-                program.to_string(),
+                "/bin/bash".to_string(),
+                "-lc".to_string(),
+                claude_cmd,
             ];
-            wsl_args.extend(args.iter().cloned());
             return ("wsl".to_string(), wsl_args, wsl_path);
         }
     }

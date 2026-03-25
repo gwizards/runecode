@@ -114,8 +114,8 @@ export function AgentRunOutputViewer({
 
       if (run.session_id && run.session_id !== '') {
         try {
-          const history = await api.loadAgentSessionHistory(run.session_id);
-          const loadedMessages: ClaudeStreamMessage[] = history.map(entry => ({ ...entry, type: entry.type || "assistant" }));
+          const history = await api.loadAgentSessionHistory(run.session_id) as Record<string, unknown>[];
+          const loadedMessages: ClaudeStreamMessage[] = history.map(entry => ({ ...entry, type: (entry.type as string) || "assistant" } as ClaudeStreamMessage));
           setMessages(loadedMessages);
           setRawJsonlOutput(history.map(h => JSON.stringify(h)));
           setCachedOutput(run.id, { output: history.map(h => JSON.stringify(h)).join('\n'), messages: loadedMessages, lastUpdated: Date.now(), status: run.status });

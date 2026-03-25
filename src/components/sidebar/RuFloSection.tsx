@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Zap } from 'lucide-react';
 import {
   ruFloService,
@@ -28,7 +28,7 @@ function StatusDot({ active }: { active: boolean }) {
   );
 }
 
-export function RuFloSection({ projectPath }: RuFloSectionProps) {
+export const RuFloSection = React.memo(function RuFloSection({ projectPath }: RuFloSectionProps) {
   const { swarm: swarmStatus, installation, fetchInstallation, fetchSwarm, activateMcp } = useRuFloStore();
   const isInstalled: boolean | null = installation === null ? null : installation.installed;
   const [isActivating, setIsActivating] = useState(false);
@@ -279,7 +279,7 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
                   await open(logPath);
                 } catch {
                   // fallback: copy path to clipboard
-                  await navigator.clipboard.writeText(logPath).catch(() => {});
+                  await navigator.clipboard.writeText(logPath).catch(() => { /* clipboard may fail when unfocused */ });
                 }
               }}
               className="flex-1 py-1 text-[10px] bg-white/5 rounded-md text-muted-foreground/60 hover:bg-white/10 transition-colors"
@@ -291,4 +291,4 @@ export function RuFloSection({ projectPath }: RuFloSectionProps) {
       )}
     </div>
   );
-}
+});

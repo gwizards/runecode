@@ -125,7 +125,7 @@ export function MCPDirectory({
   setToast,
 }: {
   installedNames: Set<string>;
-  onInstall: (name: string, config: any) => void;
+  onInstall: (name: string, config: unknown) => void;
   setToast: (t: { message: string; type: "success" | "error" }) => void;
 }) {
   const [search, setSearch] = useState("");

@@ -26,7 +26,7 @@ function loadGridNames(): Record<string, string> {
 function saveGridName(gridKey: string, name: string) {
   const names = loadGridNames();
   names[gridKey] = name;
-  try { localStorage.setItem(GRID_NAMES_KEY, JSON.stringify(names)); } catch {}
+  try { localStorage.setItem(GRID_NAMES_KEY, JSON.stringify(names)); } catch (e) { console.warn('[TabManager] failed to save grid names', e); }
 }
 
 export const TabManager: React.FC<TabManagerProps> = ({ className }) => {

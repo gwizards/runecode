@@ -34,7 +34,7 @@ interface PromptToolbarProps {
   projectPath?: string;
 }
 
-export const PromptToolbar: React.FC<PromptToolbarProps> = ({
+export const PromptToolbar: React.FC<PromptToolbarProps> = React.memo(({
   orchestrationMode,
   setOrchestrationMode,
   remoteEnvironments,
@@ -142,4 +142,4 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
       </Button>
     </TooltipSimple>
   </>
-);
+));

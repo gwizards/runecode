@@ -6,8 +6,8 @@ import { TabPersistenceService } from '@/services/tabPersistence';
 import { SettingRow } from './shared';
 
 interface SessionSettingsProps {
-  settings: any;
-  onSettingsChange: (key: string, value: any) => void;
+  settings: Record<string, unknown> | null;
+  onSettingsChange: (key: string, value: unknown) => void;
 }
 
 export function SessionSettings({ settings, onSettingsChange }: SessionSettingsProps) {
@@ -78,7 +78,7 @@ export function SessionSettings({ settings, onSettingsChange }: SessionSettingsP
           type="number"
           min="1"
           placeholder="30"
-          value={settings?.cleanupPeriodDays || ''}
+          value={(settings?.cleanupPeriodDays as string | number) || ''}
           onChange={(e) => {
             const value = e.target.value ? parseInt(e.target.value) : undefined;
             onSettingsChange('cleanupPeriodDays', value);

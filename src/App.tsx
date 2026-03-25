@@ -368,7 +368,7 @@ function App() {
       const cached = typeof window !== 'undefined' ? window.localStorage.getItem('app_setting:startup_intro_enabled') : null;
       if (cached === 'true') return true;
       if (cached === 'false') return false;
-    } catch (_ignore) {}
+    } catch (e) { console.warn('[App] localStorage read failed', e); }
     return true;
   });
 

@@ -70,7 +70,7 @@ export function ProjectSidebar({
     try {
       const stored = localStorage.getItem(LS_KEY_OPEN);
       if (stored !== null) return stored === "true";
-    } catch {}
+    } catch (e) { console.warn('[ProjectSidebar] failed to read open state', e); }
     return window.innerWidth >= AUTO_COLLAPSE_BREAKPOINT;
   });
 
@@ -86,7 +86,7 @@ export function ProjectSidebar({
           return parsed;
         }
       }
-    } catch {}
+    } catch (e) { console.warn('[ProjectSidebar] failed to read width', e); }
     return DEFAULT_WIDTH;
   });
 
@@ -119,14 +119,14 @@ export function ProjectSidebar({
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY_OPEN, String(isOpen));
-    } catch {}
+    } catch (e) { console.warn('[ProjectSidebar] failed to persist open state', e); }
   }, [isOpen]);
 
   // Persist width
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY_WIDTH, String(width));
-    } catch {}
+    } catch (e) { console.warn('[ProjectSidebar] failed to persist width', e); }
   }, [width]);
 
   // Keyboard shortcut: Ctrl+B / Cmd+B to toggle sidebar

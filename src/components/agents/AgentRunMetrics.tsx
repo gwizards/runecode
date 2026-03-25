@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Clock,
   Hash,
@@ -40,7 +41,7 @@ function formatTokens(tokens?: number) {
  * Displays the header/metrics section for an agent run,
  * including name, task, model, timestamps, tokens, and cost.
  */
-export function AgentRunMetricsHeader({ run }: AgentRunMetricsProps) {
+export const AgentRunMetricsHeader = React.memo(function AgentRunMetricsHeader({ run }: AgentRunMetricsProps) {
   return (
     <div className="flex items-start gap-3 flex-1 min-w-0">
       <div className="mt-0.5">
@@ -86,12 +87,12 @@ export function AgentRunMetricsHeader({ run }: AgentRunMetricsProps) {
       </div>
     </div>
   );
-}
+});
 
 /**
  * Simplified fullscreen header info for the agent run.
  */
-export function AgentRunFullscreenHeader({ run }: AgentRunMetricsProps) {
+export const AgentRunFullscreenHeader = React.memo(function AgentRunFullscreenHeader({ run }: AgentRunMetricsProps) {
   return (
     <div className="flex items-center gap-3">
       {renderIcon('bot')}
@@ -101,4 +102,4 @@ export function AgentRunFullscreenHeader({ run }: AgentRunMetricsProps) {
       </div>
     </div>
   );
-}
+});

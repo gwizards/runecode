@@ -25,7 +25,7 @@ export function ConfigPanel({ onClose: _onClose }: ConfigPanelProps) {
   });
 
   const models: { id: string; name: string; desc: string }[] = (sdkModels && sdkModels.length > 0)
-    ? sdkModels.map((m: any) => ({
+    ? sdkModels.map((m: { value?: string; name?: string; displayName?: string; description?: string }) => ({
         id: m.value || m.name,
         name: m.displayName || m.name || '?',
         desc: m.description || '',

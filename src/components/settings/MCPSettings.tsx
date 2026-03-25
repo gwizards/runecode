@@ -22,6 +22,14 @@ import { McpServerForm } from "./mcp/McpServerForm";
 
 type ViewMode = "list" | "add" | "browse";
 
+interface MCPLiveStatus {
+  name: string;
+  status?: string;
+  serverInfo?: { name: string; version: string };
+  error?: string;
+  tools?: Array<{ name: string; description?: string }>;
+}
+
 export function MCPSettings() {
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +40,7 @@ export function MCPSettings() {
     type: "success" | "error";
   } | null>(null);
   const [expandedServer, setExpandedServer] = useState<string | null>(null);
-  const [liveStatus, setLiveStatus] = useState<Map<string, any>>(new Map());
+  const [liveStatus, setLiveStatus] = useState<Map<string, MCPLiveStatus>>(new Map());
 
   const loadServers = async () => {
     try {
@@ -53,9 +61,9 @@ export function MCPSettings() {
       const res = await fetch("/api/mcp/status", { headers: applyStartupToken({}) });
       if (res.ok) {
         const data = await res.json();
-        const statusMap = new Map<string, any>();
+        const statusMap = new Map<string, MCPLiveStatus>();
         if (Array.isArray(data)) {
-          data.forEach((s: any) => statusMap.set(s.name, s));
+          (data as MCPLiveStatus[]).forEach((s) => statusMap.set(s.name, s));
         }
         setLiveStatus(statusMap);
       }
@@ -116,7 +124,7 @@ export function MCPSettings() {
   };
 
   const connectedCount =
-    Array.from(liveStatus.values()).filter((s: any) => s.status === "connected")
+    Array.from(liveStatus.values()).filter((s) => s.status === "connected")
       .length || servers.filter((s) => s.status?.running).length;
 
   return (

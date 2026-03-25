@@ -66,9 +66,9 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
       } else {
         onImportCompleted(result.imported_count, result.failed_count);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to import from Claude Desktop:", error);
-      onError(error.toString() || "Failed to import from Claude Desktop");
+      onError(error instanceof Error ? error.message : "Failed to import from Claude Desktop");
     } finally {
       setImportingDesktop(false);
     }

@@ -45,7 +45,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     // Re-fetch home directory for the selected platform (WSL home differs from Windows home)
     api.getHomeDirectory().then((home) => {
       setProjectDir(`${home}/Projects`);
-    }).catch(() => {});
+    }).catch((e) => console.warn('[Onboarding] failed to get home directory', e));
     setCurrentStep(1);
   }, []);
 
@@ -263,7 +263,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const copyWebModeCommand = () => {
-    navigator.clipboard.writeText('runecode serve --port 8080 --open').catch(() => {});
+    navigator.clipboard.writeText('runecode serve --port 8080 --open').catch(() => { /* clipboard may fail when unfocused */ });
   };
 
   const openBrowser = async () => {

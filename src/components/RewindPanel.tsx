@@ -9,7 +9,8 @@ interface RewindPanelProps {
   connectionId: string | null;
   sessionId: string | null;
   projectPath: string;
-  messages: Array<{ type: string; uuid?: string; message?: any; timestamp?: string }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: Array<{ type: string; uuid?: string; message?: { content?: any; model?: string; timestamp?: string | number; [key: string]: unknown }; timestamp?: string }>;
   embedded?: boolean;
 }
 
@@ -62,13 +63,13 @@ export const RewindPanel: React.FC<RewindPanelProps> = ({
       const m = messages[i];
       if (m.type !== 'user' || !m.uuid) continue;
       const content = m.message?.content;
-      if (Array.isArray(content) && content.every((b: any) => b.type === 'tool_result')) continue;
+      if (Array.isArray(content) && content.every((b) => b.type === 'tool_result')) continue;
 
       turnIndex++;
       let previewText = `Message ${turnIndex}`;
       if (typeof content === 'string') previewText = content;
       else if (Array.isArray(content)) {
-        const tb = content.find((b: any) => b.type === 'text');
+        const tb = content.find((b) => b.type === 'text');
         if (tb?.text) previewText = tb.text;
       }
 
@@ -77,9 +78,10 @@ export const RewindPanel: React.FC<RewindPanelProps> = ({
       for (let j = i + 1; j < messages.length; j++) {
         if (messages[j].type === 'user') break;
         if (messages[j].type === 'assistant') {
-          if (!model && messages[j].message?.model) model = messages[j].message.model;
-          if (Array.isArray(messages[j].message?.content))
-            toolCount += messages[j].message.content.filter((b: any) => b.type === 'tool_use').length;
+          if (!model && messages[j].message?.model) model = messages[j].message?.model;
+          const jContent = messages[j].message?.content;
+          if (Array.isArray(jContent))
+            toolCount += jContent.filter((b) => b.type === 'tool_use').length;
         }
       }
 

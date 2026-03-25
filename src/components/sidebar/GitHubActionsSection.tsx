@@ -80,7 +80,7 @@ export function GitHubActionsSection({ projectPath }: { projectPath?: string }) 
     },
     refetchInterval: 15000,
     staleTime: 15000,  // Don't refetch if we have data less than 15s old (prevents rapid fetches on project switch)
-    placeholderData: (prev: any) => prev, // Show previous project's data while new one loads
+    placeholderData: (prev) => prev, // Show previous project's data while new one loads
     enabled: !!projectPath,
   });
 

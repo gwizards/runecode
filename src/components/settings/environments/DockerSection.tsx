@@ -18,7 +18,7 @@ interface DockerSectionProps {
 }
 
 export function DockerSection({ dockerContainer, setDockerContainer, setDockerImage }: DockerSectionProps) {
-  const [dockerStatus, setDockerStatus] = useState<{ running: boolean; version?: string; containers: any[] } | null>(null);
+  const [dockerStatus, setDockerStatus] = useState<{ running: boolean; version?: string; containers: Array<{ id: string; name: string; image: string; state: string }> } | null>(null);
   const [loadingDocker, setLoadingDocker] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -32,7 +32,7 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
       try {
         const res = await fetch('/api/docker/status', { headers: applyStartupToken({}) });
         if (res.ok) setDockerStatus(await res.json());
-      } catch {}
+      } catch (e) { console.warn('[DockerSection] failed to fetch docker status', e); }
       setLoadingDocker(false);
     })();
   }, []);
@@ -58,8 +58,8 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
       } else {
         setCreateStatus(`Failed: ${data.error || 'Unknown error'}`);
       }
-    } catch (err: any) {
-      setCreateStatus(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      setCreateStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
     setCreating(false);
   };
@@ -99,8 +99,8 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
     );
   }
 
-  const runningContainers = dockerStatus.containers.filter((c: any) => c.state === 'running');
-  const stoppedContainers = dockerStatus.containers.filter((c: any) => c.state !== 'running');
+  const runningContainers = dockerStatus.containers.filter((c) => c.state === 'running');
+  const stoppedContainers = dockerStatus.containers.filter((c) => c.state !== 'running');
 
   return (
     <div className="space-y-3">
@@ -113,7 +113,7 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
         <div className="space-y-1">
           <Label className="text-[11px] text-muted-foreground/60">Running containers</Label>
           <div className="space-y-0.5 max-h-40 overflow-y-auto">
-            {runningContainers.map((c: any) => (
+            {runningContainers.map((c) => (
               <div key={c.id} className={cn(
                 "flex items-center gap-2 px-2 py-1.5 rounded text-[10px] transition-colors",
                 dockerContainer === c.name
@@ -146,7 +146,7 @@ export function DockerSection({ dockerContainer, setDockerContainer, setDockerIm
         <div className="space-y-1">
           <Label className="text-[11px] text-muted-foreground/40">Stopped</Label>
           <div className="space-y-0.5 max-h-20 overflow-y-auto">
-            {stoppedContainers.map((c: any) => (
+            {stoppedContainers.map((c) => (
               <button
                 key={c.id}
                 onClick={() => { setDockerContainer(c.name); setDockerImage(c.image); }}

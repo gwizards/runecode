@@ -12,8 +12,8 @@
 import { create } from 'zustand';
 import { globalEventBus } from '../shared/event-bus';
 import type { WorkspaceId, TabId, RawWorkspace, RawTab } from './types';
-import type { SessionId } from '../session';
-import type { ProjectId } from '../project/types';
+import type { SessionId } from '../shared/session-id';
+import type { ProjectId } from '../shared/project-id';
 import { InMemoryWorkspaceRepository } from './repository';
 import { WorkspaceApplicationService } from './service';
 

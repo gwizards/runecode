@@ -142,15 +142,15 @@ mod tests {
 
     #[test]
     fn test_agent_capability_serde() {
-        let json = serde_json::to_string(&AgentCapability::Testing).unwrap();
+        let json = serde_json::to_string(&AgentCapability::Testing).expect("serialize AgentCapability");
         assert_eq!(json, "\"testing\"");
-        let back: AgentCapability = serde_json::from_str(&json).unwrap();
+        let back: AgentCapability = serde_json::from_str(&json).expect("deserialize AgentCapability");
         assert_eq!(back, AgentCapability::Testing);
     }
 
     #[test]
     fn test_agent_capability_unknown_fallback() {
-        let back: AgentCapability = serde_json::from_str("\"not-a-real-capability\"").unwrap();
+        let back: AgentCapability = serde_json::from_str("\"not-a-real-capability\"").expect("deserialize unknown capability");
         assert_eq!(back, AgentCapability::Unknown);
     }
 
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_swarm_topology_serde() {
-        let json = serde_json::to_string(&SwarmTopology::Hierarchical).unwrap();
+        let json = serde_json::to_string(&SwarmTopology::Hierarchical).expect("serialize SwarmTopology");
         assert_eq!(json, "\"hierarchical\"");
     }
 

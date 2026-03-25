@@ -138,7 +138,7 @@ mod tests {
     #[tokio::test]
     async fn test_checkpoint_state_lifecycle() {
         let state = CheckpointState::new();
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("valid temp dir");
         let claude_dir = temp_dir.path().to_path_buf();
 
         // Set Claude directory
@@ -148,18 +148,18 @@ mod tests {
         let session_id = "test-session-123".to_string();
         let project_id = "test-project".to_string();
         let project_path = temp_dir.path().join("project");
-        std::fs::create_dir_all(&project_path).unwrap();
+        std::fs::create_dir_all(&project_path).expect("create project dir");
 
         let manager1 = state
             .get_or_create_manager(session_id.clone(), project_id.clone(), project_path.clone())
             .await
-            .unwrap();
+            .expect("create manager1");
 
         // Getting the same session should return the same manager
         let manager2 = state
             .get_or_create_manager(session_id.clone(), project_id.clone(), project_path.clone())
             .await
-            .unwrap();
+            .expect("create manager2");
 
         assert!(Arc::ptr_eq(&manager1, &manager2));
         assert_eq!(state.active_count().await, 1);
@@ -173,7 +173,7 @@ mod tests {
         let manager3 = state
             .get_or_create_manager(session_id.clone(), project_id, project_path)
             .await
-            .unwrap();
+            .expect("create manager3");
 
         assert!(!Arc::ptr_eq(&manager1, &manager3));
     }

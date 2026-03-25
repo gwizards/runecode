@@ -124,15 +124,15 @@ mod tests {
 
     #[test]
     fn test_agent_status_serde_roundtrip() {
-        let json = serde_json::to_string(&AgentStatus::Running).unwrap();
+        let json = serde_json::to_string(&AgentStatus::Running).expect("serialize AgentStatus");
         assert_eq!(json, "\"running\"");
-        let back: AgentStatus = serde_json::from_str(&json).unwrap();
+        let back: AgentStatus = serde_json::from_str(&json).expect("deserialize AgentStatus");
         assert_eq!(back, AgentStatus::Running);
     }
 
     #[test]
     fn test_agent_status_unknown_fallback() {
-        let back: AgentStatus = serde_json::from_str("\"some-unknown-status\"").unwrap();
+        let back: AgentStatus = serde_json::from_str("\"some-unknown-status\"").expect("deserialize unknown status");
         assert_eq!(back, AgentStatus::Unknown);
     }
 

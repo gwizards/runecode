@@ -51,8 +51,7 @@ fn wsl_command(program: &str, args: &[&str], wsl_distro: Option<&str>) -> std::p
         let (effective_prog, effective_args): (String, Vec<String>) = {
             let is_npx = prog == "npx" || prog == "npx.cmd";
             let cf_idx = args.iter().position(|a| *a == "@claude-flow/cli");
-            if is_npx && cf_idx.is_some() {
-                let idx = cf_idx.unwrap();
+            if let Some(idx) = cf_idx.filter(|_| is_npx) {
                 // Skip npx flags (--no-install, etc.) and @claude-flow/cli, keep the rest
                 let remaining: Vec<String> = args.iter()
                     .skip(idx + 1)

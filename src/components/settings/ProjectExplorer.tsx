@@ -32,7 +32,7 @@ export function ProjectExplorer() {
       // Sort by most recent
       result.sort((a, b) => (b.most_recent_session || b.created_at) - (a.most_recent_session || a.created_at));
       setProjects(result);
-    } catch {}
+    } catch (e) { console.warn('[ProjectExplorer] failed to list projects', e); }
     setLoading(false);
   };
 

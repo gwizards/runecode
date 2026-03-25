@@ -156,7 +156,7 @@ export function useClaudeSession({
         .then(({ setSessionModel }) => {
           setSessionModel(connectionIdRef.current!, currentModel);
         })
-        .catch(() => {});
+        .catch((e) => console.warn('[SessionModel] failed to set model', e));
     }
   }, [currentModel]);
 
@@ -209,7 +209,7 @@ export function useClaudeSession({
           .then(({ closeSessionSocket }) => {
             closeSessionSocket(connectionIdRef.current!);
           })
-          .catch(() => {});
+          .catch((e) => console.warn('[SessionCleanup] failed to close socket', e));
       }
 
       if (effectiveSession) {
@@ -349,8 +349,8 @@ export function useClaudeSession({
           );
         }
 
-        const loadedMessages: ClaudeStreamMessage[] = history.map(
-          (entry: Record<string, unknown>) => ({
+        const loadedMessages: ClaudeStreamMessage[] = (history as Record<string, unknown>[]).map(
+          (entry) => ({
             ...entry,
             type: (entry.type as ClaudeStreamMessage["type"]) || "assistant",
           } as ClaudeStreamMessage),
@@ -358,7 +358,7 @@ export function useClaudeSession({
 
         startTransition(() => {
           setMessages(loadedMessages);
-          setRawJsonlOutput(history.map((h: Record<string, unknown>) => JSON.stringify(h)));
+          setRawJsonlOutput((history as Record<string, unknown>[]).map((h) => JSON.stringify(h)));
         });
       } catch (err) {
         console.error("Failed to load session history:", err);
@@ -370,7 +370,7 @@ export function useClaudeSession({
       if (!isMountedRef.current) return;
       try {
         const activeSessions = await api.listRunningClaudeSessions();
-        const activeSession = activeSessions.find((s: Record<string, unknown>) => {
+        const activeSession = activeSessions.find((s) => {
           if (
             "process_type" in s &&
             s.process_type &&

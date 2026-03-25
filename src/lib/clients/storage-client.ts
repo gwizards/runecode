@@ -7,9 +7,9 @@ import { apiCall } from '../apiAdapter';
 /**
  * Lists all tables in the SQLite database
  */
-export async function storageListTables(): Promise<any[]> {
+export async function storageListTables(): Promise<unknown[]> {
   try {
-    const result = await apiCall<any[]>('storage_list_tables');
+    const result = await apiCall<unknown[]>('storage_list_tables');
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Failed to list tables:', error);
@@ -29,9 +29,9 @@ export async function storageReadTable(
   page: number,
   pageSize: number,
   searchQuery?: string
-): Promise<any> {
+): Promise<unknown> {
   try {
-    return await apiCall<any>('storage_read_table', {
+    return await apiCall<unknown>('storage_read_table', {
       tableName,
       page,
       pageSize,
@@ -52,8 +52,8 @@ export async function storageReadTable(
  */
 export async function storageUpdateRow(
   tableName: string,
-  primaryKeyValues: Record<string, any>,
-  updates: Record<string, any>
+  primaryKeyValues: Record<string, unknown>,
+  updates: Record<string, unknown>
 ): Promise<void> {
   try {
     return await apiCall<void>('storage_update_row', {
@@ -74,7 +74,7 @@ export async function storageUpdateRow(
  */
 export async function storageDeleteRow(
   tableName: string,
-  primaryKeyValues: Record<string, any>
+  primaryKeyValues: Record<string, unknown>
 ): Promise<void> {
   try {
     return await apiCall<void>('storage_delete_row', {
@@ -95,7 +95,7 @@ export async function storageDeleteRow(
  */
 export async function storageInsertRow(
   tableName: string,
-  values: Record<string, any>
+  values: Record<string, unknown>
 ): Promise<number> {
   try {
     return await apiCall<number>('storage_insert_row', { tableName, values });
@@ -108,9 +108,9 @@ export async function storageInsertRow(
 /**
  * Executes a raw SQL query
  */
-export async function storageExecuteSql(query: string): Promise<any> {
+export async function storageExecuteSql(query: string): Promise<unknown> {
   try {
-    return await apiCall<any>('storage_execute_sql', { query });
+    return await apiCall<unknown>('storage_execute_sql', { query });
   } catch (error) {
     console.error('Failed to execute SQL:', error);
     throw error;
@@ -146,7 +146,7 @@ export async function getSetting(key: string): Promise<string | null> {
     }
     // Use storageReadTable to safely query the app_settings table
     const result = await storageReadTable('app_settings', 1, 1000);
-    const setting = result?.data?.find((row: any) => row.key === key);
+    const setting = (result as { data?: Array<{ key: string; value: string }> })?.data?.find((row) => row.key === key);
     return setting?.value || null;
   } catch (error) {
     // Expected to fail in web mode where storage tables may not exist

@@ -68,7 +68,7 @@ export function EnvironmentsSettings() {
             });
           }
         }
-      } catch {}
+      } catch (e) { console.warn('[EnvironmentsSettings] failed to fetch auth status', e); }
       setAccountLoading(false);
     })();
   }, []);

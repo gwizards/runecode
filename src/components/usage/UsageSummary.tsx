@@ -14,7 +14,7 @@ interface UsageSummaryProps {
 /**
  * Summary cards and overview section for the usage dashboard.
  */
-export const UsageSummary: React.FC<UsageSummaryProps> = ({
+export const UsageSummary: React.FC<UsageSummaryProps> = React.memo(({
   stats,
   formatCurrency,
   formatNumber,
@@ -150,4 +150,4 @@ export const UsageSummary: React.FC<UsageSummaryProps> = ({
       </div>
     </>
   );
-};
+});

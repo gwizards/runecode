@@ -24,7 +24,15 @@ export const Agents: React.FC = () => {
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [runningAgents, setRunningAgents] = useState<any[]>([]);
+  const [runningAgents, setRunningAgents] = useState<Array<{
+    id?: number;
+    status: string;
+    agent_name: string;
+    created_at: string;
+    metrics?: { duration_ms?: number; total_tokens?: number };
+    duration_ms?: number;
+    total_tokens?: number;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -63,7 +71,7 @@ export const Agents: React.FC = () => {
   const loadRunningAgents = async () => {
     try {
       // listAgentRunsWithMetrics no longer exists; use listRunningClaudeSessions as fallback
-      const runs = await api.listRunningClaudeSessions();
+      const runs = await api.listRunningClaudeSessions() as typeof runningAgents;
       setRunningAgents(runs || []);
     } catch (error) {
       console.error('Failed to load running agents:', error);
@@ -77,7 +85,7 @@ export const Agents: React.FC = () => {
     }
     
     try {
-      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       let projectPath: string | null = null;
 
       if (!isWebMode) {
@@ -125,7 +133,7 @@ export const Agents: React.FC = () => {
 
   const handleImportFromFile = async () => {
     try {
-      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       if (isWebMode) {
         setToast({ message: 'Import is only available in desktop mode', type: 'error' });
         return;
@@ -154,7 +162,7 @@ export const Agents: React.FC = () => {
 
   const handleExportAgent = async (agent: Agent) => {
     try {
-      const isWebMode = !!(window as any).__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
+      const isWebMode = !!window.__TAURI_INTERNALS__?.__WEB_MODE_MOCK__;
       if (isWebMode) {
         setToast({ message: 'Export is only available in desktop mode', type: 'error' });
         return;

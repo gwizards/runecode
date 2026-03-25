@@ -31,7 +31,7 @@ interface TabItemProps {
   agentStatus?: AgentStatus;
 }
 
-export const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClick, onDoubleClick, isDragging = false, setDraggedTabId, agentStatus }) => {
+export const TabItem: React.FC<TabItemProps> = React.memo(({ tab, isActive, onClose, onClick, onDoubleClick, isDragging = false, setDraggedTabId, agentStatus }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const getIcon = () => {
@@ -157,4 +157,4 @@ export const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClose, onClic
 
     </Reorder.Item>
   );
-};
+});

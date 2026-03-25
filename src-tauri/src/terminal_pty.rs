@@ -77,9 +77,19 @@ fn wrap_wsl_pty(
         args.push("/bin/bash".to_string());
         args.push("-l".to_string());
     } else {
-        // Run claude inside WSL -- use "claude" directly since WSL has its own PATH
-        args.push("claude".to_string());
-        args.extend(program_args.iter().cloned());
+        // Run claude inside WSL via login shell so nvm-installed claude is on PATH.
+        // wsl -e claude fails because -e bypasses .bashrc/nvm PATH setup.
+        // Instead: wsl -e /bin/bash -lc "claude <flags>"
+        let claude_cmd = if program_args.is_empty() {
+            "claude".to_string()
+        } else {
+            format!("claude {}", program_args.iter().map(|a| {
+                if a.contains(' ') { format!("\"{}\"", a) } else { a.clone() }
+            }).collect::<Vec<_>>().join(" "))
+        };
+        args.push("/bin/bash".to_string());
+        args.push("-lc".to_string());
+        args.push(claude_cmd);
     }
 
     ("wsl".to_string(), args)

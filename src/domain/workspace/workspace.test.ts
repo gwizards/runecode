@@ -13,8 +13,8 @@ import { WorkspaceApplicationService } from './service';
 import { WORKSPACE_EVENT_TYPES } from './events';
 import { WorkspaceId, TabId } from './types';
 import { unwrap } from '../shared/result';
-import { SessionId } from '../session/types';
-import { ProjectId } from '../project/types';
+import { SessionId } from '../shared/session-id';
+import { ProjectId } from '../shared/project-id';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -25,7 +25,7 @@ export type HookEvent = keyof HooksConfiguration;
 
 export interface ClaudeSettingsWithHooks {
   hooks?: HooksConfiguration;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface HookValidationError {

@@ -96,17 +96,18 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
 
       // Parse permissions
       if (loadedSettings.permissions && typeof loadedSettings.permissions === 'object') {
-        if (Array.isArray(loadedSettings.permissions.allow)) {
+        const perms = loadedSettings.permissions as { allow?: string[]; deny?: string[] };
+        if (Array.isArray(perms.allow)) {
           setAllowRules(
-            loadedSettings.permissions.allow.map((rule: string, index: number) => ({
+            perms.allow.map((rule: string, index: number) => ({
               id: `allow-${index}`,
               value: rule,
             }))
           );
         }
-        if (Array.isArray(loadedSettings.permissions.deny)) {
+        if (Array.isArray(perms.deny)) {
           setDenyRules(
-            loadedSettings.permissions.deny.map((rule: string, index: number) => ({
+            perms.deny.map((rule: string, index: number) => ({
               id: `deny-${index}`,
               value: rule,
             }))
@@ -180,7 +181,7 @@ export const Settings: React.FC<SettingsProps> = ({ className, initialSection })
     }
   };
 
-  const updateSetting = (key: string, value: any) => {
+  const updateSetting = (key: string, value: unknown) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 

@@ -2,6 +2,7 @@
 import React, { createContext, useState, useContext, useCallback, useEffect, useRef, useMemo } from 'react';
 import { TabPersistenceService } from '@/services/tabPersistence';
 import { SessionPersistenceService } from '@/services/sessionPersistence';
+import type { Session, Agent } from '@/lib/clients/types';
 
 export type LayoutMode = 'single' | 'grid';
 
@@ -31,9 +32,9 @@ export interface Tab {
   type: 'chat' | 'agent' | 'agents' | 'projects' | 'usage' | 'mcp' | 'settings' | 'claude-md' | 'claude-file' | 'agent-execution' | 'create-agent' | 'import-agent' | 'resource-details' | 'claude-terminal' | 'browser';
   title: string;
   sessionId?: string;  // for chat tabs
-  sessionData?: any; // for chat tabs - stores full session object
+  sessionData?: Session; // for chat tabs - stores full session object
   agentRunId?: string; // for agent tabs
-  agentData?: any; // for agent-execution tabs
+  agentData?: Agent; // for agent-execution tabs
   claudeFileId?: string; // for claude-file tabs
   initialProjectPath?: string; // for chat tabs
   projectPath?: string; // for agent-execution tabs

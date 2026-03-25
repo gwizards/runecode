@@ -13,7 +13,7 @@ export function EnvironmentSelector() {
           const data = await res.json();
           if (data.email) setAccount({ email: data.email, organization: data.organization });
         }
-      } catch {}
+      } catch (e) { console.warn('[EnvironmentSelector] failed to fetch auth status', e); }
     })();
   }, []);
 

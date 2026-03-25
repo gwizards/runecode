@@ -6,9 +6,9 @@ import type {
   RuFloSwarmStatus,
   RuFloProjectStatus as ApiProjectStatus,
 } from './ports/IRuFloApiPort';
-// AgentId is the same concept as in the agent bounded context — import from there
-// to avoid maintaining two identical class VOs.
-import { AgentId } from '../agent/types';
+// AgentId is a shared kernel type — import from the shared kernel shim
+// to respect DDD bounded context boundaries.
+import { AgentId } from '../shared/agent-id';
 
 export { AgentId };
 

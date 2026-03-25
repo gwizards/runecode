@@ -12,7 +12,7 @@ interface UsageChartsProps {
 /**
  * Timeline chart displaying daily usage data as a bar chart.
  */
-export const UsageCharts: React.FC<UsageChartsProps> = ({
+export const UsageCharts: React.FC<UsageChartsProps> = React.memo(({
   stats,
   formatCurrency,
   formatTokens,
@@ -110,4 +110,4 @@ export const UsageCharts: React.FC<UsageChartsProps> = ({
       )}
     </Card>
   );
-};
+});

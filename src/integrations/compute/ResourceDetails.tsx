@@ -65,7 +65,7 @@ export function ResourceDetails({ onBack }: { onBack: () => void }) {
   const totalRss = processes.reduce((s, p) => s + p.rss, 0);
 
   const combinedGroups = useMemo(() => {
-    const map = new Map<string, { procs: ProcessInfo[]; containers: any[] }>();
+    const map = new Map<string, { procs: ProcessInfo[]; containers: typeof docker.containers }>();
     for (const p of processes) {
       const key = p.project || "system";
       if (!map.has(key)) map.set(key, { procs: [], containers: [] });

@@ -12,7 +12,9 @@ import { useEffect, useRef, useState } from "react";
 import { isRealTauri } from "@/lib/tauri-env";
 
 // Conditional import for Tauri webview window
-let tauriGetCurrentWebviewWindow: any;
+type DragDropHandler = (event: { payload: { type: string; paths?: string[] } }) => void;
+type WebviewWindow = { onDragDropEvent: (handler: DragDropHandler) => Promise<() => void> };
+let tauriGetCurrentWebviewWindow: (() => WebviewWindow) | undefined;
 try {
   if (isRealTauri()) {
     tauriGetCurrentWebviewWindow =
@@ -22,9 +24,9 @@ try {
   // Web mode — Tauri webview API not available
 }
 
-const getCurrentWebviewWindow =
+const getCurrentWebviewWindow: () => WebviewWindow =
   tauriGetCurrentWebviewWindow ||
-  (() => ({ listen: () => Promise.resolve(() => {}) }));
+  (() => ({ onDragDropEvent: () => Promise.resolve(() => {}) }));
 
 // ─── Orchestration constants ──────────────────────────────────────────────────
 
@@ -132,7 +134,7 @@ export function useDragDropAttachment({
       if (unlistenRef.current) unlistenRef.current();
       try {
         const webview = getCurrentWebviewWindow();
-        unlistenRef.current = await webview.onDragDropEvent((event: any) => {
+        unlistenRef.current = await webview.onDragDropEvent((event) => {
           const { type, paths } = event.payload;
           if (type === "enter" || type === "over") {
             setDragActive(true);

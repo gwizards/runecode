@@ -16,6 +16,7 @@ import {
   type GridConfig,
   type GridSpan,
 } from '@/contexts/TabContext';
+import type { Agent } from '@/lib/clients/types';
 
 export type { Tab, LayoutMode, GridConfig, GridSpan };
 
@@ -60,7 +61,7 @@ export const useTabState = () => {
   );
 
   const createAgentExecutionTab = useCallback(
-    (agent: { name: string; [key: string]: unknown }, _tabId: string, projectPath?: string) =>
+    (agent: Agent, _tabId: string, projectPath?: string) =>
       addTab({ type: 'agent-execution', title: `Run: ${agent.name}`, agentData: agent, projectPath, status: 'idle', hasUnsavedChanges: false, icon: 'bot' }),
     [addTab],
   );

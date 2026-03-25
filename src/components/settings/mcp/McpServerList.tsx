@@ -41,7 +41,7 @@ function ServerCard({
   onToggle: () => void;
   onRemove: () => void;
   onTest: () => void;
-  liveInfo?: any;
+  liveInfo?: { status?: string; serverInfo?: { name: string; version: string }; error?: string; tools?: Array<{ name: string; description?: string }> };
 }) {
   const isConnected = liveInfo?.status === "connected";
   const hasFailed =
@@ -177,7 +177,7 @@ function ServerCard({
                         Tools ({liveInfo.tools.length})
                       </span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {liveInfo.tools.map((tool: any) => (
+                        {liveInfo.tools.map((tool) => (
                           <span
                             key={tool.name}
                             title={tool.description || tool.name}
@@ -274,7 +274,7 @@ export function ServerList({
   onRemove: (name: string) => void;
   onTest: (name: string) => void;
   onImportClaudeDesktop: () => void;
-  liveStatus: Map<string, any>;
+  liveStatus: Map<string, { status?: string; serverInfo?: { name: string; version: string }; error?: string; tools?: Array<{ name: string; description?: string }> }>;
 }) {
   if (loading) {
     return (
