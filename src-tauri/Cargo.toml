@@ -1,6 +1,6 @@
 [package]
 name = "runecode"
-version = "0.5.100"
+version = "0.6.0"
 description = "RuneCode - A blazingly fast desktop engine for Claude Code"
 authors = ["mufeedvh", "123vviekr"]
 license = "AGPL-3.0"
