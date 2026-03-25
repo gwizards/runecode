@@ -26,7 +26,6 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: asset: http: https: ws: wss: ipc: tauri:",
       "assetProtocol": {
         "enable": true,
         "scope": [
