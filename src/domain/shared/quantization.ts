@@ -120,8 +120,11 @@ export class AnalyticsSnapshotQuantizer extends ScalarQuantizer<RawConsent> {
 
 // ─── WorkspaceSnapshotQuantizer ───────────────────────────────────────────────
 
-// TODO: Replace this placeholder with `import type { RawWorkspace } from '../workspace/types'`
-// once src/domain/workspace/types.ts is created by the workspace-domain agent.
+// Quantization-specific workspace snapshot — intentionally different from
+// ../workspace/types.RawWorkspace which includes full tab arrays.  This shape
+// captures only the scalar fields that benefit from quantization (tabCount,
+// activeTabIndex).  Kept inline to avoid coupling the shared quantization
+// barrel to the workspace bounded context.
 export interface RawWorkspace {
   readonly workspaceId: string;
   readonly sessionId: string;

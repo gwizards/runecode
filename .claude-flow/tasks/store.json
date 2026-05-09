@@ -1,0 +1,2267 @@
+{
+  "tasks": {
+    "task-1774131962195-pkl2i6": {
+      "taskId": "task-1774131962195-pkl2i6",
+      "type": "research",
+      "description": "Audit ruflo.rs: verify all 9 commands, env var handling, error safety, uninstall wiring",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-rust"
+      ],
+      "tags": [
+        "rust",
+        "backend",
+        "v040"
+      ],
+      "createdAt": "2026-03-21T22:26:02.195Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774131963823-nzowdf": {
+      "taskId": "task-1774131963823-nzowdf",
+      "type": "research",
+      "description": "Build verification: npm run build + cargo check, zero errors required",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "tester-build"
+      ],
+      "tags": [
+        "build",
+        "ci",
+        "v040"
+      ],
+      "createdAt": "2026-03-21T22:26:03.823Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774131964909-fd57u4": {
+      "taskId": "task-1774131964909-fd57u4",
+      "type": "research",
+      "description": "Frontend review: RuFloSection, RuFloSettings, Onboarding — state, types, UX, a11y",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "reviewer-frontend",
+        "analyst-ux"
+      ],
+      "tags": [
+        "frontend",
+        "review",
+        "v040"
+      ],
+      "createdAt": "2026-03-21T22:26:04.909Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774131968055-jceg7l": {
+      "taskId": "task-1774131968055-jceg7l",
+      "type": "research",
+      "description": "Security audit: command injection via projectPath, Tauri permissions, hardcoded secrets",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "security-auditor"
+      ],
+      "tags": [
+        "security",
+        "v040"
+      ],
+      "createdAt": "2026-03-21T22:26:08.055Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774131969459-qxavbs": {
+      "taskId": "task-1774131969459-qxavbs",
+      "type": "research",
+      "description": "Performance + compatibility: polling intervals, re-renders, plugin-shell dep check",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "perf-engineer",
+        "researcher-compat"
+      ],
+      "tags": [
+        "performance",
+        "compat",
+        "v040"
+      ],
+      "createdAt": "2026-03-21T22:26:09.459Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774136529775-2zxjlm": {
+      "taskId": "task-1774136529775-2zxjlm",
+      "type": "research",
+      "description": "Monitor gwizards/runecode CI: wait for runs triggered by push b6aab53, check all jobs pass",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ci-watcher"
+      ],
+      "tags": [
+        "ci",
+        "github-actions",
+        "v040"
+      ],
+      "createdAt": "2026-03-21T23:42:09.775Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774139217052-d586jr": {
+      "taskId": "task-1774139217052-d586jr",
+      "type": "refactor",
+      "description": "Rust DDD: split ruflo.rs into domain modules (installation, swarm, project aggregates + repository)",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "rust-ddd-coder"
+      ],
+      "tags": [
+        "rust",
+        "ddd",
+        "refactor"
+      ],
+      "createdAt": "2026-03-22T00:26:57.052Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774139217787-ko3k5f": {
+      "taskId": "task-1774139217787-ko3k5f",
+      "type": "feature",
+      "description": "TypeScript DDD layer: domain types, RuFloService, Zustand store, domain events",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ts-ddd-coder"
+      ],
+      "tags": [
+        "typescript",
+        "ddd",
+        "feature"
+      ],
+      "createdAt": "2026-03-22T00:26:57.787Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774139218736-h34pan": {
+      "taskId": "task-1774139218736-h34pan",
+      "type": "feature",
+      "description": "Scalar quantization: float32→uint8 HNSW embeddings + SQLite cache for CLI results",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "memory-optimizer"
+      ],
+      "tags": [
+        "memory",
+        "quantization",
+        "performance"
+      ],
+      "createdAt": "2026-03-22T00:26:58.736Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774140428969-p8dkqk": {
+      "taskId": "task-1774140428969-p8dkqk",
+      "type": "research",
+      "description": "Investigate actual claude-flow CLI memory commands: memory sync --local, memory consolidate, memory backend set agentdb. Check help output and source.",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "researcher-cli"
+      ],
+      "tags": [
+        "memory",
+        "cli",
+        "research"
+      ],
+      "createdAt": "2026-03-22T00:47:08.969Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774140430806-4712gm": {
+      "taskId": "task-1774140430806-4712gm",
+      "type": "refactor",
+      "description": "Improve Rust DDD: add MemoryEntry value object, domain events (RuFloEvent enum), memory sync/consolidate/backend Tauri commands in ruflo domain",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "rust-ddd-coder"
+      ],
+      "tags": [
+        "rust",
+        "ddd",
+        "memory",
+        "value-objects"
+      ],
+      "createdAt": "2026-03-22T00:47:10.806Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774140432627-svmp4v": {
+      "taskId": "task-1774140432627-svmp4v",
+      "type": "refactor",
+      "description": "Migrate RuFloSettings.tsx and RuFloSection.tsx to consume src/domain/ruflo service and events. Replace inline window.dispatchEvent with onRuFloEvent/dispatchRuFloEvent.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ts-ddd-coder"
+      ],
+      "tags": [
+        "typescript",
+        "ddd",
+        "components",
+        "migration"
+      ],
+      "createdAt": "2026-03-22T00:47:12.627Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774140434091-1i67r8": {
+      "taskId": "task-1774140434091-1i67r8",
+      "type": "feature",
+      "description": "Add Memory Management card to RuFloSettings: sync local, consolidate, backend switcher (agentdb/hnsw/hybrid). Wire to new Rust commands.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "memory-ui-coder"
+      ],
+      "tags": [
+        "ui",
+        "memory",
+        "settings"
+      ],
+      "createdAt": "2026-03-22T00:47:14.091Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774140435540-k56ma1": {
+      "taskId": "task-1774140435540-k56ma1",
+      "type": "feature",
+      "description": "Implement scalar quantization utility in src/domain/ruflo/quantization.ts: float32->uint8 encode/decode for 384-dim HNSW embeddings (4x memory reduction)",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "quantization-engineer"
+      ],
+      "tags": [
+        "performance",
+        "quantization",
+        "hnsw",
+        "memory"
+      ],
+      "createdAt": "2026-03-22T00:47:15.540Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774141648894-bbzx3m": {
+      "taskId": "task-1774141648894-bbzx3m",
+      "type": "refactor",
+      "description": "Add AgentType enum value object, SwarmId/ProjectPath newtypes, RuFloEvent domain events, aggregate invariant methods to Rust DDD domain",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "rust-ddd-v3"
+      ],
+      "tags": [
+        "rust",
+        "ddd",
+        "value-objects",
+        "domain-events"
+      ],
+      "createdAt": "2026-03-22T01:07:28.894Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774141650425-015il8": {
+      "taskId": "task-1774141650425-015il8",
+      "type": "feature",
+      "description": "Improve quantization.ts: batchQuantize/batchDequantize, quantizationError metrics, ProductQuantizer class for 8-16x memory reduction",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "quant-v2"
+      ],
+      "tags": [
+        "quantization",
+        "performance",
+        "hnsw"
+      ],
+      "createdAt": "2026-03-22T01:07:30.425Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774141651573-7sgh17": {
+      "taskId": "task-1774141651573-7sgh17",
+      "type": "feature",
+      "description": "Expand useRuFloStore with install/uninstall/activateMcp/deactivateMcp actions and memoryStats/projectStatus state",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ts-store-v3"
+      ],
+      "tags": [
+        "typescript",
+        "zustand",
+        "store"
+      ],
+      "createdAt": "2026-03-22T01:07:31.573Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774143741928-qw6ywk": {
+      "taskId": "task-1774143741928-qw6ywk",
+      "type": "feature",
+      "description": "Add AgentCapability enum, SwarmTopology enum, TaskPriority value object to Rust domain with #[cfg(test)] coverage",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "rust-domain-enricher"
+      ],
+      "tags": [
+        "rust",
+        "ddd",
+        "v8"
+      ],
+      "createdAt": "2026-03-22T01:42:21.928Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774143743304-3o6k3r": {
+      "taskId": "task-1774143743304-3o6k3r",
+      "type": "feature",
+      "description": "Add CalibratedQuantizer class to quantization.ts: per-dimension min/max calibration, asymmetric uint8 mapping, tests proving lower RMSE than global SQ",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "quantization-improver"
+      ],
+      "tags": [
+        "quantization",
+        "ml",
+        "v8"
+      ],
+      "createdAt": "2026-03-22T01:42:23.304Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774143744444-g2wqkr": {
+      "taskId": "task-1774143744444-g2wqkr",
+      "type": "feature",
+      "description": "Add TTL expiry, LRU eviction (maxEntries cap), importEntries, warmUp(calibration samples) to QuantizedMemoryStore",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "memory-store-improver"
+      ],
+      "tags": [
+        "memory",
+        "storage",
+        "v8"
+      ],
+      "createdAt": "2026-03-22T01:42:24.444Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774143745861-hswvnq": {
+      "taskId": "task-1774143745861-hswvnq",
+      "type": "feature",
+      "description": "Enrich TypeScript domain types.ts: AgentCapability enum, typed domain event payloads, swarmCapacityRatio() invariant helper",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ts-domain-enricher"
+      ],
+      "tags": [
+        "typescript",
+        "ddd",
+        "v8"
+      ],
+      "createdAt": "2026-03-22T01:42:25.861Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774144298472-f4akyt": {
+      "taskId": "task-1774144298472-f4akyt",
+      "type": "research",
+      "description": "Full DDD compliance audit across TypeScript domain layer, Rust backend, and UI components — score each bounded context 1-5 on: aggregates, VOs, events, repos, application services",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ddd-auditor-ts",
+        "ddd-auditor-rust",
+        "ddd-auditor-ui"
+      ],
+      "tags": [
+        "ddd",
+        "audit",
+        "refactor"
+      ],
+      "createdAt": "2026-03-22T01:51:38.472Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774144621686-pjrq80": {
+      "taskId": "task-1774144621686-pjrq80",
+      "type": "feature",
+      "description": "Create src/domain/shared/: event-bus.ts (DomainEvent interface + DomainEventBus class), result.ts (Result<T,E> monad), repository.ts (IRepository base), index.ts barrel",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "shared-kernel-builder"
+      ],
+      "tags": [
+        "shared",
+        "kernel",
+        "v9"
+      ],
+      "createdAt": "2026-03-22T01:57:01.686Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774144623129-rmokll": {
+      "taskId": "task-1774144623129-rmokll",
+      "type": "feature",
+      "description": "Create src/domain/ruflo/aggregates/: swarm.aggregate.ts (RuFloSwarmAggregate class), installation.aggregate.ts (RuFloInstallationAggregate class), domain-events.ts (typed event classes), index.ts barrel — additive only, must not break existing types.ts",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ruflo-aggregate-builder"
+      ],
+      "tags": [
+        "ruflo",
+        "aggregates",
+        "v9"
+      ],
+      "createdAt": "2026-03-22T01:57:03.129Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774144624254-ifo6wb": {
+      "taskId": "task-1774144624254-ifo6wb",
+      "type": "feature",
+      "description": "Create src/domain/ruflo/application/: ruflo.repository.ts (IRuFloRepository + InMemoryRuFloRepository), ruflo-application.service.ts (RuFloApplicationService thin command handlers), index.ts barrel",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ruflo-appsvc-builder"
+      ],
+      "tags": [
+        "ruflo",
+        "application",
+        "v9"
+      ],
+      "createdAt": "2026-03-22T01:57:04.255Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774144625856-fi3u8d": {
+      "taskId": "task-1774144625856-fi3u8d",
+      "type": "feature",
+      "description": "Write ≥15 vitest tests covering: DomainEventBus subscribe/dispatch/unsubscribe, Result Ok/Err monad, RuFloSwarmAggregate factory+invariants+events, RuFloInstallationAggregate factory+is_supported",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "v9-test-writer"
+      ],
+      "tags": [
+        "tests",
+        "v9"
+      ],
+      "createdAt": "2026-03-22T01:57:05.856Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774145062924-mvj2tr": {
+      "taskId": "task-1774145062924-mvj2tr",
+      "type": "feature",
+      "description": "DDD v10: Build session bounded context (SessionAggregate, VOs, events, service, repo, store, 10+ tests)",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "session-domain-builder"
+      ],
+      "tags": [
+        "ddd",
+        "session",
+        "sprint2"
+      ],
+      "createdAt": "2026-03-22T02:04:22.924Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774145065496-4mzdws": {
+      "taskId": "task-1774145065496-4mzdws",
+      "type": "feature",
+      "description": "DDD v10: Build project bounded context (ProjectAggregate, ProjectPath VO, events, service, repo, store, 10+ tests)",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "project-domain-builder"
+      ],
+      "tags": [
+        "ddd",
+        "project",
+        "sprint2"
+      ],
+      "createdAt": "2026-03-22T02:04:25.496Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774145066554-oax9c5": {
+      "taskId": "task-1774145066554-oax9c5",
+      "type": "feature",
+      "description": "DDD v11: Build agent bounded context (LiveAgentAggregate, AgentStatus VO, events, service, repo, store, 10+ tests)",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "agent-domain-builder"
+      ],
+      "tags": [
+        "ddd",
+        "agent",
+        "sprint3"
+      ],
+      "createdAt": "2026-03-22T02:04:26.554Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774145067542-x5cs1i": {
+      "taskId": "task-1774145067542-x5cs1i",
+      "type": "feature",
+      "description": "DDD v11: Build mcp bounded context (MCPServerAggregate, ServerUrl VO, events, service, repo, store, 10+ tests)",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "mcp-domain-builder"
+      ],
+      "tags": [
+        "ddd",
+        "mcp",
+        "sprint3"
+      ],
+      "createdAt": "2026-03-22T02:04:27.542Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774145764162-qq4h9h": {
+      "taskId": "task-1774145764162-qq4h9h",
+      "type": "research",
+      "description": "Audit slash command files and RuneCode onboarding wiring for /setup-ruflo and /ddd-optimization",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "commands-auditor",
+        "onboarding-auditor"
+      ],
+      "tags": [
+        "commands",
+        "onboarding",
+        "audit"
+      ],
+      "createdAt": "2026-03-22T02:16:04.162Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774145765611-zsodfa": {
+      "taskId": "task-1774145765611-zsodfa",
+      "type": "research",
+      "description": "Full project health: build pass, vitest pass, cargo check, DDD domain integrity, RuFlo API wiring",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "build-tester",
+        "ddd-verifier",
+        "ruflo-api-auditor"
+      ],
+      "tags": [
+        "health",
+        "build",
+        "ddd",
+        "ruflo"
+      ],
+      "createdAt": "2026-03-22T02:16:05.611Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774147266567-46kjax": {
+      "taskId": "task-1774147266567-46kjax",
+      "type": "research",
+      "description": "Audit all 5 DDD bounded contexts for maturity gaps",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "audit-ruflo",
+        "audit-session",
+        "audit-project",
+        "audit-agent",
+        "audit-mcp"
+      ],
+      "tags": [
+        "ddd",
+        "audit"
+      ],
+      "createdAt": "2026-03-22T02:41:06.567Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774147267480-tcmbw3": {
+      "taskId": "task-1774147267480-tcmbw3",
+      "type": "refactor",
+      "description": "Fix DDD gaps, run tests, commit and push v0.4.10",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ddd-coder",
+        "ddd-tester",
+        "ddd-reviewer"
+      ],
+      "tags": [
+        "ddd",
+        "fix",
+        "commit"
+      ],
+      "createdAt": "2026-03-22T02:41:07.480Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774149373661-xvngad": {
+      "taskId": "task-1774149373661-xvngad",
+      "type": "research",
+      "description": "Explore full codebase structure — discover all bounded contexts, domain folders, stores, services, and infrastructure layers",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "domain-explorer"
+      ],
+      "tags": [
+        "ddd",
+        "discovery"
+      ],
+      "createdAt": "2026-03-22T03:16:13.661Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774149375523-vqynhk": {
+      "taskId": "task-1774149375523-vqynhk",
+      "type": "research",
+      "description": "Score each of the 3 known bounded contexts (agent, mcp, project) on DDD compliance: aggregates, VOs, domain events, repositories, application services, invariant enforcement",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ddd-auditor"
+      ],
+      "tags": [
+        "ddd",
+        "audit",
+        "scoring"
+      ],
+      "createdAt": "2026-03-22T03:16:15.523Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774149377694-entxn2": {
+      "taskId": "task-1774149377694-entxn2",
+      "type": "refactor",
+      "description": "Design 2 new bounded contexts to reach 5/5 domains. Produce full spec: aggregate, VOs, events, repository interface, application service skeleton",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "refactor-planner"
+      ],
+      "tags": [
+        "ddd",
+        "new-domains"
+      ],
+      "createdAt": "2026-03-22T03:16:17.694Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774149379517-1g6rzk": {
+      "taskId": "task-1774149379517-1g6rzk",
+      "type": "refactor",
+      "description": "Design scalar quantization layer for domain snapshot storage: quantize float fields to int8/int16, define QuantizedSnapshot types, compression ratios",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "memory-optimizer"
+      ],
+      "tags": [
+        "memory",
+        "quantization",
+        "performance"
+      ],
+      "createdAt": "2026-03-22T03:16:19.517Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774149381042-8s6g1g": {
+      "taskId": "task-1774149381042-8s6g1g",
+      "type": "research",
+      "description": "Audit DDD anti-patterns: anemic models, domain logic leaking into Zustand stores, missing invariants, context boundary violations",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "compliance-reviewer"
+      ],
+      "tags": [
+        "ddd",
+        "anti-patterns"
+      ],
+      "createdAt": "2026-03-22T03:16:21.042Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774149384125-736b79": {
+      "taskId": "task-1774149384125-736b79",
+      "type": "research",
+      "description": "Map all test gaps: untested domain methods, missing error path tests, missing integration tests between service and repository",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "test-gap-analyzer"
+      ],
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "createdAt": "2026-03-22T03:16:24.125Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150206301-7hk9dg": {
+      "taskId": "task-1774150206301-7hk9dg",
+      "type": "feature",
+      "description": "Write src/domain/usage/ — all 6 files: types.ts, events.ts, repository.ts, service.ts, store.ts, index.ts",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "usage-domain-writer"
+      ],
+      "tags": [
+        "usage",
+        "new-domain"
+      ],
+      "createdAt": "2026-03-22T03:30:06.301Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150207376-8vckud": {
+      "taskId": "task-1774150207376-8vckud",
+      "type": "feature",
+      "description": "Write src/domain/command/ — all 6 files: types.ts, events.ts, repository.ts, service.ts, store.ts, index.ts",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "command-domain-writer"
+      ],
+      "tags": [
+        "command",
+        "new-domain"
+      ],
+      "createdAt": "2026-03-22T03:30:07.376Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150210651-bv3kdk": {
+      "taskId": "task-1774150210651-bv3kdk",
+      "type": "bugfix",
+      "description": "Apply P1+P2 fixes: (1) add ProjectAggregate.markForDeletion(), fix service.ts:98; (2) add no-op guards to MCPServerAggregate connect/disconnect; (3) fix MCP store name-as-id; (4) fix SessionAggregate.unknown() empty-ID bypass; (5) add missing MCPApplicationService.listEnabledServers()",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "p1-fixer"
+      ],
+      "tags": [
+        "bugfix",
+        "p1",
+        "p2"
+      ],
+      "createdAt": "2026-03-22T03:30:10.651Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150213618-chop5q": {
+      "taskId": "task-1774150213618-chop5q",
+      "type": "test",
+      "description": "Write 4 new test files: agent-service.test.ts, mcp-service.test.ts, project-service.test.ts, shared/result.test.ts + shared/event-bus.test.ts covering all 0%-coverage ApplicationService and infrastructure layers",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "test-writer"
+      ],
+      "tags": [
+        "tests",
+        "coverage"
+      ],
+      "createdAt": "2026-03-22T03:30:13.618Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150215176-66x49u": {
+      "taskId": "task-1774150215176-66x49u",
+      "type": "feature",
+      "description": "Verify src/domain/shared/quantization.ts exists; if not, write it. Then verify src/domain/shared/index.ts re-exports quantization. Write quantization integration tests.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "quant-integrator"
+      ],
+      "tags": [
+        "quantization",
+        "memory"
+      ],
+      "createdAt": "2026-03-22T03:30:15.176Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150691113-qfv942": {
+      "taskId": "task-1774150691113-qfv942",
+      "type": "refactor",
+      "description": "Fix ruflo domain C-1/C-2/H-6: extract IRuFloApiPort interface to src/domain/ruflo/ports/, move browser window events bridge to src/infrastructure/ruflo/, remove all @ts-ignore in ruflo/application/",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ruflo-fixer"
+      ],
+      "tags": [
+        "ruflo",
+        "structural"
+      ],
+      "createdAt": "2026-03-22T03:38:11.113Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150695006-s4k5w9": {
+      "taskId": "task-1774150695006-s4k5w9",
+      "type": "test",
+      "description": "Write session/session-service.test.ts, usage/usage.test.ts, command/command.test.ts - covering all ApplicationService methods for the 3 undertested domains",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "session-test-writer"
+      ],
+      "tags": [
+        "tests",
+        "session",
+        "usage",
+        "command"
+      ],
+      "createdAt": "2026-03-22T03:38:15.006Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150697267-p40vzr": {
+      "taskId": "task-1774150697267-p40vzr",
+      "type": "bugfix",
+      "description": "Fix M-1: add SessionStatus union type; M-2: add TokenUsageUpdatedEvent to session/events.ts and call from updateTokenUsage(); M-3: remove PROJECT_CREATED from session context events",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "medium-fixer"
+      ],
+      "tags": [
+        "medium",
+        "session"
+      ],
+      "createdAt": "2026-03-22T03:38:17.267Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150699674-6y7ee3": {
+      "taskId": "task-1774150699674-6y7ee3",
+      "type": "feature",
+      "description": "Replace Map<string, RawX> in InMemoryAgentRepository, InMemoryMCPRepository, InMemoryProjectRepository with QuantizedSnapshotStore<T,K> from shared/quantization.ts",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "quant-repo-integrator"
+      ],
+      "tags": [
+        "quantization",
+        "repositories"
+      ],
+      "createdAt": "2026-03-22T03:38:19.674Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774150701673-gn0d6k": {
+      "taskId": "task-1774150701673-gn0d6k",
+      "type": "feature",
+      "description": "Write src/domain/shared/project-id.ts with shared ProjectId branded type; write src/infrastructure/ruflo/session-analytics-acl.ts translating session domain events to analytics; document ACL pattern",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "acl-writer"
+      ],
+      "tags": [
+        "acl",
+        "shared-kernel"
+      ],
+      "createdAt": "2026-03-22T03:38:21.673Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774151911215-uw6q4p": {
+      "taskId": "task-1774151911215-uw6q4p",
+      "type": "refactor",
+      "description": "Extract src/lib/analytics/ into src/domain/analytics/ bounded context with ConsentAggregate, AnalyticsEvent types, repository, service, store, index",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "analytics-extractor"
+      ],
+      "tags": [
+        "ddd",
+        "analytics",
+        "extraction"
+      ],
+      "createdAt": "2026-03-22T03:58:31.215Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774151912675-i3lvg7": {
+      "taskId": "task-1774151912675-i3lvg7",
+      "type": "refactor",
+      "description": "Extract TabContext.tsx + useTabState.ts into src/domain/workspace/ bounded context: WorkspaceAggregate, TabRecord VO, events, repository, service, store",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "workspace-extractor"
+      ],
+      "tags": [
+        "ddd",
+        "workspace",
+        "extraction"
+      ],
+      "createdAt": "2026-03-22T03:58:32.675Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774151914865-2tevas": {
+      "taskId": "task-1774151914865-2tevas",
+      "type": "refactor",
+      "description": "Delete src/stores/sessionStore.ts (254 lines) and src/stores/agentStore.ts (69 lines). Find all import sites and redirect to domain stores. Verify build passes.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "legacy-store-deleter"
+      ],
+      "tags": [
+        "cleanup",
+        "legacy",
+        "stores"
+      ],
+      "createdAt": "2026-03-22T03:58:34.865Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774151917147-5sxgcg": {
+      "taskId": "task-1774151917147-5sxgcg",
+      "type": "bugfix",
+      "description": "H-1: Wrap ruflo ApplicationService methods in Result<T>. H-2: Fix CQS violation in fetchMemoryStats (separate query from command). H-3: Remove localStorage from domain stores, move to infrastructure adapter.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ruflo-result-fixer"
+      ],
+      "tags": [
+        "result",
+        "cqs",
+        "ddd-violations"
+      ],
+      "createdAt": "2026-03-22T03:58:37.147Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774151919025-8zhhum": {
+      "taskId": "task-1774151919025-8zhhum",
+      "type": "feature",
+      "description": "Add AnalyticsSnapshotQuantizer and WorkspaceSnapshotQuantizer to src/domain/shared/quantization.ts. Write tests for both. Integrate into analytics and workspace InMemory repositories.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "quant-deepener"
+      ],
+      "tags": [
+        "quantization",
+        "memory",
+        "analytics",
+        "workspace"
+      ],
+      "createdAt": "2026-03-22T03:58:39.025Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774151920872-nkbsrh": {
+      "taskId": "task-1774151920872-nkbsrh",
+      "type": "feature",
+      "description": "Write analytics.test.ts and workspace.test.ts service test files covering all ApplicationService methods. Run full vitest suite and verify 450+ tests pass.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "phase4-tester"
+      ],
+      "tags": [
+        "tests",
+        "analytics",
+        "workspace"
+      ],
+      "createdAt": "2026-03-22T03:58:40.872Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774152883596-h9c11h": {
+      "taskId": "task-1774152883596-h9c11h",
+      "type": "research",
+      "description": "Audit entire v0.5.0 codebase: grep for TODO stubs, find remaining violations, catalog any domain logic in React/lib/utils layers not yet formalized",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "phase5-auditor"
+      ],
+      "tags": [
+        "audit",
+        "phase5"
+      ],
+      "createdAt": "2026-03-22T04:14:43.596Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774152884636-095jd3": {
+      "taskId": "task-1774152884636-095jd3",
+      "type": "feature",
+      "description": "Add sessionOutputs, activeSkills, liveUsage to session domain store; add liveAgents Record shape + addLiveAgent/updateLiveAgent/removeLiveAgent to agent domain store; remove all TODO: migrate stubs",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "store-migration-fixer"
+      ],
+      "tags": [
+        "stores",
+        "migration",
+        "todos"
+      ],
+      "createdAt": "2026-03-22T04:14:44.636Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774152886367-j8jahm": {
+      "taskId": "task-1774152886367-j8jahm",
+      "type": "refactor",
+      "description": "Delete deprecated src/lib/analytics/ files after verifying no live imports remain. Scan lib/ hooks/ utils/ for remaining domain logic and formalize or flag it.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "lib-cleanup"
+      ],
+      "tags": [
+        "cleanup",
+        "lib",
+        "deprecated"
+      ],
+      "createdAt": "2026-03-22T04:14:46.367Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774152888683-zv10tp": {
+      "taskId": "task-1774152888683-zv10tp",
+      "type": "research",
+      "description": "Scan src/components/ src/hooks/ src/lib/ for notification, settings, or skill-management domain logic that should be in a bounded context. Propose and implement if substantial (100+ lines).",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "notification-extractor"
+      ],
+      "tags": [
+        "notifications",
+        "settings",
+        "extraction"
+      ],
+      "createdAt": "2026-03-22T04:14:48.683Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774152890511-fj3oh4": {
+      "taskId": "task-1774152890511-fj3oh4",
+      "type": "feature",
+      "description": "Add HNSW-style semantic search capability to QuantizedSnapshotStore via cosine similarity on quantized vectors. Add searchByEmbedding() to analytics and usage repositories.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "hnsw-optimizer"
+      ],
+      "tags": [
+        "hnsw",
+        "vector-search",
+        "quantization"
+      ],
+      "createdAt": "2026-03-22T04:14:50.511Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774152891888-815t08": {
+      "taskId": "task-1774152891888-815t08",
+      "type": "feature",
+      "description": "Write cross-domain integration tests: session→analytics ACL event flow; usage ledger opened when session starts; workspace tabs survive session reactivation",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "integration-tester"
+      ],
+      "tags": [
+        "integration-tests",
+        "acl",
+        "cross-domain"
+      ],
+      "createdAt": "2026-03-22T04:14:51.888Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153174748-2a8sn6": {
+      "taskId": "task-1774153174748-2a8sn6",
+      "type": "refactor",
+      "description": "Split src/lib/api.ts (2054 lines, violates 500-line limit) into bounded-context Tauri client modules: src/infrastructure/tauri/session-client.ts, agent-client.ts, mcp-client.ts, project-client.ts, ruflo-client.ts. Keep src/lib/api.ts as a re-export barrel.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "api-splitter"
+      ],
+      "tags": [
+        "api",
+        "split",
+        "infrastructure"
+      ],
+      "createdAt": "2026-03-22T04:19:34.748Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153177407-p51gaq": {
+      "taskId": "task-1774153177407-p51gaq",
+      "type": "feature",
+      "description": "Create src/infrastructure/analytics/posthog-adapter.ts wrapping PostHog; src/infrastructure/analytics/analytics-service.ts; migrate src/main.tsx, useAnalytics.ts, usePerformanceMonitor.ts, AnalyticsErrorBoundary.tsx, Onboarding.tsx to use infrastructure path instead of lib/analytics",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "analytics-infra-builder"
+      ],
+      "tags": [
+        "analytics",
+        "infrastructure",
+        "posthog"
+      ],
+      "createdAt": "2026-03-22T04:19:37.407Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153179577-h9nmnt": {
+      "taskId": "task-1774153179577-h9nmnt",
+      "type": "feature",
+      "description": "Write tests for searchNearest() in QuantizedSnapshotStore, searchByEmbedding() in InMemoryConsentRepository and InMemoryUsageLedgerRepository. Test cosine similarity correctness, topK limiting, zero-vector edge case, empty store.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "hnsw-tester"
+      ],
+      "tags": [
+        "hnsw",
+        "tests",
+        "quantization"
+      ],
+      "createdAt": "2026-03-22T04:19:39.577Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153182226-ck2uqa": {
+      "taskId": "task-1774153182226-ck2uqa",
+      "type": "refactor",
+      "description": "Find all callers of useTabState; update deprecated hook to delegate to useWorkspaceStore from domain/workspace/store.ts; ensure TabContext.tsx consumers still compile. Do NOT delete deprecated files.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "tab-state-migrator"
+      ],
+      "tags": [
+        "tabstate",
+        "workspace",
+        "migration"
+      ],
+      "createdAt": "2026-03-22T04:19:42.226Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153681879-egv7nu": {
+      "taskId": "task-1774153681879-egv7nu",
+      "type": "research",
+      "description": "Full v0.5.2 DDD audit: check every repository for QuantizedSnapshotStore usage, every event type for naming convention, every file for size limit (500 lines), every lib/hooks/utils file for hidden domain logic",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "phase7-auditor"
+      ],
+      "tags": [
+        "audit",
+        "phase7"
+      ],
+      "createdAt": "2026-03-22T04:28:01.879Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153684371-zsqy7k": {
+      "taskId": "task-1774153684371-zsqy7k",
+      "type": "feature",
+      "description": "Add SessionSnapshotQuantizer (uint32 timestamps + uint8 status + uint32 token fields) and CommandSnapshotQuantizer (uint8 scope + uint8 capabilities flags) to quantization.ts. Integrate into InMemorySessionRepository and InMemoryCommandRepository.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "session-quant"
+      ],
+      "tags": [
+        "quantization",
+        "session",
+        "command"
+      ],
+      "createdAt": "2026-03-22T04:28:04.372Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153687333-2gs4a4": {
+      "taskId": "task-1774153687333-2gs4a4",
+      "type": "refactor",
+      "description": "Audit which lib/analytics/*.ts files can now be deleted (types.ts, events.ts, consent.ts). Update remaining callers (useAnalytics.ts, usePerformanceMonitor.ts, AnalyticsErrorBoundary, Onboarding, main.tsx) to import from src/infrastructure/analytics. Delete now-empty lib/analytics files.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "lib-analytics-deleter"
+      ],
+      "tags": [
+        "cleanup",
+        "analytics",
+        "lib"
+      ],
+      "createdAt": "2026-03-22T04:28:07.333Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153689792-p2qru7": {
+      "taskId": "task-1774153689792-p2qru7",
+      "type": "refactor",
+      "description": "Standardize all DOMAIN_EVENT_TYPES values to 'domain/noun.verb' pattern. Current violations: agent events use 'agent/AGENT_STARTED' style; session events mix formats. Update event type strings, update all references, update tests.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "event-normalizer"
+      ],
+      "tags": [
+        "events",
+        "naming",
+        "L2"
+      ],
+      "createdAt": "2026-03-22T04:28:09.792Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153692755-x9mzvu": {
+      "taskId": "task-1774153692755-x9mzvu",
+      "type": "feature",
+      "description": "Expand RawTab to include type (chat|agent|settings|projects|browser|terminal|agentExecution), status, sessionId, agentRunId. Update WorkspaceAggregate.openTab() signature. Migrate 12 TabContext callers to useWorkspaceStore. Collapse TabContext.tsx to thin adapter.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "tab-context-migrator"
+      ],
+      "tags": [
+        "workspace",
+        "tabcontext",
+        "migration"
+      ],
+      "createdAt": "2026-03-22T04:28:12.755Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774153694538-2ynfr5": {
+      "taskId": "task-1774153694538-2ynfr5",
+      "type": "feature",
+      "description": "Find ApplicationService methods with zero test coverage across all 7 domains. Write targeted tests. Target: every public method on every ApplicationService has at least 2 test cases (happy path + error path).",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coverage-booster"
+      ],
+      "tags": [
+        "tests",
+        "coverage",
+        "all-domains"
+      ],
+      "createdAt": "2026-03-22T04:28:14.538Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154344653-bq34ee": {
+      "taskId": "task-1774154344653-bq34ee",
+      "type": "research",
+      "description": "Exhaustive v0.5.3 audit: list every file >500 lines, every deprecated file still present, every domain store missing ApplicationService delegation, every repository not using QuantizedSnapshotStore, any lib/hooks file with domain logic",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "final-auditor"
+      ],
+      "tags": [
+        "audit",
+        "phase8",
+        "final"
+      ],
+      "createdAt": "2026-03-22T04:39:04.653Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154349736-e2iis7": {
+      "taskId": "task-1774154349736-e2iis7",
+      "type": "feature",
+      "description": "Add describe blocks to quantization.test.ts for SessionSnapshotQuantizer (round-trip for all status values, tokenUsage fields, costUsd, optional fields) and CommandSnapshotQuantizer (all scopes, capabilities bitmask, allowedTools JSON)",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "quant-round-trip-tester"
+      ],
+      "tags": [
+        "quantization",
+        "tests",
+        "round-trip"
+      ],
+      "createdAt": "2026-03-22T04:39:09.736Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154351633-xojzzv": {
+      "taskId": "task-1774154351633-xojzzv",
+      "type": "feature",
+      "description": "Write a describe block testing computeSavingsProjections with all 7 domain quantizers. Output a memory savings table. Add tests for estimateFixedBytes on all 7 quantizer types with realistic snapshots.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "benchmark-writer"
+      ],
+      "tags": [
+        "benchmark",
+        "quantization",
+        "savings"
+      ],
+      "createdAt": "2026-03-22T04:39:11.633Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154354252-js5wlg": {
+      "taskId": "task-1774154354252-js5wlg",
+      "type": "refactor",
+      "description": "Check if src/lib/analytics/index.ts (single-line shim) can be deleted by updating its 1 remaining indirect caller. Also check src/lib/devFallback.ts for any now-redundant re-exports. Clean up empty directories.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "lib-final-cleanup"
+      ],
+      "tags": [
+        "cleanup",
+        "lib",
+        "final"
+      ],
+      "createdAt": "2026-03-22T04:39:14.252Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154356628-28y37g": {
+      "taskId": "task-1774154356628-28y37g",
+      "type": "feature",
+      "description": "Read session/service.ts and session/store.ts. Verify appendOutput, updateTokenUsage, completeSession, failSession all delegate correctly from store to service. Add appendOutput(sessionId, chunk) to SessionApplicationService if missing. Verify build passes.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "session-store-validator"
+      ],
+      "tags": [
+        "session",
+        "store",
+        "service"
+      ],
+      "createdAt": "2026-03-22T04:39:16.628Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154595329-lhv027": {
+      "taskId": "task-1774154595329-lhv027",
+      "type": "research",
+      "description": "Phase 9: Exhaustive DDD compliance audit across all 9 domains",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ddd-auditor-p9"
+      ],
+      "tags": [
+        "ddd",
+        "audit",
+        "phase9"
+      ],
+      "createdAt": "2026-03-22T04:43:15.329Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154597158-7rbav5": {
+      "taskId": "task-1774154597158-7rbav5",
+      "type": "feature",
+      "description": "Phase 9: Complete missing ApplicationServices + Result monad in usage/command/analytics/workspace domains",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-usage-p9",
+        "coder-command-p9",
+        "coder-analytics-p9",
+        "coder-workspace-p9"
+      ],
+      "tags": [
+        "ddd",
+        "application-service",
+        "result-monad",
+        "phase9"
+      ],
+      "createdAt": "2026-03-22T04:43:17.158Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774154598416-g8lsb0": {
+      "taskId": "task-1774154598416-g8lsb0",
+      "type": "research",
+      "description": "Phase 9: Final compliance score table — score all 9 domains on 5 dimensions",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "reviewer-p9"
+      ],
+      "tags": [
+        "ddd",
+        "compliance",
+        "score",
+        "phase9"
+      ],
+      "createdAt": "2026-03-22T04:43:18.416Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774157378352-v767ts": {
+      "taskId": "task-1774157378352-v767ts",
+      "type": "feature",
+      "description": "Identity bounded context: UserId + Email + DisplayName VOs, UserProfileAggregate, IdentityApplicationService, IIdentityRepository port, full test coverage. Fix shared/project-id.ts toProjectId() throw→Result. Update analytics ConsentAggregate to use UserId VO.",
+      "priority": "critical",
+      "status": "completed",
+      "progress": 100,
+      "assignedTo": [
+        "identity-vo-worker"
+      ],
+      "tags": [
+        "ddd",
+        "identity",
+        "value-objects",
+        "phase15"
+      ],
+      "createdAt": "2026-03-22T05:29:38.352Z",
+      "startedAt": "2026-03-22T05:29:44.569Z",
+      "completedAt": "2026-03-22T05:33:23.938Z",
+      "result": {}
+    },
+    "task-1774187277420-7dnet3": {
+      "taskId": "task-1774187277420-7dnet3",
+      "type": "feature",
+      "description": "Phase 3: Wire UserId into analytics (ConsentAggregate + grantConsent), usage (service + repo), session (SessionId class VO)",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "wire-analytics",
+        "wire-usage",
+        "wire-session"
+      ],
+      "tags": [
+        "ddd",
+        "identity",
+        "phase3",
+        "wiring"
+      ],
+      "createdAt": "2026-03-22T13:47:57.420Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774188140268-k9zc5p": {
+      "taskId": "task-1774188140268-k9zc5p",
+      "type": "refactor",
+      "description": "Phase 4: Eliminate all throw new Error from domain layer — command (9 throws), workspace (5 throws), agent+usage (17 throws), session+mcp (8 throws). Convert to Result<T> pattern. Zero throws in domain types.ts files when done.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "fix-command",
+        "fix-workspace",
+        "fix-agent-usage",
+        "fix-session-mcp"
+      ],
+      "tags": [
+        "ddd",
+        "phase4",
+        "throw-elimination",
+        "value-objects"
+      ],
+      "createdAt": "2026-03-22T14:02:20.268Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774189453946-pa4i94": {
+      "taskId": "task-1774189453946-pa4i94",
+      "type": "refactor",
+      "description": "Phase 5: Eliminate all throws from ruflo aggregate layer. installation.aggregate.ts (4 throws: markInstalled/activateMcp/changeBackend) and swarm.aggregate.ts (7 throws: create/addAgent/removeAgent). All methods return Result<T>. Update callers in ruflo-application.service.ts and tests.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "fix-ruflo-aggregates"
+      ],
+      "tags": [
+        "ddd",
+        "phase5",
+        "ruflo",
+        "throw-elimination"
+      ],
+      "createdAt": "2026-03-22T14:24:13.946Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774191469943-xkx635": {
+      "taskId": "task-1774191469943-xkx635",
+      "type": "refactor",
+      "description": "AgentId → class VO in src/domain/agent/types.ts",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-agent"
+      ],
+      "tags": [
+        "ddd",
+        "value-objects",
+        "agent"
+      ],
+      "createdAt": "2026-03-22T14:57:49.943Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774191471014-jvfauj": {
+      "taskId": "task-1774191471014-jvfauj",
+      "type": "refactor",
+      "description": "TabId + WorkspaceId → class VOs in src/domain/workspace/types.ts",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-workspace"
+      ],
+      "tags": [
+        "ddd",
+        "value-objects",
+        "workspace"
+      ],
+      "createdAt": "2026-03-22T14:57:51.014Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774191472212-dv7lb7": {
+      "taskId": "task-1774191472212-dv7lb7",
+      "type": "refactor",
+      "description": "LedgerId + SessionId + ProjectId → class VOs in src/domain/usage/types.ts",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-usage"
+      ],
+      "tags": [
+        "ddd",
+        "value-objects",
+        "usage"
+      ],
+      "createdAt": "2026-03-22T14:57:52.213Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774191473744-7wtfw7": {
+      "taskId": "task-1774191473744-7wtfw7",
+      "type": "refactor",
+      "description": "AnalyticsSessionId + ConsentId → class VOs in src/domain/analytics/types.ts",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-analytics"
+      ],
+      "tags": [
+        "ddd",
+        "value-objects",
+        "analytics"
+      ],
+      "createdAt": "2026-03-22T14:57:53.744Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774191474726-jq5zfr": {
+      "taskId": "task-1774191474726-jq5zfr",
+      "type": "refactor",
+      "description": "ServerId → class VO in mcp/types.ts; SessionId + ProjectId → class VOs in session/types.ts",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-mcp-session"
+      ],
+      "tags": [
+        "ddd",
+        "value-objects",
+        "mcp",
+        "session"
+      ],
+      "createdAt": "2026-03-22T14:57:54.726Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774192668411-ntxawt": {
+      "taskId": "task-1774192668411-ntxawt",
+      "type": "refactor",
+      "description": "Convert ProjectId branded string → class VO in src/domain/project/types.ts",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-project"
+      ],
+      "tags": [
+        "ddd",
+        "value-objects",
+        "project"
+      ],
+      "createdAt": "2026-03-22T15:17:48.411Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774192669466-gufg5q": {
+      "taskId": "task-1774192669466-gufg5q",
+      "type": "refactor",
+      "description": "Consolidate shared/project-id.ts as re-export; fix analytics/ and workspace/ callers",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-shared"
+      ],
+      "tags": [
+        "ddd",
+        "value-objects",
+        "shared",
+        "analytics",
+        "workspace"
+      ],
+      "createdAt": "2026-03-22T15:17:49.466Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774203858991-6ls9hc": {
+      "taskId": "task-1774203858991-6ls9hc",
+      "type": "refactor",
+      "description": "Add UserProfileAggregate.fromSnapshot(raw: UserProfileSnapshot): Result<UserProfileAggregate> to src/domain/identity/aggregate.ts. Add round-trip tests to identity.test.ts. Follow ADR-001 pattern: validate each field via VO factories, propagate Result errors, reconstruct deleted state from snapshot.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-identity"
+      ],
+      "tags": [
+        "identity",
+        "ddd",
+        "fromSnapshot",
+        "task-005"
+      ],
+      "createdAt": "2026-03-22T18:24:18.991Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774203861854-6ytbh4": {
+      "taskId": "task-1774203861854-6ytbh4",
+      "type": "research",
+      "description": "Full security and CVE audit: OWASP Top 10, npm audit, secrets scan, Tauri capability scope, domain boundary injection, path traversal. Output severity-ranked findings to logs/security-audit-2026-03-22.md",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "security-reviewer"
+      ],
+      "tags": [
+        "security",
+        "cve",
+        "audit",
+        "owasp"
+      ],
+      "createdAt": "2026-03-22T18:24:21.854Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774204708723-3yzko6": {
+      "taskId": "task-1774204708723-3yzko6",
+      "type": "bugfix",
+      "description": "Fix H2: add canonicalize() + HOME prefix check in find_claude_md_files. Fix H3: replace allow_headers(Any) with explicit allowlist. Fix L1: mutex unwrap. Fix L2: components.last() unwrap.",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "rust-security"
+      ],
+      "tags": [
+        "security",
+        "rust",
+        "high"
+      ],
+      "createdAt": "2026-03-22T18:38:28.723Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774204710278-1oi35g": {
+      "taskId": "task-1774204710278-1oi35g",
+      "type": "bugfix",
+      "description": "Fix H1: remove unsafe-eval from CSP in tauri.conf.json. Fix M2: validate Shiki lang param against allowlist before loadLanguage().",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "ts-security"
+      ],
+      "tags": [
+        "security",
+        "typescript",
+        "csp",
+        "high"
+      ],
+      "createdAt": "2026-03-22T18:38:30.278Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774205218949-vc19y5": {
+      "taskId": "task-1774205218949-vc19y5",
+      "type": "refactor",
+      "description": "Remove @deprecated bridge functions from agent, workspace, usage domains. Update all callers to use class VO factories directly. Ensure build and tests pass.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-bridges-a"
+      ],
+      "tags": [
+        "deprecated",
+        "bridges",
+        "ddd",
+        "task-007"
+      ],
+      "createdAt": "2026-03-22T18:46:58.949Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774205221452-cw7ins": {
+      "taskId": "task-1774205221452-cw7ins",
+      "type": "refactor",
+      "description": "Remove @deprecated bridge functions from analytics, mcp, project, session domains. Update all callers. SessionIdVO alias removal included.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-bridges-b"
+      ],
+      "tags": [
+        "deprecated",
+        "bridges",
+        "ddd",
+        "task-007"
+      ],
+      "createdAt": "2026-03-22T18:47:01.452Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774205952627-a4b8kq": {
+      "taskId": "task-1774205952627-a4b8kq",
+      "type": "refactor",
+      "description": "Convert ruflo/types.ts AgentId and SwarmId from unique-symbol branded strings to class VOs per ADR-001. Remove toAgentId() and toSwarmId() bridges. Update all callers in ruflo domain (aggregates, service, store, tests).",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-ruflo"
+      ],
+      "tags": [
+        "ruflo",
+        "branded",
+        "vo",
+        "task-008"
+      ],
+      "createdAt": "2026-03-22T18:59:12.627Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774205954164-5xts6d": {
+      "taskId": "task-1774205954164-5xts6d",
+      "type": "refactor",
+      "description": "Fix 8 cross-domain imports to use barrel index instead of internals. Add CommandId.generate() to command/types.ts.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-imports"
+      ],
+      "tags": [
+        "imports",
+        "barrel",
+        "task-008"
+      ],
+      "createdAt": "2026-03-22T18:59:14.164Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774206447802-8ek86r": {
+      "taskId": "task-1774206447802-8ek86r",
+      "type": "research",
+      "description": "Team Alpha-1: Analyze quantization.ts (1200 lines) and ruflo/quantization.ts (467 lines) for Rust SIMD/ndarray migration potential",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "alpha-quantization"
+      ],
+      "tags": [
+        "rust",
+        "migration",
+        "quantization",
+        "performance"
+      ],
+      "createdAt": "2026-03-22T19:07:27.802Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774206449294-47dg8s": {
+      "taskId": "task-1774206449294-47dg8s",
+      "type": "research",
+      "description": "Team Alpha-2: Analyze api.ts (2054 lines) and apiAdapter.ts (826 lines) for Rust reqwest/axum migration potential",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "alpha-api"
+      ],
+      "tags": [
+        "rust",
+        "migration",
+        "api",
+        "http"
+      ],
+      "createdAt": "2026-03-22T19:07:29.294Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774206450816-misn2f": {
+      "taskId": "task-1774206450816-misn2f",
+      "type": "research",
+      "description": "Team Alpha-3: Analyze storage (rusqlite usage), usage/service.ts, analytics infrastructure for Rust migration",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "alpha-storage"
+      ],
+      "tags": [
+        "rust",
+        "migration",
+        "storage",
+        "analytics"
+      ],
+      "createdAt": "2026-03-22T19:07:30.816Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774206452323-7qgp5a": {
+      "taskId": "task-1774206452323-7qgp5a",
+      "type": "research",
+      "description": "Team Beta: Design CLI tooling — argh vs clap tradeoffs, binary separation strategy, cross-platform build matrix",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "beta-cli"
+      ],
+      "tags": [
+        "cli",
+        "argh",
+        "clap",
+        "cross-platform"
+      ],
+      "createdAt": "2026-03-22T19:07:32.323Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774206454228-w5o8oz": {
+      "taskId": "task-1774206454228-w5o8oz",
+      "type": "research",
+      "description": "Team Gamma: Full audit of existing Rust code — web_server.rs (2869 lines), claude_binary.rs, commands/, checkpoint/, process/ — quality, panic risks, expansion opportunities",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "gamma-rust-audit"
+      ],
+      "tags": [
+        "rust",
+        "audit",
+        "quality",
+        "reliability"
+      ],
+      "createdAt": "2026-03-22T19:07:34.228Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774225539492-eynoov": {
+      "taskId": "task-1774225539492-eynoov",
+      "type": "research",
+      "description": "Deep security audit: OWASP Top 10, dependency CVEs, Tauri capability scope, path traversal, injection surfaces, secrets scan",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "sec-auditor"
+      ],
+      "tags": [
+        "security",
+        "cve",
+        "owasp"
+      ],
+      "createdAt": "2026-03-23T00:25:39.492Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774225541500-nyklft": {
+      "taskId": "task-1774225541500-nyklft",
+      "type": "refactor",
+      "description": "Round 1-3: Process registry memory leak + dead code elimination in Rust (ruflo events, CLI cache, checkpoint manager dead methods)",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-rust"
+      ],
+      "tags": [
+        "rust",
+        "memory-leak",
+        "dead-code"
+      ],
+      "createdAt": "2026-03-23T00:25:41.500Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774225543405-si3pox": {
+      "taskId": "task-1774225543405-si3pox",
+      "type": "refactor",
+      "description": "Round 4-6: TypeScript stale closures, useEffect dependency arrays, dangerouslySetInnerHTML Shiki review, DDD remaining violations",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-ts"
+      ],
+      "tags": [
+        "typescript",
+        "react",
+        "ddd"
+      ],
+      "createdAt": "2026-03-23T00:25:43.405Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774225544870-ur6uyg": {
+      "taskId": "task-1774225544870-ur6uyg",
+      "type": "refactor",
+      "description": "Round 7-10: Performance, bundle size, type safety hardening, remaining audit findings from previous rounds",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-rust",
+        "coder-ts"
+      ],
+      "tags": [
+        "performance",
+        "type-safety",
+        "hardening"
+      ],
+      "createdAt": "2026-03-23T00:25:44.870Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774225611913-ofnt2a": {
+      "taskId": "task-1774225611913-ofnt2a",
+      "type": "research",
+      "description": "Dependency CVE audit: npm audit + cargo audit across all packages",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "auditor-deps"
+      ],
+      "tags": [
+        "cve",
+        "dependencies",
+        "security"
+      ],
+      "createdAt": "2026-03-23T00:26:51.913Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774225615250-xz0qxe": {
+      "taskId": "task-1774225615250-xz0qxe",
+      "type": "research",
+      "description": "IPC/capability audit: Tauri commands, permissions, SQL hardening, shell injection",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "auditor-ipc"
+      ],
+      "tags": [
+        "ipc",
+        "tauri",
+        "sql",
+        "shell"
+      ],
+      "createdAt": "2026-03-23T00:26:55.250Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774225619226-n89fze": {
+      "taskId": "task-1774225619226-n89fze",
+      "type": "research",
+      "description": "Frontend security: XSS vectors, PostHog PII, secrets in source, dangerouslySetInnerHTML",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "auditor-frontend"
+      ],
+      "tags": [
+        "xss",
+        "pii",
+        "posthog",
+        "secrets"
+      ],
+      "createdAt": "2026-03-23T00:26:59.226Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774226625347-capub7": {
+      "taskId": "task-1774226625347-capub7",
+      "type": "research",
+      "description": "Security audit v4: fresh CVE scan, new IPC surface review, capability audit, path validation completeness check",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "sec-v2"
+      ],
+      "tags": [
+        "security",
+        "cve",
+        "ipc"
+      ],
+      "createdAt": "2026-03-23T00:43:45.347Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774226627466-1siesy": {
+      "taskId": "task-1774226627466-1siesy",
+      "type": "refactor",
+      "description": "Rust rounds 1-5: hardening pass, file splitting, todo!/unimplemented! sweep, SQL parameterization audit, sysinfo debounce",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-rust-v2"
+      ],
+      "tags": [
+        "rust",
+        "hardening",
+        "performance"
+      ],
+      "createdAt": "2026-03-23T00:43:47.466Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774226629044-sryytc": {
+      "taskId": "task-1774226629044-sryytc",
+      "type": "refactor",
+      "description": "TS rounds 1-5: stale closures, barrel violations, Zustand audit, as-any sweep, bundle lazy-load",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-ts-v2"
+      ],
+      "tags": [
+        "typescript",
+        "react",
+        "ddd",
+        "bundle"
+      ],
+      "createdAt": "2026-03-23T00:43:49.044Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774229938870-mx9v8c": {
+      "taskId": "task-1774229938870-mx9v8c",
+      "type": "bugfix",
+      "description": "10 rounds of startup crash audit+fix: file logging, panic hook, WebView2 check, cross-platform hardening, installer config",
+      "priority": "critical",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-startup",
+        "coder-platform"
+      ],
+      "tags": [
+        "windows",
+        "startup",
+        "crash",
+        "logging"
+      ],
+      "createdAt": "2026-03-23T01:38:58.870Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774311428362-pldkwh": {
+      "taskId": "task-1774311428362-pldkwh",
+      "type": "refactor",
+      "description": "Fix cross-context domain imports: workspace→shared/session-id, analytics→shared/user-id, usage→shared/user-id; export SessionId+UserId from shared/index.ts; add Agents.tsx infra adapter; ADR-001 codec clause",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-domain"
+      ],
+      "tags": [
+        "ddd",
+        "architecture",
+        "domain"
+      ],
+      "createdAt": "2026-03-24T00:17:08.362Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1774311431892-s41j43": {
+      "taskId": "task-1774311431892-s41j43",
+      "type": "feature",
+      "description": "HTTP startup-secret middleware (all routes except /api/health) + WS Origin validation in web_server.rs; Tauri command get_startup_token",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [
+        "coder-rust-sec"
+      ],
+      "tags": [
+        "security",
+        "rust",
+        "http",
+        "websocket"
+      ],
+      "createdAt": "2026-03-24T00:17:11.892Z",
+      "startedAt": null,
+      "completedAt": null
+    }
+  },
+  "version": "3.0.0"
+}

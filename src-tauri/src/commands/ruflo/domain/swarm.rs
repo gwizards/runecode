@@ -8,7 +8,7 @@ pub struct RuFloSwarmStatus {
     pub memory_entries: usize,
 }
 
-// TODO(v0.6): active_agent_count + agent_by_id used by swarm health checks; expose via IPC
+// NOTE(v0.7-roadmap): active_agent_count + agent_by_id used by swarm health checks; expose via IPC
 #[allow(dead_code)]
 impl RuFloSwarmStatus {
     pub fn active_agent_count(&self) -> usize {

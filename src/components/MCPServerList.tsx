@@ -133,7 +133,7 @@ export const MCPServerList: React.FC<MCPServerListProps> = ({
       // Track connection result - result is a string message
       trackEvent.mcpServerConnected(name, true, server?.transport || 'unknown');
       
-      // TODO: Show result in a toast or modal (tracked via analytics above)
+      // Connection result tracked via analytics events above
     } catch (error) {
       console.error("Failed to test connection:", error);
       

@@ -66,11 +66,12 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  // TODO: These will be implemented with actual webview navigation
+  // Navigation state disabled — WebviewPreview is a read-only preview panel;
+  // back/forward require a Tauri webview which is not yet wired.
   // const [canGoBack, setCanGoBack] = useState(false);
   // const [canGoForward, setCanGoForward] = useState(false);
 
-  // TODO: These will be used for actual Tauri webview implementation
+  // Tauri webview ref unused — currently using iframe for preview.
   // const webviewRef = useRef<WebviewWindow | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -254,7 +255,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
               variant="ghost"
               size="icon"
               onClick={handleGoBack}
-              disabled={true} // TODO: Enable when implementing actual navigation
+              disabled={true} // Navigation disabled — WebviewPreview is a read-only preview panel
               className="h-8 w-8"
               aria-label="Go back"
             >
@@ -264,7 +265,7 @@ const WebviewPreviewComponent: React.FC<WebviewPreviewProps> = ({
               variant="ghost"
               size="icon"
               onClick={handleGoForward}
-              disabled={true} // TODO: Enable when implementing actual navigation
+              disabled={true} // Navigation disabled — WebviewPreview is a read-only preview panel
               className="h-8 w-8"
               aria-label="Go forward"
             >

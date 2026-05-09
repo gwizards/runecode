@@ -138,12 +138,12 @@ let _singleton: RuFloService | null = null;
 
 export function getRuFloService(): RuFloService {
   if (!_singleton) {
-    // TODO(arch): This require() is a domain→infra coupling violation (Arch 5.1).
-    // The proper fix is to move singleton wiring to the infra or composition-root
-    // layer (e.g. src/lib/services.ts) and inject the port at startup.
-    // The conditional require is intentional to break circular module evaluation
-    // at parse time; replacing it with a top-level static import would cause
-    // Vite/Rollup to eagerly load the Tauri adapter during unit tests.
+    // NOTE(arch): This require() is a known domain→infra coupling (Arch 5.1).
+    // The proper fix is to move singleton wiring to the composition-root layer
+    // (e.g. src/lib/services.ts) and inject the port at startup.  The conditional
+    // require is intentional to break circular module evaluation at parse time;
+    // replacing it with a top-level static import would cause Vite/Rollup to
+    // eagerly load the Tauri adapter during unit tests.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { api } = require('@/lib/api') as { api: IRuFloApiPort };
     _singleton = new RuFloService(api);

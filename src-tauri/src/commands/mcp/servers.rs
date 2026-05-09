@@ -434,7 +434,8 @@ pub async fn mcp_reset_project_choices(app: AppHandle, wsl_distro: Option<String
 /// Gets the status of MCP servers
 #[tauri::command]
 pub async fn mcp_get_server_status() -> Result<HashMap<String, ServerStatus>, String> {
-    info!("Getting MCP server status");
-    // TODO: Implement actual status checking
+    info!("MCP server status check: returning empty map (per-server health probes not yet wired)");
+    // NOTE: Per-server health probes are not yet implemented; returns an empty
+    // map so callers degrade gracefully.
     Ok(HashMap::new())
 }

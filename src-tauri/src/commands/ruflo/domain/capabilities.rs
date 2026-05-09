@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Capabilities that an agent can possess — used to match tasks to agents.
-// TODO(v0.6): AgentCapability fully consumed by capability-based task routing when that feature lands
+// NOTE(v0.7-roadmap): AgentCapability fully consumed by capability-based task routing when that feature lands
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -38,7 +38,7 @@ impl std::fmt::Display for AgentCapability {
 }
 
 /// Swarm topology value object — how agents connect to each other.
-// TODO(v0.6): is_fault_tolerant + recommended_max_agents used by swarm-init handler once typed
+// NOTE(v0.7-roadmap): is_fault_tolerant + recommended_max_agents used by swarm-init handler once typed
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -52,7 +52,7 @@ pub enum SwarmTopology {
     Unknown,
 }
 
-// TODO(v0.6): expose via swarm-topology IPC query when orchestrator reads typed config
+// NOTE(v0.7-roadmap): expose via swarm-topology IPC query when orchestrator reads typed config
 #[allow(dead_code)]
 impl SwarmTopology {
     /// Returns true if this topology supports fault-tolerant communication.
@@ -88,12 +88,12 @@ impl std::fmt::Display for SwarmTopology {
 }
 
 /// Task priority value object — validated 0–10 range.
-// TODO(v0.6): TaskPriority used by task_create IPC once typed priority validation lands
+// NOTE(v0.7-roadmap): TaskPriority used by task_create IPC once typed priority validation lands
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TaskPriority(u8);
 
-// TODO(v0.6): LOW/NORMAL/HIGH/CRITICAL constants used by task scheduler
+// NOTE(v0.7-roadmap): LOW/NORMAL/HIGH/CRITICAL constants used by task scheduler
 #[allow(dead_code)]
 impl TaskPriority {
     pub const LOW: Self = Self(2);

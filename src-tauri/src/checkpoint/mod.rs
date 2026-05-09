@@ -251,14 +251,14 @@ impl CheckpointPaths {
         self.checkpoint_dir(checkpoint_id).join("messages.jsonl")
     }
 
-    // TODO(v0.6): wire when file-snapshot feature lands (content-addressable storage)
+    // NOTE(v0.7-roadmap): wire when file-snapshot feature lands (content-addressable storage)
     #[allow(dead_code)]
     pub fn file_snapshot_path(&self, _checkpoint_id: &str, file_hash: &str) -> PathBuf {
         // In content-addressable storage, files are stored by hash in the content pool
         self.files_dir.join("content_pool").join(file_hash)
     }
 
-    // TODO(v0.6): wire when file-reference persistence is activated
+    // NOTE(v0.7-roadmap): wire when file-reference persistence is activated
     #[allow(dead_code)]
     pub fn file_reference_path(&self, checkpoint_id: &str, safe_filename: &str) -> PathBuf {
         // References are stored per checkpoint

@@ -147,11 +147,31 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
   };
 
   /**
-   * Handles exporting servers (placeholder)
+   * Exports all configured MCP servers as a JSON file download.
    */
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    onError("Export functionality coming soon!");
+  const handleExport = async () => {
+    try {
+      const servers = await api.mcpList();
+      const exportData: Record<string, { command?: string; args?: string[]; env?: Record<string, string> }> = {};
+      for (const server of servers) {
+        exportData[server.name] = {
+          command: server.command,
+          args: server.args ?? [],
+          env: server.env ?? {},
+        };
+      }
+      const json = JSON.stringify({ mcpServers: exportData }, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mcp-servers.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export MCP servers:', error);
+      onError('Failed to export MCP server configuration');
+    }
   };
 
   /**
@@ -278,28 +298,27 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
           </div>
         </Card>
 
-        {/* Export (Coming Soon) */}
-        <Card className="p-4 opacity-60">
+        {/* Export Configuration */}
+        <Card className="p-4 hover:bg-accent/5 transition-colors">
           <div className="space-y-3">
             <div className="flex items-start gap-3">
-              <div className="p-2.5 bg-muted rounded-lg">
-                <Upload className="h-5 w-5 text-muted-foreground" />
+              <div className="p-2.5 bg-emerald-500/10 rounded-lg">
+                <Upload className="h-5 w-5 text-emerald-500" />
               </div>
               <div className="flex-1">
                 <h4 className="text-sm font-medium">Export Configuration</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Export your MCP server configuration
+                  Export your MCP server configuration as a JSON file
                 </p>
               </div>
             </div>
             <Button
               onClick={handleExport}
-              disabled={true}
-              variant="secondary"
+              variant="outline"
               className="w-full gap-2"
             >
               <Upload className="h-4 w-4" />
-              Export (Coming Soon)
+              Export as JSON
             </Button>
           </div>
         </Card>

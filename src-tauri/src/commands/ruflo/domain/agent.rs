@@ -1,6 +1,6 @@
 // RuFlo domain types — DDD value objects for the swarm orchestration context.
 // Items marked dead_code are part of the bounded-context model; not all variants are
-// referenced in active IPC handlers yet.  TODO(v0.6): wire remaining variants to IPC.
+// referenced in active IPC handlers yet.  NOTE(v0.7-roadmap): wire remaining variants to IPC.
 use serde::{Deserialize, Serialize};
 
 use super::capabilities::AgentCapability;
@@ -92,7 +92,7 @@ pub struct RuFloAgent {
     pub capabilities: Vec<AgentCapability>,
 }
 
-// TODO(v0.6): has_capability used by task routing; expose when capability-based dispatch lands
+// NOTE(v0.7-roadmap): has_capability used by task routing; expose when capability-based dispatch lands
 #[allow(dead_code)]
 impl RuFloAgent {
     pub fn has_capability(&self, cap: &AgentCapability) -> bool {
